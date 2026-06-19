@@ -1,4 +1,4 @@
-region,region1,season,year,TranLimit
+source_region,destination_region,season,year,TranLimit
 1.0,17.0,1.0,2023,0.82
 1.0,17.0,1.0,2024,0.82
 1.0,17.0,1.0,2025,0.82

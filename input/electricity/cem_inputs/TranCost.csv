@@ -1,4 +1,4 @@
-region,region1,year,TranCost
+source_region,destination_region,year,TranCost
 1,1,2023,1
 1,1,2024,1
 1,1,2025,1

@@ -91,6 +91,7 @@ class PowerModel(Model):
         self.region = pyo.Set(initialize=setA.region)
         self.region_int = pyo.Set(initialize=setA.region_international, within=self.region)
         self.region_dom = pyo.Set(initialize=setA.region_domestic, within=self.region)
+        self.region_analyze = pyo.Set(initialize=elec_config.region_filter, within=self.region_dom)
 
         # technology sets
         self.tech = pyo.Set(initialize=setA.tech)
@@ -147,10 +148,10 @@ class PowerModel(Model):
         self.H2GenHour_index = pyo.Set(self.hour, initialize=setA.h2_generation_hour_index)
 
         self.GenSetDemandBalance = pyo.Set(
-            self.year, self.region_dom, self.hour, initialize=setA.generation_demand_index
+            self.year, self.region_analyze, self.hour, initialize=setA.generation_demand_index
         )
         self.StorageSetDemandBalance = pyo.Set(
-            self.year, self.region_dom, self.hour, initialize=setA.storage_demand_index
+            self.year, self.region_analyze, self.hour, initialize=setA.storage_demand_index
         )
 
         # self.declare_set('hour', setA.hour)
@@ -457,7 +458,7 @@ class PowerModel(Model):
             doc='a known fixed request from H2',
         )
         self.var_elec_request = pyo.Var(
-            self.region,
+            self.region_analyze,
             self.year,
             domain=pyo.NonNegativeReals,
             initialize=0,
@@ -484,7 +485,9 @@ class PowerModel(Model):
         # Generation, capacity, and technology variables
         self.generation_total = pyo.Var(setA.generation_index, within=pyo.NonNegativeReals)
         """tech, year, region, step, hour"""
-        self.unmet_load = pyo.Var(self.region, self.year, self.hour, within=pyo.NonNegativeReals)
+        self.unmet_load = pyo.Var(
+            self.region_analyze, self.year, self.hour, within=pyo.NonNegativeReals
+        )
         self.capacity_total = pyo.Var(setA.capacity_index, within=pyo.NonNegativeReals)
         """region, season, tech, step, year"""
         self.storage_inflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
@@ -592,6 +595,7 @@ class PowerModel(Model):
                 * self.unmet_load[(r, y, hr)]
                 * self.UnmetLoadPenalty
                 for (r, y, hr) in self.Load
+                if r in self.region_analyze
             )
 
         self.unmet_load_cost = pyo.Expression(expr=unmet_load_cost)
@@ -785,7 +789,7 @@ class PowerModel(Model):
         # )
 
         # Property: ShadowPrice
-        @self.Constraint(elec_config.region_filter, self.year, self.hour)
+        @self.Constraint(self.region_analyze, self.year, self.hour)
         def demand_balance(self, r, y, hr):
             """Demand balance constraint where Load <= Generation.
 

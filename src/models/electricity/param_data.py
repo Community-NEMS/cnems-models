@@ -119,8 +119,9 @@ class ParamData:
         # make the Load dataframe
         full_load_df = self.build_load_dataframe()
         full_load_df = self.aggregate_time(full_load_df)
+        filtered_load_df = self.filter_dataframe(full_load_df, 'region', elec_config.region_filter)
         self.param_frames['Load'] = self.apply_hourly_weights(
-            self.param_frames['WeightHour'], full_load_df
+            self.param_frames['WeightHour'], filtered_load_df
         )
 
         # Pluck out the time-based DF conversions and load them
@@ -245,3 +246,8 @@ class ParamData:
         df = df.set_index(list(df.columns[:-1]))
 
         return df
+
+    @staticmethod
+    def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
+        """Filter a dataframe by a column and a list of values"""
+        return target[target[column].isin(values)]

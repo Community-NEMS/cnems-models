@@ -25,13 +25,14 @@ from tests.model_diagnostics import (
     capacity_inspector,
     load_inspector,
     gather_var_data,
-    gather_constraint_data, gather_param_data,
+    gather_constraint_data,
+    gather_param_data,
 )
 
-# Test configurations with expected outputs:
-# Run Type                                  Total Cost         Variables    Constraints
+# Test configurations with expected ORIGINAL outputs:
+# Run Type                                  Total Cost         Variables    Constraints      Notes for new
 # ----------------------------------------  -----------------  -----------  -----------
-# Basic No-Frills                           3452103301.9            17886        19440
+# Basic No-Frills                           3452103301.9            17886        19440      constr=19632 VRE_UB fix
 # Exchange Enabled                          2278237043.0            21342        23088
 # Expansion (no learning)                   3455793875.5            18060        19566
 # Ramping Required                          3522284566.9            32862        41904
@@ -39,7 +40,7 @@ from tests.model_diagnostics import (
 # Agg Years                                 ??  Broken.  Suspect it is used in preprocessor
 
 configs = [
-    ('basic_elec_config.toml', 3452103301.9, 17886, 19440),
+    ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
     # ('exchange_elec_config.toml', 2278237043.0, 21342, 23088),
     # ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19566),
     # ('ramping_elec_config.toml', 3522284566.9, 32862, 41904),
@@ -77,6 +78,7 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
     elec_config = ElecConfig(**remainder.pop('elec_config'))
 
     elec_model = run_elec_model(common_config, elec_config, solve=True)
+    print('\n~~ Sets ~~')
     gather_set_data(elec_model)
     print('\n~~ Variables ~~')
     gather_var_data(elec_model)

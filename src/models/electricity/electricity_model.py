@@ -291,7 +291,7 @@ class PowerModel(Model):
         # load and technology parameters
         # dev note:  set a default of 0.0 for all missing values, so that we can iterate over r, y, hr confidently
         self.Load = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.year,
             self.hour,
             initialize=all_frames['Load'],
@@ -304,7 +304,7 @@ class PowerModel(Model):
         # dev note: A missing price value (sparse set) will cause fail w/o a default value here,
         #           which is OK
         self.SupplyPrice = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.season,
             self.tech,
             self.step,
@@ -316,7 +316,7 @@ class PowerModel(Model):
         # dev note: We do not supply a built index set here, so we should iterate over the
         #           param keys where needed
         self.SupplyCurve = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.season,
             self.tech,
             self.step,
@@ -329,15 +329,15 @@ class PowerModel(Model):
         self.CapFactorVRE = pyo.Param(
             self.tech_vre,
             self.year,
-            self.region,
+            self.region_analyze,
             self.step,
             self.hour,
             initialize=all_frames['cap_factor_vre'],
             within=pyo.NonNegativeReals,
-            default=0.0,
+            default=0.0,   # TODO:  Remove this hack when data is fixed.  Used now to "make it run for MIA values"
         )
         self.HydroCapFactor = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.season,
             initialize=all_dicts['hydro_cap_factor'],
             within=pyo.NonNegativeReals,
@@ -349,7 +349,7 @@ class PowerModel(Model):
             self.tech_stor, initialize=all_dicts['hours_to_buy'], within=pyo.NonNegativeReals
         )
         self.H2Price = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.season,
             self.tech_h2,
             self.step,
@@ -450,7 +450,7 @@ class PowerModel(Model):
         ##########################
         # Cross-talk from H2 model
         self.FixedElecRequest = pyo.Param(
-            self.region,
+            self.region_analyze,
             self.year,
             domain=pyo.NonNegativeReals,
             initialize=0,

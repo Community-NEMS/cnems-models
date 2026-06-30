@@ -323,6 +323,8 @@ class PowerModel(Model):
             initialize=all_frames['supply_curve'],
             within=pyo.NonNegativeReals,
         )
+        # dev note:  a default of 0.0 is supplied because the indexing set is larger than the
+        #            upper bound limit from the data
         self.CapFactorVRE = pyo.Param(
             self.tech_vre,
             self.year,
@@ -331,6 +333,7 @@ class PowerModel(Model):
             self.hour,
             initialize=all_frames['cap_factor_vre'],
             within=pyo.NonNegativeReals,
+            default=0.0,
         )
         self.HydroCapFactor = pyo.Param(
             self.region,

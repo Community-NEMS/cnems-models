@@ -785,7 +785,7 @@ class PowerModel(Model):
         # )
 
         # Property: ShadowPrice
-        @self.Constraint(self.region_dom, self.year, self.hour)
+        @self.Constraint(elec_config.region_filter, self.year, self.hour)
         def demand_balance(self, r, y, hr):
             """Demand balance constraint where Load <= Generation.
 

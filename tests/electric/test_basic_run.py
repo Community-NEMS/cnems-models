@@ -24,6 +24,7 @@ from tests.model_diagnostics import (
     gather_set_data,
     capacity_inspector,
     load_inspector,
+    gather_var_data,
 )
 
 # Test configurations with expected outputs:
@@ -76,6 +77,8 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
 
     elec_model = run_elec_model(common_config, elec_config, solve=True)
     gather_set_data(elec_model)
+    print()
+    gather_var_data(elec_model)
     print()
     breakdown_obj_elements(elec_model)
     capacity_inspector(elec_model, region='7', year=2025)

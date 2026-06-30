@@ -334,7 +334,7 @@ class PowerModel(Model):
             self.hour,
             initialize=all_frames['cap_factor_vre'],
             within=pyo.NonNegativeReals,
-            default=0.0,   # TODO:  Remove this hack when data is fixed.  Used now to "make it run for MIA values"
+            default=0.0,  # TODO:  Remove this hack when data is fixed.  Used now to "make it run for MIA values"
         )
         self.HydroCapFactor = pyo.Param(
             self.region_analyze,

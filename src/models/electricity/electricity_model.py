@@ -9,10 +9,16 @@ constraints, plus additional misc support functions.
 # Import packages
 from logging import getLogger
 import pyomo.environ as pyo
+from pandas import DataFrame
+
+from src.common.common_config import CommonConfig
 
 # Import python modules
 from src.common.model import Model
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from src.models.electricity.constants import UNMET_LOAD_PRICE, STORAGE_LEVEL_COST, H2Heatrate
+from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
+from src.models.electricity.model_sets import ModelSets
+from src.models.electricity.param_data import ParamData
 
 # move to new file
 from src.models.electricity.utilities import ElectricityMethods as em
@@ -35,12 +41,21 @@ class PowerModel(Model):
         Contains all other non-dataframe inputs
     """
 
-    def __init__(self, all_frames, setA, elec_config: ElecConfig, *args, **kwargs):
+    def __init__(
+        self,
+        setA: ModelSets,
+        param_data: ParamData,
+        elec_config: ElecConfig,
+        common_config: CommonConfig,
+        *args,
+        **kwargs,
+    ):
         Model.__init__(self, *args, **kwargs)
 
         ###########################################################################################
         # Settings
 
+        # TODO:  extract this burried constant
         self.sw_h2int = 0
 
         ###########################################################################################
@@ -48,17 +63,17 @@ class PowerModel(Model):
         # Note: the goal would be to eventually reorganize the preprocessor so that most data would
         # fit something similar to this example structure below.
 
-        def declare_set_and_param(name):
-            """declare set and parameter based on data frame name
-
-            Parameters
-            ----------
-            name : str
-                name of data frame to create into set and parameter
-            """
-            index_name = name + '_index'
-            self.declare_set(index_name, all_frames[name])
-            self.declare_param(name, getattr(self, index_name), all_frames[name])
+        # def declare_set_and_param(name):
+        #     """declare set and parameter based on data frame name
+        #
+        #     Parameters
+        #     ----------
+        #     name : str
+        #         name of data frame to create into set and parameter
+        #     """
+        #     index_name = name + '_index'
+        #     self.declare_set(index_name, all_frames[name])
+        #     self.declare_param(name, getattr(self, index_name), all_frames[name])
 
         # self.declare_set_and_param('FOMCost')
         # self.declare_set_and_param('HydroCapFactor')
@@ -67,50 +82,134 @@ class PowerModel(Model):
         # Sets
 
         # temporal sets
-        self.declare_set('hour', setA.hour)
-        self.declare_set('day', setA.day)
-        self.declare_set('season', setA.season)
-        self.declare_set('year', setA.years)
+        self.hour = pyo.Set(initialize=setA.hour)
+        self.day = pyo.Set(initialize=setA.day)
+        self.season = pyo.Set(initialize=setA.season)
+        self.year = pyo.Set(initialize=setA.year_map.values())
 
         # spatial sets
-        self.declare_set('region', setA.region)
-        self.declare_set('region_int', setA.region_int)
-        self.declare_set('region_trade', setA.region_trade)
-        self.declare_set('region_int_trade', setA.region_int_trade)
+        self.region = pyo.Set(initialize=setA.region)
+        self.region_int = pyo.Set(initialize=setA.region_international, within=self.region)
+        self.region_dom = pyo.Set(initialize=setA.region_domestic, within=self.region)
+
+        # technology sets
+        self.tech = pyo.Set(initialize=setA.tech)
+        self.tech_step = pyo.Set(initialize=setA.step)  # TODO:  come back to this
+        self.tech_conv = pyo.Set(initialize=setA.tech_conv, within=self.tech)
+        self.tech_re = pyo.Set(initialize=setA.tech_re, within=self.tech)
+        self.tech_hydro = pyo.Set(initialize=setA.tech_hydro, within=self.tech)
+        self.tech_stor = pyo.Set(initialize=setA.tech_stor, within=self.tech)
+        self.tech_vre = pyo.Set(initialize=setA.tech_vre, within=self.tech)
+        self.tech_wind = pyo.Set(initialize=setA.tech_wind, within=self.tech)
+        self.tech_solar = pyo.Set(initialize=setA.tech_solar, within=self.tech)
+        self.tech_h2 = pyo.Set(initialize=setA.tech_h2, within=self.tech)
+        self.tech_disp = pyo.Set(initialize=setA.tech_disp, within=self.tech)
+        self.tech_gen = pyo.Set(initialize=setA.tech_gen, within=self.tech)
+
+        self.buildable_tech = pyo.Set(
+            dimen=2, initialize=setA.tech_builds, within=self.tech * self.tech_step
+        )
+        self.retireable_tech = pyo.Set(
+            dimen=2, initialize=setA.tech_retires, within=self.tech * self.tech_step
+        )
+
+        self.step = pyo.Set(
+            initialize=range(1, 4)
+        )  # TODO:  Temporary until we get the plan for step squared away
+
+        # CONSTRAINT INDEXING SETS
+        self.storage_most_hours_balance_index = pyo.Set(
+            initialize=setA.storage_most_hours_balance_index
+        )
+        self.storage_first_hour_balance_index = pyo.Set(
+            initialize=setA.storage_first_hour_balance_index
+        )
+        self.ramp_most_hours_balance_index = pyo.Set(initialize=setA.ramp_most_hours_balance_index)
+        self.ramp_first_hour_balance_index = pyo.Set(initialize=setA.ramp_first_hour_balance_index)
+        self.generation_hydro_ub_index = pyo.Set(initialize=setA.generation_hydro_ub_index)
+        self.generation_dispatchable_ub_index = pyo.Set(
+            initialize=setA.generation_dispatchable_up_index
+        )
+        self.generation_ramp_index = pyo.Set(initialize=setA.generation_ramp_index)
+        self.capacity_hydro_ub_index = pyo.Set(initialize=setA.capacity_hydro_ub_index)
+        self.reserves_procurement_index = pyo.Set(initialize=setA.reserves_procurement_index)
+        self.generation_vre_ub_index = pyo.Set(initialize=setA.generation_vre_ub_index)
+        ################# Indexed sets
+
+        # make an indexed set of storage (tech, year, region, step) indexed by hour
+        self.StorageHour_index = pyo.Set(self.hour, initialize=setA.storage_hour_index)
+        # self.StorageHour_index.pprint()
+
+        # Generation-eligible hours
+        self.GenHour_index = pyo.Set(self.hour, initialize=setA.generation_hour_index)
+
+        # Generation-eligible hours for H2 technologies
+        self.H2GenHour_index = pyo.Set(self.hour, initialize=setA.h2_generation_hour_index)
+
+        self.GenSetDemandBalance = pyo.Set(
+            self.year, self.region_dom, self.hour, initialize=setA.generation_demand_index
+        )
+        self.StorageSetDemandBalance = pyo.Set(
+            self.year, self.region_dom, self.hour, initialize=setA.storage_demand_index
+        )
+
+        # self.declare_set('hour', setA.hour)
+        # self.declare_set('day', setA.day)
+        # self.declare_set('season', setA.season)
+        # self.declare_set('year', setA.year_map.values())  # values are the "mapped/onto" years
+
+        # spatial sets
+        # self.declare_set('region', elec_config.region_filter)
+        # self.declare_set('region_int', setA.region_int)
+        # self.declare_set('region_trade', setA.region_trade)
+        # self.declare_set('region_int_trade', setA.region_int_trade)
 
         # Load sets
-        self.declare_set('demand_balance_index', all_frames['Load'])
-        self.declare_set_with_sets('unmet_load_index', self.region, self.year, self.hour)
+        # TODO:  Why is this needed?  If we are just enforcing at points where there is a Load,
+        #        then, we can just use the Load parameter index
+        # self.declare_set('demand_balance_index', all_frames['Load'])
+        # TODO:  This should not be needed either.  It follows from above, that we can only have
+        #        unmet load where there is Load, so the same Load parameter index should suffice
+        # self.declare_set_with_sets('unmet_load_index', self.region, self.year, self.hour)
 
         # Supply price and quantity sets and subsets
-        self.declare_set('capacity_total_index', all_frames['SupplyCurve'])
-        self.declare_set('generation_total_index', setA.generation_total_index)
-        self.declare_set('generation_dispatchable_ub_index', setA.generation_dispatchable_ub_index)
-        self.declare_set('Storage_index', setA.Storage_index)
-        self.declare_set('H2Gen_index', setA.H2Gen_index)
-        self.declare_set('generation_hydro_ub_index', setA.generation_hydro_ub_index)
-        self.declare_set('ramp_most_hours_balance_index', setA.ramp_most_hours_balance_index)
-        self.declare_set('ramp_first_hour_balance_index', setA.ramp_first_hour_balance_index)
-        self.declare_set('storage_most_hours_balance_index', setA.storage_most_hours_balance_index)
-        self.declare_set('storage_first_hour_balance_index', setA.storage_first_hour_balance_index)
-        self.declare_set('capacity_hydro_ub_index', setA.capacity_hydro_ub_index)
+        # self.declare_set('capacity_total_index', all_frames['SupplyCurve'])
+        # self.declare_set('generation_total_index', setA.generation_total_index)
+        # self.declare_set('generation_dispatchable_ub_index', setA.generation_dispatchable_ub_index)
+        # self.declare_set('Storage_index', setA.Storage_index)
+        # self.declare_set('H2Gen_index', setA.H2Gen_index)
+        # self.declare_set('generation_hydro_ub_index', setA.generation_hydro_ub_index)
+
+        # TODO:  Verify:  these ramp/stoarge 23 + 1 requirements probably do NOT need index sets.
+        #        They are defined succinctly by the parameter itself
+        # self.declare_set('ramp_most_hours_balance_index', setA.ramp_most_hours_balance_index)
+        # self.declare_set('ramp_first_hour_balance_index', setA.ramp_first_hour_balance_index)
+        # self.declare_set('storage_most_hours_balance_index', setA.storage_most_hours_balance_index)
+        # self.declare_set('storage_first_hour_balance_index', setA.storage_first_hour_balance_index)
+
+        # TODO:  This also should be just the param index values
+        # self.declare_set('capacity_hydro_ub_index', setA.capacity_hydro_ub_index)
 
         # Other technology sets
-        self.declare_set('HydroCapFactor_index', all_frames['HydroCapFactor'])
-        self.declare_set('generation_vre_ub_index', all_frames['CapFactorVRE'])
-        self.declare_set('H2Price_index', all_frames['H2Price'])
+        # TODO:  These should also just be the defined param index
+        # self.declare_set('HydroCapFactor_index', all_frames['HydroCapFactor'])
+        # self.declare_set('generation_vre_ub_index', all_frames['CapFactorVRE'])
+        # self.declare_set('H2Price_index', all_frames['H2Price'])
 
-        for tss in setA.tech_subset_names:
-            # create the technology subsets based on the tech_subsets input
-            self.declare_set(tss, getattr(setA, tss))
+        # These are now broken out in the ModelSets class:
+
+        # for tss in setA.tech_subset_names:
+        #     # create the technology subsets based on the tech_subsets input
+        #     self.declare_set(tss, getattr(setA, tss))
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            self.declare_set('capacity_builds_index', all_frames['CapCost'])
-            self.declare_set('FOMCost_index', all_frames['FOMCost'])
-            self.declare_set('Build_index', setA.Build_index)
-            self.declare_set('CapacityCredit_index', all_frames['CapacityCredit'])
-            self.declare_set('capacity_retirements_index', setA.capacity_retirements_index)
+            pass
+            # self.declare_set('capacity_builds_index', all_frames['CapCost'])
+            # self.declare_set('FOMCost_index', all_frames['FOMCost'])
+            # self.declare_set('Build_index', setA.Build_index)
+            # self.declare_set('CapacityCredit_index', all_frames['CapacityCredit'])
+            # self.declare_set('capacity_retirements_index', setA.capacity_retirements_index)
 
         # if capacity expansion and learning are on
         # this block of code demonstrates the application of the switch option,
@@ -119,72 +218,160 @@ class PowerModel(Model):
             ExpansionLearningType.LINEAR,
             ExpansionLearningType.NONLINEAR,
         }:
-            self.declare_set(
-                'LearningRate_index',
-                all_frames['LearningRate'],
-                switch=elec_config.capacity_expansion,
-            )
-            self.declare_set(
-                'CapCostInitial_index',
-                all_frames['CapCostInitial'],
-                switch=elec_config.capacity_expansion,
-            )
-            self.declare_set(
-                'SupplyCurveLearning_index',
-                all_frames['SupplyCurveLearning'],
-                switch=elec_config.capacity_expansion,
-            )
+            pass
+            # self.declare_set(
+            #     'LearningRate_index',
+            #     all_frames['LearningRate'],
+            #     switch=elec_config.capacity_expansion,
+            # )
+            # self.declare_set(
+            #     'CapCostInitial_index',
+            #     all_frames['CapCostInitial'],
+            #     switch=elec_config.capacity_expansion,
+            # )
+            # self.declare_set(
+            #     'SupplyCurveLearning_index',
+            #     all_frames['SupplyCurveLearning'],
+            #     switch=elec_config.capacity_expansion,
+            # )
 
         # if trade operation is on
-        if elec_config.regional_exchange:
-            self.declare_set('TranCost_index', all_frames['TranCost'])
-            self.declare_set('TranLimit_index', all_frames['TranLimit'])
-            self.declare_set('trade_interregional_index', setA.trade_interregional_index)
-            self.declare_set('TranCostInt_index', all_frames['TranCostInt'])
-            self.declare_set('TranLimitInt_index', all_frames['TranLimitGenInt'])
-            self.declare_set('trade_interational_index', setA.trade_interational_index)
-            self.declare_set('TranLineLimitInt_index', all_frames['TranLimitCapInt'])
-
-        # if ramping requirements are on
-        if elec_config.ramping_required:
-            self.declare_set('RampUpCost_index', all_frames['RampUpCost'])
-            self.declare_set('RampRate_index', all_frames['RampRate'])
-            self.declare_set('generation_ramp_index', setA.generation_ramp_index)
-
-        # if operating reserve requirements are on
-        if elec_config.spinning_reserve_required:
-            self.declare_set('restypes', setA.restypes)
-            self.declare_set('reserves_procurement_index', setA.reserves_procurement_index)
-            self.declare_set('RegReservesCost_index', all_frames['RegReservesCost'])
-            self.declare_set('ResTechUpperBound_index', all_frames['ResTechUpperBound'])
+        # if elec_config.regional_exchange:
+        #     self.declare_set('TranCost_index', all_frames['TranCost'])
+        #     self.declare_set('TranLimit_index', all_frames['TranLimit'])
+        #     self.declare_set('trade_interregional_index', setA.trade_interregional_index)
+        #     self.declare_set('TranCostInt_index', all_frames['TranCostInt'])
+        #     self.declare_set('TranLimitInt_index', all_frames['TranLimitGenInt'])
+        #     self.declare_set('trade_interational_index', setA.trade_interational_index)
+        #     self.declare_set('TranLineLimitInt_index', all_frames['TranLimitCapInt'])
+        #
+        # # if ramping requirements are on
+        # if elec_config.ramping_required:
+        #     self.declare_set('RampUpCost_index', all_frames['RampUpCost'])
+        #     self.declare_set('RampRate_index', all_frames['RampRate'])
+        #     self.declare_set('generation_ramp_index', setA.generation_ramp_index)
+        #
+        # # if operating reserve requirements are on
+        # if elec_config.spinning_reserve_required:
+        #     self.declare_set('restypes', setA.restypes)
+        #     self.declare_set('reserves_procurement_index', setA.reserves_procurement_index)
+        #     self.declare_set('RegReservesCost_index', all_frames['RegReservesCost'])
+        #     self.declare_set('ResTechUpperBound_index', all_frames['ResTechUpperBound'])
 
         ###########################################################################################
         # Parameters
 
+        # convenience renamings to get the dataframe/dict piece from the param data:
+        all_frames = param_data.param_frames
+        all_dicts = param_data.param_dicts
+
         # temporal parameters
-        self.declare_param('y0', None, setA.start_year)
-        self.declare_param('num_hr_day', None, setA.num_hr_day)
-        self.declare_param('MapHourSeason', self.hour, all_frames['MapHourSeason'])
-        self.declare_param('MapHourDay', self.hour, all_frames['MapHourDay']['day'])
-        self.declare_param('WeightYear', self.year, all_frames['WeightYear'])
-        self.declare_param('WeightHour', self.hour, all_frames['WeightHour']['WeightHour'])
-        self.declare_param('WeightDay', self.day, all_frames['WeightDay'])
-        self.declare_param('WeightSeason', self.season, all_frames['WeightSeason'])
+        if common_config.aggregate_years:
+            self.y0 = pyo.Param(initialize=common_config.aggregate_start_year)
+        self.num_hr_day = pyo.Param(initialize=setA.num_hr_day)
+        self.MapHourSeason = pyo.Param(self.hour, initialize=all_frames['MapHourSeason'])
+        self.MapHourDay = pyo.Param(self.hour, initialize=all_frames['MapHourDay']['day'])
+
+        self.WeightYear = pyo.Param(self.year, initialize=all_frames['WeightYear'])
+
+        self.WeightHour = pyo.Param(self.hour, initialize=all_frames['WeightHour']['WeightHour'])
+        self.WeightDay = pyo.Param(self.day, initialize=all_frames['WeightDay'])
+        self.WeightSeason = pyo.Param(self.season, initialize=all_frames['WeightSeason'])
+
+        # self.declare_param('y0', None, setA.start_year)
+        # self.declare_param('num_hr_day', None, setA.num_hr_day)
+        # self.declare_param('MapHourSeason', self.hour, all_frames['MapHourSeason'])
+        # self.declare_param('MapHourDay', self.hour, all_frames['MapHourDay']['day'])
+        # self.declare_param('WeightYear', self.year, all_frames['WeightYear'])
+        # self.declare_param('WeightHour', self.hour, all_frames['WeightHour']['WeightHour'])
+        # self.declare_param('WeightDay', self.day, all_frames['WeightDay'])
+        # self.declare_param('WeightSeason', self.season, all_frames['WeightSeason'])
 
         # load and technology parameters
-        self.declare_param('Load', self.demand_balance_index, all_frames['Load'], mutable=True)
-        self.declare_param('UnmetLoadPenalty', None, 500000)
-        self.declare_param('SupplyPrice', self.capacity_total_index, all_frames['SupplyPrice'])
-        self.declare_param('SupplyCurve', self.capacity_total_index, all_frames['SupplyCurve'])
-        self.declare_param('CapFactorVRE', self.generation_vre_ub_index, all_frames['CapFactorVRE'])
-        self.declare_param(
-            'HydroCapFactor', self.HydroCapFactor_index, all_frames['HydroCapFactor']
+        # dev note:  set a default of 0.0 for all missing values, so that we can iterate over r, y, hr confidently
+        self.Load = pyo.Param(
+            self.region,
+            self.year,
+            self.hour,
+            initialize=all_frames['Load'],
+            within=pyo.NonNegativeReals,
+            default=0.0,
         )
-        self.declare_param('BatteryEfficiency', setA.T_stor, all_frames['BatteryEfficiency'])
-        self.declare_param('HourstoBuy', setA.T_stor, all_frames['HourstoBuy'])
-        self.declare_param('H2Price', self.H2Price_index, all_frames['H2Price'], mutable=True)
-        self.declare_param('StorageLevelCost', None, 0.00000001)
-        self.declare_param('H2Heatrate', None, setA.H2Heatrate)
+
+        self.UnmetLoadPenalty = pyo.Param(initialize=UNMET_LOAD_PRICE)
+
+        # dev note: A missing price value (sparse set) will cause fail w/o a default value here,
+        #           which is OK
+        self.SupplyPrice = pyo.Param(
+            self.region,
+            self.season,
+            self.tech,
+            self.step,
+            self.year,
+            initialize=all_frames['supply_price'],
+            within=pyo.NonNegativeReals,
+        )
+
+        # dev note: We do not supply a built index set here, so we should iterate over the
+        #           param keys where needed
+        self.SupplyCurve = pyo.Param(
+            self.region,
+            self.season,
+            self.tech,
+            self.step,
+            self.year,
+            initialize=all_frames['supply_curve'],
+            within=pyo.NonNegativeReals,
+        )
+        self.CapFactorVRE = pyo.Param(
+            self.tech_vre,
+            self.year,
+            self.region,
+            self.step,
+            self.hour,
+            initialize=all_frames['cap_factor_vre'],
+            within=pyo.NonNegativeReals,
+        )
+        self.HydroCapFactor = pyo.Param(
+            self.region,
+            self.season,
+            initialize=all_dicts['hydro_cap_factor'],
+            within=pyo.NonNegativeReals,
+        )
+        self.BatteryEfficiency = pyo.Param(
+            self.tech_stor, initialize=all_dicts['battery_efficiency'], within=pyo.NonNegativeReals
+        )
+        self.HourstoBuy = pyo.Param(
+            self.tech_stor, initialize=all_dicts['hours_to_buy'], within=pyo.NonNegativeReals
+        )
+        self.H2Price = pyo.Param(
+            self.region,
+            self.season,
+            self.tech_h2,
+            self.step,
+            self.year,
+            initialize=all_frames['h2_price'],
+            within=pyo.NonNegativeReals,
+            mutable=True,
+        )
+
+        self.StorageLevelCost = pyo.Param(initialize=STORAGE_LEVEL_COST)
+
+        self.H2Heatrate = pyo.Param(initialize=H2Heatrate)
+
+        # self.declare_param('Load', self.demand_balance_index, all_frames['Load'], mutable=True)
+        # self.declare_param('UnmetLoadPenalty', None, 500000)
+        # self.declare_param('SupplyPrice', self.capacity_total_index, all_frames['SupplyPrice'])
+        # self.declare_param('SupplyCurve', self.capacity_total_index, all_frames['SupplyCurve'])
+        # self.declare_param('CapFactorVRE', self.generation_vre_ub_index, all_frames['CapFactorVRE'])
+        # self.declare_param(
+        #     'HydroCapFactor', self.HydroCapFactor_index, all_frames['HydroCapFactor']
+        # )
+        # self.declare_param('BatteryEfficiency', setA.T_stor, all_frames['BatteryEfficiency'])
+        # self.declare_param('HourstoBuy', setA.T_stor, all_frames['HourstoBuy'])
+        # self.declare_param('H2Price', self.H2Price_index, all_frames['H2Price'], mutable=True)
+        # self.declare_param('StorageLevelCost', None, 0.00000001)
+        # self.declare_param('H2Heatrate', None, setA.H2Heatrate)
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -251,13 +438,13 @@ class PowerModel(Model):
             self.declare_param(
                 'RegReservesCost', self.RegReservesCost_index, all_frames['RegReservesCost']
             )
+            # TODO:  either declare the set of restypes or just use the enumeration ReserveType directly here
             self.declare_param(
                 'ResTechUpperBound', self.ResTechUpperBound_index, all_frames['ResTechUpperBound']
             )
 
         ##########################
         # Cross-talk from H2 model
-        # TODO: fit these into the declare param format for consistency
         self.FixedElecRequest = pyo.Param(
             self.region,
             self.year,
@@ -278,26 +465,37 @@ class PowerModel(Model):
         # TODO: Example future model concept
         # Note: the goal would be to eventually reorganize the preprocessor so that most data would
         # fit something similar to this example structure below.
-
-        self.var_switch_dict = {
-            'capacity_builds': elec_config.capacity_expansion,
-            'capacity_retirements': elec_config.capacity_expansion,  # TODO:  this should be retirement capable?
-        }
-
-        for var in self.var_switch_dict.keys():
-            # self.declare_var(var, getattr(self, var + '_index'), switch=self.var_switch_dict[var])
-            pass
+        #
+        # self.var_switch_dict = {
+        #     'capacity_builds': elec_config.capacity_expansion,
+        #     'capacity_retirements': elec_config.capacity_expansion,  # TODO:  this should be retirement capable?
+        # }
+        #
+        # for var in self.var_switch_dict.keys():
+        #     # self.declare_var(var, getattr(self, var + '_index'), switch=self.var_switch_dict[var])
+        #     pass
 
         ###########################################################################################
         # Variables
 
         # Generation, capacity, and technology variables
-        self.declare_var('generation_total', self.generation_total_index)
-        self.declare_var('unmet_load', self.unmet_load_index)
-        self.declare_var('capacity_total', self.capacity_total_index)
-        self.declare_var('storage_inflow', self.Storage_index)
-        self.declare_var('storage_outflow', self.Storage_index)
-        self.declare_var('storage_level', self.Storage_index)
+        self.generation_total = pyo.Var(setA.generation_index, within=pyo.NonNegativeReals)
+        """tech, year, region, step, hour"""
+        self.unmet_load = pyo.Var(self.region, self.year, self.hour, within=pyo.NonNegativeReals)
+        self.capacity_total = pyo.Var(setA.capacity_index, within=pyo.NonNegativeReals)
+        """region, season, tech, step, year"""
+        self.storage_inflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+        self.storage_outflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+        self.storage_level = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+
+        # helper
+
+        # self.declare_var('generation_total', self.generation_total_index, )
+        # self.declare_var('unmet_load', self.unmet_load_index)
+        # self.declare_var('capacity_total', self.capacity_total_index)
+        # self.declare_var('storage_inflow', self.Storage_index)
+        # self.declare_var('storage_outflow', self.Storage_index)
+        # self.declare_var('storage_level', self.Storage_index)
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -325,7 +523,9 @@ class PowerModel(Model):
         ###########################################################################################
         # Objective Function
 
-        self.populate_by_hour_sets = pyo.BuildAction(rule=em.populate_by_hour_sets_rule)
+        # dev note: These 3 indexed sets are created above with the SETS portion of the model
+        #           without the 'rule'
+        # self.populate_by_hour_sets = pyo.BuildAction(rule=em.populate_by_hour_sets_rule)
 
         def dispatch_cost(self):
             """Dispatch cost (e.g., variable O&M cost) component for the objective function.
@@ -388,7 +588,7 @@ class PowerModel(Model):
                 * self.WeightYear[y]
                 * self.unmet_load[(r, y, hr)]
                 * self.UnmetLoadPenalty
-                for (r, y, hr) in self.unmet_load_index
+                for (r, y, hr) in self.Load
             )
 
         self.unmet_load_cost = pyo.Expression(expr=unmet_load_cost)
@@ -576,12 +776,13 @@ class PowerModel(Model):
 
         self.sw_trade = elec_config.regional_exchange  # TODO:  temporary fix as the rule needs this
 
-        self.populate_demand_balance_sets = pyo.BuildAction(
-            rule=em.populate_demand_balance_sets_rule
-        )
+        # below is handled in indexed set creation at top (still incomplete)
+        # self.populate_demand_balance_sets = pyo.BuildAction(
+        #     rule=em.populate_demand_balance_sets_rule
+        # )
 
         # Property: ShadowPrice
-        @self.Constraint(self.demand_balance_index)
+        @self.Constraint(self.region_dom, self.year, self.hour)
         def demand_balance(self, r, y, hr):
             """Demand balance constraint where Load <= Generation.
 
@@ -835,7 +1036,8 @@ class PowerModel(Model):
                 * self.WeightHour[hr]
             )
 
-        @self.Constraint(self.Storage_index)
+        # TODO:  internalize this set from the inputs ?   maybe?
+        @self.Constraint(setA.storage_index)
         def storage_inflow_ub(self, tech, y, r, step, hr):
             """Storage inflow upper bound where
             Storage inflow <= Storage Capacity
@@ -864,8 +1066,10 @@ class PowerModel(Model):
                 * self.WeightHour[hr]
             )
 
+        # TODO:  internalize this set from the inputs ?   maybe?
+
         # TODO check if it's only able to build in regions with existing capacity?
-        @self.Constraint(self.Storage_index)
+        @self.Constraint(setA.storage_index)
         def storage_outflow_ub(self, tech, y, r, step, hr):
             """Storage outflow upper bound where
             Storage outflow <= Storage Capacity
@@ -902,7 +1106,8 @@ class PowerModel(Model):
                 * self.WeightHour[hr]
             )
 
-        @self.Constraint(self.Storage_index)
+        # TODO:  internalize this set from the inputs ?   maybe?
+        @self.Constraint(setA.storage_index)
         def storage_level_ub(self, tech, y, r, step, hr):
             """Storage level upper bound where
             Storage level <= Storage power capacity * storage energy capacity
@@ -931,7 +1136,8 @@ class PowerModel(Model):
                 * self.HourstoBuy[(tech)]
             )
 
-        @self.Constraint(self.capacity_total_index)
+        # TODO:  internalize this set from the inputs ?   maybe?
+        @self.Constraint(setA.capacity_index)
         def capacity_balance(self, r, season, tech, step, y):
             """Capacity Equality constraint where
             Capacity = Operating Capacity
@@ -1114,7 +1320,7 @@ class PowerModel(Model):
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
             self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
 
-            @self.Constraint(self.demand_balance_index)
+            @self.Constraint(self.Load)
             def reserve_margin_lb(self, r, y, hr):
                 """Reserve margin requirement where
                 Load * Reserve Margin <= Capacity * Capacity Credit * Time
@@ -1341,7 +1547,7 @@ class PowerModel(Model):
         if elec_config.spinning_reserve_required:
             self.populate_reserves_sets = pyo.BuildAction(rule=em.populate_reserves_sets_rule)
 
-            @self.Constraint(self.demand_balance_index)
+            @self.Constraint(self.Load)
             def reserve_requirement_spin_lb(self, r, y, hr):
                 """Spinning reserve requirements (3% of load) where
                 Spinning reserve procurement >= 0.03 * Load
@@ -1368,7 +1574,7 @@ class PowerModel(Model):
                     >= 0.03 * self.Load[(r, y, hr)]
                 )
 
-            @self.Constraint(self.demand_balance_index)
+            @self.Constraint(self.Load)
             def reserve_requirement_reg_lb(self, r, y, hr):
                 """Regulation Reserve Req (1% of load + 0.5% of wind gen + 0.3% of solar cap) where
                 Reserves Requirement >= 0.01 * Load
@@ -1400,7 +1606,7 @@ class PowerModel(Model):
                     for (T_solar, step) in self.SolarSetReserves[(y, r, hr)]
                 )
 
-            @self.Constraint(self.demand_balance_index)
+            @self.Constraint(self.Load)
             def reserve_requirement_flex_lb(self, r, y, hr):
                 """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap) where
                 Reserves Requirement >= 0.01 * Wind Gen
@@ -1431,6 +1637,9 @@ class PowerModel(Model):
                     for (T_solar, step) in self.SolarSetReserves[(y, r, hr)]
                 )
 
+            # TODO:  Review this.  It operates on the x-product of tech x restype, yet many techs are
+            #        not "reserve-able" so we could make the variable `reserve_procurement` more sparse
+            #        and/or use defaults better.
             @self.Constraint(self.reserves_procurement_index)
             def reserve_procurement_ub(self, restypes, tech, y, r, step, hr):
                 """Reserve Requirement Procurement Upper Bound where

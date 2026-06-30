@@ -45,7 +45,7 @@ def test_hours_set():
         settings.regions = regions
         settings.years = years
         settings.sw_temporal = sw_temporal
-        all_frames, setin = prep.preprocessor(prep.Sets(settings))
+        all_frames, setin = prep.preprocessor(prep.ModelSets(settings))
 
         tot_load1 = pd.merge(
             all_frames['Load'].reset_index(), all_frames['MapHourDay'].reset_index(), on='hour'

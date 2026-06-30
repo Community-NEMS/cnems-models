@@ -31,7 +31,7 @@ def app_main(selected_mode):
     app_args.op_mode = selected_mode
     app_args.debug = False
 
-    app_settings = Config_settings(config_path=default_config_path, args=app_args)
+    app_settings, config_data = Config_settings(config_path=default_config_path, args=app_args)
     main(app_settings)
 
 
@@ -72,6 +72,7 @@ def main(settings: Config_settings | None = None):
     settings.cw_temporal.to_csv(Path(settings.OUTPUT_ROOT / 'cw_temporal.csv'), index=False)
 
     # MAIN - Run the cases you want to run based on the mode and settings you pass
+    # TODO:  Remove access to globals() which is retrieving a function based on a string??
     runner = globals()[settings.run_method]
     runner(settings)
 

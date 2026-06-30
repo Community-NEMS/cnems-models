@@ -1,9 +1,5 @@
 """This file is a collection of functions that are used to build, run, and solve the electricity model."""
 
-###################################################################################################
-# Setup
-
-# Import pacakges
 from pathlib import Path
 from datetime import datetime
 import pyomo.environ as pyo
@@ -18,25 +14,27 @@ from logging import getLogger
 from definitions import PROJECT_ROOT
 import src.models.electricity.preprocessor as prep
 import src.models.electricity.postprocessor as post
+from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from src.models.electricity.model_sets import ModelSets
+from src.models.electricity.param_data import ParamData
 from src.models.electricity.utilities import check_results
 from src.models.electricity.electricity_model import PowerModel
 from src.common.config_setup import Config_settings
 
 from src.integrator.utilities import select_solver
 
-# Establish logger
 logger = getLogger(__name__)
 
-# Establish paths
 data_root = Path(PROJECT_ROOT, 'src/models/electricity/input')
 
 
-###################################################################################################
-# RUN MODEL
-
-
-def build_elec_model(all_frames, setin, elec_config: ElecConfig) -> PowerModel:
+def build_elec_model(
+    model_sets: ModelSets,
+    param_data: ParamData,
+    elec_config: ElecConfig,
+    common_config: CommonConfig,
+) -> PowerModel:
     """building pyomo electricity model
 
     Parameters
@@ -53,7 +51,9 @@ def build_elec_model(all_frames, setin, elec_config: ElecConfig) -> PowerModel:
     """
     # Building model
     logger.info('Build Pyomo')
-    instance = PowerModel(all_frames, setin, elec_config=elec_config)
+    instance = PowerModel(
+        model_sets, param_data, elec_config=elec_config, common_config=common_config
+    )
 
     # add electricity price dual
     instance.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
@@ -147,22 +147,8 @@ def solve_elec_model(instance, elec_config: ElecConfig):
         exit()
 
 
-def run_elec_model(settings: Config_settings, elec_config: ElecConfig, solve=True) -> PowerModel:
-    """build electricity model (and solve if solve=True) after passing in settings
-
-    Parameters
-    ----------
-    settings : Config_settings
-        Configuration settings
-    solve : bool, optional
-        solve electricity model?, by default True
-
-    Returns
-    -------
-    PowerModel
-        electricity model
-    """
-    ###############################################################################################
+def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
+    """build electricity model (and solve if solve=True) after passing in settings"""
 
     # Measuring the run time of code
     start_time = datetime.now()
@@ -173,18 +159,28 @@ def run_elec_model(settings: Config_settings, elec_config: ElecConfig, solve=Tru
     # Pre-processing
 
     logger.info('Preprocessing')
-
-    all_frames, setin = prep.preprocessor(prep.Sets(settings))
-
+    model_sets = ModelSets(common_config, elec_config)
+    logger.debug('Model set inputs produced')
+    model_params = ParamData(elec_config, common_config, model_sets)
     logger.debug(
-        f'Proceeding to build model for years: {settings.years} and regions: {settings.regions}'
+        'Model parameter inputs produced with %d dictionaries and %d dataframes',
+        len(model_params.param_frames),
+        len(model_params.param_dicts),
     )
+
+    # all_frames, setin = prep.preprocessor(prep.ModelSets(common_config, elec_config))
+
+    # logger.debug(
+    #     f'Proceeding to build model for years: {settings.years} and regions: {settings.regions}'
+    # )
     timer.toc('preprocessor finished')
 
     ###############################################################################################
     # Build model
 
-    instance = build_elec_model(all_frames, setin, elec_config=elec_config)
+    instance = build_elec_model(
+        model_sets, model_params, elec_config=elec_config, common_config=common_config
+    )
     timer.toc('build model finished')
 
     # stop here if no solve requested...
@@ -231,8 +227,9 @@ def run_elec_model(settings: Config_settings, elec_config: ElecConfig, solve=Tru
     ###############################################################################################
     # Post-procressing
 
-    if not settings.test:
-        post.postprocessor(instance)
+    # TODO:  test should be removed from settings/configs.  Refactor this
+    # if not settings.test:
+    #     post.postprocessor(instance)
     timer.toc('postprocessing done')
 
     # final steps for measuring the run time of the code

@@ -8,139 +8,51 @@ It established the parameters and sets that will be used in the model. It contai
 
 """
 
+import logging
+from collections.abc import Iterable, Sized
 ###################################################################################################
 # Setup
 
 # Import pacakges
 from pathlib import Path
+from warnings import deprecated
+
 import pandas as pd
 import os
 
+from pandas import DataFrame
+
 # Import python modules
 from definitions import PROJECT_ROOT
+from src.common import common_config
+from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
+from src.integrator.utilities import create_temporal_mapping
+from src.models.electricity import elec_config
+from src.models.electricity.data_ingestor import (
+    load_property_data,
+    load_param_data,
+    FilterPackage,
+    load_dataframes,
+)
+from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
+
+logger = logging.getLogger(__name__)
 
 # switch to load data from csvs(0) or from db(1)
 # note: this is a future feature, currently not available
 db_switch = 0
 
-if db_switch == 1:
-    from sqlalchemy import create_engine, MetaData, Table, select
-    from sqlalchemy.ext.automap import automap_base
-    from sqlalchemy.orm import sessionmaker
+# if db_switch == 1:
+#     from sqlalchemy import create_engine, MetaData, Table, select
+#     from sqlalchemy.ext.automap import automap_base
+#     from sqlalchemy.orm import sessionmaker
 
 # Establish paths
 data_root = Path(PROJECT_ROOT, 'input', 'electricity')
 
 
 ###################################################################################################
-class Sets:
-    """Generates an initial batch of sets that are used to solve electricity model. Sets include: \n
-    - Scenario descriptor and model switches \n
-    - Regional sets \n
-    - Temporal sets \n
-    - Technology type sets \n
-    - Supply curve step sets \n
-    - Other
-
-    """
-
-    def __init__(self, settings):
-        # Output root
-        self.OUTPUT_ROOT = settings.OUTPUT_ROOT
-
-        # Switches
-        self.sw_trade = settings.sw_trade
-        self.sw_expansion = settings.sw_expansion
-        self.sw_agg_years = settings.sw_agg_years
-        self.sw_rm = settings.sw_rm
-        self.sw_ramp = settings.sw_ramp
-        self.sw_learning = settings.sw_learning
-        self.sw_reserves = settings.sw_reserves
-
-        self.restypes = [
-            'spinning',
-            'regulation',
-            'flex',
-        ]  # old vals: 1=spinning, 2=regulation, 3=flex
-        self.sw_builds = pd.read_csv(data_root / 'sw_builds.csv')
-        self.sw_retires = pd.read_csv(data_root / 'sw_retires.csv')
-
-        # Load Setting
-        self.load_scalar = settings.scale_load
-
-        # Regional Sets
-        self.region = settings.regions
-
-        # Temporal Sets
-        self.sw_temporal = settings.sw_temporal
-        self.cw_temporal = settings.cw_temporal
-
-        # Temporal Sets - Years
-        self.years = settings.years
-        self.y = settings.years
-        self.start_year = settings.start_year
-        self.year_map = settings.year_map
-        self.WeightYear = settings.WeightYear
-
-        # Temporal Sets - Seasons and Days
-        self.season = range(1, self.cw_temporal['Map_s'].max() + 1)
-        self.num_days = self.cw_temporal['Map_day'].max()
-        self.day = range(1, self.num_days + 1)
-
-        # Temporal Sets - Hours
-        # number of time periods in a day
-        self.num_hr_day = int(
-            self.cw_temporal['Map_hour'].max() / self.cw_temporal['Map_day'].max()
-        )
-        self.h = range(1, self.num_hr_day + 1)
-        # Number of time periods the model solves for: days x number of periods per day
-        self.num_hr = self.num_hr_day * self.num_days
-        self.hour = range(1, self.num_days * len(self.h) + 1)
-        # First time period of the day and all time periods that are not the first hour
-        self.hour1 = range(1, self.num_days * len(self.h) + 1, len(self.h))
-        self.hour23 = list(set(self.hour) - set(self.hour1))
-
-        # Technology Sets
-        def load_and_assign_subsets(df, col):
-            """create list based on tech subset assignment
-
-            Parameters
-            ----------
-            df : pd.DataFrame
-                data frame containing tech subsets
-            col : str
-                name of tech subset
-
-            Returns
-            -------
-            list
-                list of techs in subset
-            """
-            # set attributes for the main list
-            main = list(df.columns)[0]
-            df = df.set_index(df[main])
-
-            # return subset of list based on col assignments
-            subset_list = list(df[df[col].notna()].index)
-            # print(col,subset_list)
-
-            return subset_list
-
-        # read in subset dataframe from inputs
-        tech_subsets = pd.read_csv(data_root / 'tech_subsets.csv')
-        self.tech_subset_names = tech_subsets.columns
-
-        for tss in self.tech_subset_names:
-            # create the technology subsets based on the tech_subsets input
-            setattr(self, tss, load_and_assign_subsets(tech_subsets, tss))
-
-        # Misc Inputs
-        self.step = range(1, 5)
-        self.TransLoss = 0.02  # Transmission losses %
-        self.H2Heatrate = (
-            13.84 / 1000000
-        )  # 13.84 kwh/kg, for kwh/kg H2 -> 54.3, #conversion kwh/kg to GWh/kg
 
 
 ###################################################################################################
@@ -148,6 +60,7 @@ class Sets:
 
 
 ### Load csvs
+@deprecated('CSV files are read in using data_ingestor.py')
 def readin_csvs(all_frames):
     """Reads in all of the CSV files from the input dir and returns a dictionary of dataframes,
     where the key is the file name and the value is the table data.
@@ -171,6 +84,7 @@ def readin_csvs(all_frames):
 
 
 ### Load table from SQLite DB
+@deprecated('DB reading is currently not supported.')
 def readin_sql(all_frames):
     """Reads in all of the tables from a SQL databased and returns a dictionary of dataframes,
     where the key is the table name and the value is the table data.
@@ -204,6 +118,7 @@ def readin_sql(all_frames):
     return all_frames
 
 
+@deprecated('DB reading is currently not supported.')
 def load_data(tablename, metadata, engine):
     """loads the data from the SQL database; used in readin_sql function.
 
@@ -238,7 +153,7 @@ def subset_dfs(all_frames, setin, i):
     ----------
     all_frames : dictionary
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         contains an initial batch of sets that are used to solve electricity model
     i : string
         name of the set contained within the sets class that the df will be filtered based on.
@@ -296,8 +211,8 @@ def avg_by_group(df, set_name, map_frame):
     dataframe
         parameter data that is averaged by specified set mapping
     """
-    map_df = map_frame.copy()
-    df = df.sort_values(by=list(df[:-1]))
+    # map_df = map_frame.copy()  # this is a mapping of actual year --> summary year
+    # df = df.sort_values(by=list(df[:-1]))
     # print(df.tail())
 
     # location of y column and list of cols needed for the groupby
@@ -307,8 +222,8 @@ def avg_by_group(df, set_name, map_frame):
     groupby_cols.remove(set_name)
 
     # group df by year map data and update y col
-    df[set_name] = df[set_name].astype(int)
-    df = pd.merge(df, map_df, how='left', on=[set_name])
+    # df[set_name] = df[set_name].astype(int)  # should not have to convert the merge column data to ints
+    df = pd.merge(df, map_frame, how='left', on=[set_name])
     df = df.groupby(by=groupby_cols, as_index=False).mean()
     df[set_name] = df[map_name].astype(int)
     df = df.drop(columns=[map_name]).reset_index(drop=True)
@@ -318,7 +233,7 @@ def avg_by_group(df, set_name, map_frame):
     df.insert(pos, set_name, y_col)
 
     # used to qa
-    df = df.sort_values(by=list(df[:-1]))
+    df = df.sort_values(by=list(df[:-1])).reset_index(drop=True)
     # print(df.tail())
 
     return df
@@ -369,14 +284,14 @@ def time_map(cw_temporal, rename_cols):
     return df
 
 
-def capacitycredit_df(all_frames, setin):
+def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
     """builds the capacity credit dataframe
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
 
     Returns
@@ -416,7 +331,7 @@ def create_hourly_params(all_frames, key, cols):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
     key : str
         name of data frame to access
@@ -461,7 +376,7 @@ def create_hourly_sets(all_frames, df):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
     df : pd.DataFrame
         data frame containing seasonal data
@@ -482,7 +397,7 @@ def hourly_sc_subset(all_frames, subset):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
     subset : list
         list of technologies to subset
@@ -503,7 +418,7 @@ def hr_sub_sc_subset(all_frames, T_subset, hr_subset):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
     T_subset : list
         list of technologies to subset
@@ -527,7 +442,7 @@ def step_sub_sc_subset(all_frames, T_subset, step_subset):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
     T_subset : list
        technologies to subset
@@ -552,14 +467,14 @@ def create_sc_sets(all_frames, setin):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
 
     Returns
     -------
-    Sets
+    ModelSets
        updated Set containing all sets related to supply curve
     """
     # sets that are related to the supply curve
@@ -604,14 +519,14 @@ def create_other_sets(all_frames, setin):
 
     Parameters
     ----------
-    all_frames : dict of pd.DataFrame
+    all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
 
     Returns
     -------
-    Sets
+    ModelSets
         updated Sets which has non-supply curve-related sets updated
     """
     # other sets
@@ -644,8 +559,40 @@ def create_other_sets(all_frames, setin):
     return setin
 
 
+def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
+    """
+    Computes the indices of the non-overlapping keys after performing an inner join operation
+    on the keys of two dictionaries.
+
+    The method identifies the common keys between `param_1` and `param_2`, keeps only those
+    keys in the original dictionaries, and calculates how many keys are lost in each dictionary
+    after the intersection. The result is returned as a tuple containing the count of missing
+    keys in `param_1` and `param_2` respectively.
+
+    Parameters
+    ----------
+    param_1 : dict
+        The first dictionary to join on keys.
+    param_2 : dict
+        The second dictionary to join on keys.
+
+    Returns
+    -------
+    tuple of int
+        A tuple where the first element is the number of keys that are missing
+        from `param_1` after the intersection, and the second element is the
+        number of keys that are missing from `param_2` after the intersection.
+    """
+    intersect_keys = param_1.keys() & param_2.keys()
+    param_1 = {k: v for k, v in param_1.items() if k in intersect_keys}
+    param_2 = {k: v for k, v in param_2.items() if k in intersect_keys}
+    return len(intersect_keys - param_1.keys()), len(intersect_keys - param_2.keys())
+
+
 ###################################################################################################
-def preprocessor(setin):
+def preprocessor(
+    setin: ModelSets, common_config: CommonConfig, elec_config: ElecConfig
+) -> tuple[dict[str, DataFrame], dict[str, dict[tuple, float]], ModelSets]:
     """main preprocessor function that generates the final dataframes and sets sent over to the
     electricity model. This function reads in the input data, modifies it based on the temporal
     and regional mapping specified in the inputs, and gets it into the final formatting needed.
@@ -653,51 +600,65 @@ def preprocessor(setin):
 
     Parameters
     ----------
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
 
     Returns
     -------
     all_frames : dictionary
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
     """
 
     # READ IN INPUT DATA
+    # TODO:  For now, we will handle some params separately and leave some in "all_frames".  Merge
+    #        them later...?
 
-    # read in raw data
-    all_frames = {}
-    if db_switch == 0:
-        # add csv input files to all frames
-        all_frames = readin_csvs(all_frames)
-    elif db_switch == 1:
-        # add sql db tables to all frames
-        all_frames = readin_sql(all_frames)
+    # read in parameter data from csv's
+    param_filter = FilterPackage(
+        region_filter=elec_config.region_filter, year_filter=common_config.summary_years
+    )
+    param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
+    logger.info('Read in %d parameter elements', len(param_data))
+
+    # load the time-based parameters into data frames for processing
+    all_frames: dict[str, DataFrame] = load_dataframes(param_data=param_data)
+
+    # if db_switch == 0:
+    #     # add csv input files to all frames
+    #     all_frames = readin_csvs(all_frames)
+    # elif db_switch == 1:
+    #     # add sql db tables to all frames
+    #     all_frames = readin_sql(all_frames)
 
     # read in load data from residential input directory
     res_dir = Path(PROJECT_ROOT, 'input', 'residential')
-    if setin.load_scalar == 'annual':
+    if elec_config.load_scale_mode == LoadScaleMode.ANNUAL:
         all_frames['Load'] = scale_load(res_dir).reset_index(drop=True)
-    elif setin.load_scalar == 'enduse':
+    elif elec_config.load_scale_mode == LoadScaleMode.END_USE:
         all_frames['Load'] = scale_load_with_enduses(res_dir).reset_index(drop=True)
     else:
-        raise ValueError('load_scalar in TOML must be set to "annual" or "enduse"')
+        raise NotImplementedError(f'load_scale_mode {elec_config.load_scale_mode} not implemented')
 
     # REGIONALIZE DATA
 
+    # dev note:  the set-jockeying below should not be needed.  We have already filtered
+    #            the domestic regions
     # international trade sets
-    r_file = all_frames['TranLimitCapInt'][['region', 'region1']].drop_duplicates()
-    r_file = r_file[r_file['region'].isin(setin.region)]
-    setin.region_int_trade = list(r_file['region'].unique())
-    setin.region_int = list(r_file['region1'].unique())
-    setin.region1 = setin.region + setin.region_int
+    # r_file = all_frames['TranLimitCapInt'][['region', 'region1']].drop_duplicates()
+    # r_file = r_file[r_file['region'].isin(setin.region)]
+    # setin.region_int_trade = list(r_file['region'].unique())
+    # setin.region_int = list(r_file['region1'].unique())
+    # setin.region1 = setin.region + setin.region_int
 
+    # dev note:  below is already done during read-in for DOMESTIC regions.  INTL shouldn't matter
     # subset df by region
-    all_frames = subset_dfs(all_frames, setin, 'region')
-    all_frames = subset_dfs(all_frames, setin, 'region1')
+    # all_frames = subset_dfs(all_frames, setin, 'region')
+    # all_frames = subset_dfs(all_frames, setin, 'region1')
 
-    setin.region_trade = all_frames['TranLimit']['region'].unique()
+    # unk why this would be needed...
+    # setin.region_trade = all_frames['TranLimit']['region'].unique()
 
     # TEMPORALIZE DATA
 
@@ -705,12 +666,15 @@ def preprocessor(setin):
     cw_temporal = setin.cw_temporal
 
     # year weights
-    all_frames['WeightYear'] = setin.WeightYear
+    all_frames['WeightYear'] = pd.DataFrame.from_dict(
+        data=setin.year_agg_weights, orient='index'
+    )  # setin.WeightYear
 
+    # dev_note:  cap cost is year-filtered upon read-in
     # last year values used
-    filter_list = ['CapCost']
-    for key in filter_list:
-        all_frames[key] = all_frames[key].loc[all_frames[key]['year'].isin(getattr(setin, 'years'))]
+    # filter_list = ['CapCost']
+    # for key in filter_list:
+    #     all_frames[key] = all_frames[key].loc[all_frames[key]['year'].isin(getattr(setin, 'years'))]
 
     # average values in years/hours used
     for key in all_frames.keys():
@@ -745,14 +709,17 @@ def preprocessor(setin):
         .rename(columns={'Map_s': 'season'})
     )
 
+    # TODO:  come back and look at this.  Shouldn't need to cross years with this unless the data
+    #        is different year-to-year, which it *currently* is not
     # using same T_vre capacity factor for all model years and reordering columns
     all_frames['CapFactorVRE'] = pd.merge(
-        all_frames['CapFactorVRE'], pd.DataFrame({'year': setin.years}), how='cross'
+        all_frames['CapFactorVRE'], pd.DataFrame({'year': common_config.summary_years}), how='cross'
     )
     all_frames['CapFactorVRE'] = all_frames['CapFactorVRE'][
         ['tech', 'year', 'region', 'step', 'hour', 'CapFactorVRE']
     ]
 
+    # TODO:  revisit this.  We should be able to use the group-by/average to do this, but sum.
     # Update load to be the total demand in each time segment rather than the average
     all_frames['Load'] = pd.merge(
         all_frames['Load'], all_frames['WeightHour'], how='left', on=['hour']
@@ -760,28 +727,32 @@ def preprocessor(setin):
     all_frames['Load']['Load'] = all_frames['Load']['Load'] * all_frames['Load']['WeightHour']
     all_frames['Load'] = all_frames['Load'].drop(columns=['WeightHour'])
 
+    # TODO:  Revisit this.  Should not need to augment season data here.  Review formulation
     # add seasons to data without seasons
     all_frames['SupplyCurve'] = add_season_index(cw_temporal, all_frames['SupplyCurve'], 1)
 
+    @deprecated('should not be required with proper data')
     def price_MWh_to_GWh(dic, names: list[str]):
         """changing units of prices to all be in $/GWh so obj is $
 
         Parameters
         ----------
-        dic : dict of pd.DataFrames
+        dic : dict[str, DataFrame]s
             all_frames, main dictionary containing all inputs
         names : list[str]
             names of price tables
 
         Returns
         -------
-        dict of pd.DataFrames
+        dict[str, DataFrame]s
             the original dict of data frames with updated price units
         """
         for name in names:
             dic[name].loc[:, name] = dic[name][name] * 1000
         return dic
 
+    # TODO:  This should NOT be needed in model.  Needs to be standardized in data.  Flag for
+    #        removal.
     all_frames = price_MWh_to_GWh(
         all_frames,
         [
@@ -798,10 +769,11 @@ def preprocessor(setin):
 
     # Recalculate Supply Curve Learning
 
+    # TODO:  Review this.  seems arbitrary and we could pull this data more cleanly?
     # save first year of supply curve summer capacity for learning
     all_frames['SupplyCurveLearning'] = all_frames['SupplyCurve'][
         (all_frames['SupplyCurve']['year'] == setin.start_year)
-        & (all_frames['SupplyCurve']['season'] == 2)
+        & (all_frames['SupplyCurve']['season'] == 2)  # TODO:  remove hard-coded season
     ]
 
     # set up first year capacity for learning.
@@ -827,16 +799,19 @@ def preprocessor(setin):
     all_frames['TranLimitCapInt'] = create_hourly_params(all_frames, 'TranLimitCapInt', TLCI_cols)
     all_frames['TranLimitGenInt'] = create_hourly_params(all_frames, 'TranLimitGenInt', TLGI_cols)
 
+    # TODO:  Review this.  Should not need to arbitrarily do this, I don't think.
     # sets the index for all df in dict
     for key in all_frames:
         index = list(all_frames[key].columns[:-1])
         all_frames[key] = all_frames[key].set_index(index)
 
     # create more indices for the model
-    setin = create_sc_sets(all_frames, setin)
-    setin = create_other_sets(all_frames, setin)
+    # TODO:  These should not be needed.  We're just creating sets by crossing techs with the
+    #        associated params, etc.
+    # setin = create_sc_sets(all_frames, setin)
+    # setin = create_other_sets(all_frames, setin)
 
-    return all_frames, setin
+    return all_frames, param_data, setin
 
 
 ###################################################################################################
@@ -868,7 +843,7 @@ def output_inputs(OUTPUT_ROOT):
     -------
     all_frames : dictionary
         dictionary of dataframes where the key is the file name and the value is the table data
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
     """
     output_path = Path(OUTPUT_ROOT, 'electricity_inputs/')
@@ -879,7 +854,7 @@ def output_inputs(OUTPUT_ROOT):
 
     # Build sets used for model
     all_frames = {}
-    setA = Sets(years, regions)
+    setA = ModelSets(years, regions)
 
     # creates the initial data
     all_frames, setB = preprocessor(setA)
@@ -897,7 +872,7 @@ def print_sets(setin):
 
     Parameters
     ----------
-    setin : Sets
+    setin : ModelSets
         an initial batch of sets that are used to solve electricity model
     """
     set_list = dir(setin)

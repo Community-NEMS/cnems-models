@@ -2,6 +2,8 @@
 A gathering of utility functions for dealing with model interconnectivity
 """
 
+from collections.abc import Collection
+
 # Import packages
 from logging import getLogger
 from pathlib import Path
@@ -126,10 +128,12 @@ def scale_load(data_root):
 
     # reorder columns
     df = df[['region', 'year', 'hour', 'Load']]
-
+    # convert region names to strings
+    df['region'] = df['region'].astype(str)
     return df
 
 
+# TODO:  Simple profiling shows that this function is SUPER slow.  Consider refactor ideas...
 def scale_load_with_enduses(data_root):
     """Reads in BaseLoad.csv (load for all regions/hours for first year), EnduseBaseShares.csv
     (the shares of demand for each enduse in the base year) and EnduseScalar.csv (a multiplier
@@ -176,5 +180,7 @@ def scale_load_with_enduses(data_root):
     load = pd.merge(load, eu, how='left', on=['region', 'hour'])
     load['Load'] = load['Load'] + load['increment']
     load = load[['region', 'year', 'hour', 'Load']]
+    # convert region names to strings
+    load['region'] = load['region'].astype(str)
 
     return load

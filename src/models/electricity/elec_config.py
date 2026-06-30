@@ -19,23 +19,39 @@ from definitions import PROJECT_ROOT
 logger = getLogger(__name__)
 
 
+# dev note: in the future, this may become a data element.  For now, it is needed to validate
+#           current data
+@unique
+class ReserveType(Enum):
+    SPINNING = 'spinning'
+    REGULATION = 'regulation'
+    FLEX = 'flex'
+
+
 @unique
 class ExpansionLearningType(Enum):
-    DISABLED = 'disabled'  # TODO:  is this same as no expansion?  If so, can we kill that setting?
+    DISABLED = 'disabled'
     LINEAR = 'linear'
     NONLINEAR = 'nonlinear'
+
+
+@unique
+class LoadScaleMode(Enum):
+    END_USE = 'end_use'
+    ANNUAL = 'annual'
 
 
 class ElecConfig(BaseModel):
     input_path: Path
     output_path: Path
+    region_filter: list[str]
     regional_exchange: bool
     capacity_expansion: bool
     expansion_learning_type: ExpansionLearningType
     reserve_margin_required: bool
     spinning_reserve_required: bool
     ramping_required: bool
-    aggregated_years: bool
+    load_scale_mode: LoadScaleMode
 
     @model_validator(mode='after')
     def check_paths(self):
@@ -77,6 +93,11 @@ class ElecConfig(BaseModel):
                 logger.error(error)
             raise
         return config
+
+    # @classmethod
+    # def from_meta_config(cls, meta_config: 'MetaConfig') -> 'ElecConfig':
+    #     return cls.from_toml(**meta_config.elec_config)
+    #
 
 
 # some simple testing...

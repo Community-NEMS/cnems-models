@@ -480,4 +480,7 @@ def create_temporal_mapping(sw_temporal):
     df['Map_hour'] = (df['Map_day'] - 1) * df['Map_hour'].max() + df['Map_hour']
     # df.to_csv(data_root/'temporal_map.csv',index=False)
 
+    # convert the Season to string
+    df['Map_s'] = df['Map_s'].astype(str)
+
     return df

@@ -1,0 +1,237 @@
+"""
+Created as part of the C-NEMS Project
+
+Written by:  J. F. Hyink
+Contact:  jeff@westernspark.us
+Created on:  6/24/26
+
+Class to hold parameter data and more advanced/indexing set constructs
+
+Some param data is held in simple dictionary objects.  Others that need manipulation are
+held in pandas dataframes.
+
+"""
+
+import logging
+from pathlib import Path
+
+import pandas as pd
+from pandas import DataFrame
+
+from definitions import PROJECT_ROOT
+from src.common.common_config import CommonConfig
+from src.common.utilities import scale_load, scale_load_with_enduses
+from src.models.electricity import elec_config
+from src.models.electricity.data_ingestor import (
+    load_param_data,
+    FilterPackage,
+    PARAM_SOURCES,
+    load_dataframes,
+    TIME_BASED_DFS,
+)
+from src.models.electricity.model_sets import ModelSets, SCI
+from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
+from src.models.electricity.preprocessor import add_season_index, time_map, avg_by_group
+
+logger = logging.getLogger(__name__)
+
+
+class ParamData:
+    # constructed temporal dataframes
+    weight_year: DataFrame
+    weight_season: DataFrame
+    weight_day: DataFrame
+    weight_hour: DataFrame
+    map_hour_day: DataFrame
+    map_hour_season: DataFrame
+    map_day_season: DataFrame
+
+    # other constructed dataframes
+    load: DataFrame
+
+    # loaded frames and dicts
+    param_frames: dict[str, DataFrame]
+    param_dicts: dict[str, dict]
+
+    # # complex Param Data
+    # cap_cost : DataFrame
+    # cap_factor_VRE : DataFrame
+    # h2_price : DataFrame
+    # load_df : DataFrame
+    # supply_curve : DataFrame
+    # supply_curve_learning : DataFrame
+    # supply_price : DataFrame
+    # tran_cost : DataFrame
+    # tran_cost_int : DataFrame
+    # tran_limit : DataFrame
+    # tran_limit_cap_int : DataFrame
+    # tran_limit_gen_int : DataFrame
+    #
+    # # basic Param Data
+    # battery_efficiency : dict
+    # cap_cost_initial : dict
+    # cap_factor_vre : dict
+    # fom_cost : dict
+    # hours_to_buy : dict
+    # hydro_cap_factor : dict
+    # learning_rate : dict
+    # ramp_down_cost : dict
+    # ramp_rate : dict
+    # ramp_up_cost : dict
+    # reg_reserves_cost : dict
+    # reserve_margin : dict
+    # res_tech_upper_bound : dict
+
+    def __init__(self, elec_config: ElecConfig, common_config: CommonConfig, model_sets: ModelSets):
+        self.param_frames = {}
+        self.param_dicts = {}
+
+        # capture config items
+        self.elec_config = elec_config
+        self.common_config = common_config
+        self.model_sets = model_sets
+
+        # load all of the param data using a filter
+        param_filter = FilterPackage(
+            region_filter=elec_config.region_filter, year_filter=common_config.summary_years
+        )
+        param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
+        logger.info('Read in %d parameter elements', len(param_data))
+
+        # TEMP HACK:  Adjust prices by factor of x1000 in select params to match the old values
+        # TODO:  Remove this segment and force this on the DATA!!!!
+        names_to_adjust = [
+            'supply_price',
+            'tran_cost',
+            'tran_cost_int',
+            'reg_reserves_cost',
+            'ramp_up_cost',
+            'ramp_down_cost',
+            'cap_cost',
+            'cap_cost_initial',
+        ]
+        for name in names_to_adjust:
+            param_data[name] = {k: v * 1000 for k, v in param_data[name].items()}
+
+        # make the Load dataframe
+        full_load_df = self.build_load_dataframe()
+        self.param_frames['Load'] = self.aggregate_time(full_load_df).set_index(
+            list(full_load_df.columns[:-1])
+        )
+
+        # make the time-based dataframes
+        # TODO:  refactor this?
+        self.build_temporal_maps()
+
+        # Pluck out the time-based DF conversions and load them
+        all_frames = load_dataframes(param_data=param_data, names_to_convert=TIME_BASED_DFS)
+        for name, df in all_frames.items():
+            param_data.pop(name)  # remove from param_data so we don't try to load it again below
+            # aggregate the time in the dataframe
+            df = self.aggregate_time(df)
+            # set the index properly
+            df = df.set_index(list(df.columns[:-1]))
+            self.param_frames[name] = df
+
+        # augment CapFactorVRE with year.... ugh
+        # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
+        df = pd.merge(
+            self.param_frames['cap_factor_vre'].reset_index(),
+            pd.DataFrame({'year': common_config.summary_years}),
+            how='cross',
+        )
+        # re-sequence columns
+        df = df[['tech', 'year', 'region', 'step', 'hour', 'CapFactorVRE']]
+        # set proper index
+        self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
+
+        # use the supply curve df BEFORE augmentation (below) to populate other sets in ModelSets
+        model_sets.build_sc_indexes(list(SCI(*t) for t in self.param_frames['supply_curve'].index))
+
+        # augment the supply curve dataframe w/ season x-product
+        # TODO:  It should NOT be necessary to augment this DF with the x-product of season.  Review formulation
+        #        Likely done to allow comparison w/ price, which IS seasonal.
+        df = add_season_index(
+            model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 1
+        )
+        self.param_frames['supply_curve'] = df.set_index(list(df.columns)[:-1])
+
+        # Load the remainder directly into dictionary objects
+        for name in param_data:
+            data = param_data.get(name, {})
+            if not data:
+                logger.warning(
+                    'No data found for %s in the parameter data.  Using empty dict', name
+                )
+            self.param_dicts[name] = data
+
+    def build_load_dataframe(self) -> DataFrame:
+        """Build the load dataframe"""
+
+        # TODO:  Research the functions called here and perhaps move them here as well
+        # TODO:  Move the source data out of the "residential" folder to "common"??
+        # TODO:  Verify that the Load is defined in all region x year x hour.  Model assumes full set
+        # TODO:  refactor this so it returns a DF for testing purposes
+
+        res_dir = Path(PROJECT_ROOT, 'input', 'residential')
+        if self.elec_config.load_scale_mode == LoadScaleMode.ANNUAL:
+            df = scale_load(res_dir).reset_index(drop=True)
+        elif self.elec_config.load_scale_mode == LoadScaleMode.END_USE:
+            df = scale_load_with_enduses(res_dir).reset_index(drop=True)
+        else:
+            raise NotImplementedError(
+                f'load_scale_mode {self.elec_config.load_scale_mode} not implemented'
+            )
+
+        logger.info('Read/built in %d load elements', len(df))
+        return df
+
+    def build_temporal_maps(self):
+        """Build the time-based dataframes"""
+        self.param_frames['MapDaySeason'] = time_map(
+            self.model_sets.cw_temporal, {'Map_day': 'day', 'Map_s': 'season'}
+        ).set_index('day')
+        self.param_frames['MapHourDay'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_day': 'day'}
+        ).set_index('hour')
+        self.param_frames['MapHourSeason'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_s': 'season'}
+        ).set_index('hour')
+
+        self.param_frames['WeightYear'] = pd.DataFrame.from_dict(
+            data=self.model_sets.year_agg_weights, orient='index', columns=['WeightYear']
+        ).rename_axis('year')
+        self.param_frames['WeightHour'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'WeightHour': 'WeightHour'}
+        ).set_index('hour')
+
+        self.param_frames['WeightDay'] = time_map(
+            self.model_sets.cw_temporal, {'Map_day': 'day', 'WeightDay': 'WeightDay'}
+        ).set_index('day')
+
+        # weights per season
+        self.param_frames['WeightSeason'] = self.model_sets.cw_temporal[
+            ['Map_s', 'Map_hour', 'WeightDay', 'WeightHour']
+        ].drop_duplicates()
+        self.param_frames['WeightSeason'].loc[:, 'WeightSeason'] = (
+            self.param_frames['WeightSeason']['WeightDay']
+            * self.param_frames['WeightSeason']['WeightHour']
+        )
+        self.param_frames['WeightSeason'] = (
+            self.param_frames['WeightSeason']
+            .drop(columns=['WeightDay', 'WeightHour', 'Map_hour'])
+            .groupby(['Map_s'])
+            .agg('sum')
+            .reset_index()
+            .rename(columns={'Map_s': 'season'})
+        ).set_index('season')
+
+    def aggregate_time(self, df: DataFrame):
+        """Aggregate a time-based dataframe at yearly and hourly levels"""
+        # average values in years/hours used
+
+        if 'year' in df.columns:
+            df = avg_by_group(df, 'year', self.model_sets.year_map_df)
+        if 'hour' in df.columns:
+            df = avg_by_group(df, 'hour', self.model_sets.cw_temporal[['hour', 'Map_hour']])
+        return df

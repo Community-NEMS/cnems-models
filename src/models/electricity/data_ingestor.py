@@ -95,11 +95,7 @@ PROPERTY_SOURCES = {
         ('tech',),
     ),
     'buildable_techs': ('build_data.csv', ['builds'], ('tech', 'step')),
-    'retireable_techs': (
-        'retire_data.csv',
-        ['retires'],
-        ('tech', 'step'),
-    ),
+    'retireable_techs': ('retire_data.csv', ['retires'], ('tech', 'step')),
     'region_data': ('region_data.csv', ['region', 'domestic', 'international'], ('region',)),
 }
 
@@ -177,7 +173,7 @@ def read_parameter_csv(
     index_cols: Sequence[str],
     value_col: str,
     filter_package: FilterPackage | None = None,
-) -> dict[tuple[str, ...], float]:
+) -> dict[tuple, float]:
     """
     Reads a CSV file and processes its content into a dictionary mapping index tuples
     to float values while applying optional region and year filtering.
@@ -316,7 +312,7 @@ def read_property_csv(
 def load_param_data(
     input_dir: Path,
     param_filter: FilterPackage | None = None,
-) -> dict[str, dict[tuple[str, ...], float]]:
+) -> dict[str, dict[tuple, float]]:
     if not param_filter:
         # make an empty one (no filtering)
         param_filter = FilterPackage()

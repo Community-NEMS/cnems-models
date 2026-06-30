@@ -25,7 +25,7 @@ from tests.model_diagnostics import (
     capacity_inspector,
     load_inspector,
     gather_var_data,
-    gather_constraint_data,
+    gather_constraint_data, gather_param_data,
 )
 
 # Test configurations with expected outputs:
@@ -80,6 +80,8 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
     gather_set_data(elec_model)
     print('\n~~ Variables ~~')
     gather_var_data(elec_model)
+    print('\n~~ Parameters ~~')
+    gather_param_data(elec_model)
     print('\n~~ Constraints ~~')
     gather_constraint_data(elec_model)
     print()

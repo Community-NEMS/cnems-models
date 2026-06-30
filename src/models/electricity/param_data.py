@@ -112,16 +112,16 @@ class ParamData:
         ]
         for name in names_to_adjust:
             param_data[name] = {k: v * 1000 for k, v in param_data[name].items()}
-
-        # make the Load dataframe
-        full_load_df = self.build_load_dataframe()
-        self.param_frames['Load'] = self.aggregate_time(full_load_df).set_index(
-            list(full_load_df.columns[:-1])
-        )
-
         # make the time-based dataframes
         # TODO:  refactor this?
         self.build_temporal_maps()
+
+        # make the Load dataframe
+        full_load_df = self.build_load_dataframe()
+        full_load_df = self.aggregate_time(full_load_df)
+        self.param_frames['Load'] = self.apply_hourly_weights(
+            self.param_frames['WeightHour'], full_load_df
+        )
 
         # Pluck out the time-based DF conversions and load them
         all_frames = load_dataframes(param_data=param_data, names_to_convert=TIME_BASED_DFS)
@@ -234,4 +234,14 @@ class ParamData:
             df = avg_by_group(df, 'year', self.model_sets.year_map_df)
         if 'hour' in df.columns:
             df = avg_by_group(df, 'hour', self.model_sets.cw_temporal[['hour', 'Map_hour']])
+        return df
+
+    def apply_hourly_weights(self, hour_weight: DataFrame, target: DataFrame) -> DataFrame:
+        """Apply the hourly weights to the data in the target dataframe by matching hour weights"""
+        # Update load to be the total demand in each time segment rather than the average
+        df = pd.merge(target, hour_weight, how='left', on=['hour'])
+        df['Load'] = df['Load'] * df['WeightHour']
+        df = df.drop(columns=['WeightHour'])
+        df = df.set_index(list(df.columns[:-1]))
+
         return df

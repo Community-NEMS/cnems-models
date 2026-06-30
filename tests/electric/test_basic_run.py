@@ -19,6 +19,12 @@ from src.common import config_setup
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.runner import run_elec_model
+from tests.model_diagnostics import (
+    breakdown_obj_elements,
+    gather_set_data,
+    capacity_inspector,
+    load_inspector,
+)
 
 # Test configurations with expected outputs:
 # Run Type                                  Total Cost         Variables    Constraints
@@ -69,6 +75,11 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
     elec_config = ElecConfig(**remainder.pop('elec_config'))
 
     elec_model = run_elec_model(common_config, elec_config, solve=True)
+    gather_set_data(elec_model)
+    print()
+    breakdown_obj_elements(elec_model)
+    capacity_inspector(elec_model, region='7', year=2025)
+    load_inspector(elec_model, region='7')
 
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())

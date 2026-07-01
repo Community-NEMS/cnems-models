@@ -10,7 +10,7 @@ Any constants used in elec processing
 """
 
 # TODO:  After these are imported/aligned, switch to all caps
-TransLoss = 0.02  # Transmission losses %
+TRANSMISSION_LOSS_FACTOR = 0.02  # Transmission losses %
 # 13.84 kwh/kg, for kwh/kg H2 -> 54.3, #conversion kwh/kg to GWh/kg
 H2Heatrate = 13.84 / 1000000
 

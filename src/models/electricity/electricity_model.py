@@ -3,6 +3,8 @@
 The class is organized by sections: settings, sets, parameters, variables, objective function,
 constraints, plus additional misc support functions.
 """
+
+from collections import defaultdict
 ###################################################################################################
 # Setup
 
@@ -15,7 +17,13 @@ from src.common.common_config import CommonConfig
 
 # Import python modules
 from src.common.model import Model
-from src.models.electricity.constants import UNMET_LOAD_PRICE, STORAGE_LEVEL_COST, H2Heatrate
+from src.models.electricity import model_sets
+from src.models.electricity.constants import (
+    UNMET_LOAD_PRICE,
+    STORAGE_LEVEL_COST,
+    H2Heatrate,
+    TRANSMISSION_LOSS_FACTOR,
+)
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
@@ -79,10 +87,13 @@ class PowerModel(Model):
         # self.declare_set_and_param('HydroCapFactor')
 
         ###########################################################################################
+
         # Sets
 
         # temporal sets
         self.hour = pyo.Set(initialize=setA.hour)
+        self.hour_first = pyo.Set(initialize=setA.hour1, within=self.hour)
+        self.hour_most = pyo.Set(initialize=setA.hour23, within=self.hour)
         self.day = pyo.Set(initialize=setA.day)
         self.season = pyo.Set(initialize=setA.season)
         self.year = pyo.Set(initialize=setA.year_map.values())
@@ -115,15 +126,17 @@ class PowerModel(Model):
         )
 
         self.step = pyo.Set(
-            initialize=range(1, 4)
-        )  # TODO:  Temporary until we get the plan for step squared away
+            initialize=range(1, 5)
+        )  # TODO:  Temporary until we get the plan for 'step' squared away
 
         # CONSTRAINT INDEXING SETS
         self.storage_most_hours_balance_index = pyo.Set(
-            initialize=setA.storage_most_hours_balance_index
+            initialize=setA.storage_most_hours_balance_index,
+            within=self.tech_stor * self.year * self.region_analyze * self.step * self.hour_most,
         )
         self.storage_first_hour_balance_index = pyo.Set(
-            initialize=setA.storage_first_hour_balance_index
+            initialize=setA.storage_first_hour_balance_index,
+            within=self.tech_stor * self.year * self.region_analyze * self.step * self.hour_first,
         )
         self.ramp_most_hours_balance_index = pyo.Set(initialize=setA.ramp_most_hours_balance_index)
         self.ramp_first_hour_balance_index = pyo.Set(initialize=setA.ramp_first_hour_balance_index)
@@ -135,6 +148,21 @@ class PowerModel(Model):
         self.capacity_hydro_ub_index = pyo.Set(initialize=setA.capacity_hydro_ub_index)
         self.reserves_procurement_index = pyo.Set(initialize=setA.reserves_procurement_index)
         self.generation_vre_ub_index = pyo.Set(initialize=setA.generation_vre_ub_index)
+        # regional trade indices
+
+        # self.interregional_trade_index = pyo.Set(
+        #     dimen=4,
+        #     initialize=all_frames['tran_limit'].index,
+        #     within=self.region_analyze * self.region_analyze * self.year * self.hour,
+        # )
+
+        # international trade indices
+        self.international_trade_index = pyo.Set(
+            dimen=5,
+            initialize=setA.international_trade_index,
+            within=self.region_analyze * self.region_int * self.year * self.step * self.hour,
+        )
+
         ################# Indexed sets
 
         # make an indexed set of storage (tech, year, region, step) indexed by hour
@@ -162,7 +190,7 @@ class PowerModel(Model):
         # spatial sets
         # self.declare_set('region', elec_config.region_filter)
         # self.declare_set('region_int', setA.region_int)
-        # self.declare_set('region_trade', setA.region_trade)
+        # self.declare_set('region_trade', setA.region_trade)  # <-- unnecessary as we have partners mapped
         # self.declare_set('region_int_trade', setA.region_int_trade)
 
         # Load sets
@@ -407,25 +435,106 @@ class PowerModel(Model):
                     mute = False
                 else:
                     mute = True
-                self.declare_param(
-                    'CapCostLearning',
-                    self.capacity_builds_index,
-                    all_frames['CapCost'],
+                self.CapCostLearning = pyo.Param(
+                    self.region,
+                    self.tech,
+                    self.year,
+                    self.step,
+                    initialize=all_frames['CapCost'],
                     mutable=mute,
                 )
+                # self.declare_param(
+                #     'CapCostLearning',
+                #     self.capacity_builds_index,
+                #     all_frames['CapCost'],
+                #     mutable=mute,
+                # )
 
         # if trade operation is on
         if elec_config.regional_exchange:
-            self.declare_param('TransLoss', None, setA.TransLoss)
-            self.declare_param('TranCost', self.TranCost_index, all_frames['TranCost'])
-            self.declare_param('TranLimit', self.TranLimit_index, all_frames['TranLimit'])
-            self.declare_param('TranCostInt', self.TranCostInt_index, all_frames['TranCostInt'])
-            self.declare_param(
-                'TranLimitGenInt', self.TranLimitInt_index, all_frames['TranLimitGenInt']
+            self.TranCost = pyo.Param(
+                self.region_analyze,
+                self.region_analyze,
+                self.year,
+                initialize=all_frames['tran_cost'],
             )
-            self.declare_param(
-                'TranLimitCapInt', self.TranLineLimitInt_index, all_frames['TranLimitCapInt']
+            self.TranLimit = pyo.Param(
+                self.region_analyze,
+                self.region_analyze,
+                self.year,
+                self.hour,
+                initialize=all_frames['tran_limit'],
             )
+            partners = defaultdict(list)
+            for source_region, destination_region, year, hour in all_frames['tran_limit'].index:
+                partners[year, source_region, hour].append(destination_region)
+            self.regional_partners = pyo.Set(
+                self.year,
+                self.region_analyze,
+                self.hour,
+                initialize=lambda m, y, r, h: partners.get((y, r, h), []),
+            )
+            self.TranCostInt = pyo.Param(
+                self.region_analyze,
+                self.region_int,
+                self.step,
+                self.year,
+                initialize=all_frames['tran_cost_int'],
+            )
+            self.TranLimitGenInt = pyo.Param(
+                self.region_int,
+                self.step,
+                self.year,
+                self.hour,
+                initialize=all_frames['tran_limit_gen_int'],
+            )
+            self.TranLimitCapInt = pyo.Param(
+                self.region_analyze,
+                self.region_int,
+                self.year,
+                self.hour,
+                initialize=all_frames['tran_limit_cap_int'],
+            )
+            # use the index to create reverse-lookups
+            partners = defaultdict(list)
+            for region, region_int, year, step, hour in self.international_trade_index:
+                partners[year, region, hour].append((region_int, step))
+            self.international_partners = pyo.Set(
+                self.year,
+                self.region_analyze,
+                self.hour,
+                initialize=lambda m, y, r, h: partners.get((y, r, h), []),
+            )
+            viable_steps = defaultdict(list)
+            for region, region_int, year, step, hour in self.international_trade_index:
+                viable_steps[region, region_int, year, hour].append(step)
+            self.viable_international_steps = pyo.Set(
+                self.region_analyze,
+                self.region_int,
+                self.year,
+                self.hour,
+                initialize=lambda m, ra, ri, y, h: viable_steps.get((ra, ri, y, h), []),
+            )
+            domestic_destinations = defaultdict(list)
+            for region, region_int, year, step, hour in self.international_trade_index:
+                domestic_destinations[region_int, year, hour].append(region)
+            # note: this does NOT depend on step, but there could be non-viable hours
+            self.domestic_destinations = pyo.Set(
+                self.region_int,
+                self.year,
+                self.hour,
+                initialize=lambda m, r, y, h: domestic_destinations.get((r, y, h), []),
+            )
+
+            # self.declare_param('TranCost', self.TranCost_index, all_frames['TranCost'])
+            # self.declare_param('TranLimit', self.TranLimit_index, all_frames['TranLimit'])
+            # self.declare_param('TranCostInt', self.TranCostInt_index, all_frames['TranCostInt'])
+            # self.declare_param(
+            #     'TranLimitGenInt', self.TranLimitInt_index, all_frames['TranLimitGenInt']
+            # )
+            # self.declare_param(
+            #     'TranLimitCapInt', self.TranLineLimitInt_index, all_frames['TranLimitCapInt']
+            # )
 
         # if reserve margin requirements are on
         if elec_config.reserve_margin_required:
@@ -510,8 +619,25 @@ class PowerModel(Model):
 
         # if trade operation is on
         if elec_config.regional_exchange:
-            self.declare_var('trade_interregional', self.trade_interregional_index)
-            self.declare_var('trade_international', self.trade_interational_index)
+            # Interregional index [region, dest_region, year, hour] can be drafted on-the-fly from the
+            # limit parameter
+            # idx = [
+            #     (source, destination, year, hour)
+            #     for (source, destination, year, year) in self.TranLimit
+            #     for hour in self.hour
+            # ]
+            # Interregional trade is limited by the TranLimit, so we can index with it
+            self.trade_interregional = pyo.Var(
+                list(self.TranLimit.keys()),
+                within=pyo.NonNegativeReals,
+            )
+
+            self.trade_international = pyo.Var(
+                self.international_trade_index,
+                within=pyo.NonNegativeReals,
+            )
+            # self.declare_var('trade_interregional', self.trade_interregional_index)
+            # self.declare_var('trade_international', self.trade_interational_index)
 
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:
@@ -698,13 +824,13 @@ class PowerModel(Model):
                     * self.WeightYear[y]
                     * self.trade_interregional[(r, r1, y, hr)]
                     * self.TranCost[(r, r1, y)]
-                    for (r, r1, y, hr) in self.trade_interregional_index
+                    for (r, r1, y, hr) in self.trade_interregional
                 ) + sum(
                     self.WeightDay[self.MapHourDay[hr]]
                     * self.WeightYear[y]
                     * self.trade_international[(r, R_int, y, step, hr)]
                     * self.TranCostInt[(r, R_int, step, y)]
-                    for (r, R_int, y, step, hr) in self.trade_interational_index
+                    for (r, R_int, y, step, hr) in self.international_trade_index
                 )
 
             self.trade_cost = pyo.Expression(expr=trade_cost)
@@ -781,7 +907,7 @@ class PowerModel(Model):
         ###########################################################################################
         # Constraints
 
-        self.sw_trade = elec_config.regional_exchange  # TODO:  temporary fix as the rule needs this
+        # self.sw_trade = elec_config.regional_exchange  # Only needed by rule (commented out) below
 
         # below is handled in indexed set creation at top (still incomplete)
         # self.populate_demand_balance_sets = pyo.BuildAction(
@@ -816,18 +942,22 @@ class PowerModel(Model):
                 for (tech, step) in self.StorageSetDemandBalance[(y, r, hr)]
             ) + self.unmet_load[(r, y, hr)] + (
                 sum(
-                    self.trade_interregional[(r, r1, y, hr)] * (1 - self.TransLoss)
+                    # TODO:  Sauleh, review this.  Seems transmission loss should apply to what
+                    #        region "r" receives not what it sends out...?
+                    self.trade_interregional[(r, r1, y, hr)] * (1 - TRANSMISSION_LOSS_FACTOR)
                     - self.trade_interregional[(r1, r, y, hr)]
-                    for (r1) in self.TradeSetDemandBalance[(y, r, hr)]
+                    for (r1) in self.regional_partners[(y, r, hr)]
                 )
-                if elec_config.regional_exchange and r in self.region_trade
+                # note:  don't need to check "region_trade" as the lookup in partners could be empty
+                if elec_config.regional_exchange  # and r in self.region_trade
                 else 0
             ) + (
                 sum(
-                    self.trade_international[(r, R_int, y, step, hr)] * (1 - self.TransLoss)
-                    for (R_int, step) in self.TradeCanSetDemandBalance[(y, r, hr)]
+                    self.trade_international[(r, R_int, y, step, hr)]
+                    * (1 - TRANSMISSION_LOSS_FACTOR)
+                    for (R_int, step) in self.international_partners[(y, r, hr)]
                 )
-                if (elec_config.regional_exchange and r in self.region_int_trade)
+                if elec_config.regional_exchange
                 else 0
             )
 
@@ -1236,13 +1366,21 @@ class PowerModel(Model):
                 )
 
         # if trade operation is on
-        if elec_config.regional_exchange and len(self.TranLineLimitInt_index) != 0:
-            self.populate_trade_sets = pyo.BuildAction(rule=em.populate_trade_sets_rule)
+        if elec_config.regional_exchange:  # and len(self.TranLineLimitInt_index) != 0:
+            # self.populate_trade_sets = pyo.BuildAction(rule=em.populate_trade_sets_rule)
 
-            @self.Constraint(self.TranLineLimitInt_index)
-            def trade_interational_capacity_ub(self, r, R_int, y, hr):
+            # filter out the "step" from the international trade index
+            idx = [
+                (region, region_int, year, hour)
+                for (region, region_int, year, _, hour) in self.international_trade_index
+            ]
+
+            @self.Constraint(idx)  # (self.TranLineLimitInt_index)
+            def trade_international_capacity_ub(self, r, R_int, y, hr):
                 """International interregional trade upper bound where
                 Interregional Trade <= Interregional Transmission Capabilities * Time
+
+                basically:  sum across all steps that use this line and ensure within capacity of line
 
                 Parameters
                 ----------
@@ -1261,17 +1399,28 @@ class PowerModel(Model):
                     International interregional trade capacity upper bound
                 """
                 return (
+                    # sum across all viable steps for this route
                     sum(
-                        self.trade_international[(r, R_int, y, c, hr)]
-                        for c in self.TradeCanLineSetUpper[(r, R_int, y, hr)]
+                        self.trade_international[(r, R_int, y, step, hr)]
+                        for step in self.viable_international_steps[(r, R_int, y, hr)]
                     )
                     <= self.TranLimitCapInt[(r, R_int, y, hr)] * self.WeightHour[hr]
                 )
 
-            @self.Constraint(self.TranLimitInt_index)
-            def trade_interational_generation_ub(self, R_int, step, y, hr):
+            # filter the domestic region out of the international trade index and resequence
+            # TODO:  Look to standardize the sequencing here
+            idx = [
+                (region_int, step, year, hour)
+                for (_, region_int, year, step, hour) in self.international_trade_index
+            ]
+
+            @self.Constraint(idx)
+            def trade_international_generation_ub(self, R_int, step, y, hr):
                 """International electricity supply upper bound where
                 Interregional Trade <= Interregional Supply
+
+                sum across all destination regions to ensure the international generation capacity
+                for this international region is not exceeded
 
                 Parameters
                 ----------
@@ -1292,12 +1441,12 @@ class PowerModel(Model):
                 return (
                     sum(
                         self.trade_international[(r, R_int, y, step, hr)]
-                        for r in self.TradeCanSetUpper[(R_int, y, step, hr)]
+                        for r in self.domestic_destinations[(R_int, y, hr)]
                     )
                     <= self.TranLimitGenInt[(R_int, step, y, hr)] * self.WeightHour[hr]
                 )
 
-            @self.Constraint(self.trade_interregional_index)
+            @self.Constraint(self.trade_interregional.index_set())
             def trade_domestic_ub(self, r, r1, y, hr):
                 """Interregional trade upper bound where
                 Interregional Trade <= Interregional Transmission Capabilities * Time
@@ -1320,7 +1469,7 @@ class PowerModel(Model):
                 """
                 return (
                     self.trade_interregional[(r, r1, y, hr)]
-                    <= self.TranLimit[(r, r1, self.MapHourSeason[hr], y)] * self.WeightHour[hr]
+                    <= self.TranLimit[(r, r1, y, hr)] * self.WeightHour[hr]
                 )
 
         # if reserve margin requirements are on

@@ -29,11 +29,13 @@ from tests.model_diagnostics import (
     gather_param_data,
 )
 
+verbose = False
+
 # Test configurations with expected ORIGINAL outputs:
 # Run Type                                  Total Cost         Variables    Constraints      Notes for new
-# ----------------------------------------  -----------------  -----------  -----------
-# Basic No-Frills                           3452103301.9            17886        19440      constr=19632 VRE_UB fix
-# Exchange Enabled                          2278237043.0            21342        23088
+# ----------------------------------------  -----------------  -----------  -----------     ---------------
+# Basic No-Frills                           3452103301.9            17886        19440      constr = 19632 VRE_UB fix (+192)
+# Exchange Enabled                          2278237043.0            21342        23088      constr = 23280 (+192 constr, from above)
 # Expansion (no learning)                   3455793875.5            18060        19566
 # Ramping Required                          3522284566.9            32862        41904
 # Reserve Margin (mandatory expansion)      4925573167.9            19212        22446
@@ -41,7 +43,7 @@ from tests.model_diagnostics import (
 
 configs = [
     ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
-    # ('exchange_elec_config.toml', 2278237043.0, 21342, 23088),
+    ('exchange_elec_config.toml', 2278237043.0, 21342, 23280),
     # ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19566),
     # ('ramping_elec_config.toml', 3522284566.9, 32862, 41904),
     # ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22446),
@@ -54,7 +56,7 @@ configs = [
     configs,
     ids=[
         'Basic No-Frills',
-        # 'Exchange Enabled',
+        'Exchange Enabled',
         # 'Expansion (no learning)',
         # 'Ramping Required',
         # 'Reserve with Expansion (no learning)',
@@ -78,18 +80,19 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
     elec_config = ElecConfig(**remainder.pop('elec_config'))
 
     elec_model = run_elec_model(common_config, elec_config, solve=True)
-    print('\n~~ Sets ~~')
-    gather_set_data(elec_model)
-    print('\n~~ Variables ~~')
-    gather_var_data(elec_model)
-    print('\n~~ Parameters ~~')
-    gather_param_data(elec_model)
-    print('\n~~ Constraints ~~')
-    gather_constraint_data(elec_model)
-    print()
-    breakdown_obj_elements(elec_model)
-    capacity_inspector(elec_model, region='7', year=2025)
-    load_inspector(elec_model, region='7')
+    if verbose:
+        print('\n~~ Sets ~~')
+        gather_set_data(elec_model)
+        print('\n~~ Variables ~~')
+        gather_var_data(elec_model)
+        print('\n~~ Parameters ~~')
+        gather_param_data(elec_model)
+        print('\n~~ Constraints ~~')
+        gather_constraint_data(elec_model)
+        print()
+        breakdown_obj_elements(elec_model)
+        capacity_inspector(elec_model, region='7', year=2025)
+        load_inspector(elec_model, region='7')
 
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())

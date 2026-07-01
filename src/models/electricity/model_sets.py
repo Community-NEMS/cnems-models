@@ -18,6 +18,7 @@ from collections.abc import Collection
 from warnings import deprecated
 
 import pandas as pd
+from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
 from src.integrator.utilities import create_temporal_mapping
@@ -43,8 +44,25 @@ class ModelSets:
 
     capacity_index: list[tuple]
     """The MASTER capacity index, augmented with Hour"""
+    capacity_hydro_ub_index: list[tuple]
+    generation_demand_index: defaultdict
+    generation_dispatchable_up_index: list[tuple]
+    generation_hour_index: defaultdict
+    generation_hydro_ub_index: list[tuple]
     generation_index: list[tuple]
+    generation_ramp_index: list[tuple]
+    generation_vre_ub_index: list[tuple]
+    h2_generation_hour_index: defaultdict
+    h2_generation_index: list[tuple]
+    international_trade_index: list[tuple]
+    ramp_first_hour_balance_index: list[tuple]
+    ramp_most_hours_balance_index: list[tuple]
+    reserves_procurement_index: list[tuple]
+    storage_demand_index: defaultdict
+    storage_first_hour_balance_index: list[tuple]
+    storage_hour_index: defaultdict
     storage_index: list[tuple]
+    storage_most_hours_balance_index: list[tuple]
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
@@ -288,6 +306,26 @@ class ModelSets:
             if idx.tech in self.tech_vre
             for hour in self.hour
         )
+
+    def build_international_travel_index(
+        self, intl_capacity: DataFrame, intl_gen_limit: DataFrame
+    ) -> list[tuple]:
+        """Create the valid international trading index, which relies on the capacity and
+        the step from generation limits.
+        """
+        df = (
+            pd.merge(
+                intl_capacity.reset_index(),
+                intl_gen_limit.reset_index(),
+                on=['region_international', 'year', 'hour'],
+                how='inner',
+            )
+            .drop(columns=['TranLimitGenInt'])
+            .set_index(['region', 'region_international', 'year', 'step', 'hour'])
+        )
+        res = list(df.index)
+        self.international_trade_index = res
+        return res
 
     @staticmethod
     def _create_year_map(agg_years: Collection[int], start_year: int) -> dict:

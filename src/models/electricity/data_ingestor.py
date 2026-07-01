@@ -236,6 +236,7 @@ def read_parameter_csv(
             res[idx] = value
     if flag_floats:
         logger.warning('Converted floats to ints in %s', file_path)
+    logger.info('Read %s entries from %s', len(res), file_path)
     return res
 
 

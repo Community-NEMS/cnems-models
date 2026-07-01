@@ -57,13 +57,14 @@ class ElectricityMethods(Model):
             m, 'Storage_index', set_base2=['year', 'region', 'hour']
         )
 
-        if m.sw_trade == 1:
-            m.TradeSetDemandBalance = Model.populate_sets_rule(
-                m, 'trade_interregional_index', set_base2=['year', 'region', 'hour']
-            )
-            m.TradeCanSetDemandBalance = Model.populate_sets_rule(
-                m, 'trade_interational_index', set_base2=['year', 'region', 'hour']
-            )
+        # deprecated...
+        # if m.sw_trade == 1:
+        #     m.TradeSetDemandBalance = Model.populate_sets_rule(
+        #         m, 'trade_interregional_index', set_base2=['year', 'region', 'hour']
+        #     )
+        #     m.TradeCanSetDemandBalance = Model.populate_sets_rule(
+        #         m, 'trade_interational_index', set_base2=['year', 'region', 'hour']
+        #     )
 
     def populate_trade_sets_rule(m):
         """Creates new reindexed sets for trade constraints

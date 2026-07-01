@@ -146,11 +146,48 @@ class ParamData:
         # set proper index
         self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
 
-        # use the supply curve df BEFORE augmentation (below) to populate other sets in ModelSets
+        # expand season columns to the appropriate rep-hours for the season where season is used
+
+        TLCI_cols = ['region', 'region_international', 'year', 'hour', 'TranLimitCapInt']
+        TLGI_cols = ['region_international', 'step', 'year', 'hour', 'TranLimitGenInt']
+        self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
+            self.param_frames['MapHourSeason'],
+            self.param_frames['tran_limit_cap_int'],
+            TLCI_cols,
+            name='tran_limit_cap_int',
+        )
+        self.param_frames['tran_limit_gen_int'] = self.create_hourly_params(
+            self.param_frames['MapHourSeason'],
+            self.param_frames['tran_limit_gen_int'],
+            TLGI_cols,
+            name='tran_limit_gen_int',
+        )
+        # do the same for interregional
+        TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'TranLimit']
+        self.param_frames['tran_limit'] = self.create_hourly_params(
+            self.param_frames['MapHourSeason'],
+            self.param_frames['tran_limit'],
+            TLI_cols,
+            name='tran_limit',
+        )
+        logger.info(
+            'Converted seasonal interregional travel param to hourly of size: %d',
+            len(self.param_frames['tran_limit']),
+        )
+
+        # use the supply curve df BEFORE augmentation with seasons (below)
+        # to populate other sets in ModelSets
         model_sets.build_sc_indexes(list(SCI(*t) for t in self.param_frames['supply_curve'].index))
 
+        # populate the trade indices based on gathered parameter data
+        model_sets.build_international_travel_index(
+            intl_capacity=self.param_frames['tran_limit_cap_int'],
+            intl_gen_limit=self.param_frames['tran_limit_gen_int'],
+        )
+
         # augment the supply curve dataframe w/ season x-product
-        # TODO:  It should NOT be necessary to augment this DF with the x-product of season.  Review formulation
+        # TODO:  It should NOT be necessary to augment this DF with the x-product of season.
+        #        Review formulation.
         #        Likely done to allow comparison w/ price, which IS seasonal.
         df = add_season_index(
             model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 1
@@ -244,10 +281,28 @@ class ParamData:
         df['Load'] = df['Load'] * df['WeightHour']
         df = df.drop(columns=['WeightHour'])
         df = df.set_index(list(df.columns[:-1]))
-
         return df
 
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
         """Filter a dataframe by a column and a list of values"""
         return target[target[column].isin(values)]
+
+    @staticmethod
+    def create_hourly_params(
+        hour_season_map: DataFrame, target: DataFrame, new_col_sequence: list[str], name: str = ''
+    ) -> DataFrame:
+        """Expands params that are indexed by season to be indexed by hour"""
+        orig_size = len(target)
+        target.reset_index(inplace=True)
+        map_no_index = hour_season_map.reset_index()
+        df = pd.merge(target, map_no_index, on=['season'], how='left').drop(columns=['season'])
+        df = df[new_col_sequence]
+        new_size = len(df)
+        logger.info(
+            'Expanded df %s from %d to %d with seasonal -> hour conversion',
+            name,
+            orig_size,
+            new_size,
+        )
+        return df.set_index(list(df.columns[:-1]))

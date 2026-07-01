@@ -188,7 +188,7 @@ class ModelSets:
         self.retirement_index = sorted(
             (idx.tech, idx.year, idx.region, idx.step)
             for idx in supply_curve_index
-            if idx.tech in self.tech_retires
+            if (idx.tech, idx.step) in self.tech_retires
         )
 
         self.generation_index = sorted(

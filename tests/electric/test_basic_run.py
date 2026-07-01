@@ -29,7 +29,7 @@ from tests.model_diagnostics import (
     gather_param_data,
 )
 
-verbose = True
+verbose = False
 
 # TODO:  Add combination with expansion + margin required to test combo constraint near line 1500 in model
 
@@ -38,7 +38,7 @@ verbose = True
 # ----------------------------------------  -----------------  -----------  -----------     ---------------
 # Basic No-Frills                           3452103301.9            17886        19440      constr = 19632 VRE_UB fix (+192)
 # Exchange Enabled                          2278237043.0            21342        23088      constr = 23280 (+192 constr, from above)
-# Expansion (no learning)                   3455793875.5            18060        19566
+# Expansion (no learning)                   3455793875.5            18060        19566      same... +192
 # Ramping Required                          3522284566.9            32862        41904
 # Reserve Margin (mandatory expansion)      4925573167.9            19212        22446
 # Agg Years                                 ??  Broken.  Suspect it is used in preprocessor
@@ -46,7 +46,7 @@ verbose = True
 configs = [
     ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
     ('exchange_elec_config.toml', 2278237043.0, 21342, 23280),
-    ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19566),
+    ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19758),
     # ('ramping_elec_config.toml', 3522284566.9, 32862, 41904),
     # ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22446),
     # ('agg_years_elec_config.toml', 3452103301.9, 17886, 19440),
@@ -98,9 +98,15 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
         if hasattr(elec_model, 'fixed_om_cost'):
             elec_model.fixed_om_cost.pprint()
             # print(f'terms in om cost: {elec_model.fixed_om_cost.linear_vars}')
-            print(f'sum of capacity: {sum(value(elec_model.capacity_total[i]) for i in elec_model.capacity_total)}')
-            print(f'sum of expansion: {sum(value(elec_model.capacity_builds[i]) for i in elec_model.capacity_builds)}')
-            print(f'sum of retirements: {sum(value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements)}')
+            print(
+                f'sum of capacity: {sum(value(elec_model.capacity_total[i]) for i in elec_model.capacity_total)}'
+            )
+            print(
+                f'sum of expansion: {sum(value(elec_model.capacity_builds[i]) for i in elec_model.capacity_builds)}'
+            )
+            print(
+                f'sum of retirements: {sum(value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements)}'
+            )
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())
 

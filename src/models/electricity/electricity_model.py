@@ -234,10 +234,15 @@ class PowerModel(Model):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
+
+            def retireable(m, tech, year, region, step):
+                return (tech, step) in m.retireable_tech
+
             self.capacity_retirements_index = pyo.Set(
                 dimen=4,
-                within=self.retireable_tech * self.year * self.region_analyze * self.step,
+                within=self.tech * self.year * self.region_analyze * self.step,
                 initialize=setA.retirement_index,
+                validate=retireable,
             )
             # self.declare_set('capacity_builds_index', all_frames['CapCost'])
             # self.declare_set('FOMCost_index', all_frames['FOMCost'])
@@ -1372,10 +1377,11 @@ class PowerModel(Model):
                 pyomo.core.base.constraint.IndexedConstraint
                     Retirement upper bound
                 """
+                # TODO:  remove the hard-coded 2 after we trim season out of SupplyCurve
                 return self.capacity_retirements[(tech, y, r, step)] <= (
                     (
-                        self.SupplyCurve[(r, 2, tech, step, y)]
-                        if (r, 2, tech, step, y) in self.capacity_total_index
+                        self.SupplyCurve[(r, '2', tech, step, y)]
+                        if (r, '2', tech, step, y) in self.capacity_total
                         else 0
                     )
                     + (

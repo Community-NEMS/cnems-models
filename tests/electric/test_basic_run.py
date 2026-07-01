@@ -29,7 +29,9 @@ from tests.model_diagnostics import (
     gather_param_data,
 )
 
-verbose = False
+verbose = True
+
+# TODO:  Add combination with expansion + margin required to test combo constraint near line 1500 in model
 
 # Test configurations with expected ORIGINAL outputs:
 # Run Type                                  Total Cost         Variables    Constraints      Notes for new
@@ -44,7 +46,7 @@ verbose = False
 configs = [
     ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
     ('exchange_elec_config.toml', 2278237043.0, 21342, 23280),
-    # ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19566),
+    ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19566),
     # ('ramping_elec_config.toml', 3522284566.9, 32862, 41904),
     # ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22446),
     # ('agg_years_elec_config.toml', 3452103301.9, 17886, 19440),
@@ -57,7 +59,7 @@ configs = [
     ids=[
         'Basic No-Frills',
         'Exchange Enabled',
-        # 'Expansion (no learning)',
+        'Expansion (no learning)',
         # 'Ramping Required',
         # 'Reserve with Expansion (no learning)',
         # 'Agg Years',

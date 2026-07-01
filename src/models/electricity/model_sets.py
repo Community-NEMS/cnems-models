@@ -58,6 +58,7 @@ class ModelSets:
     ramp_first_hour_balance_index: list[tuple]
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
+    retirement_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
     storage_hour_index: defaultdict
@@ -180,8 +181,16 @@ class ModelSets:
             for idx in supply_curve_index
             for season in self.season
         )
-
         logger.info(f'Built Capacity Index of size: {len(self.capacity_index)}')
+
+        # dev note: In the future, if we pull season out of capacity_index, this could be
+        #           replaced with just a filter on tech_retires
+        self.retirement_index = sorted(
+            (idx.tech, idx.year, idx.region, idx.step)
+            for idx in supply_curve_index
+            if idx.tech in self.tech_retires
+        )
+
         self.generation_index = sorted(
             (idx.tech, idx.year, idx.region, idx.step, hr)
             for idx in supply_curve_index

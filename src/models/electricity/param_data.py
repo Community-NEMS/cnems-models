@@ -13,6 +13,7 @@ held in pandas dataframes.
 """
 
 import logging
+from collections.abc import Collection
 from pathlib import Path
 
 import pandas as pd
@@ -194,6 +195,15 @@ class ParamData:
         )
         self.param_frames['supply_curve'] = df.set_index(list(df.columns)[:-1])
 
+        # use the augmented supply_curve DF to make the capacity_credit df
+        self.param_frames['capacity_credit'] = self.build_capacity_credit(
+            augmented_supply_curve=self.param_frames['supply_curve'],
+            hour_season_map=self.param_frames['MapHourSeason'],
+            cap_factor_vre=self.param_frames['cap_factor_vre'],
+            hydro_cap_factor=self.param_frames['hydro_cap_factor'],
+            tech_hyrdo=model_sets.tech_hydro,
+        )
+
         # Load the remainder directly into dictionary objects
         for name in param_data:
             data = param_data.get(name, {})
@@ -283,6 +293,71 @@ class ParamData:
         df = df.set_index(list(df.columns[:-1]))
         return df
 
+    def build_capacity_credit(
+        self,
+        augmented_supply_curve: DataFrame,
+        hour_season_map: DataFrame,
+        cap_factor_vre: DataFrame,
+        hydro_cap_factor: DataFrame,
+        tech_hyrdo: Collection[str],
+    ) -> DataFrame:
+        # def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
+        """builds the capacity credit dataframe
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        pd.DataFrame
+            formatted capacity credit data frame
+        """
+        basis = self.create_hourly_params(
+            target=augmented_supply_curve,
+            hour_season_map=hour_season_map,
+            new_col_sequence=None,
+            set_index=False,
+        )
+
+        # capacity credit is hourly capacity factor for vre technologies
+        df = pd.merge(
+            basis,
+            cap_factor_vre,
+            how='left',
+            on=['tech', 'year', 'region', 'step', 'hour'],
+        ).rename(columns={'CapFactorVRE': 'CapacityCredit'})  # TODO:  This seems hoaky
+        # df now has all rows in it.  We just need to correct entries for non-VRE technologies and hydro techs
+
+        # capacity credit = 1 for dispatchable technologies
+        df['CapacityCredit'] = df['CapacityCredit'].fillna(1)  # everything non-VRE
+
+        # capacity credit is seasonal limit for hydro, map it out to hourly
+        hydro_capacity = self.create_hourly_params(
+            target=hydro_cap_factor,
+            hour_season_map=hour_season_map,
+            new_col_sequence=None,
+            set_index=False,
+        )
+
+        # merge hydro capacity factors onto df by keys, then update only hydro technologies
+        df = pd.merge(
+            df,
+            hydro_capacity[['region', 'hour', 'HydroCapFactor']],
+            how='left',
+            on=['region', 'hour'],
+        )
+
+        hydro_mask = df['tech'].isin(tech_hyrdo)
+        df.loc[hydro_mask, 'CapacityCredit'] = df.loc[hydro_mask, 'HydroCapFactor']
+
+        # drop unnecessary columns
+        df = df.drop(columns=['SupplyCurve', 'HydroCapFactor'])
+
+        # reorder columns
+        df = df[['tech', 'year', 'region', 'step', 'hour', 'CapacityCredit']]
+        df = df.set_index(list(df.columns)[:-1])
+        return df
+
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
         """Filter a dataframe by a column and a list of values"""
@@ -290,14 +365,20 @@ class ParamData:
 
     @staticmethod
     def create_hourly_params(
-        hour_season_map: DataFrame, target: DataFrame, new_col_sequence: list[str], name: str = ''
+        hour_season_map: DataFrame,
+        target: DataFrame,
+        new_col_sequence: list[str] | None,
+        set_index: bool = True,
+        name: str = '',
     ) -> DataFrame:
         """Expands params that are indexed by season to be indexed by hour"""
         orig_size = len(target)
-        target.reset_index(inplace=True)
+        target = target.reset_index()
         map_no_index = hour_season_map.reset_index()
         df = pd.merge(target, map_no_index, on=['season'], how='left').drop(columns=['season'])
-        df = df[new_col_sequence]
+        if new_col_sequence:
+            # filter/sort by provided column list
+            df = df[new_col_sequence]
         new_size = len(df)
         logger.info(
             'Expanded df %s from %d to %d with seasonal -> hour conversion',
@@ -305,4 +386,6 @@ class ParamData:
             orig_size,
             new_size,
         )
-        return df.set_index(list(df.columns[:-1]))
+        if set_index:
+            return df.set_index(list(df.columns[:-1]))
+        return df

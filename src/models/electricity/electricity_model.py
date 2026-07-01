@@ -12,6 +12,7 @@ from collections import defaultdict
 from logging import getLogger
 import pyomo.environ as pyo
 from pandas import DataFrame
+from pyomo.devel.initialization import initialize
 
 from src.common.common_config import CommonConfig
 
@@ -233,7 +234,11 @@ class PowerModel(Model):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            pass
+            self.capacity_retirements_index = pyo.Set(
+                dimen=4,
+                within=self.retireable_tech * self.year * self.region_analyze * self.step,
+                initialize=setA.retirement_index,
+            )
             # self.declare_set('capacity_builds_index', all_frames['CapCost'])
             # self.declare_set('FOMCost_index', all_frames['FOMCost'])
             # self.declare_set('Build_index', setA.Build_index)
@@ -247,6 +252,7 @@ class PowerModel(Model):
             ExpansionLearningType.LINEAR,
             ExpansionLearningType.NONLINEAR,
         }:
+            # TODO:  revisit this after no-learning working
             pass
             # self.declare_set(
             #     'LearningRate_index',
@@ -367,7 +373,7 @@ class PowerModel(Model):
         self.HydroCapFactor = pyo.Param(
             self.region_analyze,
             self.season,
-            initialize=all_dicts['hydro_cap_factor'],
+            initialize=all_frames['hydro_cap_factor'],
             within=pyo.NonNegativeReals,
         )
         self.BatteryEfficiency = pyo.Param(
@@ -407,13 +413,26 @@ class PowerModel(Model):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            self.declare_param('FOMCost', self.FOMCost_index, all_frames['FOMCost'])
-            self.declare_param(
-                'CapacityCredit', self.CapacityCredit_index, all_frames['CapacityCredit']
+            self.FOMCost = pyo.Param(
+                self.region_analyze, self.tech, self.step, initialize=all_dicts['fom_cost']
             )
+            self.CapacityCredit = pyo.Param(
+                self.tech,
+                self.year,
+                self.region_analyze,
+                self.step,
+                self.hour,
+                initialize=all_frames['capacity_credit'],
+            )
+
+            # self.declare_param('FOMCost', self.FOMCost_index, all_frames['FOMCost'])
+            # self.declare_param(
+            #     'CapacityCredit', self.CapacityCredit_index, all_frames['CapacityCredit']
+            # )
 
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
+                # TODO:  revisit this after no-learning working
                 self.declare_param(
                     'LearningRate', self.LearningRate_index, all_frames['LearningRate']
                 )
@@ -435,12 +454,12 @@ class PowerModel(Model):
                     mute = False
                 else:
                     mute = True
-                self.CapCostLearning = pyo.Param(
+                self.CapCostLearning = pyo.Param(  # TODO:  Shouldn't this be named just "CapCost"?  regardless of learning?
                     self.region,
                     self.tech,
                     self.year,
                     self.step,
-                    initialize=all_frames['CapCost'],
+                    initialize=all_frames['cap_cost'],
                     mutable=mute,
                 )
                 # self.declare_param(
@@ -614,8 +633,17 @@ class PowerModel(Model):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            self.declare_var('capacity_builds', self.capacity_builds_index)
-            self.declare_var('capacity_retirements', self.capacity_retirements_index)
+            # TODO:  Review this creation of var index from parameter keys.  Done in a few spots, seems like best plan.
+            # TODO:  Refactor the order of indices in these params.  They are same names, different order.
+            self.capacity_builds = pyo.Var(
+                list(self.CapCostLearning.keys()), within=pyo.NonNegativeReals
+            )
+            self.capacity_retirements = pyo.Var(
+                self.capacity_retirements_index, within=pyo.NonNegativeReals
+            )
+            #
+            # self.declare_var('capacity_builds', self.capacity_builds_index)
+            # self.declare_var('capacity_retirements', self.capacity_retirements_index)
 
         # if trade operation is on
         if elec_config.regional_exchange:
@@ -741,15 +769,16 @@ class PowerModel(Model):
                     self.WeightYear[y]
                     * self.FOMCost[(r, tech, step)]
                     * self.capacity_total[(r, season, tech, step, y)]
-                    for (r, season, tech, step, y) in self.capacity_total_index
-                    if season == 2
+                    for (r, season, tech, step, y) in self.capacity_total
+                    if season
+                    == '2'  # TODO:  hard coded summer.  Remove after simplifying capacity to non-seasonal
                 )
 
             self.fixed_om_cost = pyo.Expression(expr=fixed_om_cost)
 
             # nonlinear expansion costs
             if elec_config.expansion_learning_type == ExpansionLearningType.NONLINEAR:
-
+                # TODO:  Review after no-learning is done
                 def capacity_expansion_cost(self):
                     """Capacity expansion cost component for the objective function if
                     learning switch is set to nonlinear option.
@@ -803,7 +832,7 @@ class PowerModel(Model):
                     return sum(
                         self.CapCostLearning[(r, tech, y, step)]
                         * self.capacity_builds[(r, tech, y, step)]
-                        for (r, tech, y, step) in self.capacity_builds_index
+                        for (r, tech, y, step) in self.CapCostLearning
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -1304,7 +1333,7 @@ class PowerModel(Model):
                 (r, season, tech, step, y)
             ] + (
                 sum(self.capacity_builds[(r, tech, year, step)] for year in self.year if year <= y)
-                if elec_config.capacity_expansion and (tech, step) in self.Build_index
+                if elec_config.capacity_expansion and (tech, step) in self.buildable_tech
                 else 0
             ) - (
                 sum(
@@ -1355,7 +1384,7 @@ class PowerModel(Model):
                             for year in self.year
                             if year < y
                         )
-                        if (tech, step) in self.Build_index
+                        if (tech, step) in self.buildable_tech
                         else 0
                     )
                     - sum(
@@ -1473,6 +1502,8 @@ class PowerModel(Model):
                 )
 
         # if reserve margin requirements are on
+        # TODO:  Ask Sauleh why we reference "expansion" here as it seems like separate concept.
+        #        Why not JUST reserve_margin?
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
             self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
 

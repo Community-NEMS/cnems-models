@@ -95,7 +95,12 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
         breakdown_obj_elements(elec_model)
         capacity_inspector(elec_model, region='7', year=2025)
         load_inspector(elec_model, region='7')
-
+        if hasattr(elec_model, 'fixed_om_cost'):
+            elec_model.fixed_om_cost.pprint()
+            # print(f'terms in om cost: {elec_model.fixed_om_cost.linear_vars}')
+            print(f'sum of capacity: {sum(value(elec_model.capacity_total[i]) for i in elec_model.capacity_total)}')
+            print(f'sum of expansion: {sum(value(elec_model.capacity_builds[i]) for i in elec_model.capacity_builds)}')
+            print(f'sum of retirements: {sum(value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements)}')
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())
 

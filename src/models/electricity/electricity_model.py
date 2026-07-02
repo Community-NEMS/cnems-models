@@ -1197,8 +1197,8 @@ class PowerModel(pyo.ConcreteModel):
                 self.generation_total[(T_disp, y, r, step, hr)]
                 + (
                     sum(
-                        self.reserves_procurement[(restype, T_disp, y, r, step, hr)]
-                        for restype in self.restypes
+                        self.reserves_procurement[(restype.value, T_disp, y, r, step, hr)]
+                        for restype in ReserveType
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1233,8 +1233,8 @@ class PowerModel(pyo.ConcreteModel):
             return (
                 self.generation_total[(T_hydro, y, r, step, hr)]
                 + sum(
-                    self.reserves_procurement[(restype, T_hydro, y, r, step, hr)]
-                    for restype in self.restypes
+                    self.reserves_procurement[(restype.value, T_hydro, y, r, step, hr)]
+                    for restype in ReserveType
                 )
                 if elec_config.spinning_reserve_required
                 else 0
@@ -1269,8 +1269,8 @@ class PowerModel(pyo.ConcreteModel):
                 self.generation_total[(T_vre, y, r, step, hr)]
                 + (
                     sum(
-                        self.reserves_procurement[(restype, T_vre, y, r, step, hr)]
-                        for restype in self.restypes
+                        self.reserves_procurement[(restype.value, T_vre, y, r, step, hr)]
+                        for restype in ReserveType
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1340,8 +1340,8 @@ class PowerModel(pyo.ConcreteModel):
                 self.storage_outflow[(tech, y, r, step, hr)]
                 + (
                     sum(
-                        self.reserves_procurement[(restype, tech, y, r, step, hr)]
-                        for restype in self.restypes
+                        self.reserves_procurement[(restype.value, tech, y, r, step, hr)]
+                        for restype in ReserveType
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1813,7 +1813,7 @@ class PowerModel(pyo.ConcreteModel):
         if elec_config.spinning_reserve_required:
             # self.populate_reserves_sets = pyo.BuildAction(rule=em.populate_reserves_sets_rule)
 
-            @self.Constraint(self.Load)
+            @self.Constraint(self.Load.index_set())
             def reserve_requirement_spin_lb(self, r, y, hr):
                 """Spinning reserve requirements (3% of load) where
                 Spinning reserve procurement >= 0.03 * Load
@@ -1841,7 +1841,7 @@ class PowerModel(pyo.ConcreteModel):
                     * self.Load[(r, y, hr)]  # TODO:  Extract this magic number to constants.py
                 )
 
-            @self.Constraint(self.Load)
+            @self.Constraint(self.Load.index_set())
             def reserve_requirement_reg_lb(self, r, y, hr):
                 """Regulation Reserve Req (1% of load + 0.5% of wind gen + 0.3% of solar cap) where
                 Reserves Requirement >= 0.01 * Load
@@ -1874,7 +1874,7 @@ class PowerModel(pyo.ConcreteModel):
                     for (T_solar, step) in self.SolarSetReserves[(y, r, hr)]
                 )
 
-            @self.Constraint(self.Load)
+            @self.Constraint(self.Load.index_set())
             def reserve_requirement_flex_lb(self, r, y, hr):
                 """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap) where
                 Reserves Requirement >= 0.01 * Wind Gen

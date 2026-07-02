@@ -17,7 +17,7 @@ from pyomo.common.numeric_types import value
 from definitions import PROJECT_ROOT
 from src.common import config_setup
 from src.common.common_config import CommonConfig
-from src.models.electricity.elec_config import ElecConfig
+from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.runner import run_elec_model
 from tests.model_diagnostics import (
     breakdown_obj_elements,
@@ -40,21 +40,22 @@ verbose = False
 # Exchange Enabled                          2278237043.0            21342        23088      constr = 23280 (+192 constr, from above)
 # Expansion (no learning)                   3455793875.5            18060        19566      same... +192
 # Ramping Required                          3522284566.9            32862        41904      same... +192
-# Reserve Margin (mandatory expansion)      4925573167.9            19212        22446
+# Reserve Margin (mandatory expansion)      4925573167.9            19212        22446      same... +192
 # Agg Years                                 ??  Broken.  Suspect it is used in preprocessor
 
 configs = [
-    ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
-    ('exchange_elec_config.toml', 2278237043.0, 21342, 23280),
-    ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19758),
-    ('ramping_elec_config.toml', 3522284566.9, 32862, 42096),
-    ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22638),
-    # ('agg_years_elec_config.toml', 3452103301.9, 17886, 19440),
+    ('basic', 3452103301.9, 17886, 19632),
+    ('exchange', 2278237043.0, 21342, 23280),
+    ('expansion_no_learning', 3455793875.5, 18060, 19758),
+    ('ramping', 3522284566.9, 32862, 42096),
+    ('reserve_with_expansion_no_learning', 4925573167.9, 19212, 22638),
+    ('reserve_spinning_with_expansion_no_learning', 5138465483.62, 62412, 67566),  # <-- no good starting value
+    ('agg_years', 13363835326.77, 17886, 19632),  # <-- no good starting value
 ]
 
 
 @pytest.mark.parametrize(
-    'config_file,expected_total_cost,expected_nvariables,expected_nconstraints',
+    'config_info,expected_total_cost,expected_nvariables,expected_nconstraints',
     configs,
     ids=[
         'Basic No-Frills',
@@ -62,10 +63,11 @@ configs = [
         'Expansion (no learning)',
         'Ramping Required',
         'Reserve with Expansion (no learning)',
-        # 'Agg Years',
+        'Reserve (with spinning) with Expansion (no learning)',
+        'Agg Years',
     ],
 )
-def test_basic_run(config_file, expected_total_cost, expected_nvariables, expected_nconstraints):
+def test_basic_run(config_info, expected_total_cost, expected_nvariables, expected_nconstraints):
     """
     Perform a couple of basic runs (with some features in isolation) and compare results to captured values
 
@@ -75,11 +77,31 @@ def test_basic_run(config_file, expected_total_cost, expected_nvariables, expect
         good for this test and dataset
     """
     # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
-    config_path = Path(PROJECT_ROOT, 'tests/electric', config_file)
+    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
 
-    # introduce the new ElecConfig
+    # introduce the ElecConfig
     elec_config = ElecConfig(**remainder.pop('elec_config'))
+
+    # make adjustments based on the config_info
+    if config_info == 'agg_years':
+        common_config.aggregate_years = True
+    elif config_info == 'ramping':
+        elec_config.ramping_required = True
+    elif config_info == 'reserve_with_expansion_no_learning':
+        elec_config.capacity_expansion = True
+        elec_config.reserve_margin_required = True
+        elec_config.expansion_learning_type = ExpansionLearningType.DISABLED
+    elif config_info == 'reserve_spinning_with_expansion_no_learning':
+        elec_config.capacity_expansion = True
+        elec_config.spinning_reserve_required = True
+        elec_config.reserve_margin_required = True
+        elec_config.expansion_learning_type = ExpansionLearningType.DISABLED
+    elif config_info == 'expansion_no_learning':
+        elec_config.expansion_learning_type = ExpansionLearningType.DISABLED
+        elec_config.capacity_expansion = True
+    elif config_info == 'exchange':
+        elec_config.regional_exchange = True
 
     elec_model = run_elec_model(common_config, elec_config, solve=True)
     if verbose:

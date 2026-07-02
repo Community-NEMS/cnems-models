@@ -39,7 +39,7 @@ verbose = False
 # Basic No-Frills                           3452103301.9            17886        19440      constr = 19632 VRE_UB fix (+192)
 # Exchange Enabled                          2278237043.0            21342        23088      constr = 23280 (+192 constr, from above)
 # Expansion (no learning)                   3455793875.5            18060        19566      same... +192
-# Ramping Required                          3522284566.9            32862        41904
+# Ramping Required                          3522284566.9            32862        41904      same... +192
 # Reserve Margin (mandatory expansion)      4925573167.9            19212        22446
 # Agg Years                                 ??  Broken.  Suspect it is used in preprocessor
 
@@ -47,8 +47,8 @@ configs = [
     ('basic_elec_config.toml', 3452103301.9, 17886, 19632),
     ('exchange_elec_config.toml', 2278237043.0, 21342, 23280),
     ('expansion_no_learning_elec_config.toml', 3455793875.5, 18060, 19758),
-    # ('ramping_elec_config.toml', 3522284566.9, 32862, 41904),
-    # ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22446),
+    ('ramping_elec_config.toml', 3522284566.9, 32862, 42096),
+    ('reserve_with_expansion_no_learning_elec_config.toml', 4925573167.9, 19212, 22638),
     # ('agg_years_elec_config.toml', 3452103301.9, 17886, 19440),
 ]
 
@@ -60,8 +60,8 @@ configs = [
         'Basic No-Frills',
         'Exchange Enabled',
         'Expansion (no learning)',
-        # 'Ramping Required',
-        # 'Reserve with Expansion (no learning)',
+        'Ramping Required',
+        'Reserve with Expansion (no learning)',
         # 'Agg Years',
     ],
 )

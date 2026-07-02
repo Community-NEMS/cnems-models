@@ -148,6 +148,41 @@ class PowerModel(Model):
         self.generation_ramp_index = pyo.Set(initialize=setA.generation_ramp_index)
         self.capacity_hydro_ub_index = pyo.Set(initialize=setA.capacity_hydro_ub_index)
         self.reserves_procurement_index = pyo.Set(initialize=setA.reserves_procurement_index)
+        # Derivative reserve indexing sets...  # TODO:  a little clunky here.  Move to companion file as was done before?
+        idx = defaultdict(list)
+        wind_idx = defaultdict(list)
+        solar_idx = defaultdict(list)
+        for res_type, tech, year, region, step, hour in setA.reserves_procurement_index:
+            idx[res_type, region, year, hour].append((tech, step))
+            if tech in self.tech_wind:
+                wind_idx[year, region, hour].append((tech, step))
+            elif tech in self.tech_solar:
+                solar_idx[year, region, hour].append((tech, step))
+
+        # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
+        self.ProcurementSetReserves = pyo.Set(
+            set(t.value for t in ReserveType),
+            self.region_analyze,
+            self.year,
+            self.hour,
+            within=self.tech * self.tech_step,
+            initialize=idx,
+        )
+        self.WindSetReserves = pyo.Set(
+            self.year,
+            self.region_analyze,
+            self.hour,
+            within=self.tech_wind * self.step,
+            initialize=wind_idx,
+        )
+        self.SolarSetReserves = pyo.Set(
+            self.year,
+            self.region_analyze,
+            self.hour,
+            within=self.tech_solar * self.step,
+            initialize=solar_idx,
+        )
+
         self.generation_vre_ub_index = pyo.Set(initialize=setA.generation_vre_ub_index)
         # regional trade indices
 
@@ -181,6 +216,16 @@ class PowerModel(Model):
         )
         self.StorageSetDemandBalance = pyo.Set(
             self.year, self.region_analyze, self.hour, initialize=setA.storage_demand_index
+        )
+        idx = defaultdict(list)
+        for region, season, tech, step, year in setA.capacity_index:
+            idx[year, region, season].append((tech, step))
+        self.capacity_sources = pyo.Set(
+            self.year,
+            self.region_analyze,
+            self.season,
+            within=self.tech * self.tech_step,
+            initialize=idx,
         )
 
         # self.declare_set('hour', setA.hour)
@@ -235,7 +280,8 @@ class PowerModel(Model):
         # if capacity expansion is on
         if elec_config.capacity_expansion:
 
-            def retireable(m, tech, year, region, step):
+            def retireable(m, tech, _, __, step):
+                """verify that the combination of tech-step is in the eligible set"""
                 return (tech, step) in m.retireable_tech
 
             self.capacity_retirements_index = pyo.Set(
@@ -309,8 +355,14 @@ class PowerModel(Model):
         if common_config.aggregate_years:
             self.y0 = pyo.Param(initialize=common_config.aggregate_start_year)
         self.num_hr_day = pyo.Param(initialize=setA.num_hr_day)
-        self.MapHourSeason = pyo.Param(self.hour, initialize=all_frames['MapHourSeason'])
-        self.MapHourDay = pyo.Param(self.hour, initialize=all_frames['MapHourDay']['day'])
+        # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
+        #        of a *numeric* parameter.  They are just simple LUTs
+        self.MapHourSeason = pyo.Param(
+            self.hour, initialize=all_frames['MapHourSeason'], within=pyo.Any
+        )
+        self.MapHourDay = pyo.Param(
+            self.hour, initialize=all_frames['MapHourDay']['day'], within=pyo.Any
+        )
 
         self.WeightYear = pyo.Param(self.year, initialize=all_frames['WeightYear'])
 
@@ -562,23 +614,35 @@ class PowerModel(Model):
 
         # if reserve margin requirements are on
         if elec_config.reserve_margin_required:
-            self.declare_param('ReserveMargin', self.region, all_frames['ReserveMargin'])
-
+            self.ReserveMargin = pyo.Param(
+                self.region_analyze, initialize=all_dicts['reserve_margin']
+            )
+            # self.declare_param('ReserveMargin', self.region, all_dicts['reserve_margin'])
         # if ramping requirements are on
         if elec_config.ramping_required:
-            self.declare_param('RampUpCost', self.RampUpCost_index, all_frames['RampUpCost'])
-            self.declare_param('RampDownCost', self.RampUpCost_index, all_frames['RampDownCost'])
-            self.declare_param('RampRate', self.RampRate_index, all_frames['RampRate'])
+            self.RampUpCost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_up_cost'])
+            self.RampDownCost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_down_cost'])
+            self.RampRate = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_rate'])
+
+            # self.declare_param('RampUpCost', self.RampUpCost_index, all_frames['RampUpCost'])
+            # self.declare_param('RampDownCost', self.RampUpCost_index, all_frames['RampDownCost'])
+            # self.declare_param('RampRate', self.RampRate_index, all_frames['RampRate'])
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
-            self.declare_param(
-                'RegReservesCost', self.RegReservesCost_index, all_frames['RegReservesCost']
+            self.RegReservesCost = pyo.Param(self.tech, initialize=all_dicts['reg_reserves_cost'])
+            # note:  The data is cast to cover all combinations of ReserveType and Tech with 0's as appropriate
+            self.ResTechUpperBound = pyo.Param(
+                set(rt.value for rt in ReserveType),
+                self.tech,
+                initialize=all_dicts['res_tech_upper_bound'],
             )
-            # TODO:  either declare the set of restypes or just use the enumeration ReserveType directly here
-            self.declare_param(
-                'ResTechUpperBound', self.ResTechUpperBound_index, all_frames['ResTechUpperBound']
-            )
+            # self.declare_param(
+            #     'RegReservesCost', self.RegReservesCost_index, all_frames['RegReservesCost']
+            # )
+            # self.declare_param(
+            #     'ResTechUpperBound', self.ResTechUpperBound_index, all_frames['ResTechUpperBound']
+            # )
 
         ##########################
         # Cross-talk from H2 model
@@ -674,16 +738,26 @@ class PowerModel(Model):
 
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:
-            self.declare_var('storage_avail_cap', self.Storage_index)
+            self.storage_avail_cap = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+            # self.declare_var('storage_avail_cap', self.Storage_index)
 
         # if ramping requirements are on
         if elec_config.ramping_required:
-            self.declare_var('generation_ramp_up', self.generation_ramp_index)
-            self.declare_var('generation_ramp_down', self.generation_ramp_index)
+            self.generation_ramp_up = pyo.Var(
+                self.generation_ramp_index, within=pyo.NonNegativeReals
+            )
+            self.generation_ramp_down = pyo.Var(
+                self.generation_ramp_index, within=pyo.NonNegativeReals
+            )
+            # self.declare_var('generation_ramp_up', self.generation_ramp_index)
+            # self.declare_var('generation_ramp_down', self.generation_ramp_index)
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
-            self.declare_var('reserves_procurement', self.reserves_procurement_index)
+            self.reserves_procurement = pyo.Var(
+                self.reserves_procurement_index, within=pyo.NonNegativeReals
+            )
+            # self.declare_var('reserves_procurement', self.reserves_procurement_index)
 
         ###########################################################################################
         # Objective Function
@@ -905,7 +979,8 @@ class PowerModel(Model):
                     Operating reserve cost component
                 """
                 return sum(
-                    (self.RegReservesCost[tech] if restype == 'regulation' else 0.01)
+                    # TODO:  Review the odd 0.01 cost here for spinning/flex
+                    (self.RegReservesCost[tech] if restype == ReserveType.REGULATION else 0.01)
                     * self.WeightDay[self.MapHourDay[hr]]
                     * self.WeightYear[y]
                     * self.reserves_procurement[(restype, tech, y, r, step, hr)]
@@ -923,6 +998,7 @@ class PowerModel(Model):
             int
                 Objective function
             """
+            # TODO:  Clean up the double-conditionals here and make the cost zero where created
             return (
                 self.dispatch_cost
                 + self.unmet_load_cost
@@ -1511,9 +1587,9 @@ class PowerModel(Model):
         # TODO:  Ask Sauleh why we reference "expansion" here as it seems like separate concept.
         #        Why not JUST reserve_margin?
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
-            self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
+            # self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
 
-            @self.Constraint(self.Load)
+            @self.Constraint(self.Load.index_set())
             def reserve_margin_lb(self, r, y, hr):
                 """Reserve margin requirement where
                 Load * Reserve Margin <= Capacity * Capacity Credit * Time
@@ -1543,14 +1619,14 @@ class PowerModel(Model):
                         self.CapacityCredit[(tech, y, r, step, hr)]
                         * (
                             self.storage_avail_cap[(tech, y, r, step, hr)]
-                            if tech in self.T_stor
+                            if tech in self.tech_stor
                             else self.capacity_total[(r, self.MapHourSeason[hr], tech, step, y)]
                         )
                     )
-                    for (tech, step) in self.SupplyCurveRM[(y, r, self.MapHourSeason[hr])]
+                    for (tech, step) in self.capacity_sources[(y, r, self.MapHourSeason[hr])]
                 )
 
-            @self.Constraint(self.Storage_index)
+            @self.Constraint(setA.storage_index)
             def reserve_margin_storage_avail_cap_ub(self, T_stor, y, r, step, hr):
                 """Available storage power capacity for meeting reserve margin
 
@@ -1579,7 +1655,7 @@ class PowerModel(Model):
                     <= self.capacity_total[(r, self.MapHourSeason[hr], T_stor, step, y)]
                 )
 
-            @self.Constraint(self.Storage_index)
+            @self.Constraint(setA.storage_index)
             def reserve_margin_storage_avail_level_ub(self, T_stor, y, r, step, hr):
                 """Available storage energy capacity for meeting reserve margin
 
@@ -1738,7 +1814,7 @@ class PowerModel(Model):
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
-            self.populate_reserves_sets = pyo.BuildAction(rule=em.populate_reserves_sets_rule)
+            # self.populate_reserves_sets = pyo.BuildAction(rule=em.populate_reserves_sets_rule)
 
             @self.Constraint(self.Load)
             def reserve_requirement_spin_lb(self, r, y, hr):
@@ -1764,7 +1840,8 @@ class PowerModel(Model):
                         self.reserves_procurement[('spinning', tech, y, r, step, hr)]
                         for (tech, step) in self.ProcurementSetReserves[('spinning', r, y, hr)]
                     )
-                    >= 0.03 * self.Load[(r, y, hr)]
+                    >= 0.03
+                    * self.Load[(r, y, hr)]  # TODO:  Extract this magic number to constants.py
                 )
 
             @self.Constraint(self.Load)
@@ -1788,6 +1865,7 @@ class PowerModel(Model):
                 pyomo.core.base.constraint.IndexedConstraint
                     Regulation reserve requirement
                 """
+                # TODO:  Extract these magic numbers to constants.py / config ?
                 return sum(
                     self.reserves_procurement[('regulation', tech, y, r, step, hr)]
                     for (tech, step) in self.ProcurementSetReserves[('regulation', r, y, hr)]

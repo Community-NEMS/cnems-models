@@ -7,6 +7,8 @@
 from collections import defaultdict
 from pathlib import Path
 import sys as sys
+from warnings import deprecated
+
 import pyomo.environ as pyo
 import pandas as pd
 from src.common.model import Model
@@ -105,6 +107,7 @@ class ElectricityMethods(Model):
         for hr, season in (m.MapHourSeason.extract_values()).items():
             m.HourSeason_index[season].add(hr)
 
+    @deprecated('done in model now')
     def populate_reserves_sets_rule(m):
         """Creates new reindexed sets for operating reserves constraints
 

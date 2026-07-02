@@ -97,8 +97,3 @@ def load_inspector(em: PowerModel, region: str):
                 print(f'Load for {year} hour {hour}: {value(em.Load[region, year, hour])}')
             except:
                 print(f'Load for {year} hour {hour}: N/A')
-
-
-def demand_balance_inspector(em: PowerModel, unmet: bool = True):
-    """Inspect the summary components of the demand balance constraint
-    optionally only when there is unmet demand"""

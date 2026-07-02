@@ -6,27 +6,27 @@ Built using Dash - https://dash.plotly.com/.
 Created on Wed Sept 19 2024 by Adam Heisey
 """
 
-# Import packages
-import dash
-from dash import dcc, html, Input, Output, State
-import dash_bootstrap_components as dbc
-import toml
+import ast
 import base64
 import io
-import ast
-import subprocess
-from pathlib import Path
-from datetime import datetime
 import os
+import shlex
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Import packages
+import dash
+import dash_bootstrap_components as dbc
+import toml
 import tomli
 import tomlkit
-import sys
-import shlex
+from dash import Input, Output, State, dcc, html
 
 # Import python modules
 from definitions import PROJECT_ROOT
 from main import app_main
-
 
 # Initialize the Dash app
 app = dash.Dash(

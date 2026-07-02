@@ -5,25 +5,24 @@ constraints, plus additional misc support functions.
 """
 
 from collections import defaultdict
-###################################################################################################
-# Setup
-
-# Import packages
 from logging import getLogger
+
 import pyomo.environ as pyo
 
 from src.common.common_config import CommonConfig
-
-# Import python modules
 from src.models.electricity.constants import (
-    UNMET_LOAD_PRICE,
     STORAGE_LEVEL_COST,
-    H2Heatrate,
     TRANSMISSION_LOSS_FACTOR,
+    UNMET_LOAD_PRICE,
+    H2Heatrate,
 )
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
+
+###################################################################################################
+# Setup
+
 
 # move to new file
 # from src.models.electricity.utilities import ElectricityMethods as em

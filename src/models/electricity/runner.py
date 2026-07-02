@@ -1,28 +1,23 @@
 """This file is a collection of functions that are used to build, run, and solve the electricity model."""
 
-from pathlib import Path
 from datetime import datetime
+from logging import getLogger
+from pathlib import Path
+
 import pyomo.environ as pyo
 from pyomo.common.timing import TicTocTimer
 from pyomo.opt import SolutionStatus, SolverStatus, TerminationCondition
-from pyomo.util.infeasible import (
-    log_infeasible_constraints,
-)
-from logging import getLogger
+from pyomo.util.infeasible import log_infeasible_constraints
 
 # Import python modules
 from definitions import PROJECT_ROOT
-import src.models.electricity.preprocessor as prep
-import src.models.electricity.postprocessor as post
 from src.common.common_config import CommonConfig
+from src.integrator.utilities import select_solver
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.utilities import check_results
-from src.models.electricity.electricity_model import PowerModel
-from src.common.config_setup import Config_settings
-
-from src.integrator.utilities import select_solver
 
 logger = getLogger(__name__)
 

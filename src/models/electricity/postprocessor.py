@@ -12,13 +12,12 @@ It writes out all relevant model outputs (e.g., variables, parameters, constrain
 ###################################################################################################
 # Setup
 
-# Import pacakges
-import pyomo.environ as pyo
 import os
-from pathlib import Path
 from logging import getLogger
+from pathlib import Path
 
-# Import python modules
+import pyomo.environ as pyo
+
 from src.models.electricity.utilities import create_obj_df
 
 # Establish logger

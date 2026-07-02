@@ -1,12 +1,13 @@
 from logging import getLogger
 from pathlib import Path
+
 import pandas as pd
 
-from src.common import config_setup
-from src.models.electricity.utilities import annual_count
-from src.models.electricity.runner import run_elec_model
 import src.models.electricity.preprocessor as prep
 from definitions import PROJECT_ROOT
+from src.common import config_setup
+from src.models.electricity.runner import run_elec_model
+from src.models.electricity.utilities import annual_count
 
 logger = getLogger(__name__)
 

@@ -9,33 +9,22 @@ It established the parameters and sets that will be used in the model. It contai
 """
 
 import logging
-from collections.abc import Iterable, Sized
-###################################################################################################
-# Setup
-
-# Import pacakges
+import os
 from pathlib import Path
 from warnings import deprecated
 
 import pandas as pd
-import os
-
 from pandas import DataFrame
 
-# Import python modules
 from definitions import PROJECT_ROOT
-from src.common import common_config
 from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
-from src.integrator.utilities import create_temporal_mapping
-from src.models.electricity import elec_config
-from src.models.electricity.data_ingestor import (
-    load_property_data,
-    load_param_data,
-    FilterPackage,
-    load_dataframes,
-)
+from src.models.electricity.data_ingestor import FilterPackage, load_dataframes, load_param_data
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
+
+###################################################################################################
+# Setup
+
 
 logger = logging.getLogger(__name__)
 

@@ -5,20 +5,18 @@ the model. It takes these settings from the run_config.toml file. It has univers
 ###################################################################################################
 # Setup
 
-# Import packages
-import pandas as pd
-import numpy as np
-import tomllib
-from pathlib import Path
-from datetime import datetime
-import types
 import argparse
+import tomllib
+import types
+from datetime import datetime
+from pathlib import Path
 
-# Import python modules
+import numpy as np
+import pandas as pd
+
 from definitions import PROJECT_ROOT
-from src.integrator.utilities import create_temporal_mapping
 from src.common.utilities import make_dir
-
+from src.integrator.utilities import create_temporal_mapping
 
 ###################################################################################################
 # Configuration Class

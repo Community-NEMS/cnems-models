@@ -7,32 +7,29 @@ see README for process explanation
 
 # Import packages
 from logging import getLogger
+
 import pyomo.environ as pyo
+
+import src.models.electricity.postprocessor as post_elec
 
 # Import python modules
 from src.integrator.utilities import (
     EI,
     convert_elec_price_to_lut,
     convert_h2_price_records,
-    regional_annual_prices,
+    get_elec_price,
+    poll_h2_demand,
     poll_h2_prices_from_elec,
     poll_hydrogen_price,
-    get_elec_price,
+    regional_annual_prices,
+    select_solver,
     simple_solve,
     simple_solve_no_opt,
-    select_solver,
-    poll_h2_demand,
     update_h2_prices,
 )
-from src.models.electricity.runner import (
-    run_elec_model,
-    init_old_cap,
-    update_cost,
-    set_new_cap,
-)
+from src.models.electricity.runner import init_old_cap, run_elec_model, set_new_cap, update_cost
 from src.models.hydrogen.model import actions
 from src.models.residential.scripts.residential import residentialModule
-import src.models.electricity.postprocessor as post_elec
 
 # Establish logger
 logger = getLogger(__name__)

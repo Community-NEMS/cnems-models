@@ -21,12 +21,12 @@ from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.runner import run_elec_model
 from tests.model_diagnostics import (
     breakdown_obj_elements,
-    gather_set_data,
     capacity_inspector,
-    load_inspector,
-    gather_var_data,
     gather_constraint_data,
     gather_param_data,
+    gather_set_data,
+    gather_var_data,
+    load_inspector,
 )
 
 verbose = False
@@ -49,7 +49,12 @@ configs = [
     ('expansion_no_learning', 3455793875.5, 18060, 19758),
     ('ramping', 3522284566.9, 32862, 42096),
     ('reserve_with_expansion_no_learning', 4925573167.9, 19212, 22638),
-    ('reserve_spinning_with_expansion_no_learning', 5138465483.62, 62412, 67566),  # <-- no good starting value
+    (
+        'reserve_spinning_with_expansion_no_learning',
+        5138465483.62,
+        62412,
+        67566,
+    ),  # <-- no good starting value
     ('agg_years', 13363835326.77, 17886, 19632),  # <-- no good starting value
 ]
 

@@ -20,33 +20,30 @@ electrical demand primary variable are:
 # Import packages
 from collections import defaultdict, deque
 from logging import getLogger
+
 import pyomo.environ as pyo
+
+import src.models.electricity.postprocessor as post_elec
 
 # Import python modules
 from src.common.config_setup import Config_settings
 from src.integrator.utilities import (
-    HI,
     EI,
-    get_elec_price,
+    HI,
     convert_elec_price_to_lut,
     convert_h2_price_records,
-    regional_annual_prices,
+    get_elec_price,
+    poll_h2_demand,
     poll_hydrogen_price,
-    simple_solve_no_opt,
+    regional_annual_prices,
     select_solver,
     simple_solve,
-    poll_h2_demand,
+    simple_solve_no_opt,
     update_h2_prices,
 )
-from src.models.electricity.runner import (
-    run_elec_model,
-    init_old_cap,
-    update_cost,
-    set_new_cap,
-)
+from src.models.electricity.runner import init_old_cap, run_elec_model, set_new_cap, update_cost
 from src.models.hydrogen.model import actions
 from src.models.residential.scripts.residential import residentialModule
-import src.models.electricity.postprocessor as post_elec
 
 # Establish logger
 logger = getLogger(__name__)

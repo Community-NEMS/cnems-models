@@ -6,9 +6,8 @@ Contact:  jeff@westernspark.us
 Created on:  6/10/26
 """
 
-from enum import Enum, unique
-
 import tomllib
+from enum import Enum, unique
 from logging import getLogger
 from pathlib import Path
 

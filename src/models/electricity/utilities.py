@@ -3,14 +3,11 @@
 ###################################################################################################
 # Setup
 
-# Import pacakges
-from collections import defaultdict
-from pathlib import Path
-import sys as sys
 from warnings import deprecated
 
-import pyomo.environ as pyo
 import pandas as pd
+import pyomo.environ as pyo
+
 from src.common.model import Model
 
 ###################################################################################################

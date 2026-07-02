@@ -7,14 +7,16 @@ models after it is decided if it is a utility job to do .... or a class method.
 Additionally, there is probably some renaming due here for consistency
 """
 
+import typing
+
 # Import packages
 from collections import defaultdict, namedtuple
 from logging import getLogger
-import typing
+from pathlib import Path
+
+import pandas as pd
 import pyomo.opt as pyo
 from pyomo.environ import ConcreteModel, value
-import pandas as pd
-from pathlib import Path
 
 # Import python modules
 from definitions import PROJECT_ROOT

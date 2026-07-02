@@ -24,15 +24,15 @@ from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity import elec_config
 from src.models.electricity.data_ingestor import (
-    load_param_data,
-    FilterPackage,
     PARAM_SOURCES,
-    load_dataframes,
     TIME_BASED_DFS,
+    FilterPackage,
+    load_dataframes,
+    load_param_data,
 )
-from src.models.electricity.model_sets import ModelSets, SCI
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
-from src.models.electricity.preprocessor import add_season_index, time_map, avg_by_group
+from src.models.electricity.model_sets import SCI, ModelSets
+from src.models.electricity.preprocessor import add_season_index, avg_by_group, time_map
 
 logger = logging.getLogger(__name__)
 

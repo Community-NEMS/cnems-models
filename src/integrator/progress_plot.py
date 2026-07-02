@@ -3,10 +3,12 @@ A plotter that can be used for combined solves
 
 """
 
-# Import packages
-from matplotlib import pyplot as plt, ticker
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+# Import packages
+from matplotlib import pyplot as plt
+from matplotlib import ticker
 
 # some defaults
 

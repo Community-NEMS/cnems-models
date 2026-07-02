@@ -7,7 +7,7 @@ Created on:  6/29/26
 """
 
 from pyomo.common.numeric_types import value
-from pyomo.core import Var, Param, Constraint
+from pyomo.core import Constraint, Param, Var
 from pyomo.core.base.set import Set
 
 from src.models.electricity.electricity_model import PowerModel

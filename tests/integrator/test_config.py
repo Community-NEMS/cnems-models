@@ -1,6 +1,6 @@
+import tomllib
 from logging import getLogger
 from pathlib import Path
-import tomllib
 
 from definitions import PROJECT_ROOT
 

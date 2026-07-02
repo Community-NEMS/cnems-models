@@ -6,13 +6,13 @@ A gathering of functions for running models solo
 # Import packages
 from logging import getLogger
 from pathlib import Path
+
 from pyomo.environ import value
 
 # Import python modules
 from src.common.config_setup import Config_settings
 from src.integrator import utilities
 from src.models.electricity.runner import run_elec_model
-
 
 # Establish logger
 logger = getLogger(__name__)

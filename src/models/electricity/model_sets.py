@@ -12,9 +12,8 @@ Collection of sets used by model.
 """
 
 import logging
-from collections import namedtuple, defaultdict
+from collections import defaultdict, namedtuple
 from collections.abc import Collection
-
 from warnings import deprecated
 
 import pandas as pd

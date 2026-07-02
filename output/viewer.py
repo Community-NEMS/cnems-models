@@ -1,15 +1,15 @@
 ####################################################################################################################
 # Setup
 
-# Import pacakges
-import pandas as pd
-import pyomo.environ as pyo
 import os
 from pathlib import Path
 
-from dash import Dash, html, dcc, html, Input, Output
-import plotly.express as px
+# Import pacakges
+import pandas as pd
 import plotly as plotly
+import plotly.express as px
+import pyomo.environ as pyo
+from dash import Dash, Input, Output, dcc, html
 
 # setting up directories
 dir_output = Path(__file__).parent

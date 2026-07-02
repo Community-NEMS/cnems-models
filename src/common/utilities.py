@@ -2,15 +2,13 @@
 A gathering of utility functions for dealing with model interconnectivity
 """
 
-from collections.abc import Collection
-
-# Import packages
-from logging import getLogger
-from pathlib import Path
+import argparse
 import logging
 import os
+from logging import getLogger
+from pathlib import Path
+
 import pandas as pd
-import argparse
 
 # Establish logger
 logger = getLogger(__name__)

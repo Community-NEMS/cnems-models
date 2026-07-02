@@ -1,19 +1,19 @@
 """main.py for Bluesky Prototype"""
 
 # Import packages
-import os
 import logging
-from pathlib import Path
+import os
 import tomllib
 import types
+from pathlib import Path
 
 # Import python modules
 from definitions import PROJECT_ROOT
 from src.common.config_setup import Config_settings
-from src.common.utilities import setup_logger, get_args
+from src.common.utilities import get_args, setup_logger
 from src.integrator.gaussseidel import run_gs
+from src.integrator.runner import run_elec_solo, run_h2_solo, run_residential_solo, run_standalone
 from src.integrator.unified import run_unified
-from src.integrator.runner import run_standalone, run_elec_solo, run_h2_solo, run_residential_solo
 
 # Specify config path
 default_config_path = Path(PROJECT_ROOT, 'src/common', 'run_config.toml')

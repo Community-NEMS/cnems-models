@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from pyomo.environ import value
 
 from definitions import PROJECT_ROOT
@@ -7,8 +8,8 @@ from src.common import config_setup
 from src.integrator.utilities import (
     HI,
     get_elec_price,
-    regional_annual_prices,
     poll_h2_demand,
+    regional_annual_prices,
     update_h2_prices,
 )
 from src.models.electricity.runner import run_elec_model

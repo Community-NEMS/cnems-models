@@ -11,14 +11,10 @@ from collections import defaultdict
 # Import packages
 from logging import getLogger
 import pyomo.environ as pyo
-from pandas import DataFrame
-from pyomo.devel.initialization import initialize
 
 from src.common.common_config import CommonConfig
 
 # Import python modules
-from src.common.model import Model
-from src.models.electricity import model_sets
 from src.models.electricity.constants import (
     UNMET_LOAD_PRICE,
     STORAGE_LEVEL_COST,
@@ -30,7 +26,7 @@ from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
 # move to new file
-from src.models.electricity.utilities import ElectricityMethods as em
+# from src.models.electricity.utilities import ElectricityMethods as em
 
 # Establish logger
 logger = getLogger(__name__)
@@ -39,7 +35,7 @@ logger = getLogger(__name__)
 # MODEL
 
 
-class PowerModel(Model):
+class PowerModel(pyo.ConcreteModel):
     """A PowerModel instance. Builds electricity pyomo model.
 
     Parameters
@@ -59,7 +55,7 @@ class PowerModel(Model):
         *args,
         **kwargs,
     ):
-        Model.__init__(self, *args, **kwargs)
+        pyo.ConcreteModel.__init__(self, *args, **kwargs)
 
         ###########################################################################################
         # Settings
@@ -107,7 +103,7 @@ class PowerModel(Model):
 
         # technology sets
         self.tech = pyo.Set(initialize=setA.tech)
-        self.tech_step = pyo.Set(initialize=setA.step)  # TODO:  come back to this
+        self.step = pyo.Set(initialize=setA.step)  # TODO:  come back to this
         self.tech_conv = pyo.Set(initialize=setA.tech_conv, within=self.tech)
         self.tech_re = pyo.Set(initialize=setA.tech_re, within=self.tech)
         self.tech_hydro = pyo.Set(initialize=setA.tech_hydro, within=self.tech)
@@ -120,15 +116,11 @@ class PowerModel(Model):
         self.tech_gen = pyo.Set(initialize=setA.tech_gen, within=self.tech)
 
         self.buildable_tech = pyo.Set(
-            dimen=2, initialize=setA.tech_builds, within=self.tech * self.tech_step
+            dimen=2, initialize=setA.tech_builds, within=self.tech * self.step
         )
         self.retireable_tech = pyo.Set(
-            dimen=2, initialize=setA.tech_retires, within=self.tech * self.tech_step
+            dimen=2, initialize=setA.tech_retires, within=self.tech * self.step
         )
-
-        self.step = pyo.Set(
-            initialize=range(1, 5)
-        )  # TODO:  Temporary until we get the plan for 'step' squared away
 
         # CONSTRAINT INDEXING SETS
         self.storage_most_hours_balance_index = pyo.Set(
@@ -165,7 +157,7 @@ class PowerModel(Model):
             self.region_analyze,
             self.year,
             self.hour,
-            within=self.tech * self.tech_step,
+            within=self.tech * self.step,
             initialize=idx,
         )
         self.WindSetReserves = pyo.Set(
@@ -224,7 +216,7 @@ class PowerModel(Model):
             self.year,
             self.region_analyze,
             self.season,
-            within=self.tech * self.tech_step,
+            within=self.tech * self.step,
             initialize=idx,
         )
 
@@ -1139,7 +1131,12 @@ class PowerModel(Model):
                 - self.storage_outflow[(T_stor, y, r, step, hr23)]
             )
 
-        self.populate_hydro_sets = pyo.BuildAction(rule=em.populate_hydro_sets_rule)
+        # self.populate_hydro_sets = pyo.BuildAction(rule=em.populate_hydro_sets_rule)
+        # quick reverse lookup
+        idx = defaultdict(list)
+        for hour, season in self.MapHourSeason.items():
+            idx[season].append(hour)
+        self.hour_season_index = pyo.Set(self.season, initialize=idx)
 
         @self.Constraint(self.capacity_hydro_ub_index)
         def capacity_hydro_ub(self, T_hydro, y, r, season):
@@ -1166,7 +1163,7 @@ class PowerModel(Model):
                 sum(
                     self.generation_total[T_hydro, y, r, 1, hr]
                     * self.WeightDay[self.MapHourDay[hr]]
-                    for hr in self.HourSeason_index[season]
+                    for hr in self.hour_season_index[season]
                 )
                 <= self.capacity_total[(r, season, T_hydro, 1, y)]
                 * self.HydroCapFactor[r, season]

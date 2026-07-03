@@ -145,3 +145,19 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     assert elec_model.nconstraints() == expected_nconstraints, (
         f'found {elec_model.nconstraints()} constraints'
     )
+
+
+def test_linear_learning():
+    """fundamental test to exercise linear learning capability"""
+
+    # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
+    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+
+    # introduce the ElecConfig
+    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    elec_config.capacity_expansion = True
+    elec_config.expansion_learning_type = ExpansionLearningType.LINEAR
+
+    # build/solve the model
+    elec_model = run_elec_model(common_config, elec_config, solve=True)

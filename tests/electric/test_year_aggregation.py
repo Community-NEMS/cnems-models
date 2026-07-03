@@ -6,7 +6,6 @@ Contact:  jeff@westernspark.us
 Created on:  6/17/26
 """
 
-
 from src.models.electricity.model_sets import ModelSets
 
 

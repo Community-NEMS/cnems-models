@@ -3,10 +3,9 @@
 # Import packages
 import logging
 import os
+import tomllib
 import types
 from pathlib import Path
-
-import tomllib
 
 # Import python modules
 from definitions import PROJECT_ROOT

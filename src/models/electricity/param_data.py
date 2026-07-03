@@ -81,7 +81,7 @@ class ParamData:
     # reserve_margin : dict
     # res_tech_upper_bound : dict
 
-    def __init__(self, elec_config: ElecConfig, common_config: CommonConfig, model_sets: ModelSets):
+    def __init__(self, common_config: CommonConfig, elec_config: ElecConfig, model_sets: ModelSets):
         self.param_frames = {}
         self.param_dicts = {}
 
@@ -146,33 +146,36 @@ class ParamData:
         self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
 
         # expand season columns to the appropriate rep-hours for the season where season is used
-
-        TLCI_cols = ['region', 'region_international', 'year', 'hour', 'TranLimitCapInt']
-        TLGI_cols = ['region_international', 'step', 'year', 'hour', 'TranLimitGenInt']
-        self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
-            self.param_frames['MapHourSeason'],
-            self.param_frames['tran_limit_cap_int'],
-            TLCI_cols,
-            name='tran_limit_cap_int',
-        )
-        self.param_frames['tran_limit_gen_int'] = self.create_hourly_params(
-            self.param_frames['MapHourSeason'],
-            self.param_frames['tran_limit_gen_int'],
-            TLGI_cols,
-            name='tran_limit_gen_int',
-        )
+        # we can skip this if no international connections:
+        if len(self.param_frames['tran_limit_cap_int']) > 0:
+            TLCI_cols = ['region', 'region_international', 'year', 'hour', 'TranLimitCapInt']
+            TLGI_cols = ['region_international', 'step', 'year', 'hour', 'TranLimitGenInt']
+            self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
+                self.param_frames['MapHourSeason'],
+                self.param_frames['tran_limit_cap_int'],
+                TLCI_cols,
+                name='tran_limit_cap_int',
+            )
+            self.param_frames['tran_limit_gen_int'] = self.create_hourly_params(
+                self.param_frames['MapHourSeason'],
+                self.param_frames['tran_limit_gen_int'],
+                TLGI_cols,
+                name='tran_limit_gen_int',
+            )
         # do the same for interregional
-        TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'TranLimit']
-        self.param_frames['tran_limit'] = self.create_hourly_params(
-            self.param_frames['MapHourSeason'],
-            self.param_frames['tran_limit'],
-            TLI_cols,
-            name='tran_limit',
-        )
-        logger.info(
-            'Converted seasonal interregional travel param to hourly of size: %d',
-            len(self.param_frames['tran_limit']),
-        )
+        # we can skip this if there are no interregional connections
+        if len(self.param_frames['tran_limit']) > 0:
+            TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'TranLimit']
+            self.param_frames['tran_limit'] = self.create_hourly_params(
+                self.param_frames['MapHourSeason'],
+                self.param_frames['tran_limit'],
+                TLI_cols,
+                name='tran_limit',
+            )
+            logger.info(
+                'Converted seasonal interregional travel param to hourly of size: %d',
+                len(self.param_frames['tran_limit']),
+            )
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets

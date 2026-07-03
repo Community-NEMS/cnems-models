@@ -448,18 +448,28 @@ class PowerModel(pyo.ConcreteModel):
 
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
-                # TODO:  revisit this after no-learning working
-                self.declare_param(
-                    'LearningRate', self.LearningRate_index, all_frames['LearningRate']
+                self.LearningRate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
+                self.CapCostInitial = pyo.Param(
+                    self.region_analyze,
+                    self.tech,
+                    self.step,
+                    initialize=all_dicts['cap_cost_initial'],
                 )
-                self.declare_param(
-                    'CapCostInitial', self.CapCostInitial_index, all_frames['CapCostInitial']
+                self.SupplyCurveLearning = pyo.Param(
+                    self.tech, initialize=all_dicts['supply_curve_learning']
                 )
-                self.declare_param(
-                    'SupplyCurveLearning',
-                    self.SupplyCurveLearning_index,
-                    all_frames['SupplyCurveLearning'],
-                )
+
+                # self.declare_param(
+                #     'LearningRate', self.LearningRate_index, all_frames['LearningRate']
+                # )
+                # self.declare_param(
+                #     'CapCostInitial', self.CapCostInitial_index, all_frames['CapCostInitial']
+                # )
+                # self.declare_param(
+                #     'SupplyCurveLearning',
+                #     self.SupplyCurveLearning_index,
+                #     all_frames['SupplyCurveLearning'],
+                # )
 
             # if learning is not to be solved nonlinearly directly in the obj
             if elec_config.expansion_learning_type in {

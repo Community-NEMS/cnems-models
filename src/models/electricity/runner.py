@@ -156,7 +156,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     logger.info('Preprocessing')
     model_sets = ModelSets(common_config, elec_config)
     logger.debug('Model set inputs produced')
-    model_params = ParamData(elec_config, common_config, model_sets)
+    model_params = ParamData(common_config, elec_config, model_sets)
     logger.debug(
         'Model parameter inputs produced with %d dictionaries and %d dataframes',
         len(model_params.param_frames),

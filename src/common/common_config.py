@@ -6,10 +6,10 @@ Contact:  jeff@westernspark.us
 Created on:  6/16/26
 """
 
-import tomllib
 from logging import getLogger
 from pathlib import Path
 
+import tomllib
 from pydantic import BaseModel, ValidationError, model_validator
 
 from definitions import PROJECT_ROOT

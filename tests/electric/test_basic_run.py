@@ -11,13 +11,14 @@ A temporary (?) test to lock down the current outputs of a basic no-frills test 
 
 from pathlib import Path
 
+import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.runner import run_elec_model
+from src.models.electricity.runner import run_elec_model, solve_elec_model
 from tests.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
@@ -147,17 +148,27 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     )
 
 
-def test_linear_learning():
+def test_linear_learning(config_set):
     """fundamental test to exercise linear learning capability"""
 
-    # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
+    # TODO:  This needs development.  RN, it just ensures it runs with at least 1 iteration
 
-    # introduce the ElecConfig
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    common_config, elec_config = config_set
+    # override settings to enable expansion w/ learning
     elec_config.capacity_expansion = True
     elec_config.expansion_learning_type = ExpansionLearningType.LINEAR
+    elec_config.region_filter = list('78913462')
 
-    # build/solve the model
-    elec_model = run_elec_model(common_config, elec_config, solve=True)
+    elec_model = run_elec_model(common_config, elec_config, solve=False)
+
+    # the basic model above requires no capital expansion to meet load => no learning
+    # as a TEMP coaxing, we'll increase the load
+
+    # Capture current Load values
+    load_data = {idx: value(elec_model.Load[idx]) * 2 for idx in elec_model.Load}
+    # Delete the immutable parameter
+    elec_model.del_component(elec_model.Load)
+    # Re-initialize with increased values
+    elec_model.Load = pyo.Param(load_data.keys(), initialize=load_data, mutable=False)
+
+    solve_elec_model(elec_model, elec_config=elec_config)

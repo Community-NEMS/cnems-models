@@ -310,8 +310,9 @@ class PowerModel(pyo.ConcreteModel):
         all_dicts = param_data.param_dicts
 
         # temporal parameters
-        if common_config.aggregate_years:
-            self.y0 = pyo.Param(initialize=common_config.aggregate_start_year)
+        self.y0_learning = pyo.Param(
+            initialize=common_config.aggregate_start_year
+        )  # TODO:  Separate this concept from aggregation
         self.num_hr_day = pyo.Param(initialize=setA.num_hr_day)
         # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
         #        of a *numeric* parameter.  They are just simple LUTs
@@ -833,7 +834,7 @@ class PowerModel(pyo.ConcreteModel):
                                         self.SupplyCurveLearning[tech]
                                         + 0.0001
                                         * (
-                                            y - self.y0
+                                            y - self.y0_learning
                                         )  # TODO:  investigate / pull out this hardcode (which seems very small)
                                         + sum(
                                             sum(

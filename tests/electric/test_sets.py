@@ -57,7 +57,6 @@ def test_hours_set():
         tot_load1 = pd.merge(tot_load1, all_frames['WeightDay'], on='day')
         tot_load1.loc[:, 'tot_load'] = tot_load1['Load'] * tot_load1['WeightDay']
         return sum(tot_load1.tot_load)
-        return sum_load
 
     # total load for 4 days, 1 hour per day
     tot_load_d4h1 = get_tot_load('d4h1')

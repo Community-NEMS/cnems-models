@@ -21,13 +21,18 @@ from src.models.electricity.runner import run_elec_model
 
 
 @pytest.fixture
-def unsolved_model() -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """build an un-solved PowerModel for testing"""
+def config_set() -> tuple[CommonConfig, ElecConfig]:
+    """build a CommonConfig and ElecConfig for testing"""
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
-
-    # introduce the ElecConfig
     elec_config = ElecConfig(**remainder.pop('elec_config'))
+    return common_config, elec_config
+
+
+@pytest.fixture
+def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
+    """build an un-solved PowerModel for testing"""
+    common_config, elec_config = config_set
 
     elec_model = run_elec_model(common_config, elec_config, solve=False)
     return common_config, elec_config, elec_model

@@ -6,13 +6,13 @@ the model. It takes these settings from the run_config.toml file. It has univers
 # Setup
 
 import argparse
-import tomllib
 import types
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import tomllib
 
 from definitions import PROJECT_ROOT
 from src.common.utilities import make_dir

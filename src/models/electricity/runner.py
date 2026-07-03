@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from logging import getLogger
-from pathlib import Path
 
 import pyomo.environ as pyo
 from pyomo.common.timing import TicTocTimer
@@ -10,7 +9,6 @@ from pyomo.opt import SolutionStatus, SolverStatus, TerminationCondition
 from pyomo.util.infeasible import log_infeasible_constraints
 
 # Import python modules
-from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.integrator.utilities import select_solver
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
@@ -20,8 +18,6 @@ from src.models.electricity.param_data import ParamData
 from src.models.electricity.utilities import check_results
 
 logger = getLogger(__name__)
-
-data_root = Path(PROJECT_ROOT, 'src/models/electricity/input')
 
 
 def build_elec_model(
@@ -64,8 +60,8 @@ def build_elec_model(
     return instance
 
 
-def solve_elec_model(instance, elec_config: ElecConfig):
-    """solve electicity model
+def solve_elec_model(instance: PowerModel, elec_config: ElecConfig):
+    """solve electricity model
 
     Parameters
     ----------
@@ -121,6 +117,8 @@ def solve_elec_model(instance, elec_config: ElecConfig):
 
     ### Check results and load model solutions
     # Check results for termination condition and solution status
+    # TODO:  re-examine this.  We're getting "failed" reports in log that
+    #        appear to be optimially solved
     if check_results(opt_success, SolutionStatus, TerminationCondition):
         name = 'noclass!'
         logger.info(f'[{name}] Solve failed')
@@ -246,7 +244,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
 # Support functions
 
 
-def init_old_cap(instance):
+def init_old_cap(instance: PowerModel):
     """initialize capacity for 0th iteration
 
     Parameters
@@ -258,15 +256,16 @@ def init_old_cap(instance):
     instance.cap_set = []
     instance.old_cap_wt = {}
 
-    for r, tech, y, step in instance.capacity_builds_index:
+    for r, tech, y, step in instance.CapCostLearning:
         if (tech, y) not in instance.old_cap:
             instance.cap_set.append((tech, y))
             # each tech will increase cap by 1 GW per year. reasonable starting point.
-            instance.old_cap[(tech, y)] = (y - instance.y0) * 1
+            # TODO:  come back to this assumption after better understanding of process
+            instance.old_cap[(tech, y)] = (y - instance.y0_learning) * 1
             instance.old_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.old_cap[(tech, y)]
 
 
-def set_new_cap(instance):
+def set_new_cap(instance: PowerModel):
     """calculate new capacity after solve iteration
 
     Parameters
@@ -276,7 +275,7 @@ def set_new_cap(instance):
     """
     instance.new_cap = {}
     instance.new_cap_wt = {}
-    for r, tech, y, step in instance.capacity_builds_index:
+    for r, tech, y, step in instance.CapCostLearning:
         if (tech, y) not in instance.new_cap:
             instance.new_cap[(tech, y)] = 0.0
         instance.new_cap[(tech, y)] = instance.new_cap[(tech, y)] + sum(
@@ -287,7 +286,7 @@ def set_new_cap(instance):
         instance.new_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.new_cap[(tech, y)]
 
 
-def cost_learning_func(instance, tech, y):
+def cost_learning_func(instance: PowerModel, tech, y):
     """function for updating learning costs by technology and year
 
     Parameters
@@ -307,7 +306,7 @@ def cost_learning_func(instance, tech, y):
     cost = (
         (
             instance.SupplyCurveLearning[tech]
-            + 0.0001 * (y - instance.y0)
+            + 0.0001 * (y - instance.y0_learning)
             + instance.new_cap[tech, y]
         )
         / instance.SupplyCurveLearning[tech]
@@ -329,7 +328,7 @@ def update_cost(instance):
 
     new_cost = {}
     # Assign new learning
-    for r, tech, y, step in instance.capacity_builds_index:
+    for r, tech, y, step in instance.CapCostLearning:
         # updating learning cost
         new_cost[(r, tech, y, step)] = (
             instance.CapCostInitial[(r, tech, step)] * new_multiplier[tech, y]

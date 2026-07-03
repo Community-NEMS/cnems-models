@@ -8,7 +8,6 @@ from pathlib import Path
 import pandas as pd
 import plotly as plotly
 import plotly.express as px
-import pyomo.environ as pyo
 from dash import Dash, Input, Output, dcc, html
 
 # setting up directories

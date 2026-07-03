@@ -7,3 +7,6 @@ ruff
 pytest
 pydantic
 pandas
+matplotlib
+dash
+

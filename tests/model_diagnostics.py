@@ -83,7 +83,7 @@ def capacity_inspector(em: PowerModel, region: str, year: int):
                         f'   Generation: {value(em.generation_total[tech, year, region, step, hour])}'
                     )
                 except:
-                    print(f'   Generation: N/A')
+                    print('   Generation: N/A')
         print()
 
 

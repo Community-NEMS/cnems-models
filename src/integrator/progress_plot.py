@@ -3,7 +3,6 @@ A plotter that can be used for combined solves
 
 """
 
-from datetime import datetime
 from pathlib import Path
 
 # Import packages

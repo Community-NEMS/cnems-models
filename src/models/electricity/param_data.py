@@ -22,9 +22,7 @@ from pandas import DataFrame
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
-from src.models.electricity import elec_config
 from src.models.electricity.data_ingestor import (
-    PARAM_SOURCES,
     TIME_BASED_DFS,
     FilterPackage,
     load_dataframes,

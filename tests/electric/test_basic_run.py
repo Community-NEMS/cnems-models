@@ -15,7 +15,6 @@ import pytest
 from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
-from src.common import config_setup
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.runner import run_elec_model

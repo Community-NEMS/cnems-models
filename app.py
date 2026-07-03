@@ -7,25 +7,19 @@ Created on Wed Sept 19 2024 by Adam Heisey
 """
 
 import ast
-import base64
-import io
 import os
 import shlex
 import subprocess
 import sys
-from datetime import datetime
-from pathlib import Path
 
 # Import packages
 import dash
 import dash_bootstrap_components as dbc
-import toml
 import tomli
 import tomlkit
 from dash import Input, Output, State, dcc, html
 
 # Import python modules
-from definitions import PROJECT_ROOT
 from main import app_main
 
 # Initialize the Dash app
@@ -181,7 +175,7 @@ def save_toml(n_clicks, input_values, input_ids):
         with open(config_file_path, 'w') as f:
             f.write(tomlkit.dumps(config_doc))
 
-        return f"Configuration settings saved successfully as 'run_config.toml'."
+        return "Configuration settings saved successfully as 'run_config.toml'."
     return ''
 
 
@@ -239,7 +233,7 @@ def run_mode(n_clicks, selected_mode):
             f"{selected_mode.capitalize()} mode has finished running. See results in output/'{selected_mode}'.",
             100,
         )
-    except Exception as e:
+    except Exception:
         error_msg = f'Error, not able to run {selected_mode}. Please check the log script/terminal, exit out of browser, and restart.'
         return error_msg, 0
 

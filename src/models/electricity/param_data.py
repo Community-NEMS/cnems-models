@@ -226,7 +226,9 @@ class ParamData:
         if self.elec_config.load_scale_mode == LoadScaleMode.ANNUAL:
             df = scale_load(res_dir).reset_index(drop=True)
         elif self.elec_config.load_scale_mode == LoadScaleMode.END_USE:
-            df = scale_load_with_enduses(res_dir).reset_index(drop=True)
+            df = scale_load_with_enduses(
+                res_dir, regions=self.elec_config.region_filter
+            ).reset_index(drop=True)
         else:
             raise NotImplementedError(
                 f'load_scale_mode {self.elec_config.load_scale_mode} not implemented'

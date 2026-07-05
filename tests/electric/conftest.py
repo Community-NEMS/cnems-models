@@ -36,3 +36,12 @@ def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
 
     elec_model = run_elec_model(common_config, elec_config, solve=False)
     return common_config, elec_config, elec_model
+
+
+@pytest.fixture
+def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
+    """build a solved PowerModel for testing"""
+    common_config, elec_config = config_set
+
+    elec_model = run_elec_model(common_config, elec_config, solve=True)
+    return common_config, elec_config, elec_model

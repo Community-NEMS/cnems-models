@@ -1,12 +1,14 @@
-"""This file is the main postprocessor for the electricity model.
+"""This file is the postprocessor for the electricity model.
 
-It writes out all relevant model outputs (e.g., variables, parameters, constraints). It contains:
- - A function that converts pyomo component objects to dataframes
- - A function that writes the dataframes to output directories
- - A function to make the electricity output sub-directories
- - The postprocessor function, which loops through the model component objects and applies the
- functions to convert and write out the data to dfs to the electricity output sub-directories
+Legacy section (deprecated): the original postprocessor relied on ``instance.cols_dict``, a
+column-naming lookup only ever populated by the deprecated ``src.common.model.Model`` base class.
+``PowerModel`` no longer subclasses ``Model``, so these functions are kept only for the legacy
+hydrogen-integrated callers (``src.integrator.unified``, ``src.integrator.gaussseidel``) and should
+not be used for new work.
 
+New section: ``extract_all_variables``/``export_variables_to_csv`` derive one DataFrame per
+``pyo.Var`` directly from the model's own pyomo index-set structure (via ``Set.subsets()``), with no
+dependency on any precomputed column-naming dict.
 """
 
 ###################################################################################################
@@ -15,18 +17,25 @@ It writes out all relevant model outputs (e.g., variables, parameters, constrain
 import os
 from logging import getLogger
 from pathlib import Path
+from warnings import deprecated
 
+import pandas as pd
 import pyomo.environ as pyo
 
+from definitions import PROJECT_ROOT
 from src.models.electricity.utilities import create_obj_df
 
 # Establish logger
 logger = getLogger(__name__)
 
 ###################################################################################################
-# Review of Variables, Sets, Parameters, Constraints
+# Legacy: Review of Variables, Sets, Parameters, Constraints (deprecated)
 
 
+@deprecated(
+    'Depends on instance.cols_dict, which only the deprecated src.common.model.Model populates; '
+    'PowerModel no longer subclasses it. Superseded by extract_all_variables for Vars.'
+)
 def report_obj_df(mod_object, instance, dir_out, sub_dir):
     """Creates a df of the component object within the pyomo model, separates the key data into
     different columns and then names the columns if the names are included in the cols_dict.
@@ -68,6 +77,7 @@ def report_obj_df(mod_object, instance, dir_out, sub_dir):
             logger.info('Electricity Model:' + name + ' is empty.')
 
 
+@deprecated('Only used by the deprecated postprocessor() entry point.')
 def make_elec_output_dir(output_dir):
     """generates an output subdirectory to write electricity model results. It includes subdirs for
     vars, params, constraints.
@@ -88,7 +98,11 @@ def make_elec_output_dir(output_dir):
 
 
 ###################################################################################################
-# Main Project Execution
+# Legacy: Main Project Execution (deprecated)
+@deprecated(
+    'Only reachable from the out-of-scope hydrogen-integrated legacy paths (unified.py, '
+    'gaussseidel.py). Superseded by extract_all_variables/export_variables_to_csv for Vars.'
+)
 def postprocessor(instance):
     """master postprocessor function that writes out the final dataframes from to the electricity
     model. Creates the output directories and writes out dataframes for variables, parameters, and
@@ -118,3 +132,156 @@ def postprocessor(instance):
 
     for constraint in instance.component_objects(pyo.Constraint, active=True):
         report_obj_df(constraint, instance, output_dir, 'constraints')
+
+
+###################################################################################################
+# New: model-native variable extraction
+
+
+def _derive_column_names(var: pyo.Var) -> list[str]:
+    """Derive DataFrame column names for a Var's index dimensions.
+
+    Uses ``Set.subsets()`` to recover the named component Sets that were crossed (e.g. via
+    ``A * B * C``) to build the Var's index. Vars indexed by a flat/raw tuple list (a single
+    enumerated Set, not a true ``SetProduct``) have no queryable per-dimension names at runtime, so
+    those fall back to generic ``idx_0, idx_1, ...`` names sized to the actual tuple arity.
+
+    Parameters
+    ----------
+    var : pyo.Var
+        Pyomo Var component (indexed or scalar).
+
+    Returns
+    -------
+    list[str]
+        One column name per index dimension; empty list for a scalar (unindexed) Var.
+    """
+    if not var.is_indexed():
+        return []
+
+    subsets = list(var.index_set().subsets(expand_all_set_operators=True))
+    if len(subsets) > 1:
+        names = [s.local_name for s in subsets]
+    elif subsets[0].dimen == 1:
+        names = [subsets[0].local_name]
+    else:
+        # Flat/raw-tuple-indexed Var: no real per-dimension names available. Derive arity from an
+        # actual index entry rather than trusting Set.dimen, which may be unset for some Sets.
+        sample = next(iter(var), None)
+        arity = len(sample) if isinstance(sample, tuple) else 1
+        names = [f'idx_{i}' for i in range(arity)]
+
+    return _dedupe_names(names)
+
+
+def _dedupe_names(names: list[str]) -> list[str]:
+    """Suffix repeated names with their 1-based occurrence index so columns never collide.
+
+    Parameters
+    ----------
+    names : list[str]
+        Candidate column names, possibly containing duplicates (e.g. a trade variable crossed
+        against the same region Set twice).
+
+    Returns
+    -------
+    list[str]
+        Names with duplicates suffixed ``_1``, ``_2``, ...; names occurring once are unchanged.
+    """
+    counts = {name: names.count(name) for name in names}
+    seen: dict[str, int] = {}
+    deduped = []
+    for name in names:
+        if counts[name] == 1:
+            deduped.append(name)
+            continue
+        seen[name] = seen.get(name, 0) + 1
+        deduped.append(f'{name}_{seen[name]}')
+    return deduped
+
+
+def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
+    """Convert a solved pyomo Var into a DataFrame, one row per index, one column per dimension.
+
+    Assumes ``var`` belongs to a solved model. Column names for each index dimension are derived
+    via :func:`_derive_column_names`; the value column (named ``value``) is extracted with
+    ``pyo.value(..., exception=False)``, so unsolved/uninitialized entries appear as ``None``
+    rather than raising.
+
+    Parameters
+    ----------
+    var : pyo.Var
+        Pyomo Var component (indexed or scalar).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns are the derived index-dimension names followed by ``value``. Empty (0-row) with
+        the same columns if ``var`` has no elements.
+    """
+    columns = _derive_column_names(var)
+    rows = []
+    for idx in var:
+        row = dict(zip(columns, idx if isinstance(idx, tuple) else (idx,))) if columns else {}
+        row['value'] = pyo.value(var[idx], exception=False)
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=[*columns, 'value'])
+    if df.empty:
+        logger.debug('Electricity Model: variable %s is empty.', var.local_name)
+    return df
+
+
+def extract_all_variables(model: pyo.ConcreteModel) -> dict[str, pd.DataFrame]:
+    """Extract every active pyomo Var on ``model`` into a DataFrame, keyed by variable name.
+
+    Iterates ``model.component_objects(pyo.Var, active=True)`` directly, so Vars that only exist
+    conditionally (e.g. ``trade_interregional``, ``capacity_builds``, ramping/reserve variables,
+    depending on ``ElecConfig`` switches) are picked up automatically when present and simply
+    absent otherwise -- no hardcoded variable-name list is used.
+
+    Parameters
+    ----------
+    model : pyo.ConcreteModel
+        A solved electricity model (any ``pyo.ConcreteModel``; no particular base class assumed).
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Variable name (``local_name``) mapped to its extracted DataFrame.
+    """
+    result = {}
+    for var in model.component_objects(pyo.Var, active=True):
+        result[var.local_name] = variable_to_dataframe(var)
+        logger.info('Extracted variable %s: %d rows', var.local_name, len(result[var.local_name]))
+    return result
+
+
+def export_variables_to_csv(
+    model: pyo.ConcreteModel, output_dir: Path | str | None = None
+) -> dict[str, pd.DataFrame]:
+    """Extract every Var on ``model`` and write each DataFrame to its own CSV file.
+
+    Parameters
+    ----------
+    model : pyo.ConcreteModel
+        A solved electricity model.
+    output_dir : Path | str | None, optional
+        Directory to write one ``{variable_name}.csv`` file per variable into (created if
+        missing). Defaults to ``PROJECT_ROOT / 'outputs'``.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Same return value as :func:`extract_all_variables`, so callers get the in-memory frames
+        without a second extraction pass.
+    """
+    out_dir = Path(output_dir) if output_dir is not None else PROJECT_ROOT / 'outputs'
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    dfs = extract_all_variables(model)
+    for name, df in dfs.items():
+        csv_path = out_dir / f'{name}.csv'
+        df.to_csv(csv_path, index=False)
+        logger.info('Wrote %s', csv_path)
+    return dfs

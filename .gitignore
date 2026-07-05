@@ -26,6 +26,7 @@ __pycache__
 output_root.txt
 **electric_output/
 output/*
+/outputs/
 !output/*.bat
 !output/*.py
 !output/tech_colors.csv

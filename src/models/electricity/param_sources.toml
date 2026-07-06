@@ -1,0 +1,173 @@
+# Schema metadata describing the parameter-source CSV files consumed by
+# data_ingestor.py's load_param_data()/load_dataframes(). This is fixed, developer-owned
+# metadata (not a per-run configuration) -- do not confuse with run_configs/*.toml, which
+# holds user-facing run settings.
+#
+# Column ordering in index_cols matters: it drives MultiIndex construction in
+# convert_to_df() and downstream column-order expectations in the model.
+#
+# required = true  -> loaded/used regardless of ElecConfig switches
+# required = false -> only used when a specific ElecConfig switch is enabled (see comment
+#                      per entry); note load_param_data still loads every file
+#                      unconditionally today -- required is metadata only for now.
+
+[[param_source]]
+key = "battery_efficiency"
+filename = "BatteryEfficiency.csv"
+index_cols = ["tech"]
+value_col = "BatteryEfficiency"
+required = true
+
+[[param_source]]
+key = "cap_cost"
+filename = "CapCost.csv"
+index_cols = ["region", "tech", "year", "step"]
+value_col = "CapCost"
+required = false  # capacity_expansion
+
+[[param_source]]
+key = "cap_cost_initial"
+filename = "CapCostInitial.csv"
+index_cols = ["region", "tech", "step"]
+value_col = "CapCostInitial"
+required = false  # capacity_expansion + expansion_learning_type != DISABLED
+
+[[param_source]]
+key = "cap_factor_vre"
+filename = "CapFactorVRE.csv"
+index_cols = ["tech", "region", "step", "hour"]
+value_col = "CapFactorVRE"
+required = true
+
+[[param_source]]
+key = "fom_cost"
+filename = "FOMCost.csv"
+index_cols = ["region", "tech", "step"]
+value_col = "FOMCost"
+required = false  # capacity_expansion
+
+[[param_source]]
+key = "h2_price"
+filename = "H2Price.csv"
+index_cols = ["region", "season", "tech", "step", "year"]
+value_col = "H2Price"
+required = true  # no ElecConfig gate found; likely hydrogen-module vestige, kept conservatively required
+
+[[param_source]]
+key = "hours_to_buy"
+filename = "HourstoBuy.csv"
+index_cols = ["tech"]
+value_col = "HourstoBuy"
+required = true
+
+[[param_source]]
+key = "hydro_cap_factor"
+filename = "HydroCapFactor.csv"
+index_cols = ["region", "season"]
+value_col = "HydroCapFactor"
+required = true
+
+[[param_source]]
+key = "learning_rate"
+filename = "LearningRate.csv"
+index_cols = ["tech"]
+value_col = "LearningRate"
+required = false  # capacity_expansion + expansion_learning_type != DISABLED
+
+[[param_source]]
+key = "ramp_down_cost"
+filename = "RampDownCost.csv"
+index_cols = ["tech"]
+value_col = "RampDownCost"
+required = false  # ramping_required
+
+[[param_source]]
+key = "ramp_rate"
+filename = "RampRate.csv"
+index_cols = ["tech"]
+value_col = "RampRate"
+required = false  # ramping_required
+
+[[param_source]]
+key = "ramp_up_cost"
+filename = "RampUpCost.csv"
+index_cols = ["tech"]
+value_col = "RampUpCost"
+required = false  # ramping_required
+
+[[param_source]]
+key = "reg_reserves_cost"
+filename = "RegReservesCost.csv"
+index_cols = ["tech"]
+value_col = "RegReservesCost"
+required = false  # spinning_reserve_required
+
+[[param_source]]
+key = "reserve_margin"
+filename = "ReserveMargin.csv"
+index_cols = ["region"]
+value_col = "ReserveMargin"
+required = false  # reserve_margin_required
+
+[[param_source]]
+key = "res_tech_upper_bound"
+filename = "ResTechUpperBound.csv"
+index_cols = ["restype", "tech"]
+value_col = "ResTechUpperBound"
+required = false  # spinning_reserve_required
+
+[[param_source]]
+key = "supply_curve"
+filename = "SupplyCurve.csv"
+index_cols = ["region", "tech", "step", "year"]
+value_col = "SupplyCurve"
+required = true
+
+[[param_source]]
+key = "supply_curve_learning"
+filename = "SupplyCurveLearning.csv"
+index_cols = ["tech"]
+value_col = "SupplyCurveLearning"
+required = false  # capacity_expansion + expansion_learning_type != DISABLED
+
+[[param_source]]
+key = "supply_price"
+filename = "SupplyPrice.csv"
+index_cols = ["region", "season", "tech", "step", "year"]
+value_col = "SupplyPrice"
+required = true
+
+[[param_source]]
+key = "tran_cost"
+filename = "TranCost.csv"
+index_cols = ["source_region", "destination_region", "year"]
+value_col = "TranCost"
+required = false  # regional_exchange
+
+[[param_source]]
+key = "tran_cost_int"
+filename = "TranCostInt.csv"
+index_cols = ["region", "region_international", "step", "year"]
+value_col = "TranCostInt"
+required = false  # regional_exchange
+
+[[param_source]]
+key = "tran_limit"
+filename = "TranLimit.csv"
+index_cols = ["source_region", "destination_region", "season", "year"]
+value_col = "TranLimit"
+required = false  # regional_exchange
+
+[[param_source]]
+key = "tran_limit_cap_int"
+filename = "TranLimitCapInt.csv"
+index_cols = ["region", "region_international", "year", "season"]
+value_col = "TranLimitCapInt"
+required = false  # regional_exchange
+
+[[param_source]]
+key = "tran_limit_gen_int"
+filename = "TranLimitGenInt.csv"
+index_cols = ["region_international", "step", "year", "season"]
+value_col = "TranLimitGenInt"
+required = false  # regional_exchange

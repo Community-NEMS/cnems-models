@@ -17,6 +17,7 @@ from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
+from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.runner import run_elec_model, solve_elec_model
 from tests.model_diagnostics import (
@@ -30,6 +31,39 @@ from tests.model_diagnostics import (
 )
 
 verbose = False
+
+# Always-required ParamSource keys -> the pyomo Param attribute they end up as on PowerModel.
+# Declared unconditionally in electricity_model.py, so should exist for every config.
+_ALWAYS_REQUIRED_ATTRS = {
+    'battery_efficiency': 'BatteryEfficiency',
+    'hours_to_buy': 'HourstoBuy',
+    'cap_factor_vre': 'CapFactorVRE',
+    'hydro_cap_factor': 'HydroCapFactor',
+    'supply_price': 'SupplyPrice',
+    'supply_curve': 'SupplyCurve',
+    'h2_price': 'H2Price',
+}
+
+# Switch-gated ParamSource keys -> the pyomo Param attribute they end up as, plus which
+# ElecConfig switch gates their declaration in electricity_model.py.
+_GATED_ATTRS = {
+    'fom_cost': ('FOMCost', 'capacity_expansion'),
+    'cap_cost': ('CapCostLearning', 'capacity_expansion'),
+    'tran_cost': ('TranCost', 'regional_exchange'),
+    'tran_cost_int': ('TranCostInt', 'regional_exchange'),
+    'tran_limit': ('TranLimit', 'regional_exchange'),
+    'tran_limit_cap_int': ('TranLimitCapInt', 'regional_exchange'),
+    'tran_limit_gen_int': ('TranLimitGenInt', 'regional_exchange'),
+    'reserve_margin': ('ReserveMargin', 'reserve_margin_required'),
+    'ramp_up_cost': ('RampUpCost', 'ramping_required'),
+    'ramp_down_cost': ('RampDownCost', 'ramping_required'),
+    'ramp_rate': ('RampRate', 'ramping_required'),
+    'reg_reserves_cost': ('RegReservesCost', 'spinning_reserve_required'),
+    'res_tech_upper_bound': ('ResTechUpperBound', 'spinning_reserve_required'),
+}
+# Note: cap_cost_initial/learning_rate/supply_curve_learning are gated by capacity_expansion +
+# expansion_learning_type != DISABLED, which none of this file's `configs` cases enable -- those
+# three are instead cross-checked in test_linear_learning below.
 
 # TODO:  Add combination with expansion + margin required to test combo constraint near line 1500 in model
 
@@ -147,6 +181,19 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         f'found {elec_model.nconstraints()} constraints'
     )
 
+    # Empirically verify param_sources.toml's `required` flags against actual model structure:
+    # always-required sources must be present regardless of config, switch-gated sources must
+    # be present only when their gating switch is active for this config.
+    for key, attr in _ALWAYS_REQUIRED_ATTRS.items():
+        assert PARAM_SOURCES[key].required
+        assert hasattr(elec_model, attr), f'{attr} missing for config {config_info!r}'
+    for key, (attr, switch_name) in _GATED_ATTRS.items():
+        assert not PARAM_SOURCES[key].required
+        expected_present = getattr(elec_config, switch_name)
+        assert hasattr(elec_model, attr) == expected_present, (
+            f'{attr} presence mismatch for config {config_info!r}'
+        )
+
 
 def test_linear_learning(config_set):
     """fundamental test to exercise linear learning capability"""
@@ -160,6 +207,15 @@ def test_linear_learning(config_set):
     elec_config.region_filter = list('78913462')
 
     elec_model = run_elec_model(common_config, elec_config, solve=False)
+
+    # with learning enabled, the learning-gated param_sources.toml entries should be wired in
+    for key, attr in {
+        'cap_cost_initial': 'CapCostInitial',
+        'learning_rate': 'LearningRate',
+        'supply_curve_learning': 'SupplyCurveLearning',
+    }.items():
+        assert not PARAM_SOURCES[key].required
+        assert hasattr(elec_model, attr), f'{attr} missing with learning enabled'
 
     # the basic model above requires no capital expansion to meet load => no learning
     # as a TEMP coaxing, we'll increase the load

@@ -20,58 +20,15 @@ import pandas as pd
 from pandas import DataFrame
 
 from definitions import PROJECT_ROOT
+from src.models.electricity.param_source_loader import ParamSource, load_param_sources
 
 logger = logging.getLogger(__name__)
 
-# TODO:  There is some inconsistency in the column ordering here, but it is captured as-is for now
-#        to align with the model.  This code will work fine if the columns are re-sequenced here and
-#        it will render the index in the order given here
-PARAM_SOURCES = {
-    # key: (Filename, columns to index, value)
-    'battery_efficiency': ('BatteryEfficiency.csv', ('tech',), 'BatteryEfficiency'),
-    'cap_cost': ('CapCost.csv', ('region', 'tech', 'year', 'step'), 'CapCost'),
-    'cap_cost_initial': ('CapCostInitial.csv', ('region', 'tech', 'step'), 'CapCostInitial'),
-    'cap_factor_vre': ('CapFactorVRE.csv', ('tech', 'region', 'step', 'hour'), 'CapFactorVRE'),
-    'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'FOMCost'),
-    'h2_price': ('H2Price.csv', ('region', 'season', 'tech', 'step', 'year'), 'H2Price'),
-    'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'HourstoBuy'),
-    'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'HydroCapFactor'),
-    'learning_rate': ('LearningRate.csv', ('tech',), 'LearningRate'),
-    'ramp_down_cost': ('RampDownCost.csv', ('tech',), 'RampDownCost'),
-    'ramp_rate': ('RampRate.csv', ('tech',), 'RampRate'),
-    'ramp_up_cost': ('RampUpCost.csv', ('tech',), 'RampUpCost'),
-    'reg_reserves_cost': ('RegReservesCost.csv', ('tech',), 'RegReservesCost'),
-    'reserve_margin': ('ReserveMargin.csv', ('region',), 'ReserveMargin'),
-    'res_tech_upper_bound': ('ResTechUpperBound.csv', ('restype', 'tech'), 'ResTechUpperBound'),
-    'supply_curve': ('SupplyCurve.csv', ('region', 'tech', 'step', 'year'), 'SupplyCurve'),
-    'supply_curve_learning': ('SupplyCurveLearning.csv', ('tech',), 'SupplyCurveLearning'),
-    'supply_price': (
-        'SupplyPrice.csv',
-        ('region', 'season', 'tech', 'step', 'year'),
-        'SupplyPrice',
-    ),
-    'tran_cost': ('TranCost.csv', ('source_region', 'destination_region', 'year'), 'TranCost'),
-    'tran_cost_int': (
-        'TranCostInt.csv',
-        ('region', 'region_international', 'step', 'year'),
-        'TranCostInt',
-    ),
-    'tran_limit': (
-        'TranLimit.csv',
-        ('source_region', 'destination_region', 'season', 'year'),
-        'TranLimit',
-    ),
-    'tran_limit_cap_int': (
-        'TranLimitCapInt.csv',
-        ('region', 'region_international', 'year', 'season'),
-        'TranLimitCapInt',
-    ),
-    'tran_limit_gen_int': (
-        'TranLimitGenInt.csv',
-        ('region_international', 'step', 'year', 'season'),
-        'TranLimitGenInt',
-    ),
-}
+# Schema metadata (filename, index columns, value column, required) for each parameter source,
+# read from param_sources.toml -- see param_source_loader.py for the ParamSource model.
+PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
+    PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
+)
 
 # param sources to convert to DF's for further processing.  "Load" handled separately
 TIME_BASED_DFS = (
@@ -320,8 +277,13 @@ def load_param_data(
         param_filter = FilterPackage()
 
     return dict(
-        (k, read_parameter_csv(input_dir / file_path, index_cols, value_col, param_filter))
-        for k, (file_path, index_cols, value_col) in PARAM_SOURCES.items()
+        (
+            k,
+            read_parameter_csv(
+                input_dir / source.filename, source.index_cols, source.value_col, param_filter
+            ),
+        )
+        for k, source in PARAM_SOURCES.items()
     )
 
 
@@ -359,8 +321,8 @@ def load_dataframes(
             continue
         res[name] = convert_to_df(
             param_dict=data_dict,
-            index_names=PARAM_SOURCES[name][1],
-            value_name=PARAM_SOURCES[name][2],
+            index_names=PARAM_SOURCES[name].index_cols,
+            value_name=PARAM_SOURCES[name].value_col,
         )
     return res
 

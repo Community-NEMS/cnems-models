@@ -68,7 +68,9 @@ def main(common_config_path: Path = default_config_path, elec_config_path: Path 
     logger.info(f'Model running in: {common_config.mode} mode')
     logger.info('Config settings:')
     # logger.info(f'Regions: {settings.regions}')  # Not common amongst models
-    logger.info(f'Years: {common_config.summary_years}{ "aggregated with start year " + str(common_config.aggregate_start_year) if common_config.aggregate_years else ""}')
+    logger.info(
+        f'Years: {common_config.summary_years}{"aggregated with start year " + str(common_config.aggregate_start_year) if common_config.aggregate_years else ""}'
+    )
     # with open(default_config_path, 'rb') as f:
     #     data = tomllib.load(f)
     # config_list = []
@@ -80,7 +82,9 @@ def main(common_config_path: Path = default_config_path, elec_config_path: Path 
 
     # Run the cases you want to run based on the mode and settings you pass
     # TODO:  Remove access to globals() which is retrieving a function based on a string??
-    if common_config.mode == RunMode.STANDALONE and common_config.models_to_run == [ModelType.ELECTRICITY]:
+    if common_config.mode == RunMode.STANDALONE and common_config.models_to_run == [
+        ModelType.ELECTRICITY
+    ]:
         run_elec_model(common_config, elec_config, solve=True)
     else:
         logger.error('No valid run mode selected.  Exiting.')

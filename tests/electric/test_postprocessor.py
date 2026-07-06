@@ -16,6 +16,8 @@ from src.models.electricity.postprocessor import (
     export_variables_to_csv,
     extract_all_variables,
     variable_to_dataframe,
+    get_known_column_names,
+    core_variable_indices,
 )
 
 
@@ -70,11 +72,20 @@ def test_empty_var_returns_empty_dataframe_with_columns():
     assert list(df.columns) == ['idx_0', 'value']
 
 
+def test_get_known_column_names():
+    """column names are known for all variables in the PowerModel"""
+    m = pyo.ConcreteModel()
+    m.generation_total = pyo.Var()
+    assert get_known_column_names(m.generation_total) == core_variable_indices.get(
+        'generation_total'
+    ), 'Lookup of column names for known variables failed'
+
+
 @pytest.mark.parametrize(
     'var_name,expected_columns',
     [
-        ('unmet_load', ['region_analyze', 'year', 'hour', 'value']),
-        ('generation_total', ['idx_0', 'idx_1', 'idx_2', 'idx_3', 'idx_4', 'value']),
+        ('unmet_load', ['region', 'year', 'hour', 'value']),
+        ('generation_total', ['tech', 'year', 'region', 'step', 'hour', 'value']),
     ],
     ids=['crossed-Set var', 'raw-tuple-list var'],
 )
@@ -91,13 +102,25 @@ def test_column_names_on_real_model(solved_model, var_name, expected_columns):
 
 
 def test_extract_all_variables_covers_every_var(solved_model):
-    """extract_all_variables must return exactly the Vars present on the model, no more, no less"""
+    """with core_only=False, extract_all_variables returns exactly the Vars present on the
+    model, no more, no less"""
+    _, _, elec_model = solved_model
+
+    dfs = extract_all_variables(elec_model, core_only=False)
+
+    expected_names = {v.local_name for v in elec_model.component_objects(pyo.Var, active=True)}
+    assert set(dfs.keys()) == expected_names
+
+
+def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
+    """the core_only default must skip active Vars that aren't in core_variable_indices"""
     _, _, elec_model = solved_model
 
     dfs = extract_all_variables(elec_model)
 
-    expected_names = {v.local_name for v in elec_model.component_objects(pyo.Var, active=True)}
-    assert set(dfs.keys()) == expected_names
+    all_names = {v.local_name for v in elec_model.component_objects(pyo.Var, active=True)}
+    assert 'var_elec_request' in all_names
+    assert set(dfs.keys()) == all_names & set(core_variable_indices)
 
 
 def test_export_variables_to_csv_writes_files(solved_model, tmp_path):

@@ -21,6 +21,7 @@ from warnings import deprecated
 
 import pandas as pd
 import pyomo.environ as pyo
+from pyomo.core.base.indexed_component import IndexedComponent
 
 from definitions import PROJECT_ROOT
 from src.models.electricity.utilities import create_obj_df
@@ -136,38 +137,62 @@ def postprocessor(instance):
 
 ###################################################################################################
 # New: model-native variable extraction
+storage_index_names = ['tech', 'year', 'region', 'step', 'hour']
+
+# TODO:  When standardizing the sequence of index names, clean this up too!
+core_variable_indices = {
+    'generation_total': ['tech', 'year', 'region', 'step', 'hour'],
+    'capacity_builds': ['region', 'tech', 'year', 'step'],
+    'capacity_retirements': ['tech', 'year', 'region', 'step'],
+    'capacity_total': ['region', 'season', 'tech', 'step', 'year'],
+    'storage_inflow': storage_index_names,
+    'storage_outflow': storage_index_names,
+    'storage_level': storage_index_names,
+    'trade_interregional': ['region_source', 'region_destination', 'year', 'hour'],
+    'trade_intraregional': ['region_domestic', 'region_international', 'year', 'step', 'hour'],
+    'unmet_load': ['region', 'year', 'hour'],
+}
 
 
-def _derive_column_names(var: pyo.Var) -> list[str]:
-    """Derive DataFrame column names for a Var's index dimensions.
+def get_known_column_names(var: pyo.Var | str) -> list[str]:
+    """Get the known column names for a given variable name."""
+    name = var.local_name if isinstance(var, pyo.Var) else var
+    return core_variable_indices.get(name, [])
 
-    Uses ``Set.subsets()`` to recover the named component Sets that were crossed (e.g. via
-    ``A * B * C``) to build the Var's index. Vars indexed by a flat/raw tuple list (a single
-    enumerated Set, not a true ``SetProduct``) have no queryable per-dimension names at runtime, so
-    those fall back to generic ``idx_0, idx_1, ...`` names sized to the actual tuple arity.
+
+def _derive_column_names(component: IndexedComponent) -> list[str]:
+    """Derive DataFrame column names for an indexed component's index dimensions.
+
+    Works for any ``IndexedComponent`` (``pyo.Var``, ``pyo.Param``, ``pyo.Set``, ...). Uses
+    ``Set.subsets()`` to recover the named component Sets that were crossed (e.g. via
+    ``A * B * C``) to build the component's index. Components indexed by a flat/raw tuple list (a
+    single enumerated Set, not a true ``SetProduct``) have no queryable per-dimension names at
+    runtime, so those fall back to generic ``idx_0, idx_1, ...`` names sized to the actual tuple
+    arity.
 
     Parameters
     ----------
-    var : pyo.Var
-        Pyomo Var component (indexed or scalar).
+    component : IndexedComponent
+        Pyomo indexed component (indexed or scalar).
 
     Returns
     -------
     list[str]
-        One column name per index dimension; empty list for a scalar (unindexed) Var.
+        One column name per index dimension; empty list for a scalar (unindexed) component.
     """
-    if not var.is_indexed():
+    if not component.is_indexed():
         return []
 
-    subsets = list(var.index_set().subsets(expand_all_set_operators=True))
+    subsets = list(component.index_set().subsets(expand_all_set_operators=True))
     if len(subsets) > 1:
         names = [s.local_name for s in subsets]
     elif subsets[0].dimen == 1:
         names = [subsets[0].local_name]
     else:
-        # Flat/raw-tuple-indexed Var: no real per-dimension names available. Derive arity from an
-        # actual index entry rather than trusting Set.dimen, which may be unset for some Sets.
-        sample = next(iter(var), None)
+        # Flat/raw-tuple-indexed component: no real per-dimension names available. Derive arity
+        # from an actual index entry rather than trusting Set.dimen, which may be unset for some
+        # Sets.
+        sample = next(iter(component), None)
         arity = len(sample) if isinstance(sample, tuple) else 1
         names = [f'idx_{i}' for i in range(arity)]
 
@@ -219,7 +244,14 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
         Columns are the derived index-dimension names followed by ``value``. Empty (0-row) with
         the same columns if ``var`` has no elements.
     """
-    columns = _derive_column_names(var)
+    columns = get_known_column_names(var)
+    if not columns:
+        logger.debug(
+            'Variable name %s is not recognized in the set of core vars in postprocessor... inferring names',
+            var.local_name,
+        )
+        columns = _derive_column_names(var)
+
     rows = []
     for idx in var:
         row = dict(zip(columns, idx if isinstance(idx, tuple) else (idx,))) if columns else {}
@@ -232,8 +264,10 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
     return df
 
 
-def extract_all_variables(model: pyo.ConcreteModel) -> dict[str, pd.DataFrame]:
-    """Extract every active pyomo Var on ``model`` into a DataFrame, keyed by variable name.
+def extract_all_variables(
+    model: pyo.ConcreteModel, core_only: bool = True
+) -> dict[str, pd.DataFrame]:
+    """Extract active pyomo Vars on ``model`` into a DataFrame, keyed by variable name.
 
     Iterates ``model.component_objects(pyo.Var, active=True)`` directly, so Vars that only exist
     conditionally (e.g. ``trade_interregional``, ``capacity_builds``, ramping/reserve variables,
@@ -244,6 +278,10 @@ def extract_all_variables(model: pyo.ConcreteModel) -> dict[str, pd.DataFrame]:
     ----------
     model : pyo.ConcreteModel
         A solved electricity model (any ``pyo.ConcreteModel``; no particular base class assumed).
+    core_only : bool, optional
+        If True (default), only extract Vars whose name is a key in ``core_variable_indices``
+        (the recognized, model-defined outputs); other active Vars (e.g. ``var_elec_request``)
+        are skipped. If False, every active Var on the model is extracted.
 
     Returns
     -------
@@ -252,15 +290,17 @@ def extract_all_variables(model: pyo.ConcreteModel) -> dict[str, pd.DataFrame]:
     """
     result = {}
     for var in model.component_objects(pyo.Var, active=True):
+        if core_only and var.local_name not in core_variable_indices:
+            continue
         result[var.local_name] = variable_to_dataframe(var)
         logger.info('Extracted variable %s: %d rows', var.local_name, len(result[var.local_name]))
     return result
 
 
 def export_variables_to_csv(
-    model: pyo.ConcreteModel, output_dir: Path | str | None = None
+    model: pyo.ConcreteModel, output_dir: Path | str | None = None, core_only: bool = True
 ) -> dict[str, pd.DataFrame]:
-    """Extract every Var on ``model`` and write each DataFrame to its own CSV file.
+    """Extract Vars on ``model`` and write each DataFrame to its own CSV file.
 
     Parameters
     ----------
@@ -269,6 +309,10 @@ def export_variables_to_csv(
     output_dir : Path | str | None, optional
         Directory to write one ``{variable_name}.csv`` file per variable into (created if
         missing). Defaults to ``PROJECT_ROOT / 'outputs'``.
+    core_only : bool, optional
+        Passed through to :func:`extract_all_variables`. If True (default), only the recognized
+        "core" Vars (keys of ``core_variable_indices``) are extracted and written; if False,
+        every active Var on the model is written.
 
     Returns
     -------
@@ -279,7 +323,7 @@ def export_variables_to_csv(
     out_dir = Path(output_dir) if output_dir is not None else PROJECT_ROOT / 'outputs'
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    dfs = extract_all_variables(model)
+    dfs = extract_all_variables(model, core_only=core_only)
     for name, df in dfs.items():
         csv_path = out_dir / f'{name}.csv'
         df.to_csv(csv_path, index=False)

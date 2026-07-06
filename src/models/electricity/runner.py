@@ -15,6 +15,7 @@ from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
+from src.models.electricity.postprocessor import postprocessor, export_variables_to_csv
 from src.models.electricity.utilities import check_results
 
 logger = getLogger(__name__)
@@ -220,9 +221,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     ###############################################################################################
     # Post-procressing
 
-    # TODO:  test should be removed from settings/configs.  Refactor this
-    # if not settings.test:
-    #     post.postprocessor(instance)
+    export_variables_to_csv(instance, output_dir=elec_config.output_path, core_only=True)
     timer.toc('postprocessing done')
 
     # final steps for measuring the run time of the code

@@ -10,8 +10,11 @@ import plotly as plotly
 import plotly.express as px
 from dash import Dash, Input, Output, dcc, html
 
+import analysis_tools
+from definitions import PROJECT_ROOT
+
 # setting up directories
-dir_output = Path(__file__).parent
+dir_output = PROJECT_ROOT / 'output'  # Path(__file__).parent
 
 
 # add a new index using a mapping dataframe and return a dataframe with the input index
@@ -78,7 +81,7 @@ for i in range(len(all_runs)):
         pass
 
     try:
-        df_capacitybuilds = read_run_csv('CapacityBuilds.csv', runname, df_capacitybuilds)
+        df_capacitybuilds = read_run_csv('capacity_builds.csv', runname, df_capacitybuilds)
     except FileNotFoundError:
         pass
 
@@ -166,7 +169,7 @@ except ValueError:
 
 # swithcing directory to inmport the tech mapping to tech_type and color
 os.chdir(dir_output)
-df_color = pd.read_csv('tech_colors.csv')
+df_color = pd.read_csv(PROJECT_ROOT / 'analysis_tools' / 'tech_colors.csv')
 
 # loop to create a dictionary for inputting into dash plotly
 colorsetting = {}

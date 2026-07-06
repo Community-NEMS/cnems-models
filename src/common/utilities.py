@@ -35,7 +35,7 @@ def make_dir(dir_name):
 
 
 # Logger Setup
-def setup_logger(settings:ElecConfig, **kwargs):
+def setup_logger(settings: ElecConfig, **kwargs):
     """initiates logging, sets up logger in the output directory specified
 
     Parameters

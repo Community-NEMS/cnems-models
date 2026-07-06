@@ -60,7 +60,7 @@ class PowerModel(pyo.ConcreteModel):
         self.region = pyo.Set(initialize=setA.region, validate=region_check)
         self.region_int = pyo.Set(initialize=setA.region_international, within=self.region)
         self.region_dom = pyo.Set(initialize=setA.region_domestic, within=self.region)
-        self.region_analyze = pyo.Set(initialize=elec_config.region_filter, within=self.region_dom)
+        self.region_analyze = pyo.Set(initialize=setA.region_analyze, within=self.region_dom)
 
         # technology sets
         self.tech = pyo.Set(initialize=setA.tech)
@@ -192,7 +192,7 @@ class PowerModel(pyo.ConcreteModel):
         # self.declare_set('year', setA.year_map.values())  # values are the "mapped/onto" years
 
         # spatial sets
-        # self.declare_set('region', elec_config.region_filter)
+        # self.declare_set('region', setA.region_analyze)
         # self.declare_set('region_int', setA.region_int)
         # self.declare_set('region_trade', setA.region_trade)  # <-- unnecessary as we have partners mapped
         # self.declare_set('region_int_trade', setA.region_int_trade)

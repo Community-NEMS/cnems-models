@@ -90,6 +90,9 @@ class ModelSets:
         rd = set_data['region_data']
         self.region = rd['region']
         self.region_domestic = rd['domestic']
+        self.region_analyze = (
+            elec_config.region_filter if elec_config.region_filter else self.region_domestic
+        )
         self.region_international = rd['international']
 
         # # Load Setting

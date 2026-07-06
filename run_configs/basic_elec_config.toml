@@ -25,7 +25,7 @@ cost=5  # some dummy data
 [elec_config]
 input_path='input/electricity/cem_inputs'
 output_path='output'
-region_filter = ['7', '8', '9']
+region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
 regional_exchange=false
 capacity_expansion=false
 expansion_learning_type='disabled'  # disabled/linear/nonlinear

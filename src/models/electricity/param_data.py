@@ -116,11 +116,10 @@ class ParamData:
         self.build_temporal_maps()
 
         # make the Load dataframe
-        full_load_df = self.build_load_dataframe()
-        full_load_df = self.aggregate_time(full_load_df)
-        filtered_load_df = self.filter_dataframe(full_load_df, 'region', elec_config.region_filter)
+        load_df = self.build_load_dataframe()
+        aggregated_load_df = self.aggregate_time(load_df)
         self.param_frames['Load'] = self.apply_hourly_weights(
-            self.param_frames['WeightHour'], filtered_load_df
+            self.param_frames['WeightHour'], aggregated_load_df
         )
 
         # Pluck out the time-based DF conversions and load them
@@ -223,16 +222,22 @@ class ParamData:
         # TODO:  refactor this so it returns a DF for testing purposes
 
         res_dir = Path(PROJECT_ROOT, 'input', 'residential')
-        if self.elec_config.load_scale_mode == LoadScaleMode.ANNUAL:
-            df = scale_load(res_dir).reset_index(drop=True)
-        elif self.elec_config.load_scale_mode == LoadScaleMode.END_USE:
-            df = scale_load_with_enduses(
-                res_dir, regions=self.elec_config.region_filter
-            ).reset_index(drop=True)
-        else:
-            raise NotImplementedError(
-                f'load_scale_mode {self.elec_config.load_scale_mode} not implemented'
-            )
+
+        match self.elec_config.load_scale_mode:
+            case LoadScaleMode.ANNUAL:
+                # build it and filter by region
+                df = scale_load(res_dir).reset_index(drop=True)
+                df = self.filter_dataframe(df, 'region', self.model_sets.region_analyze)
+            case LoadScaleMode.END_USE:
+                # build routine uses filtered regions...
+                df = scale_load_with_enduses(
+                    res_dir,
+                    regions=self.model_sets.region_analyze,
+                ).reset_index(drop=True)
+            case _:
+                raise NotImplementedError(
+                    f'load_scale_mode {self.elec_config.load_scale_mode} not implemented'
+                )
 
         logger.info('Read/built in %d load elements', len(df))
         return df

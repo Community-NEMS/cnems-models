@@ -78,7 +78,7 @@ class FilterPackage:
         # check for correct types for proper filter functionality
         if any(isinstance(v, str) for v in self.year_filter):
             raise ValueError('Year filter must be a set of integers')
-        if any(isinstance(v, int) for v in self.region_filter):
+        if self.region_filter and any(isinstance(v, int) for v in self.region_filter):
             raise ValueError('Region filter must be a set of strings')
         # pop items into set for faster lookups
         self.region_filter = set(self.region_filter) if self.region_filter else None

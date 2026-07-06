@@ -43,7 +43,7 @@ class LoadScaleMode(Enum):
 class ElecConfig(BaseModel):
     input_path: Path
     output_path: Path
-    region_filter: list[str]
+    region_filter: list[str] | None = None
     regional_exchange: bool
     capacity_expansion: bool
     expansion_learning_type: ExpansionLearningType

@@ -1,0 +1,31 @@
+# Schema metadata describing the property-source CSV files consumed by
+# data_ingestor.py's load_property_data(). This is fixed, developer-owned metadata (not a
+# per-run configuration) -- do not confuse with run_configs/*.toml, which holds user-facing
+# run settings.
+#
+# Unlike param_sources.toml, there is no `required` flag here: all property sources are
+# consumed unconditionally in ModelSets.__init__, regardless of ElecConfig switches.
+
+[[property_source]]
+key = "tech_data"
+filename = "tech_data.csv"
+property_cols = ["tech", "T_conv", "T_re", "T_hydro", "T_stor", "T_vre", "T_wind", "T_solar", "T_h2", "T_disp", "T_gen"]
+index_cols = ["tech"]
+
+[[property_source]]
+key = "buildable_techs"
+filename = "build_data.csv"
+property_cols = ["builds"]
+index_cols = ["tech", "step"]
+
+[[property_source]]
+key = "retireable_techs"
+filename = "retire_data.csv"
+property_cols = ["retires"]
+index_cols = ["tech", "step"]
+
+[[property_source]]
+key = "region_data"
+filename = "region_data.csv"
+property_cols = ["region", "domestic", "international"]
+index_cols = ["region"]

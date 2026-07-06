@@ -21,6 +21,7 @@ from pandas import DataFrame
 
 from definitions import PROJECT_ROOT
 from src.models.electricity.param_source_loader import ParamSource, load_param_sources
+from src.models.electricity.property_source_loader import PropertySource, load_property_sources
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +46,11 @@ TIME_BASED_DFS = (
     'tran_limit_gen_int',
 )
 
-PROPERTY_SOURCES = {
-    # Filename, columns to property-ize, index/basis cols
-    'tech_data': (
-        'tech_data.csv',
-        'tech,T_conv,T_re,T_hydro,T_stor,T_vre,T_wind,T_solar,T_h2,T_disp,T_gen'.split(','),
-        ('tech',),
-    ),
-    'buildable_techs': ('build_data.csv', ['builds'], ('tech', 'step')),
-    'retireable_techs': ('retire_data.csv', ['retires'], ('tech', 'step')),
-    'region_data': ('region_data.csv', ['region', 'domestic', 'international'], ('region',)),
-}
+# Schema metadata (filename, property columns, index columns) for each property source, read
+# from property_sources.toml -- see property_source_loader.py for the PropertySource model.
+PROPERTY_SOURCES: dict[str, PropertySource] = load_property_sources(
+    PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
+)
 
 # columns we always want to convert to integer to enable arithmetic on them...
 INTEGER_COLS = {'step', 'year', 'hour'}
@@ -289,8 +284,11 @@ def load_param_data(
 
 def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
     return dict(
-        (k, read_property_csv(input_dir / filename, prop_cols, idx_cols))
-        for k, (filename, prop_cols, idx_cols) in PROPERTY_SOURCES.items()
+        (
+            k,
+            read_property_csv(input_dir / source.filename, source.property_cols, source.index_cols),
+        )
+        for k, source in PROPERTY_SOURCES.items()
     )
 
 

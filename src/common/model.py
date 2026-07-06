@@ -17,6 +17,7 @@ logger = getLogger(__name__)
 ###################################################################################################
 # MODEL
 
+
 @warnings.deprecated('No longer used.')
 class Model(pyo.ConcreteModel):
     """This is the base model class for the models.

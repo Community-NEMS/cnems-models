@@ -42,7 +42,7 @@ class LoadScaleMode(Enum):
 
 class ElecConfig(BaseModel):
     input_path: Path
-    output_path: Path
+    output_path: Path  # TODO:  move this to the common_config.  Doesn't make sense to have this model-specific
     region_filter: list[str] | None = None
     regional_exchange: bool
     capacity_expansion: bool

@@ -12,6 +12,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.common import common_config
+from src.models.electricity.elec_config import ElecConfig
+
 # Establish logger
 logger = getLogger(__name__)
 
@@ -32,7 +35,7 @@ def make_dir(dir_name):
 
 
 # Logger Setup
-def setup_logger(settings):
+def setup_logger(settings:ElecConfig, **kwargs):
     """initiates logging, sets up logger in the output directory specified
 
     Parameters
@@ -41,13 +44,13 @@ def setup_logger(settings):
         output directory path
     """
     # set up root logger
-    output_dir = settings.OUTPUT_ROOT
+    output_dir = settings.output_path
     log_path = Path(output_dir)
     if not Path.is_dir(log_path):
         Path.mkdir(log_path)
 
     # logger level
-    if settings.args.debug:
+    if kwargs.get('debug', False):
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO

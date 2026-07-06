@@ -9,6 +9,7 @@ import argparse
 import types
 from datetime import datetime
 from pathlib import Path
+from warnings import deprecated
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from src.integrator.utilities import create_temporal_mapping
 ###################################################################################################
 # Configuration Class
 
-
+@deprecated('Legacy: Use src.common.common_config and model-specific config instead.')
 class Config_settings:
     """Generates the model settings that are used to solve. Settings include:  \n
     - Iterative Solve Config Settings \n

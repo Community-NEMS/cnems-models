@@ -84,7 +84,7 @@ Test logs are written to `tests/logs/testlog.log` (configured in `pyproject.toml
    rather than embedding the nonlinear learning curve directly in the LP.
 
 ### `docs` folder and README.md files
-- The `docs` folder is outdated and should be completely ignored for not until we update it later.
+- The `docs` folder is outdated and should be completely ignored for now until we update it later.
 - All README.md files in the repo are not currently up to date and should be ignored in favor of code 
   comments and inspections
 ### `src/common/model.py::Model`

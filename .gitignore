@@ -23,19 +23,19 @@ __pycache__
 /src/models/electricity/process_md_files.py
 
 # Outputs
-output_root.txt
-**electric_output/
+#output_root.txt
+#**electric_output/
 output/*
-/outputs/
-!output/*.bat
-!output/*.py
-!output/tech_colors.csv
-!output/*.md
-!output/test
-output/test/*
-tests/model_test/mode_test_log
-tests/test_logs/cw_temporal.csv
-tests/test_logs/electricity/prices/elec_price.csv
+#/outputs/
+#!output/*.bat
+#!output/*.py
+#!analysis_tools/tech_colors.csv
+#!output/*.md
+#!output/test
+#output/test/*
+#tests/model_test/mode_test_log
+#tests/test_logs/cw_temporal.csv
+#tests/test_logs/electricity/prices/elec_price.csv
 *.db
 *.h5
 *.zip

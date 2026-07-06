@@ -258,17 +258,17 @@ df_storagecharge = (
 
 # sum the steps in capacity tables
 try:
-    df_capacitybuilds = df_capacitybuilds[['run', 'tech', 'region', 'year', 'CapacityBuilds']]
+    df_capacitybuilds = df_capacitybuilds[['run', 'tech', 'region', 'year', 'capacity_builds']]
     df_capacitybuilds = (
         df_capacitybuilds.groupby(['run', 'tech', 'region', 'year'])
-        .CapacityBuilds.sum()
+        .capacity_builds.sum()
         .reset_index()
     )
     df_capacitybuilds = mapping(
         df_capacitybuilds,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'CapacityBuilds'],
+        ['run', 'tech_type', 'region', 'year', 'capacity_builds'],
     )
 except TypeError:
     print('Capacity build dataframe is empty.')
@@ -987,20 +987,20 @@ def update_figure(region, run, captech):
     if region:
         filtered_df_capacitybuilds = df_capacitybuilds[df_capacitybuilds['region'].isin(region)]
         filtered_df_capacitybuilds = filtered_df_capacitybuilds[
-            ['run', 'tech_type', 'year', 'CapacityBuilds']
+            ['run', 'tech_type', 'year', 'capacity_builds']
         ]
         filtered_df_capacitybuilds = (
             filtered_df_capacitybuilds.groupby(['run', 'tech_type', 'year'])
-            .CapacityBuilds.sum()
+            .capacity_builds.sum()
             .reset_index()
         )
     else:
         filtered_df_capacitybuilds = filtered_df_capacitybuilds[
-            ['run', 'tech_type', 'year', 'CapacityBuilds']
+            ['run', 'tech_type', 'year', 'capacity_builds']
         ]
         filtered_df_capacitybuilds = (
             filtered_df_capacitybuilds.groupby(['run', 'tech_type', 'year'])
-            .CapacityBuilds.sum()
+            .capacity_builds.sum()
             .reset_index()
         )
 
@@ -1017,7 +1017,7 @@ def update_figure(region, run, captech):
     fig_capacitybuilds = px.bar(
         filtered_df_capacitybuilds,
         x='year',
-        y='CapacityBuilds',
+        y='capacity_builds',
         color='tech_type',
         facet_col='run',
         color_discrete_map=colorsetting,

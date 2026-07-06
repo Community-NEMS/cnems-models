@@ -229,9 +229,9 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
     """Convert a solved pyomo Var into a DataFrame, one row per index, one column per dimension.
 
     Assumes ``var`` belongs to a solved model. Column names for each index dimension are derived
-    via :func:`_derive_column_names`; the value column (named ``value``) is extracted with
-    ``pyo.value(..., exception=False)``, so unsolved/uninitialized entries appear as ``None``
-    rather than raising.
+    via :func:`_derive_column_names`; the value column (named after ``var.local_name``) is
+    extracted with ``pyo.value(..., exception=False)``, so unsolved/uninitialized entries appear
+    as ``None`` rather than raising.
 
     Parameters
     ----------
@@ -241,8 +241,8 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        Columns are the derived index-dimension names followed by ``value``. Empty (0-row) with
-        the same columns if ``var`` has no elements.
+        Columns are the derived index-dimension names followed by ``var.local_name``. Empty
+        (0-row) with the same columns if ``var`` has no elements.
     """
     columns = get_known_column_names(var)
     if not columns:
@@ -252,13 +252,14 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
         )
         columns = _derive_column_names(var)
 
+    value_col = var.local_name
     rows = []
     for idx in var:
         row = dict(zip(columns, idx if isinstance(idx, tuple) else (idx,))) if columns else {}
-        row['value'] = pyo.value(var[idx], exception=False)
+        row[value_col] = pyo.value(var[idx], exception=False)
         rows.append(row)
 
-    df = pd.DataFrame(rows, columns=[*columns, 'value'])
+    df = pd.DataFrame(rows, columns=[*columns, value_col])
     if df.empty:
         logger.debug('Electricity Model: variable %s is empty.', var.local_name)
     return df

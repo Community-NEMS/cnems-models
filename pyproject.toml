@@ -9,6 +9,7 @@ quote-style = 'single'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-n auto"
 log_file = "tests/logs/testlog.log"
 log_file_level = "INFO"
 

@@ -42,6 +42,9 @@ modeling concerns — check both for context before assuming something is a bug 
 
 ```bash
 # Run all electricity tests
+# (pytest-xdist runs tests in parallel by default via addopts = "-n auto" in pyproject.toml;
+# pass -p no:xdist or -n0 to force serial execution, e.g. if a test is misbehaving under
+# parallelism or you need ordered/serial output for debugging)
 pytest tests/electric -q
 
 # Run a single test file / test

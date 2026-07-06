@@ -29,9 +29,9 @@ def test_scalar_var():
 
     df = variable_to_dataframe(m.x)
 
-    assert list(df.columns) == ['value']
+    assert list(df.columns) == ['x']
     assert len(df) == 1
-    assert df['value'].iloc[0] == pytest.approx(5.0)
+    assert df['x'].iloc[0] == pytest.approx(5.0)
 
 
 def test_dedupe_repeated_set_names():
@@ -44,7 +44,7 @@ def test_dedupe_repeated_set_names():
 
     df = variable_to_dataframe(m.v)
 
-    assert list(df.columns) == ['A_1', 'A_2', 'value']
+    assert list(df.columns) == ['A_1', 'A_2', 'v']
     assert len(df) == 4
 
 
@@ -57,7 +57,7 @@ def test_unsolved_var_gives_none_value():
     df = variable_to_dataframe(m.v)
 
     assert len(df) == 2
-    assert df['value'].isna().all()
+    assert df['v'].isna().all()
 
 
 def test_empty_var_returns_empty_dataframe_with_columns():
@@ -69,7 +69,7 @@ def test_empty_var_returns_empty_dataframe_with_columns():
     df = variable_to_dataframe(m.v)
 
     assert df.empty
-    assert list(df.columns) == ['idx_0', 'value']
+    assert list(df.columns) == ['idx_0', 'v']
 
 
 def test_get_known_column_names():
@@ -84,8 +84,8 @@ def test_get_known_column_names():
 @pytest.mark.parametrize(
     'var_name,expected_columns',
     [
-        ('unmet_load', ['region', 'year', 'hour', 'value']),
-        ('generation_total', ['tech', 'year', 'region', 'step', 'hour', 'value']),
+        ('unmet_load', ['region', 'year', 'hour', 'unmet_load']),
+        ('generation_total', ['tech', 'year', 'region', 'step', 'hour', 'generation_total']),
     ],
     ids=['crossed-Set var', 'raw-tuple-list var'],
 )
@@ -98,7 +98,7 @@ def test_column_names_on_real_model(solved_model, var_name, expected_columns):
 
     assert list(df.columns) == expected_columns
     assert len(df) == len(list(var))
-    assert not df['value'].isna().any()
+    assert not df[var_name].isna().any()
 
 
 def test_extract_all_variables_covers_every_var(solved_model):

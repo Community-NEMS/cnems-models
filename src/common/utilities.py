@@ -43,10 +43,10 @@ def setup_logger(settings: CommonConfig, **kwargs):
         output directory path
     """
     # set up root logger
-    output_dir = settings.output_path
+    output_dir = settings.output_path / settings.scenario_name / 'electricity'
     log_path = Path(output_dir)
-    if not Path.is_dir(log_path):
-        Path.mkdir(log_path)
+    if not log_path.is_dir():
+        log_path.mkdir(parents=True, exist_ok=True)
 
     # logger level
     if kwargs.get('debug', False):

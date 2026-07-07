@@ -6,6 +6,7 @@ Contact:  jeff@westernspark.us
 Created on:  6/16/26
 """
 
+import re
 from logging import getLogger
 from pathlib import Path
 
@@ -23,6 +24,7 @@ class CommonConfig(BaseModel):
     models_to_run: list[ModelType]
     common_data_path: Path
     output_path: Path
+    scenario_name: str
     temporal_resolution: str
     aggregate_years: bool
     aggregate_start_year: int | None
@@ -39,6 +41,16 @@ class CommonConfig(BaseModel):
         self.output_path = PROJECT_ROOT / self.output_path
         if not self.output_path.is_dir():
             raise ValueError(f'Output path {self.output_path} is not a directory')
+        return self
+
+    @model_validator(mode='after')
+    def check_scenario_name(self):
+        if len(self.scenario_name) < 4:
+            raise ValueError('scenario_name must be at least 4 characters long')
+        if not re.match(r'^[a-zA-Z0-9_]+$', self.scenario_name):
+            raise ValueError(
+                'scenario_name must contain only alphanumeric characters and underscores'
+            )
         return self
 
     @classmethod

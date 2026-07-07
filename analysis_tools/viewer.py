@@ -71,8 +71,8 @@ for i in range(len(all_runs)):
     run_variables = Path(run_output, 'variables')
     os.chdir(run_variables)
 
-    # grabs the run name
-    runname = str(all_runs[i])
+    # grabs the run name (scenario folder name, stripping the trailing 'electricity' segment)
+    runname = str(all_runs[i].parent)
 
     # the try and except is for when file is missing when happens if the model is turned off
     try:
@@ -311,7 +311,9 @@ except TypeError:
 
 # sum th steps in the trade to Canada
 try:
-    df_tradecan = df_tradecan[['run', 'region_domestic', 'region_international', 'year', 'hour', 'trade_international']]
+    df_tradecan = df_tradecan[
+        ['run', 'region_domestic', 'region_international', 'year', 'hour', 'trade_international']
+    ]
     df_tradecan = (
         df_tradecan.groupby(['run', 'region_domestic', 'region_international', 'year', 'hour'])
         .trade_international.sum()

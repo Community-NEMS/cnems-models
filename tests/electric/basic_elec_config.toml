@@ -6,6 +6,7 @@ models_to_run=['electricity']
 
 common_data_path='input/electricity'
 output_path='output'
+scenario_name = "baseline"
 
 # Temporal resolution (inter-annual)
 # default = 16 representative (rep) days and 4 rep hours

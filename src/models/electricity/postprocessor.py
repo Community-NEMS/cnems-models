@@ -149,7 +149,7 @@ core_variable_indices = {
     'storage_outflow': storage_index_names,
     'storage_level': storage_index_names,
     'trade_interregional': ['region_source', 'region_destination', 'year', 'hour'],
-    'trade_intraregional': ['region_domestic', 'region_international', 'year', 'step', 'hour'],
+    'trade_international': ['region_domestic', 'region_international', 'year', 'step', 'hour'],
     'unmet_load': ['region', 'year', 'hour'],
 }
 

@@ -72,7 +72,7 @@ for i in range(len(all_runs)):
     os.chdir(run_variables)
 
     # grabs the run name
-    runname = all_runs[i]
+    runname = str(all_runs[i])
 
     # the try and except is for when file is missing when happens if the model is turned off
     try:
@@ -311,9 +311,9 @@ except TypeError:
 
 # sum th steps in the trade to Canada
 try:
-    df_tradecan = df_tradecan[['run', 'region', 'region1', 'year', 'hour', 'trade_international']]
+    df_tradecan = df_tradecan[['run', 'region_domestic', 'region_international', 'year', 'hour', 'trade_international']]
     df_tradecan = (
-        df_tradecan.groupby(['run', 'region', 'region1', 'year', 'hour'])
+        df_tradecan.groupby(['run', 'region_domestic', 'region_international', 'year', 'hour'])
         .trade_international.sum()
         .reset_index()
     )
@@ -326,10 +326,9 @@ s_regions.sort()
 s_technologies = pd.unique(df_capacitytotal['tech_type'])
 s_years = pd.unique(df_generation['year'])
 s_years.sort()
-s_canregions = pd.unique(df_tradecan['region1'])
+s_canregions = pd.unique(df_tradecan['region_international'])
 s_canregions.sort()
-s_runs = pd.unique(df_generation['run'])
-s_runs.sort()
+s_runs = sorted(pd.unique(df_generation['run']))
 
 # change directory back to the scripts folder (This is for the batch file to work.)
 
@@ -1168,4 +1167,4 @@ def update_figure(region, trdyear, run):
 
 
 # when running, ctrl+click on the http://127.0.0.1:8050/ which opens a broswer
-app.run_server(debug=True)
+app.run(debug=True)

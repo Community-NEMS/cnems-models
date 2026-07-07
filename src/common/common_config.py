@@ -22,6 +22,7 @@ class CommonConfig(BaseModel):
     mode: RunMode
     models_to_run: list[ModelType]
     common_data_path: Path
+    output_path: Path
     temporal_resolution: str
     aggregate_years: bool
     aggregate_start_year: int | None
@@ -31,6 +32,13 @@ class CommonConfig(BaseModel):
     def check_year_aggregation(self):
         if self.aggregate_years and self.aggregate_start_year is None:
             raise ValueError('aggregate_start_year must be set when aggregate_years is True')
+        return self
+
+    @model_validator(mode='after')
+    def check_paths(self):
+        self.output_path = PROJECT_ROOT / self.output_path
+        if not self.output_path.is_dir():
+            raise ValueError(f'Output path {self.output_path} is not a directory')
         return self
 
     @classmethod

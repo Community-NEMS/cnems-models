@@ -221,7 +221,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     ###############################################################################################
     # Post-procressing
 
-    export_variables_to_csv(instance, output_dir=elec_config.output_path, core_only=True)
+    export_variables_to_csv(instance, output_dir=common_config.output_path, core_only=True)
     timer.toc('postprocessing done')
 
     # final steps for measuring the run time of the code

@@ -42,7 +42,6 @@ class LoadScaleMode(Enum):
 
 class ElecConfig(BaseModel):
     input_path: Path
-    output_path: Path  # TODO:  move this to the common_config.  Doesn't make sense to have this model-specific
     region_filter: list[str] | None = None
     regional_exchange: bool
     capacity_expansion: bool
@@ -55,11 +54,8 @@ class ElecConfig(BaseModel):
     @model_validator(mode='after')
     def check_paths(self):
         self.input_path = PROJECT_ROOT / self.input_path
-        self.output_path = PROJECT_ROOT / self.output_path
         if not self.input_path.is_dir():
             raise ValueError(f'Input path {self.input_path} is not a directory')
-        if not self.output_path.is_dir():
-            raise ValueError(f'Output path {self.output_path} is not a directory')
         return self
 
     @model_validator(mode='after')

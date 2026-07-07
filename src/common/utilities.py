@@ -12,8 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.common import common_config
-from src.models.electricity.elec_config import ElecConfig
+from src.common.common_config import CommonConfig
 
 # Establish logger
 logger = getLogger(__name__)
@@ -35,7 +34,7 @@ def make_dir(dir_name):
 
 
 # Logger Setup
-def setup_logger(settings: ElecConfig, **kwargs):
+def setup_logger(settings: CommonConfig, **kwargs):
     """initiates logging, sets up logger in the output directory specified
 
     Parameters

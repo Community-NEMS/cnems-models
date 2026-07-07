@@ -39,3 +39,6 @@ output/*
 *.db
 *.h5
 *.zip
+
+# agents & such
+/.claude/

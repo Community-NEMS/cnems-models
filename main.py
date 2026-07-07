@@ -60,7 +60,7 @@ def main(common_config_path: Path = default_config_path, elec_config_path: Path 
         elec_config = ElecConfig.from_toml(elec_config_path)
 
     # Establish the logger
-    setup_logger(elec_config, **args.__dict__)
+    setup_logger(common_config, **args.__dict__)
     logger = logging.getLogger(__name__)
 
     # Log settings

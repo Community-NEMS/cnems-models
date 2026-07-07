@@ -1,0 +1,40 @@
+[common]
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['electricity']
+
+common_data_path='input/electricity'
+output_path='output'
+scenario_name = "baseline_exchange"
+
+# Temporal resolution (inter-annual)
+# default = 16 representative (rep) days and 4 rep hours
+# d8h12 = 8 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
+temporal_resolution = "default"
+
+# Temporal resolution (annual)
+# list format, cannot be less than or greater than input data
+aggregate_years=false
+aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
+summary_years = [2025, 2030] # evaluation years / aggregation summary years (if selected)
+
+
+[natural_gas]
+
+cost=5  # some dummy data
+
+[elec_config]
+input_path='input/electricity/cem_inputs'
+region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
+regional_exchange=false
+capacity_expansion=false
+expansion_learning_type='disabled'  # disabled/linear/nonlinear
+reserve_margin_required=false
+spinning_reserve_required=false
+ramping_required=false
+# Select the method for projecting future electricity demand (e.g., "annual" or "enduse")
+# "annual" will scale the base year electricity demand by an annual scalar value
+# "end_use" will scale the base year electricity demand by hourly end use demand profiles
+load_scale_mode = "end_use"
+

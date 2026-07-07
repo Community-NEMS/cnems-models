@@ -101,4 +101,6 @@ def main(common_config_path: Path = default_config_path, elec_config_path: Path 
 
 
 if __name__ == '__main__':
-    main()
+    # run a default and default + exchange model to enable viewing of results
+    main(common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'))
+    main(common_config_path=Path(PROJECT_ROOT, 'run_configs/exchange_elec_config.toml'))

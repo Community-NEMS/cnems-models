@@ -1090,21 +1090,21 @@ def update_figure(region, trdyear, run):
     filtered_df_trade = df_trade[(df_trade.year == trdyear)]
 
     if region:
-        filtered_df_trade = filtered_df_trade[filtered_df_trade['region'].isin(region)]
+        filtered_df_trade = filtered_df_trade[filtered_df_trade['region_source'].isin(region)]
         filtered_df_trade = filtered_df_trade[
-            ['run', 'region1', 'year', 'hour', 'trade_interregional']
+            ['run', 'region_destination', 'year', 'hour', 'trade_interregional']
         ]
         filtered_df_trade = (
-            filtered_df_trade.groupby(['run', 'region1', 'year', 'hour'])
+            filtered_df_trade.groupby(['run', 'region_destination', 'year', 'hour'])
             .trade_interregional.sum()
             .reset_index()
         )
     else:
         filtered_df_trade = filtered_df_trade[
-            ['run', 'region1', 'year', 'hour', 'trade_interregional']
+            ['run', 'region_destination', 'year', 'hour', 'trade_interregional']
         ]
         filtered_df_trade = (
-            filtered_df_trade.groupby(['run', 'region1', 'year', 'hour'])
+            filtered_df_trade.groupby(['run', 'region_destination', 'year', 'hour'])
             .trade_interregional.sum()
             .reset_index()
         )
@@ -1116,7 +1116,7 @@ def update_figure(region, trdyear, run):
         filtered_df_trade,
         x='hour',
         y='trade_interregional',
-        color='region1',
+        color='region_destination',
         facet_col='run',
         width=1600,
         height=500,
@@ -1134,21 +1134,23 @@ def update_figure(region, trdyear, run):
     filtered_df_tradecan = df_tradecan[(df_tradecan.year == trdyear)]
 
     if region:
-        filtered_df_tradecan = filtered_df_tradecan[filtered_df_tradecan['region'].isin(region)]
         filtered_df_tradecan = filtered_df_tradecan[
-            ['run', 'region1', 'year', 'hour', 'trade_international']
+            filtered_df_tradecan['region_domestic'].isin(region)
+        ]
+        filtered_df_tradecan = filtered_df_tradecan[
+            ['run', 'region_international', 'year', 'hour', 'trade_international']
         ]
         filtered_df_tradecan = (
-            filtered_df_tradecan.groupby(['run', 'region1', 'year', 'hour'])
+            filtered_df_tradecan.groupby(['run', 'region_international', 'year', 'hour'])
             .trade_international.sum()
             .reset_index()
         )
     else:
         filtered_df_tradecan = filtered_df_tradecan[
-            ['run', 'region1', 'year', 'hour', 'trade_international']
+            ['run', 'region_international', 'year', 'hour', 'trade_international']
         ]
         filtered_df_tradecan = (
-            filtered_df_tradecan.groupby(['run', 'region1', 'year', 'hour'])
+            filtered_df_tradecan.groupby(['run', 'region_international', 'year', 'hour'])
             .trade_international.sum()
             .reset_index()
         )
@@ -1160,7 +1162,7 @@ def update_figure(region, trdyear, run):
         filtered_df_tradecan,
         x='hour',
         y='trade_international',
-        color='region1',
+        color='region_international',
         facet_col='run',
         width=1600,
         height=500,

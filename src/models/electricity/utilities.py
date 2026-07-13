@@ -135,6 +135,7 @@ class ElectricityMethods(Model):
 # Utility functions THESE STAY HERE
 
 
+@deprecated('use Pyomo internal function in lieu of this')
 def check_results(results, SolutionStatus, TerminationCondition):
     """Check results for termination condition and solution status
 

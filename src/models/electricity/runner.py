@@ -5,7 +5,7 @@ from logging import getLogger
 
 import pyomo.environ as pyo
 from pyomo.common.timing import TicTocTimer
-from pyomo.opt import SolutionStatus, SolverStatus, TerminationCondition
+from pyomo.opt import SolutionStatus, SolverStatus, TerminationCondition, check_optimal_termination
 from pyomo.util.infeasible import log_infeasible_constraints
 
 # Import python modules
@@ -86,13 +86,13 @@ def solve_elec_model(instance: PowerModel, elec_config: ElecConfig):
         init_old_cap(instance)
         instance.new_cap = instance.old_cap
         update_cost(instance)
-
+        results = None
         while tol > 0.1 and i < 20:
             logger.info('Linear iteration number: ' + str(i))
 
             i += 1
             # solve model
-            opt_success = opt.solve(instance)
+            results = opt.solve(instance)
 
             # set new capacities
             set_new_cap(instance)
@@ -112,33 +112,21 @@ def solve_elec_model(instance: PowerModel, elec_config: ElecConfig):
             instance.old_cap = instance.new_cap
             instance.old_cap_wt = instance.new_cap_wt
 
-            logger.info('Tolerance: ' + str(tol))
+            logger.info('Tolerance in linear learning iterations: ' + str(tol))
     else:
-        opt_success = opt.solve(instance)
+        results = opt.solve(instance)
 
-    ### Check results and load model solutions
-    # Check results for termination condition and solution status
-    # TODO:  re-examine this.  We're getting "failed" reports in log that
-    #        appear to be optimially solved
-    if check_results(opt_success, SolutionStatus, TerminationCondition):
-        name = 'noclass!'
-        logger.info(f'[{name}] Solve failed')
-        if opt_success is not None:
-            logger.info('status=' + str(opt_success.solver.status))
-            logger.info('TerminationCondition=' + str(opt_success.solver.termination_condition))
-
-    # If model solved, load model solutions into model, else exit
-    try:
-        if (opt_success.solver.status == SolverStatus.ok) and (
-            opt_success.solver.termination_condition == TerminationCondition.optimal
-        ):
-            instance.solutions.load_from(opt_success)
-        else:
-            logger.warning('Solve Failed.')
-            exit()
-    except:
-        logger.warning('Solve Failed.')
+    ### Check results
+    if not check_optimal_termination(results):
+        logger.error('Solve Failed.  Inspect solver log for more info.')
+        logger.info(
+            'Termination condition: '
+            + str(results.solver.termination_condition)
+            + ', status: '
+            + str(results.solver.status)
+        )
         exit()
+    logger.info('Solve Successful')
 
 
 def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:

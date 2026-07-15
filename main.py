@@ -5,15 +5,15 @@ import logging
 import os
 import types
 from pathlib import Path
+from warnings import deprecated
 
 import tomllib
-from warnings import deprecated
 
 # Import python modules
 from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
+from src.common.common_config import parse_config_file
 from src.common.config_setup import Config_settings
-from src.common.models_modes import RunMode, ModelType
+from src.common.models_modes import ModelType, RunMode
 from src.common.utilities import get_args, setup_logger
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.runner import run_elec_model
@@ -55,7 +55,7 @@ def main(
     args = get_args()
 
     # Build the common config
-    common_config, remainder = CommonConfig.from_toml(common_config_path)
+    common_config, remainder = parse_config_file(common_config_path)
     if not elec_config_path:
         # expect the elec_config to be in the remainder of a "unified" config file
         elec_config = ElecConfig(**remainder.pop('elec_config'))

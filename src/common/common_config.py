@@ -6,6 +6,7 @@ Contact:  jeff@westernspark.us
 Created on:  6/16/26
 """
 
+import json
 import re
 from logging import getLogger
 from pathlib import Path
@@ -74,18 +75,33 @@ def parse_config_file(path_to_config: Path) -> tuple[CommonConfig, dict]:
     Parse a config file on the path given.
 
     Renders the "common" config and retains the remainder for subsequent parsing as needed by
-    individual modules.
+    individual modules. Supports both TOML (`.toml`) and JSON (`.json`) sources; JSON is used by
+    the GUI's config editor, which persists edited configs as a single combined JSON file.
 
     Parameters
     ----------
     path_to_config : Path
-        Path to the top-level config TOML file.
+        Path to the top-level config file, either TOML or JSON.
 
     Returns
     -------
     tuple[CommonConfig, dict]
-        The parsed common config and the remaining (unparsed) TOML sections.
+        The parsed common config and the remaining (unparsed) sections.
     """
+    if path_to_config.suffix == '.json':
+        with open(path_to_config) as f:
+            data = json.load(f)
+        try:
+            common_config = CommonConfig.model_validate(data.pop('common'))
+        except KeyError:
+            logger.error('"common" section not found in JSON config')
+            raise
+        except ValidationError as e:
+            for error in e.errors():
+                logger.error(error)
+            raise
+        return common_config, data
+
     common_config, remainder = CommonConfig.from_toml(path_to_config)
 
     return common_config, remainder

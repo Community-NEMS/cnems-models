@@ -39,6 +39,7 @@ output/*
 *.db
 *.h5
 *.zip
+run_configs/last_app_config.json
 
 # agents & such
 /.claude/

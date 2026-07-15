@@ -6,24 +6,29 @@ Built using Dash - https://dash.plotly.com/.
 Created on Wed Sept 19 2024 by Adam Heisey
 """
 
-import ast
+import logging
 import os
-import shlex
 import subprocess
 import sys
-import tomllib
 
 # Import packages
 import dash
 import dash_bootstrap_components as dbc
-
 from dash import Input, Output, State, dcc, html
-
-from definitions import PROJECT_ROOT
 
 # Import python modules
 from main import app_main, main
+from src.common.config_gui import (
+    CONFIG_JSON_PATH,
+    ConfigValidationError,
+    build_config_form,
+    load_configs,
+    parse_form_values,
+    save_configs,
+)
 from src.common.models_modes import RunMode
+
+logger = logging.getLogger(__name__)
 
 # Initialize the Dash app
 app = dash.Dash(
@@ -97,67 +102,40 @@ app.layout = dbc.Container(
     Input('config-editor', 'id'),
     prevent_initial_call=False,
 )
-def auto_load_toml(selected_mode):
-    """reads in the configuration settings into the app that are saved in the config template.
+def load_config_editor(_):
+    """Loads the common/electricity configs and renders the config editor form.
 
-    Parameters
-    ----------
-    selected_mode :
-        user selected run mode option, current options are 'unified-combo', 'gs-combo', 'standalone'
+    Prefers the last saved config (`run_configs/last_app_config.json`) if present, else falls
+    back to the default TOML template.
 
     Returns
     -------
-        config default settings
+        list of Dash components for the config editor, and whether the Save button is disabled
     """
-    default_config_file_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
-    last_app_config = PROJECT_ROOT / 'run_configs/last_app_config.toml'
-    if last_app_config.exists():
-        config_file_path = last_app_config
-    else:
-        config_file_path = default_config_file_path
+    try:
+        common_config, elec_config, _path = load_configs()
+    except Exception as exc:
+        logger.error('Failed to load configuration: %s', exc)
+        return [html.Div(f'Error loading configuration: {exc}', style={'color': 'red'})], True
 
-    if os.path.exists(config_file_path):
-        # read run config with comments
-        with open(config_file_path, 'rb') as f:
-            config_content = tomllib.load(f)
-
-        # Dynamically create input fields for the TOML content
-        inputs = []
-
-        for key, value in config_content.items():
-            inputs.append(
-                html.Div(
-                    [
-                        dbc.Label(f'{key}:'),
-                        dbc.Input(
-                            id={'type': 'config-input', 'index': key},
-                            value=str(value),
-                            debounce=True,
-                        ),
-                    ],
-                    style={'margin-bottom': '10px'},
-                )
-            )
-
-        return inputs, False  # Enable the Save button
-    return [], True  # Disable the Save button if no file is uploaded
+    return build_config_form(common_config, elec_config), False
 
 
-# Save the modified TOML file with comments
+# Save the modified config as a combined JSON file
 @app.callback(
     Output('output-state', 'children'),
     Input('save-toml-button', 'n_clicks'),
-    State({'type': 'config-input', 'index': dash.ALL}, 'value'),
-    State({'type': 'config-input', 'index': dash.ALL}, 'id'),
+    State({'type': 'config-input', 'section': dash.ALL, 'field': dash.ALL}, 'value'),
+    State({'type': 'config-input', 'section': dash.ALL, 'field': dash.ALL}, 'id'),
     prevent_initial_call=True,
 )
-def save_toml(n_clicks, input_values, input_ids):
-    """saves the configuration settings in the app to the config file.
+def save_config_editor(n_clicks, input_values, input_ids):
+    """Validates the edited config form values and saves them as a combined JSON file.
 
     Parameters
     ----------
     n_clicks :
-        click to save toml button
+        click to save button
     input_values :
         config values associated with components specified in the web app
     input_ids :
@@ -165,34 +143,20 @@ def save_toml(n_clicks, input_values, input_ids):
 
     Returns
     -------
-        empty string
+        a success message, or a list of validation error messages if the form is invalid
     """
-    config_file_path = PROJECT_ROOT / 'run_configs/last_app_config.toml'
+    if not n_clicks:
+        return ''
 
-    if n_clicks:
-        # overwrite the config file with the new values
-        with open(config_file_path, 'w') as f:
-            for key, value in zip(input_ids, input_values):
-                f.write(f'{key} = {convert_value(value)}\n')
-        return 'Configuration settings saved successfully.'
-    return ''
-
-
-# Function to convert values back to original types
-# TODO:  Re-look at this and perhaps use pydantic's serialization of the configs
-def convert_value(value):
-    """Function to maintain the original type for config values"""
-    # handle boolean speficially
-    if isinstance(value, str):
-        if value.lower() == 'true':
-            return True
-        elif value.lower() == 'false':
-            return False
-    # now other types
+    common_raw, elec_raw = parse_form_values(input_ids, input_values)
     try:
-        return ast.literal_eval(value)
-    except (ValueError, SyntaxError):
-        return value
+        save_configs(common_raw, elec_raw)
+    except ConfigValidationError as exc:
+        return html.Ul(
+            [html.Li(error) for error in exc.errors],
+            style={'color': 'red'},
+        )
+    return 'Configuration settings saved successfully.'
 
 
 # Callback to handle run button click and show progress
@@ -223,8 +187,8 @@ def run_mode(n_clicks, selected_mode):
     if selected_mode not in modes_available:
         return f"Error: '{selected_mode}' is not a valid mode.", 0
 
-    # verify we have a last_app_config.toml file
-    config_path = PROJECT_ROOT / 'run_configs/last_app_config.toml'
+    # verify we have a saved config file
+    config_path = CONFIG_JSON_PATH
     if not config_path.exists():
         return f'Error: No config file generated.  Please save config values in GUI.', 0
 
@@ -236,10 +200,12 @@ def run_mode(n_clicks, selected_mode):
         main(common_config_path=config_path, run_mode=selected_mode)
 
         return (
-            f"{selected_mode.capitalize()} mode has finished running. See results in output/'{selected_mode}'.",
+            f'{selected_mode.value.capitalize()} mode has finished running. '
+            f"See results in output/'{selected_mode.value}'.",
             100,
         )
-    except Exception:
+    except Exception as exc:
+        logger.error('Run failed for mode %s: %s', selected_mode, exc)
         error_msg = f'Error, not able to run {selected_mode}. Please check the log script/terminal, exit out of browser, and restart.'
         return error_msg, 0
 

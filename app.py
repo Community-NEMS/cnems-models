@@ -11,16 +11,19 @@ import os
 import shlex
 import subprocess
 import sys
+import tomllib
 
 # Import packages
 import dash
 import dash_bootstrap_components as dbc
-import tomli
-import tomlkit
+
 from dash import Input, Output, State, dcc, html
 
+from definitions import PROJECT_ROOT
+
 # Import python modules
-from main import app_main
+from main import app_main, main
+from src.common.models_modes import RunMode
 
 # Initialize the Dash app
 app = dash.Dash(
@@ -106,12 +109,17 @@ def auto_load_toml(selected_mode):
     -------
         config default settings
     """
-    config_file_path = os.path.join('src/common', 'run_config_template.toml')
+    default_config_file_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
+    last_app_config = PROJECT_ROOT / 'run_configs/last_app_config.toml'
+    if last_app_config.exists():
+        config_file_path = last_app_config
+    else:
+        config_file_path = default_config_file_path
 
     if os.path.exists(config_file_path):
         # read run config with comments
         with open(config_file_path, 'rb') as f:
-            config_content = tomli.load(f)
+            config_content = tomllib.load(f)
 
         # Dynamically create input fields for the TOML content
         inputs = []
@@ -159,27 +167,19 @@ def save_toml(n_clicks, input_values, input_ids):
     -------
         empty string
     """
-    config_template = os.path.join('src/common', 'run_config_template.toml')
-    config_file_path = os.path.join('src/common', 'run_config.toml')
+    config_file_path = PROJECT_ROOT / 'run_configs/last_app_config.toml'
 
     if n_clicks:
-        # Load the original file to preserve its structure and comments
-        with open(config_template, 'r') as f:
-            config_doc = tomlkit.parse(f.read())
-
-        # Update the config_doc with new values
-        for item, value in zip(input_ids, input_values):
-            config_doc[item['index']] = convert_value(value)
-
-        # Write the updated content back, preserving comments
+        # overwrite the config file with the new values
         with open(config_file_path, 'w') as f:
-            f.write(tomlkit.dumps(config_doc))
-
-        return "Configuration settings saved successfully as 'run_config.toml'."
+            for key, value in zip(input_ids, input_values):
+                f.write(f'{key} = {convert_value(value)}\n')
+        return 'Configuration settings saved successfully.'
     return ''
 
 
 # Function to convert values back to original types
+# TODO:  Re-look at this and perhaps use pydantic's serialization of the configs
 def convert_value(value):
     """Function to maintain the original type for config values"""
     # handle boolean speficially
@@ -221,13 +221,19 @@ def run_mode(n_clicks, selected_mode):
     modes_available = {'unified-combo', 'gs-combo', 'standalone'}
 
     if selected_mode not in modes_available:
-        return f"Error: '{selected_mode}' is not a valide mode.", 0
+        return f"Error: '{selected_mode}' is not a valid mode.", 0
+
+    # verify we have a last_app_config.toml file
+    config_path = PROJECT_ROOT / 'run_configs/last_app_config.toml'
+    if not config_path.exists():
+        return f'Error: No config file generated.  Please save config values in GUI.', 0
 
     try:
-        selected_mode = shlex.quote(selected_mode)
+        selected_mode = RunMode(selected_mode)
 
         # run selected mode
-        app_main(selected_mode)
+        # app_main(selected_mode)
+        main(common_config_path=config_path, run_mode=selected_mode)
 
         return (
             f"{selected_mode.capitalize()} mode has finished running. See results in output/'{selected_mode}'.",
@@ -240,6 +246,6 @@ def run_mode(n_clicks, selected_mode):
 
 if __name__ == '__main__':
     try:
-        app.run_server(debug=True, host='localhost', port=8080)
+        app.run(debug=True, host='localhost', port=8080)
     finally:
         http_server_process.terminate()

@@ -7,6 +7,7 @@ import types
 from pathlib import Path
 
 import tomllib
+from warnings import deprecated
 
 # Import python modules
 from definitions import PROJECT_ROOT
@@ -21,6 +22,7 @@ from src.models.electricity.runner import run_elec_model
 default_config_path = Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml')
 
 
+@deprecated('needs reconfig if preserved')
 def app_main(selected_mode):
     """main run through the bsky gui app
 
@@ -37,7 +39,9 @@ def app_main(selected_mode):
     main(app_settings)
 
 
-def main(common_config_path: Path = default_config_path, elec_config_path: Path | None = None):
+def main(
+    common_config_path: Path = default_config_path, elec_config_path: Path | None = None, **kwargs
+):
     """
     Runs model as defined in settings
 
@@ -58,6 +62,10 @@ def main(common_config_path: Path = default_config_path, elec_config_path: Path 
     else:
         # expect the elec_config to be in a separate file
         elec_config = ElecConfig.from_toml(elec_config_path)
+
+    # inspect kwargs for overrides
+    if run_mode := kwargs.get('run_mode'):
+        common_config.mode = run_mode
 
     # Establish the logger
     setup_logger(common_config, **args.__dict__)

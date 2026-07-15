@@ -9,4 +9,6 @@ pydantic
 pandas
 matplotlib
 dash
+dash-bootstrap-components
+networkx
 

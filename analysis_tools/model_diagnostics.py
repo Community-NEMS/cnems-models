@@ -6,9 +6,12 @@ Contact:  jeff@westernspark.us
 Created on:  6/29/26
 """
 
+from itertools import groupby
+
 from pyomo.common.numeric_types import value
 from pyomo.core import Constraint, Param, Var
 from pyomo.core.base.set import Set
+from pyomo.repn import generate_standard_repn
 
 from src.models.electricity.electricity_model import PowerModel
 
@@ -62,6 +65,39 @@ def breakdown_obj_elements(em: PowerModel):
     except AttributeError:
         print('Operating reserves cost: N/A')
     print(f'Total cost: {value(em.total_cost):.2f}')
+
+
+def breakdown_obj_terms(em: PowerModel) -> None:
+    """Print the objective function (``em.total_cost``) as (variable, index, coefficient) triplets.
+
+    Uses Pyomo's standard representation generator to decompose the linear objective
+    expression into its individual variable terms, printing one row per term sorted by
+    descending coefficient magnitude (ties broken by variable name, then index). Terms that
+    share an identical coefficient value are collapsed: only the first is printed, followed by
+    a summary line noting how many others were folded into it. A final row is printed for the
+    constant term, if nonzero.
+
+    Parameters
+    ----------
+    em : PowerModel
+        A solved PowerModel instance.
+    """
+    repn = generate_standard_repn(em.total_cost.expr)
+    terms = [(var, value(coef)) for var, coef in zip(repn.linear_vars, repn.linear_coefs)]
+    terms.sort(
+        key=lambda term: (-abs(term[1]), term[0].parent_component().name, str(term[0].index()))
+    )
+
+    print(f'{"Variable":<30}{"Index":<50}{"Coefficient":>15}')
+    for coef_value, group in groupby(terms, key=lambda term: term[1]):
+        group = list(group)
+        var, _ = group[0]
+        print(f'{var.parent_component().name:<30}{str(var.index()):<50}{coef_value:>19.4e}')
+        if len(group) > 1:
+            print(f'  ... and {len(group) - 1} others with same coefficient')
+
+    if repn.constant:
+        print(f'{"constant":<30}{"":<50}{value(repn.constant):>15.4f}')
 
 
 def capacity_inspector(em: PowerModel, region: str, year: int):

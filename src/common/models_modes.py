@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  6/16/26
 
-A listing of the individual models that may grow
+A listing of the individual models and run modes
 
 """
 

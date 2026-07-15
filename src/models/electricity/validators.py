@@ -32,5 +32,7 @@ def region_check(model: ConcreteModel, region: str) -> bool:
     # if this matches, return is true, fail -> false
     if re.match(r'[a-zA-Z0-9_]+\Z', region):  # string that has only letters and numbers
         return True
-    logger.error('region name %s is not valid.  Only letters & numbers accepted', region)
+    logger.error(
+        'region name %s is not valid.  Only letters, numbers, and underscore are accepted', region
+    )
     return False

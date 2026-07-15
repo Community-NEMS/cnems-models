@@ -98,7 +98,7 @@ class ElecConfig(BaseModel):
 # some simple testing...
 if __name__ == '__main__':
     try:
-        config = ElecConfig.from_toml(Path(PROJECT_ROOT / 'run_configs/sample_elec_config.toml'))
+        config = ElecConfig.from_toml(Path(PROJECT_ROOT / 'run_configs/basic_elec_config.toml'))
     except ValidationError as e:
         print([t['msg'] for t in e.errors()])
         raise

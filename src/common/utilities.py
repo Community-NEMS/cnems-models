@@ -9,6 +9,7 @@ from collections.abc import Collection
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
+from warnings import deprecated
 
 import pandas as pd
 
@@ -18,6 +19,7 @@ from src.common.common_config import CommonConfig
 logger = getLogger(__name__)
 
 
+@deprecated('should be using normal Path functions')
 def make_dir(dir_name):
     """generates an output directory to write model results, output directory is the date/time
     at the time this function executes. It includes subdirs for vars, params, constraints.
@@ -136,6 +138,7 @@ def scale_load(data_root):
 
 
 # TODO:  Simple profiling shows that this function is SUPER slow.  Consider refactor ideas...
+# update to above:  pre-filtering regions makes this much more tolerable.  More to do ?
 def scale_load_with_enduses(data_root: Path, regions: Collection[str]):
     """Reads in BaseLoad.csv (load for all regions/hours for first year), EnduseBaseShares.csv
     (the shares of demand for each enduse in the base year) and EnduseScalar.csv (a multiplier

@@ -69,7 +69,23 @@ class CommonConfig(BaseModel):
         return config, data
 
 
-if __name__ == '__main__':
-    config, data = CommonConfig.from_toml(PROJECT_ROOT / 'run_configs/meta_config.toml')
-    print(config)
-    print(data)
+def parse_config_file(path_to_config: Path) -> tuple[CommonConfig, dict]:
+    """
+    Parse a config file on the path given.
+
+    Renders the "common" config and retains the remainder for subsequent parsing as needed by
+    individual modules.
+
+    Parameters
+    ----------
+    path_to_config : Path
+        Path to the top-level config TOML file.
+
+    Returns
+    -------
+    tuple[CommonConfig, dict]
+        The parsed common config and the remaining (unparsed) TOML sections.
+    """
+    common_config, remainder = CommonConfig.from_toml(path_to_config)
+
+    return common_config, remainder

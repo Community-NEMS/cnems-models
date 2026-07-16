@@ -26,7 +26,7 @@ from src.models.electricity.constants import (
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.validators import region_check
+from src.models.electricity.validators import region_check, tech_name_check
 
 # Establish logger
 logger = getLogger(__name__)
@@ -46,7 +46,9 @@ class PowerModel(pyo.ConcreteModel):
     ):
         pyo.ConcreteModel.__init__(self, *args, **kwargs)
 
-        # Sets
+        #  =======================================
+        #                   Sets
+        #  =======================================
 
         # temporal sets
         self.hour = pyo.Set(initialize=model_sets.hour)
@@ -63,7 +65,7 @@ class PowerModel(pyo.ConcreteModel):
         self.region_analyze = pyo.Set(initialize=model_sets.region_analyze, within=self.region_dom)
 
         # technology sets
-        self.tech = pyo.Set(initialize=model_sets.tech)
+        self.tech = pyo.Set(initialize=model_sets.tech, validate=tech_name_check)
         self.step = pyo.Set(initialize=model_sets.step)  # TODO:  come back to this
         self.tech_conv = pyo.Set(initialize=model_sets.tech_conv, within=self.tech)
         self.tech_re = pyo.Set(initialize=model_sets.tech_re, within=self.tech)
@@ -222,8 +224,9 @@ class PowerModel(pyo.ConcreteModel):
             #     switch=elec_config.capacity_expansion,
             # )
 
-        ###########################################################################################
-        # Parameters
+        #  =======================================
+        #                Parameters
+        #  =======================================
 
         # conveniences to get the dataframe/dict pieces from the param data:
         all_frames = param_data.param_frames
@@ -385,6 +388,11 @@ class PowerModel(pyo.ConcreteModel):
                 self.hour,
                 initialize=all_frames['tran_limit'],
             )
+
+            # An aside to make an indexed set of trading partners
+            # dev note:  It might be worthwhile to make this a sparse set and fabricate the index
+            #            of this separately to maintain the validation?  That would require a
+            #            conditional membership check where this is used.
             partners = defaultdict(list)
             for source_region, destination_region, year, hour in all_frames['tran_limit'].index:
                 partners[source_region, year, hour].append(destination_region)
@@ -471,9 +479,8 @@ class PowerModel(pyo.ConcreteModel):
                 initialize=all_dicts['res_tech_upper_bound'],
             )
 
-        ##########################
         # Cross-talk from H2 model  # preserved as basis for expansion/ideas...?
-        # TODO:  Extract these...not used
+        # TODO:  Extract these?  ...not used
         self.FixedElecRequest = pyo.Param(
             self.region_analyze,
             self.year,
@@ -490,7 +497,9 @@ class PowerModel(pyo.ConcreteModel):
             doc='variable request from H2',
         )
 
-        # Variables
+        #  =======================================
+        #                 Variables
+        #  =======================================
 
         # Generation, capacity, and technology variables
         self.generation_total = pyo.Var(model_sets.generation_index, within=pyo.NonNegativeReals)
@@ -507,7 +516,6 @@ class PowerModel(pyo.ConcreteModel):
         # if capacity expansion is on
         if elec_config.capacity_expansion:
             # TODO:  Review this creation of var index from parameter keys.  Done in a few spots, seems like best plan.
-            # TODO:  Refactor the order of indices in these params.  They are same names, different order.
             self.capacity_builds = pyo.Var(
                 list(self.CapCostLearning.keys()), within=pyo.NonNegativeReals
             )
@@ -530,7 +538,6 @@ class PowerModel(pyo.ConcreteModel):
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:
             self.storage_avail_cap = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
-            # self.declare_var('storage_avail_cap', self.Storage_index)
 
         # if ramping requirements are on
         if elec_config.ramping_required:
@@ -540,22 +547,16 @@ class PowerModel(pyo.ConcreteModel):
             self.generation_ramp_down = pyo.Var(
                 self.generation_ramp_index, within=pyo.NonNegativeReals
             )
-            # self.declare_var('generation_ramp_up', self.generation_ramp_index)
-            # self.declare_var('generation_ramp_down', self.generation_ramp_index)
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
             self.reserves_procurement = pyo.Var(
                 self.reserves_procurement_index, within=pyo.NonNegativeReals
             )
-            # self.declare_var('reserves_procurement', self.reserves_procurement_index)
 
-        ###########################################################################################
-        # Objective Function
-
-        # dev note: These 3 indexed sets are created above with the SETS portion of the model
-        #           without the 'rule'
-        # self.populate_by_hour_sets = pyo.BuildAction(rule=em.populate_by_hour_sets_rule)
+        #  =======================================
+        #                 Objective
+        #  =======================================
 
         def dispatch_cost(self):
             """Dispatch cost (e.g., variable O&M cost) component for the objective function.
@@ -812,8 +813,9 @@ class PowerModel(pyo.ConcreteModel):
 
         self.total_cost = pyo.Objective(rule=electricity_objective_function, sense=pyo.minimize)
 
-        ###########################################################################################
-        # Constraints
+        #  =======================================
+        #               Constraints
+        #  =======================================
 
         # self.sw_trade = elec_config.regional_exchange  # Only needed by rule (commented out) below
 
@@ -1322,7 +1324,7 @@ class PowerModel(pyo.ConcreteModel):
                 )
 
             # filter the domestic region out of the international trade index and resequence
-            # TODO:  Look to standardize the sequencing here
+
             idx = [
                 (region_int, step, year, hour)
                 for (_, region_int, step, year, hour) in self.international_trade_index
@@ -1667,7 +1669,6 @@ class PowerModel(pyo.ConcreteModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Regulation reserve requirement
                 """
-                # TODO:  Extract these magic numbers to constants.py / config ?
                 return sum(
                     self.reserves_procurement[r, 'regulation', tech, step, y, hr]
                     for (tech, step) in self.ProcurementSetReserves[r, 'regulation', y, hr]

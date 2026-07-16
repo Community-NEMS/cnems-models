@@ -118,7 +118,7 @@ we expect the electricity model to be a direct sublcass of `pyomo.ConcreteModel`
   (`fix_integer_cols.py`, `missing_trans_cost_detector.py`, `missing_vre_up_detector.py`) for
   ad hoc data QA.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity model code
-  without explicity asking to do so.
+  without explicitly asking to do so.
 
 ### Temporal/spatial resolution
 

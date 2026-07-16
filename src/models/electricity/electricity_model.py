@@ -37,7 +37,7 @@ class PowerModel(pyo.ConcreteModel):
 
     def __init__(
         self,
-        setA: ModelSets,
+        model_sets: ModelSets,
         param_data: ParamData,
         elec_config: ElecConfig,
         common_config: CommonConfig,
@@ -49,63 +49,67 @@ class PowerModel(pyo.ConcreteModel):
         # Sets
 
         # temporal sets
-        self.hour = pyo.Set(initialize=setA.hour)
-        self.hour_first = pyo.Set(initialize=setA.hour1, within=self.hour)
-        self.hour_most = pyo.Set(initialize=setA.hour23, within=self.hour)
-        self.day = pyo.Set(initialize=setA.day)
-        self.season = pyo.Set(initialize=setA.season)
-        self.year = pyo.Set(initialize=setA.year_map.values())
+        self.hour = pyo.Set(initialize=model_sets.hour)
+        self.hour_first = pyo.Set(initialize=model_sets.hour1, within=self.hour)
+        self.hour_most = pyo.Set(initialize=model_sets.hour23, within=self.hour)
+        self.day = pyo.Set(initialize=model_sets.day)
+        self.season = pyo.Set(initialize=model_sets.season)
+        self.year = pyo.Set(initialize=model_sets.year_map.values())
 
         # spatial sets
-        self.region = pyo.Set(initialize=setA.region, validate=region_check)
-        self.region_int = pyo.Set(initialize=setA.region_international, within=self.region)
-        self.region_dom = pyo.Set(initialize=setA.region_domestic, within=self.region)
-        self.region_analyze = pyo.Set(initialize=setA.region_analyze, within=self.region_dom)
+        self.region = pyo.Set(initialize=model_sets.region, validate=region_check)
+        self.region_int = pyo.Set(initialize=model_sets.region_international, within=self.region)
+        self.region_dom = pyo.Set(initialize=model_sets.region_domestic, within=self.region)
+        self.region_analyze = pyo.Set(initialize=model_sets.region_analyze, within=self.region_dom)
 
         # technology sets
-        self.tech = pyo.Set(initialize=setA.tech)
-        self.step = pyo.Set(initialize=setA.step)  # TODO:  come back to this
-        self.tech_conv = pyo.Set(initialize=setA.tech_conv, within=self.tech)
-        self.tech_re = pyo.Set(initialize=setA.tech_re, within=self.tech)
-        self.tech_hydro = pyo.Set(initialize=setA.tech_hydro, within=self.tech)
-        self.tech_stor = pyo.Set(initialize=setA.tech_stor, within=self.tech)
-        self.tech_vre = pyo.Set(initialize=setA.tech_vre, within=self.tech)
-        self.tech_wind = pyo.Set(initialize=setA.tech_wind, within=self.tech)
-        self.tech_solar = pyo.Set(initialize=setA.tech_solar, within=self.tech)
-        self.tech_h2 = pyo.Set(initialize=setA.tech_h2, within=self.tech)
-        self.tech_disp = pyo.Set(initialize=setA.tech_disp, within=self.tech)
-        self.tech_gen = pyo.Set(initialize=setA.tech_gen, within=self.tech)
+        self.tech = pyo.Set(initialize=model_sets.tech)
+        self.step = pyo.Set(initialize=model_sets.step)  # TODO:  come back to this
+        self.tech_conv = pyo.Set(initialize=model_sets.tech_conv, within=self.tech)
+        self.tech_re = pyo.Set(initialize=model_sets.tech_re, within=self.tech)
+        self.tech_hydro = pyo.Set(initialize=model_sets.tech_hydro, within=self.tech)
+        self.tech_stor = pyo.Set(initialize=model_sets.tech_stor, within=self.tech)
+        self.tech_vre = pyo.Set(initialize=model_sets.tech_vre, within=self.tech)
+        self.tech_wind = pyo.Set(initialize=model_sets.tech_wind, within=self.tech)
+        self.tech_solar = pyo.Set(initialize=model_sets.tech_solar, within=self.tech)
+        self.tech_h2 = pyo.Set(initialize=model_sets.tech_h2, within=self.tech)
+        self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
+        self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)
         self.tech_buildable = pyo.Set(
-            dimen=2, initialize=setA.tech_builds, within=self.tech * self.step
+            dimen=2, initialize=model_sets.tech_builds, within=self.tech * self.step
         )
         self.tech_retireable = pyo.Set(
-            dimen=2, initialize=setA.tech_retires, within=self.tech * self.step
+            dimen=2, initialize=model_sets.tech_retires, within=self.tech * self.step
         )
 
         # CONSTRAINT INDEXING SETS
         self.storage_most_hours_balance_index = pyo.Set(
-            initialize=setA.storage_most_hours_balance_index,
+            initialize=model_sets.storage_most_hours_balance_index,
             within=self.region_analyze * self.tech_stor * self.step * self.year * self.hour_most,
         )
         self.storage_first_hour_balance_index = pyo.Set(
-            initialize=setA.storage_first_hour_balance_index,
+            initialize=model_sets.storage_first_hour_balance_index,
             within=self.region_analyze * self.tech_stor * self.step * self.year * self.hour_first,
         )
-        self.ramp_most_hours_balance_index = pyo.Set(initialize=setA.ramp_most_hours_balance_index)
-        self.ramp_first_hour_balance_index = pyo.Set(initialize=setA.ramp_first_hour_balance_index)
-        self.generation_hydro_ub_index = pyo.Set(initialize=setA.generation_hydro_ub_index)
-        self.generation_dispatchable_ub_index = pyo.Set(
-            initialize=setA.generation_dispatchable_up_index
+        self.ramp_most_hours_balance_index = pyo.Set(
+            initialize=model_sets.ramp_most_hours_balance_index
         )
-        self.generation_ramp_index = pyo.Set(initialize=setA.generation_ramp_index)
-        self.capacity_hydro_ub_index = pyo.Set(initialize=setA.capacity_hydro_ub_index)
-        self.reserves_procurement_index = pyo.Set(initialize=setA.reserves_procurement_index)
+        self.ramp_first_hour_balance_index = pyo.Set(
+            initialize=model_sets.ramp_first_hour_balance_index
+        )
+        self.generation_hydro_ub_index = pyo.Set(initialize=model_sets.generation_hydro_ub_index)
+        self.generation_dispatchable_ub_index = pyo.Set(
+            initialize=model_sets.generation_dispatchable_up_index
+        )
+        self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
+        self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
+        self.reserves_procurement_index = pyo.Set(initialize=model_sets.reserves_procurement_index)
 
         # Derivative reserve indexing sets...  # TODO:  a little clunky here.  Move to companion file as was done before?
         idx = defaultdict(list)
         wind_idx = defaultdict(list)
         solar_idx = defaultdict(list)
-        for region, res_type, tech, step, year, hour in setA.reserves_procurement_index:
+        for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
             idx[region, res_type, year, hour].append((tech, step))
             if tech in self.tech_wind:
                 wind_idx[region, year, hour].append((tech, step))
@@ -136,12 +140,12 @@ class PowerModel(pyo.ConcreteModel):
             initialize=solar_idx,
         )
 
-        self.generation_vre_ub_index = pyo.Set(initialize=setA.generation_vre_ub_index)
+        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
 
         # international trade indices
         self.international_trade_index = pyo.Set(
             dimen=5,
-            initialize=setA.international_trade_index,
+            initialize=model_sets.international_trade_index,
             within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
         )
 
@@ -150,26 +154,26 @@ class PowerModel(pyo.ConcreteModel):
         # make an indexed set of storage (region, tech, step, year) indexed by hour
         self.StorageHour_index = pyo.Set(
             self.hour,
-            initialize=setA.storage_hour_index,
+            initialize=model_sets.storage_hour_index,
             within=self.region_analyze * self.tech_stor * self.step * self.year,
         )
 
         # Generation-eligible hours
-        self.GenHour_index = pyo.Set(self.hour, initialize=setA.generation_hour_index)
+        self.GenHour_index = pyo.Set(self.hour, initialize=model_sets.generation_hour_index)
 
         # Generation-eligible hours for H2 technologies
-        self.H2GenHour_index = pyo.Set(self.hour, initialize=setA.h2_generation_hour_index)
+        self.H2GenHour_index = pyo.Set(self.hour, initialize=model_sets.h2_generation_hour_index)
 
         self.GenSetDemandBalance = pyo.Set(
-            self.region_analyze, self.year, self.hour, initialize=setA.generation_demand_index
+            self.region_analyze, self.year, self.hour, initialize=model_sets.generation_demand_index
         )
         self.StorageSetDemandBalance = pyo.Set(
-            self.region_analyze, self.year, self.hour, initialize=setA.storage_demand_index
+            self.region_analyze, self.year, self.hour, initialize=model_sets.storage_demand_index
         )
 
         # make a set of capacity sources indexed by region, year, season
         idx = defaultdict(list)
-        for region, tech, step, year, season in setA.capacity_index:
+        for region, tech, step, year, season in model_sets.capacity_index:
             idx[region, year, season].append((tech, step))
         self.capacity_sources = pyo.Set(
             self.region_analyze,
@@ -189,7 +193,7 @@ class PowerModel(pyo.ConcreteModel):
             self.capacity_retirements_index = pyo.Set(
                 dimen=4,
                 within=self.region_analyze * self.tech * self.step * self.year,
-                initialize=setA.retirement_index,
+                initialize=model_sets.retirement_index,
                 validate=retireable,
             )
 
@@ -229,7 +233,7 @@ class PowerModel(pyo.ConcreteModel):
         self.y0_learning = pyo.Param(
             initialize=common_config.aggregate_start_year
         )  # TODO:  Separate this concept from aggregation
-        self.num_hr_day = pyo.Param(initialize=setA.num_hr_day)
+        self.num_hr_day = pyo.Param(initialize=model_sets.num_hr_day)
         # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
         #        of a *numeric* parameter.  They are just simple LUTs
         self.MapHourSeason = pyo.Param(
@@ -489,16 +493,16 @@ class PowerModel(pyo.ConcreteModel):
         # Variables
 
         # Generation, capacity, and technology variables
-        self.generation_total = pyo.Var(setA.generation_index, within=pyo.NonNegativeReals)
+        self.generation_total = pyo.Var(model_sets.generation_index, within=pyo.NonNegativeReals)
         """region, tech, step, year, hour"""
         self.unmet_load = pyo.Var(
             self.region_analyze, self.year, self.hour, within=pyo.NonNegativeReals
         )
-        self.capacity_total = pyo.Var(setA.capacity_index, within=pyo.NonNegativeReals)
+        self.capacity_total = pyo.Var(model_sets.capacity_index, within=pyo.NonNegativeReals)
         """region, tech, step, year, season"""
-        self.storage_inflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
-        self.storage_outflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
-        self.storage_level = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+        self.storage_inflow = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
+        self.storage_outflow = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
+        self.storage_level = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -525,7 +529,7 @@ class PowerModel(pyo.ConcreteModel):
 
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:
-            self.storage_avail_cap = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
+            self.storage_avail_cap = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
             # self.declare_var('storage_avail_cap', self.Storage_index)
 
         # if ramping requirements are on
@@ -1083,7 +1087,7 @@ class PowerModel(pyo.ConcreteModel):
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(setA.storage_index)
+        @self.Constraint(model_sets.storage_index)
         def storage_inflow_ub(self, r, tech, step, y, hr):
             """Storage inflow upper bound where
             Storage inflow <= Storage Capacity
@@ -1115,7 +1119,7 @@ class PowerModel(pyo.ConcreteModel):
         # TODO:  internalize this set from the inputs ?   maybe?
 
         # TODO check if it's only able to build in regions with existing capacity?
-        @self.Constraint(setA.storage_index)
+        @self.Constraint(model_sets.storage_index)
         def storage_outflow_ub(self, r, tech, step, y, hr):
             """Storage outflow upper bound where
             Storage outflow <= Storage Capacity
@@ -1153,7 +1157,7 @@ class PowerModel(pyo.ConcreteModel):
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(setA.storage_index)
+        @self.Constraint(model_sets.storage_index)
         def storage_level_ub(self, r, tech, step, y, hr):
             """Storage level upper bound where
             Storage level <= Storage power capacity * storage energy capacity
@@ -1183,7 +1187,7 @@ class PowerModel(pyo.ConcreteModel):
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(setA.capacity_index)
+        @self.Constraint(model_sets.capacity_index)
         def capacity_balance(self, r, tech, step, y, season):
             """Capacity Equality constraint where
             Capacity = Operating Capacity
@@ -1425,7 +1429,7 @@ class PowerModel(pyo.ConcreteModel):
                     for (tech, step) in self.capacity_sources[r, y, self.MapHourSeason[hr]]
                 )
 
-            @self.Constraint(setA.storage_index)
+            @self.Constraint(model_sets.storage_index)
             def reserve_margin_storage_avail_cap_ub(self, r, T_stor, step, y, hr):
                 """Available storage power capacity for meeting reserve margin
 
@@ -1454,7 +1458,7 @@ class PowerModel(pyo.ConcreteModel):
                     <= self.capacity_total[r, T_stor, step, y, self.MapHourSeason[hr]]
                 )
 
-            @self.Constraint(setA.storage_index)
+            @self.Constraint(model_sets.storage_index)
             def reserve_margin_storage_avail_level_ub(self, r, T_stor, step, y, hr):
                 """Available storage energy capacity for meeting reserve margin
 

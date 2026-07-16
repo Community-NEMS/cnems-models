@@ -30,7 +30,9 @@ from src.models.electricity.elec_config import ElecConfig
 
 logger = logging.getLogger(__name__)
 
-CONFIG_JSON_PATH = PROJECT_ROOT / 'run_configs/last_app_config.json'  # TODO:  This may migrate to /tmp or such?
+CONFIG_JSON_PATH = (
+    PROJECT_ROOT / 'run_configs/last_app_config.json'
+)  # TODO:  This may migrate to /tmp or such?
 DEFAULT_TOML_PATH = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
 
 _SECTION_MODELS: dict[str, type[CommonConfig] | type[ElecConfig]] = {

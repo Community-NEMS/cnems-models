@@ -137,13 +137,6 @@ class PowerModel(pyo.ConcreteModel):
         )
 
         self.generation_vre_ub_index = pyo.Set(initialize=setA.generation_vre_ub_index)
-        # regional trade indices
-
-        # self.interregional_trade_index = pyo.Set(
-        #     dimen=4,
-        #     initialize=all_frames['tran_limit'].index,
-        #     within=self.region_analyze * self.region_analyze * self.year * self.hour,
-        # )
 
         # international trade indices
         self.international_trade_index = pyo.Set(
@@ -186,55 +179,6 @@ class PowerModel(pyo.ConcreteModel):
             initialize=idx,
         )
 
-        # self.declare_set('hour', setA.hour)
-        # self.declare_set('day', setA.day)
-        # self.declare_set('season', setA.season)
-        # self.declare_set('year', setA.year_map.values())  # values are the "mapped/onto" years
-
-        # spatial sets
-        # self.declare_set('region', setA.region_analyze)
-        # self.declare_set('region_int', setA.region_int)
-        # self.declare_set('region_trade', setA.region_trade)  # <-- unnecessary as we have partners mapped
-        # self.declare_set('region_int_trade', setA.region_int_trade)
-
-        # Load sets
-        # TODO:  Why is this needed?  If we are just enforcing at points where there is a Load,
-        #        then, we can just use the Load parameter index
-        # self.declare_set('demand_balance_index', all_frames['Load'])
-        # TODO:  This should not be needed either.  It follows from above, that we can only have
-        #        unmet load where there is Load, so the same Load parameter index should suffice
-        # self.declare_set_with_sets('unmet_load_index', self.region, self.year, self.hour)
-
-        # Supply price and quantity sets and subsets
-        # self.declare_set('capacity_total_index', all_frames['SupplyCurve'])
-        # self.declare_set('generation_total_index', setA.generation_total_index)
-        # self.declare_set('generation_dispatchable_ub_index', setA.generation_dispatchable_ub_index)
-        # self.declare_set('Storage_index', setA.Storage_index)
-        # self.declare_set('H2Gen_index', setA.H2Gen_index)
-        # self.declare_set('generation_hydro_ub_index', setA.generation_hydro_ub_index)
-
-        # TODO:  Verify:  these ramp/stoarge 23 + 1 requirements probably do NOT need index sets.
-        #        They are defined succinctly by the parameter itself
-        # self.declare_set('ramp_most_hours_balance_index', setA.ramp_most_hours_balance_index)
-        # self.declare_set('ramp_first_hour_balance_index', setA.ramp_first_hour_balance_index)
-        # self.declare_set('storage_most_hours_balance_index', setA.storage_most_hours_balance_index)
-        # self.declare_set('storage_first_hour_balance_index', setA.storage_first_hour_balance_index)
-
-        # TODO:  This also should be just the param index values
-        # self.declare_set('capacity_hydro_ub_index', setA.capacity_hydro_ub_index)
-
-        # Other technology sets
-        # TODO:  These should also just be the defined param index
-        # self.declare_set('HydroCapFactor_index', all_frames['HydroCapFactor'])
-        # self.declare_set('generation_vre_ub_index', all_frames['CapFactorVRE'])
-        # self.declare_set('H2Price_index', all_frames['H2Price'])
-
-        # These are now broken out in the ModelSets class:
-
-        # for tss in setA.tech_subset_names:
-        #     # create the technology subsets based on the tech_subsets input
-        #     self.declare_set(tss, getattr(setA, tss))
-
         # if capacity expansion is on
         if elec_config.capacity_expansion:
 
@@ -248,11 +192,6 @@ class PowerModel(pyo.ConcreteModel):
                 initialize=setA.retirement_index,
                 validate=retireable,
             )
-            # self.declare_set('capacity_builds_index', all_frames['CapCost'])
-            # self.declare_set('FOMCost_index', all_frames['FOMCost'])
-            # self.declare_set('Build_index', setA.Build_index)
-            # self.declare_set('CapacityCredit_index', all_frames['CapacityCredit'])
-            # self.declare_set('capacity_retirements_index', setA.capacity_retirements_index)
 
         # if capacity expansion and learning are on
         # this block of code demonstrates the application of the switch option,
@@ -278,29 +217,6 @@ class PowerModel(pyo.ConcreteModel):
             #     all_frames['SupplyCurveLearning'],
             #     switch=elec_config.capacity_expansion,
             # )
-
-        # if trade operation is on
-        # if elec_config.regional_exchange:
-        #     self.declare_set('TranCost_index', all_frames['TranCost'])
-        #     self.declare_set('TranLimit_index', all_frames['TranLimit'])
-        #     self.declare_set('trade_interregional_index', setA.trade_interregional_index)
-        #     self.declare_set('TranCostInt_index', all_frames['TranCostInt'])
-        #     self.declare_set('TranLimitInt_index', all_frames['TranLimitGenInt'])
-        #     self.declare_set('trade_interational_index', setA.trade_interational_index)
-        #     self.declare_set('TranLineLimitInt_index', all_frames['TranLimitCapInt'])
-        #
-        # # if ramping requirements are on
-        # if elec_config.ramping_required:
-        #     self.declare_set('RampUpCost_index', all_frames['RampUpCost'])
-        #     self.declare_set('RampRate_index', all_frames['RampRate'])
-        #     self.declare_set('generation_ramp_index', setA.generation_ramp_index)
-        #
-        # # if operating reserve requirements are on
-        # if elec_config.spinning_reserve_required:
-        #     self.declare_set('restypes', setA.restypes)
-        #     self.declare_set('reserves_procurement_index', setA.reserves_procurement_index)
-        #     self.declare_set('RegReservesCost_index', all_frames['RegReservesCost'])
-        #     self.declare_set('ResTechUpperBound_index', all_frames['ResTechUpperBound'])
 
         ###########################################################################################
         # Parameters
@@ -329,18 +245,9 @@ class PowerModel(pyo.ConcreteModel):
         self.WeightDay = pyo.Param(self.day, initialize=all_frames['WeightDay'])
         self.WeightSeason = pyo.Param(self.season, initialize=all_frames['WeightSeason'])
 
-        # self.declare_param('y0', None, setA.start_year)
-        # self.declare_param('num_hr_day', None, setA.num_hr_day)
-        # self.declare_param('MapHourSeason', self.hour, all_frames['MapHourSeason'])
-        # self.declare_param('MapHourDay', self.hour, all_frames['MapHourDay']['day'])
-        # self.declare_param('WeightYear', self.year, all_frames['WeightYear'])
-        # self.declare_param('WeightHour', self.hour, all_frames['WeightHour']['WeightHour'])
-        # self.declare_param('WeightDay', self.day, all_frames['WeightDay'])
-        # self.declare_param('WeightSeason', self.season, all_frames['WeightSeason'])
-
         # load and technology parameters
         # dev note:  set a default of 0.0 for all missing values,
-        #            so that we can iterate over r, y, hr confidently
+        #            so that we can iterate over r, y, hr confidently as they should all be defined
         self.Load = pyo.Param(
             self.region_analyze,
             self.year,
@@ -414,20 +321,6 @@ class PowerModel(pyo.ConcreteModel):
 
         self.H2Heatrate = pyo.Param(initialize=H2Heatrate)
 
-        # self.declare_param('Load', self.demand_balance_index, all_frames['Load'], mutable=True)
-        # self.declare_param('UnmetLoadPenalty', None, 500000)
-        # self.declare_param('SupplyPrice', self.capacity_total_index, all_frames['SupplyPrice'])
-        # self.declare_param('SupplyCurve', self.capacity_total_index, all_frames['SupplyCurve'])
-        # self.declare_param('CapFactorVRE', self.generation_vre_ub_index, all_frames['CapFactorVRE'])
-        # self.declare_param(
-        #     'HydroCapFactor', self.HydroCapFactor_index, all_frames['HydroCapFactor']
-        # )
-        # self.declare_param('BatteryEfficiency', setA.T_stor, all_frames['BatteryEfficiency'])
-        # self.declare_param('HourstoBuy', setA.T_stor, all_frames['HourstoBuy'])
-        # self.declare_param('H2Price', self.H2Price_index, all_frames['H2Price'], mutable=True)
-        # self.declare_param('StorageLevelCost', None, 0.00000001)
-        # self.declare_param('H2Heatrate', None, setA.H2Heatrate)
-
         # if capacity expansion is on
         if elec_config.capacity_expansion:
             self.FOMCost = pyo.Param(
@@ -442,11 +335,6 @@ class PowerModel(pyo.ConcreteModel):
                 initialize=all_frames['capacity_credit'],
             )
 
-            # self.declare_param('FOMCost', self.FOMCost_index, all_frames['FOMCost'])
-            # self.declare_param(
-            #     'CapacityCredit', self.CapacityCredit_index, all_frames['CapacityCredit']
-            # )
-
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
                 self.LearningRate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
@@ -459,18 +347,6 @@ class PowerModel(pyo.ConcreteModel):
                 self.SupplyCurveLearning = pyo.Param(
                     self.tech, initialize=all_dicts['supply_curve_learning']
                 )
-
-                # self.declare_param(
-                #     'LearningRate', self.LearningRate_index, all_frames['LearningRate']
-                # )
-                # self.declare_param(
-                #     'CapCostInitial', self.CapCostInitial_index, all_frames['CapCostInitial']
-                # )
-                # self.declare_param(
-                #     'SupplyCurveLearning',
-                #     self.SupplyCurveLearning_index,
-                #     all_frames['SupplyCurveLearning'],
-                # )
 
             # if learning is not to be solved nonlinearly directly in the obj
             if elec_config.expansion_learning_type in {
@@ -489,12 +365,6 @@ class PowerModel(pyo.ConcreteModel):
                     initialize=all_frames['cap_cost'],
                     mutable=mute,
                 )
-                # self.declare_param(
-                #     'CapCostLearning',
-                #     self.capacity_builds_index,
-                #     all_frames['CapCost'],
-                #     mutable=mute,
-                # )
 
         # if trade operation is on
         if elec_config.regional_exchange:
@@ -575,31 +445,17 @@ class PowerModel(pyo.ConcreteModel):
                 initialize=lambda m, r, y, h: domestic_destinations.get((r, y, h), []),
             )
 
-            # self.declare_param('TranCost', self.TranCost_index, all_frames['TranCost'])
-            # self.declare_param('TranLimit', self.TranLimit_index, all_frames['TranLimit'])
-            # self.declare_param('TranCostInt', self.TranCostInt_index, all_frames['TranCostInt'])
-            # self.declare_param(
-            #     'TranLimitGenInt', self.TranLimitInt_index, all_frames['TranLimitGenInt']
-            # )
-            # self.declare_param(
-            #     'TranLimitCapInt', self.TranLineLimitInt_index, all_frames['TranLimitCapInt']
-            # )
-
         # if reserve margin requirements are on
         if elec_config.reserve_margin_required:
             self.ReserveMargin = pyo.Param(
                 self.region_analyze, initialize=all_dicts['reserve_margin']
             )
-            # self.declare_param('ReserveMargin', self.region, all_dicts['reserve_margin'])
+
         # if ramping requirements are on
         if elec_config.ramping_required:
             self.RampUpCost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_up_cost'])
             self.RampDownCost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_down_cost'])
             self.RampRate = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_rate'])
-
-            # self.declare_param('RampUpCost', self.RampUpCost_index, all_frames['RampUpCost'])
-            # self.declare_param('RampDownCost', self.RampUpCost_index, all_frames['RampDownCost'])
-            # self.declare_param('RampRate', self.RampRate_index, all_frames['RampRate'])
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
@@ -610,15 +466,10 @@ class PowerModel(pyo.ConcreteModel):
                 self.tech,
                 initialize=all_dicts['res_tech_upper_bound'],
             )
-            # self.declare_param(
-            #     'RegReservesCost', self.RegReservesCost_index, all_frames['RegReservesCost']
-            # )
-            # self.declare_param(
-            #     'ResTechUpperBound', self.ResTechUpperBound_index, all_frames['ResTechUpperBound']
-            # )
 
         ##########################
         # Cross-talk from H2 model  # preserved as basis for expansion/ideas...?
+        # TODO:  Extract these...not used
         self.FixedElecRequest = pyo.Param(
             self.region_analyze,
             self.year,
@@ -649,15 +500,6 @@ class PowerModel(pyo.ConcreteModel):
         self.storage_outflow = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
         self.storage_level = pyo.Var(setA.storage_index, within=pyo.NonNegativeReals)
 
-        # helper
-
-        # self.declare_var('generation_total', self.generation_total_index, )
-        # self.declare_var('unmet_load', self.unmet_load_index)
-        # self.declare_var('capacity_total', self.capacity_total_index)
-        # self.declare_var('storage_inflow', self.Storage_index)
-        # self.declare_var('storage_outflow', self.Storage_index)
-        # self.declare_var('storage_level', self.Storage_index)
-
         # if capacity expansion is on
         if elec_config.capacity_expansion:
             # TODO:  Review this creation of var index from parameter keys.  Done in a few spots, seems like best plan.
@@ -668,31 +510,18 @@ class PowerModel(pyo.ConcreteModel):
             self.capacity_retirements = pyo.Var(
                 self.capacity_retirements_index, within=pyo.NonNegativeReals
             )
-            #
-            # self.declare_var('capacity_builds', self.capacity_builds_index)
-            # self.declare_var('capacity_retirements', self.capacity_retirements_index)
 
         # if trade operation is on
         if elec_config.regional_exchange:
-            # Interregional index [region, dest_region, year, hour] can be drafted on-the-fly from the
-            # limit parameter
-            # idx = [
-            #     (source, destination, year, hour)
-            #     for (source, destination, year, year) in self.TranLimit
-            #     for hour in self.hour
-            # ]
             # Interregional trade is limited by the TranLimit, so we can index with it
             self.trade_interregional = pyo.Var(
                 list(self.TranLimit.keys()),
                 within=pyo.NonNegativeReals,
             )
-
             self.trade_international = pyo.Var(
                 self.international_trade_index,
                 within=pyo.NonNegativeReals,
             )
-            # self.declare_var('trade_interregional', self.trade_interregional_index)
-            # self.declare_var('trade_international', self.trade_interational_index)
 
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:

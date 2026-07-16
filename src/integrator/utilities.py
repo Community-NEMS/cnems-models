@@ -344,7 +344,7 @@ def poll_h2_prices_from_elec(
     """
     res = {}
     for idx in model.H2Price:
-        r, season, t, step, y = idx
+        r, t, step, y, season = idx
         if t == tech and r in regions and step == 1:  # TODO:  remove hard coding
             res[r, season, y] = value(model.H2Price[idx])
 
@@ -366,10 +366,10 @@ def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
     update_count = 0
     no_update = set()
     good_updates = set()
-    for region, season, tech, step, yr in model.H2Price:  # type: ignore
+    for region, tech, step, yr, season in model.H2Price:  # type: ignore
         if tech in h2_techs:
             if (region, yr) in h2_prices:
-                model.H2Price[region, season, tech, step, yr] = h2_prices[
+                model.H2Price[region, tech, step, yr, season] = h2_prices[
                     HI(region=region, year=yr)
                 ]
                 update_count += 1
@@ -423,7 +423,7 @@ def poll_h2_demand(model: 'PowerModel') -> dict[HI, float]:
     # Gwh * kg/Gwh = kg
     # so we need 1/heat_rate for kg/Gwh
     for idx in model.generation_total.index_set():
-        tech, y, r, step, hr = idx
+        r, tech, step, y, hr = idx
         if tech in h2_consuming_techs:
             h2_demand_weighted = (
                 value(model.generation_total[idx])

@@ -140,7 +140,7 @@ class ParamData:
             how='cross',
         )
         # re-sequence columns
-        df = df[['tech', 'year', 'region', 'step', 'hour', 'CapFactorVRE']]
+        df = df[['region', 'tech', 'step', 'year', 'hour', 'CapFactorVRE']]
         # set proper index
         self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
 
@@ -191,7 +191,7 @@ class ParamData:
         #        Review formulation.
         #        Likely done to allow comparison w/ price, which IS seasonal.
         df = add_season_index(
-            model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 1
+            model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 4
         )
         self.param_frames['supply_curve'] = df.set_index(list(df.columns)[:-1])
 
@@ -362,7 +362,7 @@ class ParamData:
         df = df.drop(columns=['SupplyCurve', 'HydroCapFactor'])
 
         # reorder columns
-        df = df[['tech', 'year', 'region', 'step', 'hour', 'CapacityCredit']]
+        df = df[['region', 'tech', 'step', 'year', 'hour', 'CapacityCredit']]
         df = df.set_index(list(df.columns)[:-1])
         return df
 

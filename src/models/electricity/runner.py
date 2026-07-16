@@ -244,7 +244,7 @@ def init_old_cap(instance: PowerModel):
     instance.cap_set = []
     instance.old_cap_wt = {}
 
-    for r, tech, y, step in instance.CapCostLearning:
+    for r, tech, step, y in instance.CapCostLearning:
         if (tech, y) not in instance.old_cap:
             instance.cap_set.append((tech, y))
             # each tech will increase cap by 1 GW per year. reasonable starting point.
@@ -263,11 +263,11 @@ def set_new_cap(instance: PowerModel):
     """
     instance.new_cap = {}
     instance.new_cap_wt = {}
-    for r, tech, y, step in instance.CapCostLearning:
+    for r, tech, step, y in instance.CapCostLearning:
         if (tech, y) not in instance.new_cap:
             instance.new_cap[(tech, y)] = 0.0
         instance.new_cap[(tech, y)] = instance.new_cap[(tech, y)] + sum(
-            instance.capacity_builds[(r, tech, year, step)].value
+            instance.capacity_builds[(r, tech, step, year)].value
             for year in instance.year
             if year < y
         )
@@ -316,9 +316,9 @@ def update_cost(instance):
 
     new_cost = {}
     # Assign new learning
-    for r, tech, y, step in instance.CapCostLearning:
+    for r, tech, step, y in instance.CapCostLearning:
         # updating learning cost
-        new_cost[(r, tech, y, step)] = (
+        new_cost[(r, tech, step, y)] = (
             instance.CapCostInitial[(r, tech, step)] * new_multiplier[tech, y]
         )
-        instance.CapCostLearning[(r, tech, y, step)].value = new_cost[(r, tech, y, step)]
+        instance.CapCostLearning[(r, tech, step, y)].value = new_cost[(r, tech, step, y)]

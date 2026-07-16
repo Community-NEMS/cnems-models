@@ -137,19 +137,18 @@ def postprocessor(instance):
 
 ###################################################################################################
 # New: model-native variable extraction
-storage_index_names = ['tech', 'year', 'region', 'step', 'hour']
+storage_index_names = ['region', 'tech', 'step', 'year', 'hour']
 
-# TODO:  When standardizing the sequence of index names, clean this up too!
 core_variable_indices = {
-    'generation_total': ['tech', 'year', 'region', 'step', 'hour'],
-    'capacity_builds': ['region', 'tech', 'year', 'step'],
-    'capacity_retirements': ['tech', 'year', 'region', 'step'],
-    'capacity_total': ['region', 'season', 'tech', 'step', 'year'],
+    'generation_total': ['region', 'tech', 'step', 'year', 'hour'],
+    'capacity_builds': ['region', 'tech', 'step', 'year'],
+    'capacity_retirements': ['region', 'tech', 'step', 'year'],
+    'capacity_total': ['region', 'tech', 'step', 'year', 'season'],
     'storage_inflow': storage_index_names,
     'storage_outflow': storage_index_names,
     'storage_level': storage_index_names,
     'trade_interregional': ['region_source', 'region_destination', 'year', 'hour'],
-    'trade_international': ['region_domestic', 'region_international', 'year', 'step', 'hour'],
+    'trade_international': ['region_domestic', 'region_international', 'step', 'year', 'hour'],
     'unmet_load': ['region', 'year', 'hour'],
 }
 

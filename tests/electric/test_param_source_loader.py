@@ -18,11 +18,11 @@ PARAM_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
 # TOML migration. Used only to audit that no data was lost/reordered in the conversion.
 _ORIGINAL_PARAM_SOURCES = {
     'battery_efficiency': ('BatteryEfficiency.csv', ('tech',), 'BatteryEfficiency'),
-    'cap_cost': ('CapCost.csv', ('region', 'tech', 'year', 'step'), 'CapCost'),
+    'cap_cost': ('CapCost.csv', ('region', 'tech', 'step', 'year'), 'CapCost'),
     'cap_cost_initial': ('CapCostInitial.csv', ('region', 'tech', 'step'), 'CapCostInitial'),
-    'cap_factor_vre': ('CapFactorVRE.csv', ('tech', 'region', 'step', 'hour'), 'CapFactorVRE'),
+    'cap_factor_vre': ('CapFactorVRE.csv', ('region', 'tech', 'step', 'hour'), 'CapFactorVRE'),
     'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'FOMCost'),
-    'h2_price': ('H2Price.csv', ('region', 'season', 'tech', 'step', 'year'), 'H2Price'),
+    'h2_price': ('H2Price.csv', ('region', 'tech', 'step', 'year', 'season'), 'H2Price'),
     'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'HourstoBuy'),
     'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'HydroCapFactor'),
     'learning_rate': ('LearningRate.csv', ('tech',), 'LearningRate'),
@@ -36,7 +36,7 @@ _ORIGINAL_PARAM_SOURCES = {
     'supply_curve_learning': ('SupplyCurveLearning.csv', ('tech',), 'SupplyCurveLearning'),
     'supply_price': (
         'SupplyPrice.csv',
-        ('region', 'season', 'tech', 'step', 'year'),
+        ('region', 'tech', 'step', 'year', 'season'),
         'SupplyPrice',
     ),
     'tran_cost': ('TranCost.csv', ('source_region', 'destination_region', 'year'), 'TranCost'),

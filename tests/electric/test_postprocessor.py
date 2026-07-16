@@ -85,7 +85,7 @@ def test_get_known_column_names():
     'var_name,expected_columns',
     [
         ('unmet_load', ['region', 'year', 'hour', 'unmet_load']),
-        ('generation_total', ['tech', 'year', 'region', 'step', 'hour', 'generation_total']),
+        ('generation_total', ['region', 'tech', 'step', 'year', 'hour', 'generation_total']),
     ],
     ids=['crossed-Set var', 'raw-tuple-list var'],
 )

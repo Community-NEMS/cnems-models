@@ -179,7 +179,7 @@ class ModelSets:
     def build_sc_indexes(self, supply_curve_index: Collection[SCI]):
         """Use the supply curve to build the index sets based on crossing techs with hours and supply curve steps."""
         self.capacity_index = sorted(
-            (idx.region, season, idx.tech, idx.step, idx.year)
+            (idx.region, idx.tech, idx.step, idx.year, season)
             for idx in supply_curve_index
             for season in self.season
         )
@@ -190,7 +190,7 @@ class ModelSets:
         # dev note: In the future, if we pull season out of capacity_index, this could be
         #           replaced with just a filter on tech_retires
         self.retirement_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step)
+            (idx.region, idx.tech, idx.step, idx.year)
             for idx in supply_curve_index
             if (idx.tech, idx.step) in self.tech_retires
         )
@@ -198,7 +198,7 @@ class ModelSets:
             logger.warning('retirement_index is empty')
 
         self.generation_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr)
+            (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
             if idx.tech in self.tech_gen
             for hr in self.hour
@@ -207,7 +207,7 @@ class ModelSets:
             logger.warning('generation_index is empty')
 
         self.h2_generation_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr)
+            (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
             if idx.tech in self.tech_h2
             for hr in self.hour
@@ -216,7 +216,7 @@ class ModelSets:
             logger.warning('h2_generation_index is empty')
 
         self.storage_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr)
+            (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
             if idx.tech in self.tech_stor
             for hr in self.hour
@@ -232,7 +232,7 @@ class ModelSets:
             for idx in supply_curve_index:
                 if idx.tech in self.tech_gen:
                     self.generation_hour_index[hr].append(
-                        (idx.tech, idx.year, idx.region, idx.step)
+                        (idx.region, idx.tech, idx.step, idx.year)
                     )
         if not self.generation_hour_index:
             logger.warning('generation_hour_index is empty')
@@ -241,7 +241,7 @@ class ModelSets:
         for hr in self.hour:
             for idx in supply_curve_index:
                 if idx.tech in self.tech_stor:
-                    self.storage_hour_index[hr].append((idx.tech, idx.year, idx.region, idx.step))
+                    self.storage_hour_index[hr].append((idx.region, idx.tech, idx.step, idx.year))
         if not self.storage_hour_index:
             logger.warning('storage_hour_index is empty')
 
@@ -250,7 +250,7 @@ class ModelSets:
             for idx in supply_curve_index:
                 if idx.tech in self.tech_h2:
                     self.h2_generation_hour_index[hr].append(
-                        (idx.tech, idx.year, idx.region, idx.step)
+                        (idx.region, idx.tech, idx.step, idx.year)
                     )
         if not self.h2_generation_hour_index:
             logger.warning('h2_generation_hour_index is empty')
@@ -259,7 +259,7 @@ class ModelSets:
         for hr in self.hour:
             for idx in supply_curve_index:
                 if idx.tech in self.tech_gen:
-                    self.generation_demand_index[idx.year, idx.region, hr].append(
+                    self.generation_demand_index[idx.region, idx.year, hr].append(
                         (idx.tech, idx.step)
                     )
         if not self.generation_demand_index:
@@ -269,13 +269,13 @@ class ModelSets:
         for hr in self.hour:
             for idx in supply_curve_index:
                 if idx.tech in self.tech_stor:
-                    self.storage_demand_index[idx.year, idx.region, hr].append((idx.tech, idx.step))
+                    self.storage_demand_index[idx.region, idx.year, hr].append((idx.tech, idx.step))
         if not self.storage_demand_index:
             logger.warning('storage_demand_index is empty')
 
         # build the unique hour sets for ramping/storage first + other 23 hours
         self.ramp_most_hours_balance_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr23)
+            (idx.region, idx.tech, idx.step, idx.year, hr23)
             for idx in supply_curve_index
             if idx.tech in self.tech_conv
             for hr23 in self.hour23
@@ -283,7 +283,7 @@ class ModelSets:
         if not self.ramp_most_hours_balance_index:
             logger.warning('ramp_most_hours_balance_index is empty')
         self.ramp_first_hour_balance_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr1)
+            (idx.region, idx.tech, idx.step, idx.year, hr1)
             for idx in supply_curve_index
             if idx.tech in self.tech_conv
             for hr1 in self.hour1
@@ -291,7 +291,7 @@ class ModelSets:
         if not self.ramp_first_hour_balance_index:
             logger.warning('ramp_first_hour_balance_index is empty')
         self.storage_most_hours_balance_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr23)
+            (idx.region, idx.tech, idx.step, idx.year, hr23)
             for idx in supply_curve_index
             if idx.tech in self.tech_stor
             for hr23 in self.hour23
@@ -299,7 +299,7 @@ class ModelSets:
         if not self.storage_most_hours_balance_index:
             logger.warning('storage_most_hours_balance_index is empty')
         self.storage_first_hour_balance_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr1)
+            (idx.region, idx.tech, idx.step, idx.year, hr1)
             for idx in supply_curve_index
             if idx.tech in self.tech_stor
             for hr1 in self.hour1
@@ -307,7 +307,7 @@ class ModelSets:
         if not self.storage_first_hour_balance_index:
             logger.warning('storage_first_hour_balance_index is empty')
         self.generation_hydro_ub_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hr)
+            (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
             if idx.tech in self.tech_hydro
             if idx.step == 2  # TODO: review this hard-code assumption
@@ -316,7 +316,7 @@ class ModelSets:
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
         self.capacity_hydro_ub_index = sorted(
-            (idx.tech, idx.year, idx.region, season)
+            (idx.region, idx.tech, idx.year, season)
             for idx in supply_curve_index
             if idx.tech in self.tech_hydro
             if idx.step == 1  # TODO: review this hard-code assumption
@@ -328,7 +328,7 @@ class ModelSets:
         # TODO:  We could probably clamp this down and make it more sparse.  The UB for reserves
         #        is largely zeros and we aren't taking advantage of that now.
         self.reserves_procurement_index = sorted(
-            (reserve_type.value, idx.tech, idx.year, idx.region, idx.step, hour)
+            (idx.region, reserve_type.value, idx.tech, idx.step, idx.year, hour)
             for reserve_type in ReserveType
             for idx in supply_curve_index
             for hour in self.hour
@@ -336,7 +336,7 @@ class ModelSets:
         if not self.reserves_procurement_index:
             logger.warning('reserves_procurement_index is empty')
         self.generation_ramp_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hour)
+            (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index
             if idx.tech in self.tech_conv
             for hour in self.hour
@@ -344,7 +344,7 @@ class ModelSets:
         if not self.generation_ramp_index:
             logger.warning('generation_ramp_index is empty')
         self.generation_dispatchable_up_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hour)
+            (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index
             if idx.tech in self.tech_disp
             for hour in self.hour
@@ -352,7 +352,7 @@ class ModelSets:
         if not self.generation_dispatchable_up_index:
             logger.warning('generation_dispatchable_up_index is empty')
         self.generation_vre_ub_index = sorted(
-            (idx.tech, idx.year, idx.region, idx.step, hour)
+            (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index
             if idx.tech in self.tech_vre
             for hour in self.hour
@@ -374,7 +374,7 @@ class ModelSets:
                 how='inner',
             )
             .drop(columns=['TranLimitGenInt'])
-            .set_index(['region', 'region_international', 'year', 'step', 'hour'])
+            .set_index(['region', 'region_international', 'step', 'year', 'hour'])
         )
         res = list(df.index)
         self.international_trade_index = res

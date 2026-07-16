@@ -21,7 +21,7 @@ required = true
 [[param_source]]
 key = "cap_cost"
 filename = "CapCost.csv"
-index_cols = ["region", "tech", "year", "step"]
+index_cols = ["region", "tech", "step", "year"]
 value_col = "CapCost"
 required = false  # capacity_expansion
 
@@ -35,7 +35,7 @@ required = false  # capacity_expansion + expansion_learning_type != DISABLED
 [[param_source]]
 key = "cap_factor_vre"
 filename = "CapFactorVRE.csv"
-index_cols = ["tech", "region", "step", "hour"]
+index_cols = ["region", "tech", "step", "hour"]
 value_col = "CapFactorVRE"
 required = true
 
@@ -49,7 +49,7 @@ required = false  # capacity_expansion
 [[param_source]]
 key = "h2_price"
 filename = "H2Price.csv"
-index_cols = ["region", "season", "tech", "step", "year"]
+index_cols = ["region", "tech", "step", "year", "season"]
 value_col = "H2Price"
 required = true  # no ElecConfig gate found; likely hydrogen-module vestige, kept conservatively required
 
@@ -133,7 +133,7 @@ required = false  # capacity_expansion + expansion_learning_type != DISABLED
 [[param_source]]
 key = "supply_price"
 filename = "SupplyPrice.csv"
-index_cols = ["region", "season", "tech", "step", "year"]
+index_cols = ["region", "tech", "step", "year", "season"]
 value_col = "SupplyPrice"
 required = true
 

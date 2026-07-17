@@ -19,7 +19,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.runner import run_elec_model, solve_elec_model
+from src.models.electricity.sequencer import run_elec_model, solve_elec_model
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,

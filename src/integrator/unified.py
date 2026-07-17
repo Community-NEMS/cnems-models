@@ -41,7 +41,7 @@ from src.integrator.utilities import (
     simple_solve_no_opt,
     update_h2_prices,
 )
-from src.models.electricity.runner import init_old_cap, run_elec_model, set_new_cap, update_cost
+from src.models.electricity.sequencer import init_old_cap, run_elec_model, set_new_cap, update_cost
 from src.models.hydrogen.model import actions
 from src.models.residential.scripts.residential import residentialModule
 

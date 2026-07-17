@@ -16,7 +16,7 @@ from src.common.config_setup import Config_settings
 from src.common.models_modes import ModelType, RunMode
 from src.common.utilities import get_args, setup_logger
 from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.runner import run_elec_model
+from src.models.electricity.sequencer import run_elec_model
 
 # Specify config path
 default_config_path = Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml')

@@ -1,5 +1,5 @@
 from src.integrator.utilities import get_elec_price, regional_annual_prices
-from src.models.electricity.runner import solve_elec_model
+from src.models.electricity.sequencer import solve_elec_model
 
 
 def test_poll_elec_prices(unsolved_model):

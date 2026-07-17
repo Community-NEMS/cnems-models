@@ -10,6 +10,7 @@ from logging import getLogger
 import pyomo.environ as pyo
 
 from src.common.common_config import CommonConfig
+from src.common.integrated_model import IntegratedModel
 from src.models.electricity.constants import (
     REGULATION_RESERVE_PROPORTION,
     SOLAR_FLEX_RESERVE_PROPORTION,
@@ -32,7 +33,7 @@ from src.models.electricity.validators import region_check, tech_name_check
 logger = getLogger(__name__)
 
 
-class PowerModel(pyo.ConcreteModel):
+class PowerModel(pyo.ConcreteModel, IntegratedModel):
     """A PowerModel instance."""
 
     def __init__(

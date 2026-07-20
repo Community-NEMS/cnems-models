@@ -21,6 +21,7 @@ from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import FilterPackage, load_dataframes, load_param_data
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
+from src.models.electricity.model_sets import ModelSets
 
 ###################################################################################################
 # Setup
@@ -32,20 +33,8 @@ logger = logging.getLogger(__name__)
 # note: this is a future feature, currently not available
 db_switch = 0
 
-# if db_switch == 1:
-#     from sqlalchemy import create_engine, MetaData, Table, select
-#     from sqlalchemy.ext.automap import automap_base
-#     from sqlalchemy.orm import sessionmaker
-
 # Establish paths
 data_root = Path(PROJECT_ROOT, 'input', 'electricity')
-
-
-###################################################################################################
-
-
-###################################################################################################
-# functions to read in and setup parameter data
 
 
 ### Load csvs
@@ -135,6 +124,7 @@ def load_data(tablename, metadata, engine):
     return df
 
 
+@deprecated('no current uses')
 def subset_dfs(all_frames, setin, i):
     """filters dataframes based on the values within the set
 
@@ -159,6 +149,7 @@ def subset_dfs(all_frames, setin, i):
     return all_frames
 
 
+@deprecated('no current uses')
 def fill_values(row, subset_list):
     """Function to fill in the subset values, is used to assign all years within the year
     solve range to each year the model will solve for.
@@ -452,6 +443,7 @@ def step_sub_sc_subset(all_frames, T_subset, step_subset):
     return df
 
 
+@deprecated('done in ModelSets')
 def create_sc_sets(all_frames, setin):
     """creates supply curve sets
 
@@ -504,6 +496,7 @@ def create_sc_sets(all_frames, setin):
     return setin
 
 
+@deprecated('done in ModelSets')
 def create_other_sets(all_frames, setin):
     """creates other (non-supply curve) sets
 
@@ -549,6 +542,7 @@ def create_other_sets(all_frames, setin):
     return setin
 
 
+@deprecated('no known uses')
 def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
     """
     Computes the indices of the non-overlapping keys after performing an inner join operation
@@ -580,6 +574,7 @@ def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
 
 
 ###################################################################################################
+@deprecated('replaced by ModelSets and ParamData classes')
 def preprocessor(
     setin: ModelSets, common_config: CommonConfig, elec_config: ElecConfig
 ) -> tuple[dict[str, DataFrame], dict[str, dict[tuple, float]], ModelSets]:
@@ -810,6 +805,7 @@ def preprocessor(
 # Review Inputs
 
 
+@deprecated('no known (needed) uses')
 def makedir(dir_out):
     """creates a folder directory based on the path provided
 
@@ -822,6 +818,7 @@ def makedir(dir_out):
         os.makedirs(dir_out)
 
 
+@deprecated('likely not needed.  Just regurgitated inputs.  Future removal?')
 def output_inputs(OUTPUT_ROOT):
     """function developed initial for QA purposes, writes out to csv all of the dfs and sets passed
     to the electricity model to an output directory.
@@ -858,6 +855,7 @@ def output_inputs(OUTPUT_ROOT):
     return all_frames, setB
 
 
+@deprecated('no known uses')
 def print_sets(setin):
     """function developed initially for QA purposes, prints out all of the sets passed to the
     electricity model.
@@ -874,7 +872,3 @@ def print_sets(setin):
             print(item, ':', getattr(setin, item).reset_index().columns)
         else:
             print(item, ':', getattr(setin, item))
-
-
-# all_frames, setB = output_inputs(PROJECT_ROOT)
-# print_sets(setB)

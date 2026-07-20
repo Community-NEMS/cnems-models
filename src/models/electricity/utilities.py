@@ -11,9 +11,9 @@ import pyomo.environ as pyo
 from src.common.model import Model
 
 ###################################################################################################
-# TODO: Move this class into a new file?
 
 
+@deprecated('all functions are now done in-place in model.  future removal?')
 class ElectricityMethods(Model):
     """a collection of functions used within the electricity model that aid in building the model.
 
@@ -161,6 +161,7 @@ def check_results(results, SolutionStatus, TerminationCondition):
     )
 
 
+@deprecated('replaced with new post-processing function')
 def create_obj_df(mod_object):
     """takes pyomo component objects (e.g., variables, parameters, constraints) and processes the
     pyomo data and converts it to a dataframe and then writes the dataframe out to an output dir.
@@ -201,6 +202,7 @@ def create_obj_df(mod_object):
     return df
 
 
+# TODO:  QA uses of this.  RN, it is only used as a test helper
 def annual_count(hour, m) -> int:
     """return the aggregate weight of this hour in the representative year
     we know the hour weight, and the hours are unique to days, so we can

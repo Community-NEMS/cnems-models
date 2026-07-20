@@ -218,7 +218,8 @@ class ParamData:
 
         # TODO:  Research the functions called here and perhaps move them here as well
         # TODO:  Move the source data out of the "residential" folder to "common"??
-        # TODO:  Verify that the Load is defined in all region x year x hour.  Model assumes full set
+        # TODO:  Verify that the Load is defined in all region x year x hour.
+        #        Model assumes full set
         # TODO:  refactor this so it returns a DF for testing purposes
 
         res_dir = Path(PROJECT_ROOT, 'input', 'residential')
@@ -334,7 +335,8 @@ class ParamData:
             how='left',
             on=['tech', 'year', 'region', 'step', 'hour'],
         ).rename(columns={'CapFactorVRE': 'CapacityCredit'})  # TODO:  This seems hoaky
-        # df now has all rows in it.  We just need to correct entries for non-VRE technologies and hydro techs
+        # df now has all rows in it.  We just need to correct entries for non-VRE
+        # technologies and hydro techs
 
         # capacity credit = 1 for dispatchable technologies
         df['CapacityCredit'] = df['CapacityCredit'].fillna(1)  # everything non-VRE

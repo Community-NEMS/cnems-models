@@ -252,7 +252,8 @@ def read_property_csv(
                     raise
                 except AttributeError:
                     logger.error(
-                        'Problem converting / comparing value %s of type %s with string values in csv file: %s',
+                        'Problem converting / comparing value %s of type %s with string '
+                        'values in csv file: %s',
                         row[col_label],
                         type(row[col_label]),
                         file_path,
@@ -300,11 +301,13 @@ def load_dataframes(
     for name in names_to_convert:
         if name not in PARAM_SOURCES:
             logger.error(
-                'unable to find meta-data for %s in parameter source data.  Must process independently',
+                'unable to find meta-data for %s in parameter source data.  '
+                'Must process independently',
                 name,
             )
             raise ValueError(
-                f'unable to find meta-data for {name} in parameter source data.  Must process independently'
+                f'unable to find meta-data for {name} in parameter source data.  '
+                'Must process independently'
             )
         data_dict = param_data.get(name)
         if data_dict is None:
@@ -312,7 +315,8 @@ def load_dataframes(
             raise ValueError(f'Unable to find data for {name}')
         if len(data_dict) == 0:
             logger.warning(
-                'No data found for %s in the parameter data.  May have all been filtered.  Using empty DF',
+                'No data found for %s in the parameter data.  '
+                'May have all been filtered.  Using empty DF',
                 name,
             )
             res[name] = pd.DataFrame()

@@ -246,7 +246,8 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
     columns = get_known_column_names(var)
     if not columns:
         logger.debug(
-            'Variable name %s is not recognized in the set of core vars in postprocessor... inferring names',
+            'Variable name %s is not recognized in the set of core vars in postprocessor... '
+            'inferring names',
             var.local_name,
         )
         columns = _derive_column_names(var)

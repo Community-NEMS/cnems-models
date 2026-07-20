@@ -211,7 +211,8 @@ def avg_by_group(df, set_name, map_frame):
     groupby_cols.remove(set_name)
 
     # group df by year map data and update y col
-    # df[set_name] = df[set_name].astype(int)  # should not have to convert the merge column data to ints
+    # df[set_name] = df[set_name].astype(int)
+    # ^ should not have to convert the merge column data to ints
     df = pd.merge(df, map_frame, how='left', on=[set_name])
     df = df.groupby(by=groupby_cols, as_index=False).mean()
     df[set_name] = df[map_name].astype(int)
@@ -663,7 +664,9 @@ def preprocessor(
     # last year values used
     # filter_list = ['CapCost']
     # for key in filter_list:
-    #     all_frames[key] = all_frames[key].loc[all_frames[key]['year'].isin(getattr(setin, 'years'))]
+    #     all_frames[key] = all_frames[key].loc[
+    #         all_frames[key]['year'].isin(getattr(setin, 'years'))
+    #     ]
 
     # average values in years/hours used
     for key in all_frames.keys():

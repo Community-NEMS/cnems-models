@@ -108,7 +108,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
         self.reserves_procurement_index = pyo.Set(initialize=model_sets.reserves_procurement_index)
 
-        # Derivative reserve indexing sets...  # TODO:  a little clunky here.  Move to companion file as was done before?
+        # Derivative reserve indexing sets...
+        # TODO:  a little clunky here.  Move to companion file as was done before?
         idx = defaultdict(list)
         wind_idx = defaultdict(list)
         solar_idx = defaultdict(list)
@@ -300,7 +301,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.hour,
             initialize=all_frames['cap_factor_vre'],
             within=pyo.NonNegativeReals,
-            default=0.0,  # TODO:  Needed to "make it work" with MIA values.  Decide if that is intended...
+            # TODO:  Needed to "make it work" with MIA values.  Decide if that is intended...
+            default=0.0,
         )
         self.HydroCapFactor = pyo.Param(
             self.region_analyze,
@@ -365,7 +367,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     mute = False
                 else:
                     mute = True
-                self.CapCostLearning = pyo.Param(  # TODO:  Shouldn't this be named just "CapCost"?  regardless of learning?
+                # TODO:  Shouldn't this be named just "CapCost"?  regardless of learning?
+                self.CapCostLearning = pyo.Param(
                     self.region,
                     self.tech,
                     self.step,
@@ -473,7 +476,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
             self.RegReservesCost = pyo.Param(self.tech, initialize=all_dicts['reg_reserves_cost'])
-            # note:  The data is cast to cover all combinations of ReserveType and Tech with 0's as appropriate
+            # note:  The data is cast to cover all combinations of ReserveType and Tech
+            #        with 0's as appropriate
             self.ResTechUpperBound = pyo.Param(
                 set(rt.value for rt in ReserveType),
                 self.tech,
@@ -516,7 +520,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # TODO:  Review this creation of var index from parameter keys.  Done in a few spots, seems like best plan.
+            # TODO:  Review this creation of var index from parameter keys.
+            #        Done in a few spots, seems like best plan.
             self.capacity_builds = pyo.Var(
                 list(self.CapCostLearning.keys()), within=pyo.NonNegativeReals
             )
@@ -642,8 +647,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     * self.FOMCost[r, tech, step]
                     * self.capacity_total[r, tech, step, y, season]
                     for (r, tech, step, y, season) in self.capacity_total
-                    if season
-                    == '2'  # TODO:  hard coded summer.  Remove after simplifying capacity to non-seasonal
+                    # TODO:  hard coded summer.  Remove after simplifying capacity to
+                    #        non-seasonal
+                    if season == '2'
                 )
 
             self.fixed_om_cost = pyo.Expression(expr=fixed_om_cost)
@@ -667,10 +673,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                                 (
                                     (
                                         self.SupplyCurveLearning[tech]
-                                        + 0.0001
-                                        * (
-                                            y - self.y0_learning
-                                        )  # TODO:  investigate / pull out this hardcode (which seems very small)
+                                        + 0.0001 * (y - self.y0_learning)
+                                        # TODO:  investigate / pull out this hardcode
+                                        #        (which seems very small)
                                         + sum(
                                             sum(
                                                 self.capacity_builds[r, tech, step, year]
@@ -1297,7 +1302,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """International interregional trade upper bound where
                 Interregional Trade <= Interregional Transmission Capabilities * Time
 
-                basically:  sum across all steps that use this line and ensure within capacity of line
+                basically:  sum across all steps that use this line and ensure within
+                capacity of line
 
                 Parameters
                 ----------
@@ -1703,7 +1709,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Flexible reserve requirement
                 """
-                # TODO:  Verify (Sauleh) the wind reqt.  Code has 10%, docstring has 1% and 10%... picking 10% :)
+                # TODO:  Verify (Sauleh) the wind reqt.  Code has 10%, docstring has
+                #        1% and 10%... picking 10% :)
                 return sum(
                     self.reserves_procurement[r, 'flex', tech, step, y, hr]
                     for (tech, step) in self.ProcurementSetReserves[r, 'flex', y, hr]
@@ -1715,8 +1722,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for (T_solar, step) in self.SolarSetReserves[r, y, hr]
                 )
 
-            # TODO:  Review this.  It operates on the x-product of tech x restype, yet many techs are
-            #        not "reserve-able" so we could make the variable `reserve_procurement` more sparse
+            # TODO:  Review this.  It operates on the x-product of tech x restype, yet many
+            #        techs are not "reserve-able" so we could make the variable
+            #        `reserve_procurement` more sparse
             #        and/or use defaults better.
             @self.Constraint(self.reserves_procurement_index)
             def reserve_procurement_ub(self, r, restypes, tech, step, y, hr):

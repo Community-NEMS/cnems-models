@@ -21,7 +21,7 @@ def test_sets(unsolved_model):
     # check that the years are set correctly
     config_years = common_config.summary_years
 
-    assert common_config.aggregate_years == False, 'aggregate_years should be False in test case'
+    assert not common_config.aggregate_years, 'aggregate_years should be False in test case'
     assert elec_model.year == config_years, 'years in model do not match config'
 
     # Assert the years in this non-aggregated base model match the settings

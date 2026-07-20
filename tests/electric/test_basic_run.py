@@ -65,17 +65,19 @@ _GATED_ATTRS = {
 # expansion_learning_type != DISABLED, which none of this file's `configs` cases enable -- those
 # three are instead cross-checked in test_linear_learning below.
 
-# TODO:  Add combination with expansion + margin required to test combo constraint near line 1500 in model
+# TODO:  Add combination with expansion + margin required to test combo
+#        constraint near line 1500 in model
 
 # Test configurations with expected ORIGINAL outputs:
-# Run Type                                  Total Cost         Variables    Constraints      Notes for new
-# ----------------------------------------  -----------------  -----------  -----------     ---------------
-# Basic No-Frills                           3452103301.9            17886        19440      constr = 19632 VRE_UB fix (+192)
-# Exchange Enabled                          2278237043.0            21342        23088      constr = 23280 (+192 constr, from above)
-# Expansion (no learning)                   3455793875.5            18060        19566      same... +192
-# Ramping Required                          3522284566.9            32862        41904      same... +192
-# Reserve Margin (mandatory expansion)      4925573167.9            19212        22446      same... +192
-# Agg Years                                 ??  Broken.  Suspect it is used in preprocessor
+# (constraint counts below are pre-VRE_UB-fix; current expectations add +192 constraints)
+# Run Type                                Total Cost    Variables   Constraints
+# --------------------------------------  ------------  ----------  -----------
+# Basic No-Frills                         3452103301.9       17886        19440
+# Exchange Enabled                        2278237043.0       21342        23088
+# Expansion (no learning)                 3455793875.5       18060        19566
+# Ramping Required                        3522284566.9       32862        41904
+# Reserve Margin (mandatory expansion)    4925573167.9       19212        22446
+# Agg Years                               ??  Broken.  Suspect it is used in preprocessor
 
 configs = [
     ('basic', 3452103301.9, 17886, 19632),
@@ -108,7 +110,8 @@ configs = [
 )
 def test_basic_run(config_info, expected_total_cost, expected_nvariables, expected_nconstraints):
     """
-    Perform a couple of basic runs (with some features in isolation) and compare results to captured values
+    Perform a couple of basic runs (with some features in isolation) and compare
+    results to captured values
 
     dev notes:
     1.  basic config file turns OFF many features that may need separate verification
@@ -159,15 +162,14 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         if hasattr(elec_model, 'fixed_om_cost'):
             elec_model.fixed_om_cost.pprint()
             # print(f'terms in om cost: {elec_model.fixed_om_cost.linear_vars}')
-            print(
-                f'sum of capacity: {sum(value(elec_model.capacity_total[i]) for i in elec_model.capacity_total)}'
+            total_cap = sum(value(elec_model.capacity_total[i]) for i in elec_model.capacity_total)
+            print(f'sum of capacity: {total_cap}')
+            builds = sum(value(elec_model.capacity_builds[i]) for i in elec_model.capacity_builds)
+            print(f'sum of expansion: {builds}')
+            retirements = sum(
+                value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements
             )
-            print(
-                f'sum of expansion: {sum(value(elec_model.capacity_builds[i]) for i in elec_model.capacity_builds)}'
-            )
-            print(
-                f'sum of retirements: {sum(value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements)}'
-            )
+            print(f'sum of retirements: {retirements}')
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())
 

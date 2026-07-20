@@ -17,7 +17,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import run_elec_model, ElectricitySequencer
+from src.models.electricity.sequencer import ElectricitySequencer
 
 
 @pytest.fixture

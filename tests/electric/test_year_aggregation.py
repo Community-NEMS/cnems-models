@@ -24,9 +24,7 @@ def test_year_agg_weights():
     """Test the aggregation weights"""
     agg_years = [2030, 2025, 2040]
     start_year = 2000
-    weights = ModelSets._create_year_agg_weights(
-        yr_map := ModelSets._create_year_map(agg_years, start_year)
-    )
+    weights = ModelSets._create_year_agg_weights(ModelSets._create_year_map(agg_years, start_year))
     assert len(weights) == 3, '3 agg years provided'
     assert weights[2025] == 26
     assert weights[2030] == 5

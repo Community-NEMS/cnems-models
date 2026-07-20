@@ -15,11 +15,6 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.models.electricity.data_ingestor import PARAM_SOURCES
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.sequencer import run_elec_model,  ElectricitySequencer
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
@@ -29,6 +24,11 @@ from analysis_tools.model_diagnostics import (
     gather_var_data,
     load_inspector,
 )
+from definitions import PROJECT_ROOT
+from src.common.common_config import CommonConfig
+from src.models.electricity.data_ingestor import PARAM_SOURCES
+from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from src.models.electricity.sequencer import ElectricitySequencer, run_elec_model
 
 verbose = False
 

@@ -150,7 +150,6 @@ class ElectricitySequencer(IntegratedModelSequencer):
             results = None
 
             while eps > _LEARNING_TOLERANCE and i < _LEARNING_MAX_ITER:
-
                 # TODO:  Verify this sequence is correct.  We update costs only BEFORE solve s.t.
                 #        the solved result holds these costs when tol < limit
                 # update learning costs in model
@@ -224,7 +223,6 @@ class ElectricitySequencer(IntegratedModelSequencer):
         export_variables_to_csv(instance, output_dir=scenario_dir / 'variables', core_only=True)
 
 
-
 def calculate_tolerance(
     cap_growth: dict[tuple, float],
     new_cap_growth: dict[tuple, float],
@@ -283,7 +281,6 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     )
 
     return instance
-
 
 
 def init_old_cap(instance: PowerModel) -> dict[tuple, float]:

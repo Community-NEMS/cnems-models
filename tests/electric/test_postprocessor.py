@@ -13,11 +13,11 @@ import pyomo.environ as pyo
 import pytest
 
 from src.models.electricity.postprocessor import (
+    core_variable_indices,
     export_variables_to_csv,
     extract_all_variables,
-    variable_to_dataframe,
     get_known_column_names,
-    core_variable_indices,
+    variable_to_dataframe,
 )
 
 

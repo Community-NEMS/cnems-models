@@ -1,6 +1,5 @@
 from src.integrator.utilities import get_elec_price, regional_annual_prices
 from src.models.electricity.sequencer import ElectricitySequencer
-from tests.electric.conftest import config_set
 
 
 def test_poll_elec_prices(config_set):

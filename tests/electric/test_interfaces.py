@@ -1,15 +1,18 @@
 from src.integrator.utilities import get_elec_price, regional_annual_prices
-from src.models.electricity.sequencer import solve_elec_model
+from src.models.electricity.sequencer import ElectricitySequencer
+from tests.electric.conftest import config_set
 
 
-def test_poll_elec_prices(unsolved_model):
+def test_poll_elec_prices(config_set):
     """test that we can poll prices from elec and get "reasonable" answers"""
 
     # dev note:  currently, this test is a little "shaky", but it is a good pattern for testing
     #            extracted prices, so it is retained, minimally as a pattern going forward.
-    _, elec_config, elec_model = unsolved_model
+    common_config, elec_config = config_set
+    sequencer = ElectricitySequencer()
+    elec_model = sequencer.build_model(common_config, elec_config)
 
-    solve_elec_model(elec_model, elec_config=elec_config)
+    sequencer.solve_model()
 
     # we are just testing to see if we got *something* back ... this should have hundreds of entries...
     new_prices = get_elec_price(elec_model)

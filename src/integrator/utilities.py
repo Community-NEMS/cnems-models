@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pandas as pd
 import pyomo.opt as pyo
+from pyomo.contrib.appsi.base import Solver
 from pyomo.environ import ConcreteModel, value
+from pyomo.opt import OptSolver
 
 # Import python modules
 from definitions import PROJECT_ROOT
@@ -62,7 +64,7 @@ def simple_solve_no_opt(m: ConcreteModel, opt: pyo.SolverFactory):
     raise RuntimeError('failed solve in iterator')
 
 
-def select_solver(instance: ConcreteModel):
+def select_solver(instance: ConcreteModel) -> OptSolver:
     """Select solver based on learning method
 
     Parameters

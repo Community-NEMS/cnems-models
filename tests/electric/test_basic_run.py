@@ -19,7 +19,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.sequencer import run_elec_model, solve_elec_model
+from src.models.electricity.sequencer import run_elec_model,  ElectricitySequencer
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
@@ -206,7 +206,9 @@ def test_linear_learning(config_set):
     elec_config.expansion_learning_type = ExpansionLearningType.LINEAR
     elec_config.region_filter = list('78913462')
 
-    elec_model = run_elec_model(common_config, elec_config, solve=False)
+    sequencer = ElectricitySequencer()
+    elec_model = sequencer.build_model(common_config, elec_config)
+    # elec_model = run_elec_model(common_config, elec_config, solve=False)
 
     # with learning enabled, the learning-gated param_sources.toml entries should be wired in
     for key, attr in {
@@ -227,4 +229,5 @@ def test_linear_learning(config_set):
     # Re-initialize with increased values
     elec_model.Load = pyo.Param(load_data.keys(), initialize=load_data, mutable=False)
 
-    solve_elec_model(elec_model, elec_config=elec_config)
+    # just a functional check to ensure solve, RN...
+    sequencer.solve_model()

@@ -27,7 +27,7 @@ from src.integrator.utilities import (
     simple_solve_no_opt,
     update_h2_prices,
 )
-from src.models.electricity.sequencer import init_old_cap, run_elec_model, set_new_cap, update_cost
+from src.models.electricity.sequencer import init_old_cap, run_elec_model, set_new_cap, update_expansion_cost
 from src.models.hydrogen.model import actions
 from src.models.residential.scripts.residential import residentialModule
 
@@ -95,7 +95,7 @@ def run_gs(settings):
             # initialize capacity to set pricing
             init_old_cap(elec_model)
             elec_model.new_cap = elec_model.old_cap
-            update_cost(elec_model)
+            update_expansion_cost(elec_model)
 
         # run_gs - ELEC_INIT: initialize persistent solver object
         opt_elec = select_solver(elec_model)
@@ -265,7 +265,7 @@ def run_gs(settings):
                 # set new capacities
                 set_new_cap(elec_model)
                 # update learning costs in model
-                update_cost(elec_model)
+                update_expansion_cost(elec_model)
                 # update old capacities
                 elec_model.old_cap = elec_model.new_cap
                 elec_model.old_cap_wt = elec_model.new_cap_wt

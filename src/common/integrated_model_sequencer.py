@@ -31,27 +31,31 @@ class IntegratedModelSequencer(ABC):
 
     @property
     @abstractmethod
-    def model(self) -> IntegratedModel:
-        raise NotImplementedError('Implement this in the child class')
+    def model(self) -> IntegratedModel: ...
 
+    @abstractmethod
     def build_model(
         self, common_config: CommonConfig, model_config: BaseModel, **kwargs
     ) -> IntegratedModel:
         """Build a model new model instance"""
         ...
 
+    @abstractmethod
     def update_model(self, **kwargs) -> IntegratedModel:
         """Update the model with some new data, etc."""
         ...
 
+    @abstractmethod
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the model"""
         ...
 
+    @abstractmethod
     def full_postprocess(self, **kwargs):
         """Perform "full" postprocessing of the model results"""
         ...
 
+    @abstractmethod
     def iteration_postprocess(self, **kwargs):
         """Perform postprocessing of the model results for each iteration"""
         ...

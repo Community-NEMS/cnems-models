@@ -1,10 +1,6 @@
 """
 Created as part of the C-NEMS Project
 
-Written by:  J. F. Hyink
-Contact:  jeff@westernspark.us
-Created on:  7/16/26
-
 Sequencer for the electricity model.
 
 ``ElectricitySequencer`` implements the ``IntegratedModelSequencer`` interface (build / update /
@@ -14,11 +10,12 @@ integrated run. It replaces the procedural helpers previously in ``runner.py``; 
 only need to repoint their import at this module.
 """
 
+from collections import defaultdict
 from datetime import datetime
 from logging import getLogger
 
 import pyomo.environ as pyo
-from pydantic import BaseModel
+from pyomo.common.numeric_types import value
 from pyomo.common.timing import TicTocTimer
 from pyomo.opt import check_optimal_termination
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -48,26 +45,13 @@ class ElectricitySequencer(IntegratedModelSequencer):
     steps can run without re-threading arguments.
     """
 
-    def __init__(
-        self,
-        model: PowerModel | None = None,
-        common_config: CommonConfig | None = None,
-        model_config: ElecConfig | None = None,
-    ) -> None:
-        """
-        Parameters
-        ----------
-        model : PowerModel | None
-            An already-built model to adopt (used by the ``solve_elec_model`` compatibility path).
-        common_config : CommonConfig | None
-            Common config the model was built from; needed for postprocessing paths.
-        model_config : ElecConfig | None
-            Electricity config the model was built from; needed for solve/postprocess branching.
-        """
-        self._model = model
-        self._common_config = common_config
-        self._model_config = model_config
+    def __init__(self):
+        """Initialize the sequencer."""
+        self._model = None
+        self._elec_config: ElecConfig | None = None
+        self._common_config: CommonConfig | None = None
         self._opt = None
+        print('init')
 
     @property
     def model(self) -> PowerModel:
@@ -82,8 +66,13 @@ class ElectricitySequencer(IntegratedModelSequencer):
             raise RuntimeError('Model has not been built yet; call build_model() first.')
         return self._model
 
+    @model.setter
+    def model(self, value: PowerModel):
+        """Set the model instance.  Caution:  Alignment with config settings not checked"""
+        self._model = value
+
     def build_model(
-        self, common_config: CommonConfig, model_config: BaseModel, **kwargs
+        self, common_config: CommonConfig, model_config: ElecConfig, **kwargs
     ) -> PowerModel:
         """Preprocess inputs and build (but do not solve) the electricity model.
 
@@ -94,8 +83,8 @@ class ElectricitySequencer(IntegratedModelSequencer):
         ----------
         common_config : CommonConfig
             Common run configuration.
-        model_config : BaseModel
-            Electricity configuration (:class:`ElecConfig`).
+        model_config : ElecConfig
+            Electricity configuration
 
         Returns
         -------
@@ -103,6 +92,8 @@ class ElectricitySequencer(IntegratedModelSequencer):
             The built, unsolved model (also retained as :attr:`model`).
         """
         logger.info('Preprocessing')
+        self._elec_config = model_config
+        self._common_config = common_config
         model_sets = ModelSets(common_config, model_config)
         logger.debug('Model set inputs produced')
         model_params = ParamData(common_config, model_config, model_sets)
@@ -112,34 +103,22 @@ class ElectricitySequencer(IntegratedModelSequencer):
             len(model_params.param_dicts),
         )
 
-        logger.info('Build Pyomo')
+        logger.info('Building model')
         instance = PowerModel(
             model_sets, model_params, elec_config=model_config, common_config=common_config
         )
         # add electricity price dual
         instance.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
 
-        logger.info('Number of variables =' + str(pyo.value(instance.nvariables())))
-        logger.info('Number of constraints =' + str(pyo.value(instance.nconstraints())))
+        logger.info('Number of variables = %d', pyo.value(instance.nvariables()))
+        logger.info('Number of constraints = %d', pyo.value(instance.nconstraints()))
 
         self._model = instance
-        self._common_config = common_config
-        self._model_config = model_config
         return instance
 
     def update_model(self, **kwargs) -> PowerModel:
-        """Refresh the learning-curve capital costs held in the model.
-
-        Ports ``runner.update_cost`` — used both to seed costs before the first learning solve and
-        to update them between iterations.
-
-        Returns
-        -------
-        PowerModel
-            The updated model.
-        """
-        update_cost(self.model)
-        return self.model
+        """TBD update process for the electricity model."""
+        ...
 
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the electricity model, iterating externally for linear learning.
@@ -154,38 +133,45 @@ class ElectricitySequencer(IntegratedModelSequencer):
             ``BEST`` on optimal termination, ``ERROR`` otherwise.
         """
         instance = self.model
+        if instance is None:
+            raise RuntimeError('Solve called on model that has not been built.')
         self._opt = select_solver(instance)
 
-        logger.info('Solving Pyomo')
+        logger.info('Solving model')
 
-        if self._model_config.expansion_learning_type == ExpansionLearningType.LINEAR:
+        if self._elec_config.expansion_learning_type == ExpansionLearningType.LINEAR:
             # run iterative (external) learning
-            tol = float('inf')
+            eps = float('inf')
             i = 0
 
             # initialize capacity to set pricing
-            init_old_cap(instance)
-            instance.new_cap = instance.old_cap
-            self.update_model()
+            cap_growth = init_old_cap(instance)
+
             results = None
-            while tol > _LEARNING_TOLERANCE and i < _LEARNING_MAX_ITER:
-                logger.info('Linear iteration number: ' + str(i))
-                i += 1
+
+            while eps > _LEARNING_TOLERANCE and i < _LEARNING_MAX_ITER:
+
+                # TODO:  Verify this sequence is correct.  We update costs only BEFORE solve s.t.
+                #        the solved result holds these costs when tol < limit
+                # update learning costs in model
+                update_expansion_cost(instance, new_cap=cap_growth)
 
                 # solve model
                 results = self._opt.solve(instance)
 
                 # set new capacities and measure convergence
-                tol = self.iteration_postprocess()
+                new_cap_growth = calculate_cap_growth(instance)
+                eps = calculate_tolerance(
+                    cap_growth=cap_growth,
+                    new_cap_growth=new_cap_growth,
+                    year_weights=instance.WeightYear,
+                )
 
-                # update learning costs in model
-                self.update_model()
+                # update the cap growth for potential next iteration
+                cap_growth = new_cap_growth
 
-                # roll capacities forward
-                instance.old_cap = instance.new_cap
-                instance.old_cap_wt = instance.new_cap_wt
-
-                logger.info('Tolerance in linear learning iterations: ' + str(tol))
+                logger.info('Tolerance in linear learning iteration %d: %0.4f', i, eps)
+                i += 1
         else:
             results = self._opt.solve(instance)
 
@@ -203,22 +189,8 @@ class ElectricitySequencer(IntegratedModelSequencer):
         logger.info('Solve Successful')
         return IterationStatus.BEST
 
-    def iteration_postprocess(self, **kwargs) -> float:
-        """Per-iteration capacity update and convergence measure for linear learning.
-
-        Ports the ``set_new_cap`` + tolerance computation from ``runner.solve_elec_model``'s loop.
-
-        Returns
-        -------
-        float
-            The weighted capacity change between the previous and new iteration.
-        """
-        instance = self.model
-        set_new_cap(instance)
-        return sum(
-            abs(instance.old_cap_wt[(tech, y)] - instance.new_cap_wt[(tech, y)])
-            for (tech, y) in instance.cap_set
-        )
+    def iteration_postprocess(self, **kwargs):
+        pass
 
     def full_postprocess(self, **kwargs) -> None:
         """Log solution diagnostics and export the model variables to CSV.
@@ -226,8 +198,6 @@ class ElectricitySequencer(IntegratedModelSequencer):
         Ports the reporting / export tail of ``runner.run_elec_model``.
         """
         instance = self.model
-        elec_config = self._model_config
-        common_config = self._common_config
 
         logger.info('Displaying solution...')
         logger.info(f'instance.total_cost(): {instance.total_cost()}')
@@ -235,30 +205,47 @@ class ElectricitySequencer(IntegratedModelSequencer):
         logger.info('Logging infeasible constraints...')
         log_infeasible_constraints(instance, logger=logger)
 
-        logger.info('dispatch cost value =' + str(pyo.value(instance.dispatch_cost)))
-        logger.info('unmet load cost value =' + str(pyo.value(instance.unmet_load_cost)))
-        if elec_config.capacity_expansion:
-            logger.info('cap expansion value =' + str(pyo.value(instance.capacity_expansion_cost)))
-            logger.info('fixed om cost value =' + str(pyo.value(instance.fixed_om_cost)))
-        if elec_config.spinning_reserve_required:
-            logger.info('op res value =' + str(pyo.value(instance.operating_reserves_cost)))
-        if elec_config.ramping_required:
-            logger.info('ramp cost value =' + str(pyo.value(instance.ramp_cost)))
-        if elec_config.regional_exchange:
-            logger.info('trade cost value =' + str(pyo.value(instance.trade_cost)))
+        logger.info('dispatch cost value = %.2f', pyo.value(instance.dispatch_cost))
+        logger.info('unmet load cost value = %.2f', pyo.value(instance.unmet_load_cost))
+        if self._elec_config.capacity_expansion:
+            logger.info('cap expansion value = %.2f', pyo.value(instance.capacity_expansion_cost))
+            logger.info('fixed om cost value = %.2f', pyo.value(instance.fixed_om_cost))
+        if self._elec_config.spinning_reserve_required:
+            logger.info('op res value = %.2f', pyo.value(instance.operating_reserves_cost))
+        if self._elec_config.ramping_required:
+            logger.info('ramp cost value = %.2f', pyo.value(instance.ramp_cost))
+        if self._elec_config.regional_exchange:
+            logger.info('trade cost value = %.2f', pyo.value(instance.trade_cost))
         logger.info('Obj complete')
 
-        scenario_dir = common_config.output_path / common_config.scenario_name / 'electricity'
+        scenario_dir = (
+            self._common_config.output_path / self._common_config.scenario_name / 'electricity'
+        )
         export_variables_to_csv(instance, output_dir=scenario_dir / 'variables', core_only=True)
 
 
-###################################################################################################
-# Module-level compatibility wrappers + learning-curve support functions.
-#
-# These preserve the call signatures previously exported by runner.py so callers only need to
-# repoint their import at this module. run_elec_model / solve_elec_model delegate to
-# ElectricitySequencer; the init_old_cap / set_new_cap / cost_learning_func / update_cost helpers
-# operate directly on a model instance (as before) and are shared by the sequencer methods.
+
+def calculate_tolerance(
+    cap_growth: dict[tuple, float],
+    new_cap_growth: dict[tuple, float],
+    year_weights: dict[int, int],
+    **kwargs,
+) -> float:
+    """Check the summation of growth between the old and new capacities.
+
+    Returns
+    -------
+    float
+        The OBJ value (total cost).
+    """
+
+    if not set(cap_growth.keys()) == set(new_cap_growth.keys()):
+        raise ValueError('cap_growth and new_cap_growth must have the same keys')
+
+    return sum(
+        abs(cap_growth[tech, y] - new_cap_growth[tech, y]) * year_weights[y]
+        for (tech, y) in cap_growth
+    )
 
 
 def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
@@ -298,31 +285,26 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     return instance
 
 
-def solve_elec_model(instance: PowerModel, elec_config: ElecConfig) -> IterationStatus:
-    """Solve an already-built electricity model (compat wrapper around the sequencer)."""
-    sequencer = ElectricitySequencer(model=instance, model_config=elec_config)
-    return sequencer.solve_model()
 
-
-def init_old_cap(instance: PowerModel):
-    """initialize capacity for 0th iteration
+def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
+    """initialize capacity growth for 0th iteration
 
     Parameters
     ----------
     instance : PowerModel
         unsolved electricity model
     """
-    instance.old_cap = {}
-    instance.cap_set = []
-    instance.old_cap_wt = {}
+    initial_growth = {}
+    # instance.cap_set = []
+    # instance.old_cap_wt = {}
 
     for r, tech, step, y in instance.CapCostLearning:
-        if (tech, y) not in instance.old_cap:
-            instance.cap_set.append((tech, y))
+        if (tech, y) not in initial_growth:
             # each tech will increase cap by 1 GW per year. reasonable starting point.
             # TODO:  come back to this assumption after better understanding of process
-            instance.old_cap[(tech, y)] = (y - instance.y0_learning) * 1
-            instance.old_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.old_cap[(tech, y)]
+            initial_growth[tech, y] = (y - instance.y0_learning) * 1
+            # instance.old_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.old_cap[(tech, y)]
+    return initial_growth
 
 
 def set_new_cap(instance: PowerModel):
@@ -346,7 +328,19 @@ def set_new_cap(instance: PowerModel):
         instance.new_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.new_cap[(tech, y)]
 
 
-def cost_learning_func(instance: PowerModel, tech, y):
+def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
+    """Calculate the current capacity of all buildable tech by year"""
+    result = defaultdict(float)
+    for r, tech, step, y in instance.CapCostLearning:
+        result[(tech, y)] = sum(
+            value(instance.capacity_builds[r, tech, step, year])
+            for year in instance.year
+            if year < y
+        )
+    return result
+
+
+def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
     """function for updating learning costs by technology and year
 
     Parameters
@@ -364,33 +358,20 @@ def cost_learning_func(instance: PowerModel, tech, y):
         updated capital cost based on learning calculation
     """
     cost = (
-        (
-            instance.SupplyCurveLearning[tech]
-            + 0.0001 * (y - instance.y0_learning)
-            + instance.new_cap[tech, y]
-        )
+        (instance.SupplyCurveLearning[tech] + 0.0001 * (y - instance.y0_learning) + new_cap)
         / instance.SupplyCurveLearning[tech]
     ) ** (-1.0 * instance.LearningRate[tech])
     return cost
 
 
-def update_cost(instance):
-    """update capital cost based on new capacity learning
-
-    Parameters
-    ----------
-    instance : PowerModel
-        electricity pyomo model
-    """
+def update_expansion_cost(instance, new_cap: dict[tuple, float]):
+    """update capital cost based on new capacity learning"""
     new_multiplier = {}
-    for tech, y in instance.cap_set:
-        new_multiplier[(tech, y)] = cost_learning_func(instance, tech, y)
+    for tech, y in new_cap:
+        new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
 
-    new_cost = {}
-    # Assign new learning
+    # Assign new cost
     for r, tech, step, y in instance.CapCostLearning:
-        # updating learning cost
-        new_cost[(r, tech, step, y)] = (
-            instance.CapCostInitial[(r, tech, step)] * new_multiplier[tech, y]
-        )
-        instance.CapCostLearning[(r, tech, step, y)].value = new_cost[(r, tech, step, y)]
+        new_cost = instance.CapCostInitial[(r, tech, step)] * new_multiplier[tech, y]
+
+        instance.CapCostLearning[(r, tech, step, y)].value = new_cost

@@ -41,7 +41,7 @@ from src.integrator.utilities import (
     simple_solve_no_opt,
     update_h2_prices,
 )
-from src.models.electricity.sequencer import init_old_cap, run_elec_model, set_new_cap, update_cost
+from src.models.electricity.sequencer import init_old_cap, run_elec_model, set_new_cap, update_expansion_cost
 from src.models.hydrogen.model import actions
 from src.models.residential.scripts.residential import residentialModule
 
@@ -187,7 +187,7 @@ def run_unified(settings: Config_settings):
             # initialize capacity to set pricing
             init_old_cap(meta.elec)
             meta.elec.new_cap = meta.elec.old_cap
-            update_cost(meta.elec)
+            update_expansion_cost(meta.elec)
 
     # run_unified - UNI_LOOP: If no res, set-up persistent solver
     if not settings.residential:
@@ -296,7 +296,7 @@ def run_unified(settings: Config_settings):
                 # set new capacities
                 set_new_cap(meta.elec)
                 # update learning costs in model
-                update_cost(meta.elec)
+                update_expansion_cost(meta.elec)
                 # update old capacities
                 meta.elec.old_cap = meta.elec.new_cap
                 meta.elec.old_cap_wt = meta.elec.new_cap_wt

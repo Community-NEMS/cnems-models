@@ -17,7 +17,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import run_elec_model
+from src.models.electricity.sequencer import run_elec_model, ElectricitySequencer
 
 
 @pytest.fixture
@@ -34,7 +34,8 @@ def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
     """build an un-solved PowerModel for testing"""
     common_config, elec_config = config_set
 
-    elec_model = run_elec_model(common_config, elec_config, solve=False)
+    sequencer = ElectricitySequencer()
+    elec_model = sequencer.build_model(common_config, elec_config)
     return common_config, elec_config, elec_model
 
 
@@ -43,5 +44,7 @@ def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
     """build a solved PowerModel for testing"""
     common_config, elec_config = config_set
 
-    elec_model = run_elec_model(common_config, elec_config, solve=True)
+    sequencer = ElectricitySequencer()
+    elec_model = sequencer.build_model(common_config, elec_config)
+    sequencer.solve_model()
     return common_config, elec_config, elec_model

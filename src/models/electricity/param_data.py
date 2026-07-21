@@ -193,11 +193,11 @@ class ParamData:
         df = add_season_index(
             model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 4
         )
-        self.param_frames['supply_curve'] = df.set_index(list(df.columns)[:-1])
+        augmented_supply_curve = df.set_index(list(df.columns)[:-1])
 
         # use the augmented supply_curve DF to make the capacity_credit df
         self.param_frames['capacity_credit'] = self.build_capacity_credit(
-            augmented_supply_curve=self.param_frames['supply_curve'],
+            augmented_supply_curve=augmented_supply_curve,
             hour_season_map=self.param_frames['MapHourSeason'],
             cap_factor_vre=self.param_frames['cap_factor_vre'],
             hydro_cap_factor=self.param_frames['hydro_cap_factor'],

@@ -103,14 +103,14 @@ def breakdown_obj_terms(em: PowerModel) -> None:
 def capacity_inspector(em: PowerModel, region: str, year: int):
     """breakdown the capacity variable for all techs in a particular region-year combo from
     this variable:
-    self.capacity_total[(r, tech, step, y, season)]
+    self.capacity_total[r, tech, step, y]
     """
     for tech in em.tech:  # range(1,16):
         for step in em.step:  # [1,2,3]:
             try:
                 print(
-                    f'Capacity for {tech}-{step} in {region} {year}: {value(em.capacity_total[(region, tech, step, year, "1")])}'
-                )  # [(region, tech, step, year, 1)])}')
+                    f'Capacity for {tech}-{step} in {region} {year}: {value(em.capacity_total[region, tech, step, year])}'
+                )  # [region, tech, step, year])}')
             except:
                 print(f'Capacity for {tech}-{step} in {region} {year}: N/A')
             for hour in range(1, 11):

@@ -182,16 +182,12 @@ class ModelSets:
         supply curve steps.
         """
         self.capacity_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, season)
-            for idx in supply_curve_index
-            for season in self.season
+            (idx.region, idx.tech, idx.step, idx.year) for idx in supply_curve_index
         )
         if not self.capacity_index:
             logger.warning('capacity_index is empty')
         logger.info(f'Built Capacity Index of size: {len(self.capacity_index)}')
 
-        # dev note: In the future, if we pull season out of capacity_index, this could be
-        #           replaced with just a filter on tech_retires
         self.retirement_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year)
             for idx in supply_curve_index

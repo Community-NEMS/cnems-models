@@ -70,6 +70,7 @@ _GATED_ATTRS = {
 
 # Test configurations with expected ORIGINAL outputs:
 # (constraint counts below are pre-VRE_UB-fix; current expectations add +192 constraints)
+# (variable counts below are pre-removal of season index from capacity add +450 vars, +450 constr)
 # Run Type                                Total Cost    Variables   Constraints
 # --------------------------------------  ------------  ----------  -----------
 # Basic No-Frills                         3452103301.9       17886        19440
@@ -80,18 +81,18 @@ _GATED_ATTRS = {
 # Agg Years                               ??  Broken.  Suspect it is used in preprocessor
 
 configs = [
-    ('basic', 3452103301.9, 17886, 19632),
-    ('exchange', 2278237043.0, 21342, 23280),
-    ('expansion_no_learning', 3455793875.5, 18060, 19758),
-    ('ramping', 3522284566.9, 32862, 42096),
-    ('reserve_with_expansion_no_learning', 4925573167.9, 19212, 22638),
+    ('basic', 3452103301.9, 17436, 19182),
+    ('exchange', 2278237043.0, 20892, 22830),
+    ('expansion_no_learning', 3455793875.5, 17610, 19308),
+    ('ramping', 3522284566.9, 32412, 41646),
+    ('reserve_with_expansion_no_learning', 4925573167.9, 18762, 22188),
     (
         'reserve_spinning_with_expansion_no_learning',
         5138465483.62,
-        62412,
-        67566,
+        61962,
+        67116,
     ),  # <-- no good starting value
-    ('agg_years', 13363835326.77, 17886, 19632),  # <-- no good starting value
+    ('agg_years', 13363835326.77, 17436, 19182),  # <-- no good starting value
 ]
 
 

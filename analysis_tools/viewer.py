@@ -289,7 +289,7 @@ try:
 except TypeError:
     print('Capacity retirement dataframe is empty.')
 
-# assume that all season have the same capacity, do the max, then sum the steps
+# do the max, then sum the steps
 try:
     df_capacitytotal = df_capacitytotal[['run', 'tech', 'region', 'year', 'step', 'capacity_total']]
     df_capacitytotal = (

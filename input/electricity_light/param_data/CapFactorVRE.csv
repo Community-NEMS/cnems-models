@@ -1,4 +1,4 @@
-tech,region,step,hour,CapFactorVRE
+tech,region,step,hour,value
 Solar,TX,1,1,0.0
 Solar,TX,1,10,0.360421
 Solar,TX,1,100,0.0

@@ -69,7 +69,7 @@ def build_transmission_network(csv_path: Path = DEFAULT_TRAN_LIMIT_CSV) -> nx.Gr
     ----------
     csv_path : Path
         Path to a TranLimit.csv-formatted file with `source_region`, `destination_region`,
-        and `TranLimit` columns.
+        and `value` columns.
 
     Returns
     -------
@@ -83,7 +83,7 @@ def build_transmission_network(csv_path: Path = DEFAULT_TRAN_LIMIT_CSV) -> nx.Gr
     df = df[df['source_region'] != df['destination_region']].copy()
     df['region_a'] = df[['source_region', 'destination_region']].min(axis=1)
     df['region_b'] = df[['source_region', 'destination_region']].max(axis=1)
-    edge_limits = df.groupby(['region_a', 'region_b'])['TranLimit'].mean()
+    edge_limits = df.groupby(['region_a', 'region_b'])['value'].mean()
 
     graph = nx.Graph()
     for (region_a, region_b), tran_limit in edge_limits.items():

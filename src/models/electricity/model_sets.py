@@ -372,7 +372,7 @@ class ModelSets:
                 on=['region_international', 'year', 'hour'],
                 how='inner',
             )
-            .drop(columns=['TranLimitGenInt'])
+            .drop(columns=['generation'])
             .set_index(['region', 'region_international', 'step', 'year', 'hour'])
         )
         res = list(df.index)

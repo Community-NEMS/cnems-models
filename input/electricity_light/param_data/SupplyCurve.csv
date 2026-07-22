@@ -1,4 +1,4 @@
-region,tech,step,year,SupplyCurve
+region,tech,step,year,capacity
 CA,NG_Fired_Plant,1,2030,0.15
 CA,NG_Fired_Plant,2,2030,0.15
 CA,NG_Fired_Plant,3,2030,0.15

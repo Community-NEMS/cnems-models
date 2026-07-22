@@ -138,15 +138,15 @@ class ParamData:
             how='cross',
         )
         # re-sequence columns
-        df = df[['region', 'tech', 'step', 'year', 'hour', 'CapFactorVRE']]
+        df = df[['region', 'tech', 'step', 'year', 'hour', 'value']]
         # set proper index
         self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
 
         # expand season columns to the appropriate rep-hours for the season where season is used
         # we can skip this if no international connections:
         if len(self.param_frames['tran_limit_cap_int']) > 0:
-            TLCI_cols = ['region', 'region_international', 'year', 'hour', 'TranLimitCapInt']
-            TLGI_cols = ['region_international', 'step', 'year', 'hour', 'TranLimitGenInt']
+            TLCI_cols = ['region', 'region_international', 'year', 'hour', 'capacity']
+            TLGI_cols = ['region_international', 'step', 'year', 'hour', 'generation']
             self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
                 self.param_frames['MapHourSeason'],
                 self.param_frames['tran_limit_cap_int'],
@@ -162,7 +162,7 @@ class ParamData:
         # do the same for interregional
         # we can skip this if there are no interregional connections
         if len(self.param_frames['tran_limit']) > 0:
-            TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'TranLimit']
+            TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'value']
             self.param_frames['tran_limit'] = self.create_hourly_params(
                 self.param_frames['MapHourSeason'],
                 self.param_frames['tran_limit'],
@@ -332,7 +332,7 @@ class ParamData:
             cap_factor_vre,
             how='left',
             on=['tech', 'year', 'region', 'step', 'hour'],
-        ).rename(columns={'CapFactorVRE': 'CapacityCredit'})  # TODO:  This seems hoaky
+        ).rename(columns={'value': 'CapacityCredit'})  # TODO:  This seems hoaky
         # df now has all rows in it.  We just need to correct entries for non-VRE
         # technologies and hydro techs
 
@@ -350,16 +350,16 @@ class ParamData:
         # merge hydro capacity factors onto df by keys, then update only hydro technologies
         df = pd.merge(
             df,
-            hydro_capacity[['region', 'hour', 'HydroCapFactor']],
+            hydro_capacity[['region', 'hour', 'value']],
             how='left',
             on=['region', 'hour'],
         )
 
         hydro_mask = df['tech'].isin(tech_hyrdo)
-        df.loc[hydro_mask, 'CapacityCredit'] = df.loc[hydro_mask, 'HydroCapFactor']
+        df.loc[hydro_mask, 'CapacityCredit'] = df.loc[hydro_mask, 'value']
 
         # drop unnecessary columns
-        df = df.drop(columns=['SupplyCurve', 'HydroCapFactor'])
+        df = df.drop(columns=['capacity', 'value'])
 
         # reorder columns
         df = df[['region', 'tech', 'step', 'year', 'hour', 'CapacityCredit']]

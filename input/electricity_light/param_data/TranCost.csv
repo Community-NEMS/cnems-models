@@ -1,4 +1,4 @@
-source_region,destination_region,year,TranCost
+source_region,destination_region,year,cost
 TX,TX,2030,1
 TX,TX,2031,1
 TX,TX,2032,1

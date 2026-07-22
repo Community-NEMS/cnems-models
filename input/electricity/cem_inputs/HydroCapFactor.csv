@@ -1,4 +1,4 @@
-region,season,HydroCapFactor
+region,season,value
 1,1,0.18
 1,2,0.18
 1,3,0.25

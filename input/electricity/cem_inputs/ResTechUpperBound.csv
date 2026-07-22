@@ -1,4 +1,4 @@
-restype,tech,ResTechUpperBound
+restype,tech,value
 spinning,1,0.4
 spinning,2,0.4
 spinning,3,0.8

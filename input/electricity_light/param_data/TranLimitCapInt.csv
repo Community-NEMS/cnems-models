@@ -1,4 +1,4 @@
-region,region_international,year,season,TranLimitCapInt
+region,region_international,year,season,capacity
 CA,Mexico,2030,1,0.2
 CA,Mexico,2030,2,0.2
 CA,Mexico,2030,3,0.2

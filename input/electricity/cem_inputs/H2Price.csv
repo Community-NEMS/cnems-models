@@ -1,4 +1,4 @@
-region,season,tech,step,year,H2Price
+region,season,tech,step,year,cost
 1,1,5,1,2023,0.1
 1,1,5,1,2024,0.1
 1,1,5,1,2025,0.1

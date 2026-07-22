@@ -1,4 +1,4 @@
-tech,region,step,hour,CapFactorVRE
+tech,region,step,hour,value
 13,7,1,1,0.633961
 13,7,1,2,0.625166
 13,7,1,3,0.618973

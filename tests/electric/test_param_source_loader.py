@@ -14,51 +14,53 @@ from src.models.electricity.param_source_loader import ParamSource, load_param_s
 
 PARAM_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
 
-# Transcription reference: the original PARAM_SOURCES dict literal, verbatim, before the
-# TOML migration. Used only to audit that no data was lost/reordered in the conversion.
-_ORIGINAL_PARAM_SOURCES = {
-    'battery_efficiency': ('BatteryEfficiency.csv', ('tech',), 'BatteryEfficiency'),
-    'cap_cost': ('CapCost.csv', ('region', 'tech', 'step', 'year'), 'CapCost'),
-    'cap_cost_initial': ('CapCostInitial.csv', ('region', 'tech', 'step'), 'CapCostInitial'),
-    'cap_factor_vre': ('CapFactorVRE.csv', ('region', 'tech', 'step', 'hour'), 'CapFactorVRE'),
-    'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'FOMCost'),
-    'h2_price': ('H2Price.csv', ('region', 'tech', 'step', 'year', 'season'), 'H2Price'),
-    'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'HourstoBuy'),
-    'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'HydroCapFactor'),
-    'learning_rate': ('LearningRate.csv', ('tech',), 'LearningRate'),
-    'ramp_down_cost': ('RampDownCost.csv', ('tech',), 'RampDownCost'),
-    'ramp_rate': ('RampRate.csv', ('tech',), 'RampRate'),
-    'ramp_up_cost': ('RampUpCost.csv', ('tech',), 'RampUpCost'),
-    'reg_reserves_cost': ('RegReservesCost.csv', ('tech',), 'RegReservesCost'),
-    'reserve_margin': ('ReserveMargin.csv', ('region',), 'ReserveMargin'),
-    'res_tech_upper_bound': ('ResTechUpperBound.csv', ('restype', 'tech'), 'ResTechUpperBound'),
-    'supply_curve': ('SupplyCurve.csv', ('region', 'tech', 'step', 'year'), 'SupplyCurve'),
-    'supply_curve_learning': ('SupplyCurveLearning.csv', ('tech',), 'SupplyCurveLearning'),
+# Expected reference: filename/index_cols transcribed verbatim from the original (pre-TOML)
+# PARAM_SOURCES dict literal; value_col reflects the semantic rename of the CSV value columns
+# (per input/electricity/cem_inputs/data_fixers/value_rename_map.txt), which replaced the
+# original filename-stem column names. Used to audit that the TOML matches expectations.
+_EXPECTED_PARAM_SOURCES = {
+    'battery_efficiency': ('BatteryEfficiency.csv', ('tech',), 'efficiency'),
+    'cap_cost': ('CapCost.csv', ('region', 'tech', 'step', 'year'), 'cost'),
+    'cap_cost_initial': ('CapCostInitial.csv', ('region', 'tech', 'step'), 'cost'),
+    'cap_factor_vre': ('CapFactorVRE.csv', ('region', 'tech', 'step', 'hour'), 'value'),
+    'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'cost'),
+    'h2_price': ('H2Price.csv', ('region', 'tech', 'step', 'year', 'season'), 'cost'),
+    'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'hours'),
+    'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'value'),
+    'learning_rate': ('LearningRate.csv', ('tech',), 'rate'),
+    'ramp_down_cost': ('RampDownCost.csv', ('tech',), 'cost'),
+    'ramp_rate': ('RampRate.csv', ('tech',), 'rate'),
+    'ramp_up_cost': ('RampUpCost.csv', ('tech',), 'cost'),
+    'reg_reserves_cost': ('RegReservesCost.csv', ('tech',), 'cost'),
+    'reserve_margin': ('ReserveMargin.csv', ('region',), 'margin'),
+    'res_tech_upper_bound': ('ResTechUpperBound.csv', ('restype', 'tech'), 'value'),
+    'supply_curve': ('SupplyCurve.csv', ('region', 'tech', 'step', 'year'), 'capacity'),
+    'supply_curve_learning': ('SupplyCurveLearning.csv', ('tech',), 'capacity'),
     'supply_price': (
         'SupplyPrice.csv',
         ('region', 'tech', 'step', 'year', 'season'),
-        'SupplyPrice',
+        'cost',
     ),
-    'tran_cost': ('TranCost.csv', ('source_region', 'destination_region', 'year'), 'TranCost'),
+    'tran_cost': ('TranCost.csv', ('source_region', 'destination_region', 'year'), 'cost'),
     'tran_cost_int': (
         'TranCostInt.csv',
         ('region', 'region_international', 'step', 'year'),
-        'TranCostInt',
+        'cost',
     ),
     'tran_limit': (
         'TranLimit.csv',
         ('source_region', 'destination_region', 'season', 'year'),
-        'TranLimit',
+        'value',
     ),
     'tran_limit_cap_int': (
         'TranLimitCapInt.csv',
         ('region', 'region_international', 'year', 'season'),
-        'TranLimitCapInt',
+        'capacity',
     ),
     'tran_limit_gen_int': (
         'TranLimitGenInt.csv',
         ('region_international', 'step', 'year', 'season'),
-        'TranLimitGenInt',
+        'generation',
     ),
 }
 
@@ -77,15 +79,15 @@ def test_load_param_sources_count_and_keys():
     """all 23 entries load, keyed by the same names as the original dict"""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
-    assert len(loaded) == len(_ORIGINAL_PARAM_SOURCES) == 23
-    assert set(loaded.keys()) == set(_ORIGINAL_PARAM_SOURCES.keys())
+    assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 23
+    assert set(loaded.keys()) == set(_EXPECTED_PARAM_SOURCES.keys())
 
 
 def test_load_param_sources_transcription_audit():
-    """every filename/index_cols/value_col matches the original tuple exactly"""
+    """every filename/index_cols/value_col matches the expected tuple exactly"""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
-    for key, (filename, index_cols, value_col) in _ORIGINAL_PARAM_SOURCES.items():
+    for key, (filename, index_cols, value_col) in _EXPECTED_PARAM_SOURCES.items():
         source = loaded[key]
         assert source.key == key
         assert source.filename == filename

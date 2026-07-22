@@ -24,6 +24,7 @@ class CommonConfig(BaseModel):
     mode: RunMode
     models_to_run: list[ModelType]
     common_data_path: Path
+    residential_data_path: Path
     output_path: Path
     scenario_name: str
     temporal_resolution: str
@@ -42,6 +43,11 @@ class CommonConfig(BaseModel):
         self.output_path = PROJECT_ROOT / self.output_path
         if not self.output_path.is_dir():
             raise ValueError(f'Output path {self.output_path} is not a directory')
+        self.residential_data_path = PROJECT_ROOT / self.residential_data_path
+        if not self.residential_data_path.is_dir():
+            raise ValueError(
+                f'Residential data path {self.residential_data_path} is not a directory'
+            )
         return self
 
     @model_validator(mode='after')

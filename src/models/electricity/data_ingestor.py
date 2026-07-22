@@ -268,19 +268,38 @@ def load_param_data(
     input_dir: Path,
     param_filter: FilterPackage | None = None,
 ) -> dict[str, dict[tuple, float]]:
+    """Load every parameter source into a dict of index-tuple -> value maps.
+
+    Sources flagged ``required = false`` in ``param_sources.toml`` are treated as optional:
+    if their backing file is absent from ``input_dir`` the source is skipped and mapped to an
+    empty dict, letting a reduced input set omit files it does not need. A missing
+    ``required = true`` file still raises ``FileNotFoundError``.
+
+    Parameters
+    ----------
+    input_dir : Path
+        Directory holding the parameter CSVs named in ``PARAM_SOURCES``.
+    param_filter : FilterPackage, optional
+        Region/year filter applied while reading. Defaults to no filtering.
+
+    Returns
+    -------
+    dict[str, dict[tuple, float]]
+        One entry per ``PARAM_SOURCES`` key; empty for absent optional files.
+    """
     if not param_filter:
         # make an empty one (no filtering)
         param_filter = FilterPackage()
 
-    return dict(
-        (
-            k,
-            read_parameter_csv(
-                input_dir / source.filename, source.index_cols, source.value_col, param_filter
-            ),
-        )
-        for k, source in PARAM_SOURCES.items()
-    )
+    res: dict[str, dict[tuple, float]] = {}
+    for k, source in PARAM_SOURCES.items():
+        file_path = input_dir / source.filename
+        if not source.required and not file_path.exists():
+            logger.info('Optional param source %s absent (%s); using empty data', k, file_path)
+            res[k] = {}
+            continue
+        res[k] = read_parameter_csv(file_path, source.index_cols, source.value_col, param_filter)
+    return res
 
 
 def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:

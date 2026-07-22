@@ -1,0 +1,7 @@
+tech,step,builds
+NG_Fired_Plant,1,-
+NG_Fired_Plant,2,-
+NG_Fired_Plant,3,True
+Hydro_Plant,1,-
+Battery_Storage,1,-
+Solar,1,True

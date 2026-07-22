@@ -14,12 +14,10 @@ held in pandas dataframes.
 
 import logging
 from collections.abc import Collection
-from pathlib import Path
 
 import pandas as pd
 from pandas import DataFrame
 
-from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import (
@@ -222,7 +220,7 @@ class ParamData:
         #        Model assumes full set
         # TODO:  refactor this so it returns a DF for testing purposes
 
-        res_dir = Path(PROJECT_ROOT, 'input', 'residential')
+        res_dir = self.common_config.residential_data_path
 
         match self.elec_config.load_scale_mode:
             case LoadScaleMode.ANNUAL:

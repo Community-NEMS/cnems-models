@@ -5,6 +5,7 @@ mode = "standalone"
 models_to_run=['electricity']
 
 common_data_path='input/electricity'
+residential_data_path='input/residential'
 output_path='output'
 scenario_name = "baseline"
 

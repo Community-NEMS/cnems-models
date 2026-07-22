@@ -1,0 +1,13 @@
+region,season,HydroCapFactor
+TX,1,0.54
+TX,2,0.5
+TX,3,0.57
+TX,4,0.51
+CA,1,0.5
+CA,2,0.26
+CA,3,0.62
+CA,4,0.38
+NY,1,0.7
+NY,2,0.68
+NY,3,0.68
+NY,4,0.68

@@ -143,7 +143,7 @@ core_variable_indices = {
     'generation_total': ['region', 'tech', 'step', 'year', 'hour'],
     'capacity_builds': ['region', 'tech', 'step', 'year'],
     'capacity_retirements': ['region', 'tech', 'step', 'year'],
-    'capacity_total': ['region', 'tech', 'step', 'year', 'season'],
+    'capacity_total': ['region', 'tech', 'step', 'year'],
     'storage_inflow': storage_index_names,
     'storage_outflow': storage_index_names,
     'storage_level': storage_index_names,

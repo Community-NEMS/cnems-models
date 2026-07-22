@@ -229,14 +229,15 @@ def parse_form_values(input_ids: list[dict], input_values: list) -> tuple[dict, 
     return raw['common'], raw['elec_config']
 
 
-def load_configs(path: Path | None = None) -> tuple[CommonConfig, ElecConfig, Path]:
+def load_config(path: Path | None = None) -> tuple[CommonConfig, ElecConfig, Path]:
     """Load the common/electricity configs to populate the GUI's config editor.
 
     Parameters
     ----------
     path : Path | None
         Explicit config file to load. If not given, prefers `CONFIG_JSON_PATH` if it exists,
-        else falls back to `DEFAULT_TOML_PATH`.
+        else falls back to `DEFAULT_TOML_PATH`. When the preferred `CONFIG_JSON_PATH` fails to
+        validate, the corrupt file is deleted and loading falls back to `DEFAULT_TOML_PATH`.
 
     Returns
     -------
@@ -244,7 +245,22 @@ def load_configs(path: Path | None = None) -> tuple[CommonConfig, ElecConfig, Pa
         The parsed configs and the path actually loaded from.
     """
     if path is None:
-        path = CONFIG_JSON_PATH if CONFIG_JSON_PATH.exists() else DEFAULT_TOML_PATH
+        if CONFIG_JSON_PATH.exists():
+            try:
+                return _parse_config(CONFIG_JSON_PATH)
+            except ValidationError:
+                logger.warning(
+                    'Config at %s failed validation; deleting it and falling back to %s',
+                    CONFIG_JSON_PATH,
+                    DEFAULT_TOML_PATH,
+                )
+                CONFIG_JSON_PATH.unlink(missing_ok=True)
+        return _parse_config(DEFAULT_TOML_PATH)
+    return _parse_config(path)
+
+
+def _parse_config(path: Path) -> tuple[CommonConfig, ElecConfig, Path]:
+    """Parse a single config file into `(CommonConfig, ElecConfig, path)`."""
     common_config, remainder = parse_config_file(path)
     elec_config = ElecConfig(**remainder.pop('elec_config'))
     return common_config, elec_config, path

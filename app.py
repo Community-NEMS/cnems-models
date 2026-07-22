@@ -22,7 +22,7 @@ from src.common.config_gui import (
     CONFIG_JSON_PATH,
     ConfigValidationError,
     build_config_form,
-    load_configs,
+    load_config,
     parse_form_values,
     save_configs,
 )
@@ -113,7 +113,7 @@ def load_config_editor(_):
         list of Dash components for the config editor, and whether the Save button is disabled
     """
     try:
-        common_config, elec_config, _path = load_configs()
+        common_config, elec_config, _path = load_config()
     except Exception as exc:
         logger.error('Failed to load configuration: %s', exc)
         return [html.Div(f'Error loading configuration: {exc}', style={'color': 'red'})], True

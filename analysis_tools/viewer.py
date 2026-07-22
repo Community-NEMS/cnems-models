@@ -1,20 +1,24 @@
 ####################################################################################################################
 # Setup
 
+import base64
 import os
 from pathlib import Path
 
-# Import pacakges
 import pandas as pd
-import plotly as plotly
 import plotly.express as px
 from dash import Dash, Input, Output, dcc, html
 
-import analysis_tools
 from definitions import PROJECT_ROOT
 
 # setting up directories
 dir_output = PROJECT_ROOT / 'output'  # Path(__file__).parent
+
+# header background image, embedded as a data URI so it renders without Dash asset serving
+_header_bg_svg = PROJECT_ROOT / 'app_images' / 'energy_tech_background_pattern.svg'
+_header_bg_data_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
+    _header_bg_svg.read_bytes()
+).decode('ascii')
 
 
 # add a new index using a mapping dataframe and return a dataframe with the input index
@@ -328,8 +332,8 @@ s_regions.sort()
 s_technologies = pd.unique(df_capacitytotal['tech_type'])
 s_years = pd.unique(df_generation['year'])
 s_years.sort()
-s_canregions = pd.unique(df_tradecan['region_international'])
-s_canregions.sort()
+# s_canregions = pd.unique(df_tradecan['region_international'])
+# s_canregions.sort(key=lambda x: str(x))
 s_runs = sorted(pd.unique(df_generation['run']))
 
 # change directory back to the scripts folder (This is for the batch file to work.)
@@ -346,7 +350,9 @@ app.layout = html.Div(
             style={
                 'textAlign': 'center',
                 'padding': '2rem',
-                'backgroundColor': 'rgb(166, 251, 255)',
+                'backgroundImage': f'url({_header_bg_data_uri})',
+                'backgroundSize': 'cover',
+                'backgroundPosition': 'center',
                 'boxShadow': '#e3e3e3 5px 5px 5px',
                 'border-radius': '1px',
             },

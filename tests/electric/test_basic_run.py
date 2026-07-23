@@ -9,11 +9,12 @@ A temporary (?) test to lock down the current outputs of a basic no-frills test 
 
 """
 
+import logging
 from pathlib import Path
 
-import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
+from tabulate import tabulate
 
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
@@ -26,10 +27,17 @@ from analysis_tools.model_diagnostics import (
 )
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
+from src.common.integrated_model_sequencer import IterationStatus
 from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.sequencer import ElectricitySequencer, run_elec_model
+from src.models.electricity.sequencer import (
+    _LEARNING_TOLERANCE,
+    ElectricitySequencer,
+    run_elec_model,
+)
 
+# "verbose" mode is supplied for these basic tests to screen output key data to aid in
+# development
 verbose = False
 
 # Always-required ParamSource keys -> the pyomo Param attribute they end up as on PowerModel.
@@ -198,20 +206,18 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         )
 
 
-def test_linear_learning(config_set):
-    """fundamental test to exercise linear learning capability"""
+def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
+    """Exercise the linear-learning iteration on the micro dataset in tests/electric/test_data_linear_learning_test.
 
-    # TODO:  This needs development.  RN, it just ensures it runs with at least 1 iteration
-
-    common_config, elec_config = config_set
-    # override settings to enable expansion w/ learning
-    elec_config.capacity_expansion = True
-    elec_config.expansion_learning_type = ExpansionLearningType.LINEAR
-    elec_config.region_filter = list('78913462')
+    The dataset (single region 'CA', single tech 'NG_Fired_Plant') has 2.0 units of existing
+    capacity against a load that starts at 4.0 units and grows 5 units/year, forcing step-3
+    builds every year.  Asserts on the convergence log emitted by
+    ``ElectricitySequencer.solve_model`` each iteration.
+    """
+    common_config, elec_config = learning_config_set
 
     sequencer = ElectricitySequencer()
     elec_model = sequencer.build_model(common_config, elec_config)
-    # elec_model = run_elec_model(common_config, elec_config, solve=False)
 
     # with learning enabled, the learning-gated param_sources.toml entries should be wired in
     for key, attr in {
@@ -222,15 +228,44 @@ def test_linear_learning(config_set):
         assert not PARAM_SOURCES[key].required
         assert hasattr(elec_model, attr), f'{attr} missing with learning enabled'
 
-    # the basic model above requires no capital expansion to meet load => no learning
-    # as a TEMP coaxing, we'll increase the load
+    # DEBUG level additionally captures the per-key CapCostLearning updates for the verbose table
+    capture_level = logging.DEBUG if verbose else logging.INFO
+    with caplog.at_level(capture_level, logger='src.models.electricity.sequencer'):
+        status = sequencer.solve_model()
+    assert status is IterationStatus.BEST, f'solve failed with status {status}'
 
-    # Capture current Load values
-    load_data = {idx: value(elec_model.Load[idx]) * 2 for idx in elec_model.Load}
-    # Delete the immutable parameter
-    elec_model.del_component(elec_model.Load)
-    # Re-initialize with increased values
-    elec_model.Load = pyo.Param(load_data.keys(), initialize=load_data, mutable=False)
+    if verbose:
+        # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
+        cost_rows = [
+            rec.args for rec in caplog.records if rec.msg.startswith('Reduced CapCostLearning')
+        ]
+        y0 = value(elec_model.y0_learning)
+        initial_costs = {
+            idx: value(elec_model.CapCostInitial[idx]) for idx in elec_model.CapCostInitial
+        }
+        print(f'\ny0 for learning: {y0}')
+        print(f'CapCostInitial: {initial_costs}')
+        # one record per CapCostLearning key per iteration; recover the iteration index by chunking
+        n_keys = len(elec_model.CapCostLearning)
+        table = [
+            (i // n_keys, y, old, new)
+            for i, (_r, _tech, _step, y, old, new) in enumerate(cost_rows)
+        ]
+        headers = ['iteration', 'year', 'old cost', 'new cost']
+        print(tabulate(table, headers=headers, floatfmt='.2f'))
 
-    # just a functional check to ensure solve, RN...
-    sequencer.solve_model()
+    # gather the per-iteration convergence records: args are (iteration, eps)
+    tolerance_records = [
+        rec.args
+        for rec in caplog.records
+        if rec.msg.startswith('Tolerance in linear learning iteration')
+    ]
+    assert len(tolerance_records) >= 1, 'no learning iterations were logged'
+    _, final_eps = tolerance_records[-1]
+    assert final_eps < _LEARNING_TOLERANCE, (
+        f'learning did not converge: final eps {final_eps} >= tolerance {_LEARNING_TOLERANCE}'
+    )
+
+    # the load design must force expansion builds (step 3), otherwise learning has nothing to do
+    total_builds = sum(value(elec_model.capacity_builds[idx]) for idx in elec_model.capacity_builds)
+    assert total_builds > 0, 'expected capacity builds; dataset failed to force expansion'

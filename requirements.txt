@@ -11,4 +11,5 @@ matplotlib
 dash
 dash-bootstrap-components
 networkx
+tabulate
 

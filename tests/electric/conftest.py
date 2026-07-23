@@ -30,6 +30,19 @@ def config_set() -> tuple[CommonConfig, ElecConfig]:
 
 
 @pytest.fixture
+def learning_config_set() -> tuple[CommonConfig, ElecConfig]:
+    """Build a (CommonConfig, ElecConfig) pair for the linear-learning micro dataset.
+
+    Points at ``tests/electric/test_data_linear_learning_test`` (single region 'CA', single tech
+    'NG_Fired_Plant') with capacity expansion + linear learning enabled.
+    """
+    config_path = Path(PROJECT_ROOT, 'tests/electric/test_data_linear_learning_test/linear_learning_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    return common_config, elec_config
+
+
+@pytest.fixture
 def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
     """build an un-solved PowerModel for testing"""
     common_config, elec_config = config_set

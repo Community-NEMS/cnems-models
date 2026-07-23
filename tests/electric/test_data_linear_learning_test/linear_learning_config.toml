@@ -1,0 +1,26 @@
+# Micro-dataset config for exercising the linear-learning iteration in
+# ElectricitySequencer.solve_model().  Near-copy of tests/electric/basic_elec_config.toml
+# pointed at the single-region (CA) / single-tech (NG_Fired_Plant) data in this folder.
+
+[common]
+mode = "standalone"
+models_to_run=['electricity']
+common_data_path='tests/electric/test_data_linear_learning_test'
+residential_data_path='tests/electric/test_data_linear_learning_test/residential'
+output_path='output'
+scenario_name = "linear_learning_test"
+temporal_resolution = "default"
+aggregate_years=false
+aggregate_start_year = 2030
+summary_years = [2030, 2031, 2032, 2033, 2034, 2035]
+
+[elec_config]
+input_path='tests/electric/test_data_linear_learning_test/param_data'
+region_filter = ['CA']
+regional_exchange=false
+capacity_expansion=true
+expansion_learning_type='linear'  # disabled/linear/nonlinear
+reserve_margin_required=false
+spinning_reserve_required=false
+ramping_required=false
+load_scale_mode = "annual"

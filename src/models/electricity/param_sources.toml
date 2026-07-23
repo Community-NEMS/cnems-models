@@ -140,7 +140,7 @@ required = true
 [[param_source]]
 key = "tran_cost"
 filename = "TranCost.csv"
-index_cols = ["source_region", "destination_region", "year"]
+index_cols = ["destination_region", "source_region",  "year"]
 value_col = "cost"
 required = false  # regional_exchange
 
@@ -154,7 +154,7 @@ required = false  # regional_exchange
 [[param_source]]
 key = "tran_limit"
 filename = "TranLimit.csv"
-index_cols = ["source_region", "destination_region", "season", "year"]
+index_cols = ["destination_region", "source_region", "season", "year"]
 value_col = "value"
 required = false  # regional_exchange
 

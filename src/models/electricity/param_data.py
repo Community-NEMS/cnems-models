@@ -162,7 +162,7 @@ class ParamData:
         # do the same for interregional
         # we can skip this if there are no interregional connections
         if len(self.param_frames['tran_limit']) > 0:
-            TLI_cols = ['source_region', 'destination_region', 'year', 'hour', 'value']
+            TLI_cols = ['destination_region', 'source_region', 'year', 'hour', 'value']
             self.param_frames['tran_limit'] = self.create_hourly_params(
                 self.param_frames['MapHourSeason'],
                 self.param_frames['tran_limit'],
@@ -184,10 +184,7 @@ class ParamData:
             intl_gen_limit=self.param_frames['tran_limit_gen_int'],
         )
 
-        # augment the supply curve dataframe w/ season x-product
-        # TODO:  It should NOT be necessary to augment this DF with the x-product of season.
-        #        Review formulation.
-        #        Likely done to allow comparison w/ price, which IS seasonal.
+        # augment the supply curve dataframe w/ season x-product in temp var to enable x-product
         df = add_season_index(
             model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 4
         )

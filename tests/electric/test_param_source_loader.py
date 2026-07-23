@@ -41,7 +41,7 @@ _EXPECTED_PARAM_SOURCES = {
         ('region', 'tech', 'step', 'year', 'season'),
         'cost',
     ),
-    'tran_cost': ('TranCost.csv', ('source_region', 'destination_region', 'year'), 'cost'),
+    'tran_cost': ('TranCost.csv', ('destination_region', 'source_region', 'year'), 'cost'),
     'tran_cost_int': (
         'TranCostInt.csv',
         ('region', 'region_international', 'step', 'year'),
@@ -49,7 +49,7 @@ _EXPECTED_PARAM_SOURCES = {
     ),
     'tran_limit': (
         'TranLimit.csv',
-        ('source_region', 'destination_region', 'season', 'year'),
+        ('destination_region', 'source_region', 'season', 'year'),
         'value',
     ),
     'tran_limit_cap_int': (

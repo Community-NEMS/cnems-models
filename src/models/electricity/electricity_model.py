@@ -390,15 +390,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.hour,
                 initialize=all_frames['tran_limit'],
             )
+            """destination, source, year, hour"""
 
             # An aside to make an indexed set of trading partners
             # dev note:  It might be worthwhile to make this a sparse set and fabricate the index
             #            of this separately to maintain the validation?  That would require a
             #            conditional membership check where this is used.
             partners = defaultdict(list)
-            for source_region, destination_region, year, hour in all_frames['tran_limit'].index:
-                partners[source_region, year, hour].append(destination_region)
-            self.regional_partners = pyo.Set(
+            for destination_region, source_region, year, hour in all_frames['tran_limit'].index:
+                partners[destination_region, year, hour].append(source_region)
+            self.regional_sources = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
@@ -853,11 +854,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 for (tech, step) in self.StorageSetDemandBalance[r, y, hr]
             ) + self.unmet_load[r, y, hr] + (
                 sum(
-                    # TODO:  Sauleh, review this.  Seems transmission loss should apply to what
-                    #        region "r" receives not what it sends out...?
                     self.trade_interregional[r, r1, y, hr] * (1 - TRANSMISSION_LOSS_FACTOR)
                     - self.trade_interregional[r1, r, y, hr]
-                    for (r1) in self.regional_partners[r, y, hr]
+                    for r1 in self.regional_sources[r, y, hr]
                 )
                 # note:  don't need to check "region_trade" as the lookup in partners could be empty
                 if elec_config.regional_exchange  # and r in self.region_trade
@@ -1381,9 +1380,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     <= self.TranLimit[r, r1, y, hr] * self.WeightHour[hr]
                 )
 
-        # if reserve margin requirements are on
-        # TODO:  Ask Sauleh why we reference "expansion" here as it seems like separate concept.
-        #        Why not JUST reserve_margin?
+        # if reserve margin requirements and expansion are on
+
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
             # self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
 
@@ -1678,7 +1676,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.Load.index_set())
             def reserve_requirement_flex_lb(self, r, y, hr):
                 """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap) where
-                Reserves Requirement >= 0.01 * Wind Gen
+                Reserves Requirement >= 0.10 * Wind Gen
                                       + 0.04 * Solar Cap
 
                 Parameters
@@ -1695,8 +1693,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Flexible reserve requirement
                 """
-                # TODO:  Verify (Sauleh) the wind reqt.  Code has 10%, docstring has
-                #        1% and 10%... picking 10% :)
                 return sum(
                     self.reserves_procurement[r, 'flex', tech, step, y, hr]
                     for (tech, step) in self.ProcurementSetReserves[r, 'flex', y, hr]

@@ -259,11 +259,11 @@ Minimize total cost (\$)
 
 $$
 \begin{aligned}
-        \min \mathbf{C_{tot}} =  &C_{disp}+ C_{unload} \\
-        (+ &C_{exp} + C_{fom} \quad if \quad sw\_expansion = 1 )\\
-        (+ &C_{tra} \quad if \quad sw\_trade = 1 )\\
-        (+ &C_{ramp} \quad if \quad sw\_ramp = 1 )\\
-        (+ &C_{or}\quad if \quad sw\_reserves = 1 )
+        \min \mathbf{C_{tot}} = &C_{disp}+ C_{unload} \\
+        &+ C_{exp} + C_{fom} \quad (if  sw\_expansion = 1 )\\
+        &+ C_{tra} \quad (\text{if } sw\_trade = 1 )\\
+        &+ C_{ramp} \quad (\text{if } sw\_ramp = 1 )\\
+        &+ C_{or}\quad (\text{if } sw\_reserves = 1 )
 \end{aligned}
         \tag{1}
 $$
@@ -276,11 +276,11 @@ $$
 \begin{aligned}
 C_{disp} =
         \sum_{h \in H | s=MHS_h}{}
-        (WD_h \times
-        \sum_{{t,y,r,s} \in \theta^{GSH}_h}{WY_y \times SPR_{r,seas,t,s,y} \times \mathbf{GEN}_{t,y,r,s,h}}\\
+        WD_h \Big(
+        &\sum_{{t,y,r,s} \in \theta^{GSH}_h}{WY_y \times SPR_{r,seas,t,s,y} \times \mathbf{GEN}_{t,y,r,s,h}}\\
         &+\sum_{{t,y,r,s} \in \theta^{SSH}_h}{(WY_y \times (0.5 \times SPR_{r,seas,t,s,y} \times (\mathbf{STOR^{in}}_{t,y,r,s,h} + \mathbf{STOR^{out}}_{t,y,r,s,h})}\\
         &+ (HW_h \times STORLC) \times \mathbf{STOR^{level}}_{t,y,r,s,h}))\\
-        &+\sum_{{t,y,r,s} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,seas,t,s,y} \times H2HR \times \mathbf{GEN}_{t,y,r,1,h}})
+        &+\sum_{{t,y,r,s} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,seas,t,s,y} \times H2HR \times \mathbf{GEN}_{t,y,r,1,h}}\Big)
 \end{aligned}
         \tag{2}
 $$
@@ -303,16 +303,14 @@ $$
 \begin{aligned}
 C_{exp} =
         &\sum_{{r,t,y,s} \in \Theta_{cc}}
-       ( CAPC0_{r,t,y,s}
-       \\
+       CAPC0_{r,t,y,s}\\
        &\times \left( \frac{
             SCL_t + 0.001 \times (y-YR0)
-            + \sum_{{r,t1,s} \in \Theta_{cc0} | t1 = t}{ \sum_{y1 \in Y | y1<y}{\mathbf{CAP^{new}}_{r,t1,y1,s}}}
+            + \sum_{{r,t1,s} \in \Theta_{cc0} | t1 = t}{ \sum_{y1 \in Y | y1\lt y}{\mathbf{CAP^{new}}_{r,t1,y1,s}}}
             }{SCL_t} \right) ^{-LR_t}
-            \\
-       &\times \mathbf{CAP^{new}}_{r,t,y,s} )
+\times \mathbf{CAP^{new}}_{r,t,y,s}
          \\
-        &\quad if \quad sw\_learning = 2
+        &\quad \text{if } sw\_learning = 2
 \end{aligned}
        \tag{4a}
 $$
@@ -323,7 +321,7 @@ $$
         C_{exp} =
         &\sum_{{r,t,y,s} \in \Theta_{cc}}{
        CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\
-       &\quad if \quad sw\_learning < 2
+       &\quad \text{if } sw\_learning \lt 2
 \end{aligned}
        \tag{4b}
 $$
@@ -344,7 +342,7 @@ Interregional trade cost:
 $$
 \begin{aligned}
         C_{tra} =
-        \sum_{{r,r1,y,h} \in \Theta_{tra}}{
+        &\sum_{{r,r1,y,h} \in \Theta_{tra}}{
         WD_h \times WY_y \times TRAC_{r,r1,y} \times \mathbf{TRA}_{r,r1,y,h}}\\
         &+
         \sum_{{r,r^{int},y,c,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times
@@ -400,10 +398,10 @@ $$
     - \mathbf{STOR^{in}}_{t,y,r,s,h})}\\
         &+ \mathbf{UNLOAD}_{r,y,h}\\
         &(+ \sum_{r1 \in \theta^{TDB}_{y,r,h}}{\left(\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)}
-        \quad if \quad sw\_trade = 1)\\
+        \quad \text{if } sw\_trade = 1)\\
     &(+ \sum_{r_{int},c \in \theta^{TCDB}_{y,r,h}}{(\mathbf{TRA}^{int}_{r,r_{int},y,c,h}
     \times (1 - LL) - \mathbf{TRA}^{int}_{r_{int},r,y,c,h})}
-    \quad if \quad sw\_trade = 1)\\
+    \quad \text{if } sw\_trade = 1)\\
         &\forall  {r,y,h} \in \Theta_{load}
 \end{aligned}
         \tag{1}
@@ -440,7 +438,7 @@ Generation upper bound constraints limit generation from generating
 technologies, accounting for reserve requirements, operating capacity, and
 capacity factors where:
 
-$$ \begin{aligned} Generation + Reserve Procurement <= Capacity \times Capacity Factor \end{aligned} $$
+$$ \begin{aligned} Generation + Reserve Procurement \le Capacity \times Capacity Factor \end{aligned} $$
 
 This is the same constraint for dispatchable, hydroelectric, and intermittent
 technologies. For intermittent technologies, the capacity factors are
@@ -469,7 +467,7 @@ $$
 \begin{aligned}
         &\mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad if \quad sw\_rm = 1)\\
+        \quad \text{if } sw\_rm = 1)\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{dt^{max}}
 \end{aligned}
@@ -483,7 +481,7 @@ $$
 \begin{aligned}
         &\mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad if \quad sw\_rm = 1)\\
+        \quad \text{if } sw\_rm = 1)\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HCF_{r,MHS_h} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{ht^{max}}
 \end{aligned}
@@ -497,7 +495,7 @@ $$
 \begin{aligned}
         \mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad if \quad sw\_rm = 1)\\
+        \quad \text{if } sw\_rm = 1)\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times ICF_{t,y,r,s,h} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{it^{max}}
 \end{aligned}
@@ -522,7 +520,7 @@ $$
 \begin{aligned}
         &\mathbf{STOR^{out}}_{t,y,r,s,h} \\
         &(+\sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad if \quad sw\_rm = 1)\\
+        \quad \text{if } sw\_rm = 1)\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}
 \end{aligned}
@@ -556,9 +554,9 @@ $$
         \mathbf{CAP^{tot}}_{r,seas,t,s,y}
         = &CAP^{exist}_{r,seas,t,s,y} \\
         &(+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,cy,s}}
-        \quad if \quad sw\_expansion = 1)\\
+        \quad \text{if } sw\_expansion = 1)\\
         &(+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{t,cy,r,s}}
-        \quad if \quad sw\_expansion = 1)\\
+        \quad \text{if } sw\_expansion = 1)\\
         &\forall {r,seas,t,s,y} \in \Theta_{SC}
 \end{aligned}
         \tag{11}
@@ -571,10 +569,10 @@ $$
 \begin{aligned}
         \mathbf{CAP^{ret}}_{t,y,r,s} \leq
         &CAP^{exist}_{r,2,t,s,y} +
-        \sum_{cy \in Y < y}{\mathbf{CAP^{new}}_{r,t,cy,s}} -
-        &\sum_{cy \in Y < y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \\
+        \sum_{cy \in Y \lt y}{\mathbf{CAP^{new}}_{r,t,cy,s}} -
+        &\sum_{cy \in Y \lt y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \\
         &\forall {t,y,r,s} \in \Theta_{ret} \\
-        &\quad if \quad sw\_expansion = 1 \\
+        &\quad \text{if } sw\_expansion = 1 \\
 \end{aligned}
         \tag{12}
 $$
@@ -594,7 +592,7 @@ $$
         \sum_{c}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq
         &TRALINLIM^{int}_{r,r^{int},y,h} * HW_h \\
         &\forall {r,r^{int},y,h} \in \Theta_{traLL^{int}} \\
-        &\quad if \quad sw\_trade = 1\\
+        &\quad \text{if } sw\_trade = 1\\
 \end{aligned}
         \tag{13}
 $$
@@ -606,7 +604,7 @@ $$
         \sum_{r}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq
         &TRALIM^{int}_{r^{int},c,y,h} * HW_h \\
         &\forall {r,r^{int},y,h} \in \Theta_{traL^{int}} \\
-        &\quad if \quad sw\_trade = 1\\
+        &\quad \text{if } sw\_trade = 1\\
 \end{aligned}
         \tag{14}
 $$
@@ -619,7 +617,7 @@ $$
         \mathbf{TRA}_{r,r1,y,h} \leq
         &TRALINLIM_{r,r1,MHS_h,y} * HW_h \\
         &\forall {r,r1,y,h} \in \Theta_{traLL} \\
-        &\quad if \quad sw\_trade = 1\\
+        &\quad \text{if } sw\_trade = 1\\
 \end{aligned}
         \tag{15}
 $$
@@ -641,7 +639,7 @@ $$
         &HW_h \times \\
         &\sum_{{t,s} \in \theta^{scrm}_{y,r,MHS_h}}{CC_{t,y,r,s,h} \times (\mathbf{STOR^{avail}}_{t,y,r,s,h} + \mathbf{CAP^{tot}_{r,MHS_h,t,s,y}})}\\
         &\forall {r,y,h} \in \Theta_{load}\\
-        &\quad if \quad sw\_rm = 1\\
+        &\quad \text{if } sw\_rm = 1\\
 \end{aligned}
         \tag{16}
 $$
@@ -654,7 +652,7 @@ $$
 \begin{aligned}
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq    &\mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}\\
-        &\quad if \quad sw\_rm = 1\\
+        &\quad \text{if } sw\_rm = 1\\
 \end{aligned}
         \tag{17}
 $$
@@ -668,7 +666,7 @@ $$
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq
     &\mathbf{STOR^{level}}_{t,y,r,s,h}\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}\\
-        &\quad if \quad sw\_rm = 1\\
+        &\quad \text{if } sw\_rm = 1\\
 \end{aligned}
         \tag{18}
 $$
@@ -684,7 +682,7 @@ $$
 \begin{aligned}
     \mathbf{GEN}_{t,y,r,s,h} =    &\mathbf{GEN}_{t,y,r,s,h+N-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp1} \\
-        &\quad if \quad sw\_ramp = 1\\
+        &\quad \text{if } sw\_ramp = 1\\
 \end{aligned}
     \tag{19}
 $$
@@ -695,7 +693,7 @@ $$
 \begin{aligned}
     \mathbf{GEN}_{t,y,r,s,h} =    &\mathbf{GEN}_{t,y,r,s,h-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp23} \\
-        &\quad if \quad sw\_ramp = 1\\
+        &\quad \text{if } sw\_ramp = 1\\
 \end{aligned}
     \tag{20}
 $$
@@ -709,7 +707,7 @@ $$
     &HW_h \times RR_t \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp} \\
-        &\quad if \quad sw\_ramp = 1\\
+        &\quad \text{if } sw\_ramp = 1\\
 \end{aligned}
     \tag{21}
 $$
@@ -723,7 +721,7 @@ $$
     &HW_h \times RR_t \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp} \\
-        &\quad if \quad sw\_ramp = 1\\
+        &\quad \text{if } sw\_ramp = 1\\
 \end{aligned}
     \tag{22}
 $$
@@ -743,7 +741,7 @@ $$
     0.03 \times LOAD_{r,y,h} \leq
     &\sum_{{t,s} \in \theta^{opres}_{1,r,y,h}}{\mathbf{ORP}_{1,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad if \quad sw\_reserves = 1\\
+        &\quad \text{if } sw\_reserves = 1\\
 \end{aligned}
     \tag{23}
 $$
@@ -759,7 +757,7 @@ $$
     \leq
     &\sum_{{t,s} \in \theta^{opres}_{2,r,y,h}}{\mathbf{ORP}_{2,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad if \quad sw\_reserves = 1\\
+        &\quad \text{if } sw\_reserves = 1\\
 \end{aligned}
     \tag{24}
 $$
@@ -775,7 +773,7 @@ $$
     \leq
     &\sum_{{t,s} \in \theta^{opres}_{3,r,y,h}}{\mathbf{ORP}_{3,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad if \quad sw\_reserves = 1\\
+        &\quad \text{if } sw\_reserves = 1\\
 \end{aligned}
     \tag{25}
 $$
@@ -789,7 +787,7 @@ $$
     &RTUB_{o,t} \times HW_h \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}\\
     &\forall {o,t,y,r,s,h} \in \Theta_{proc} \\
-    &\quad if \quad sw\_reserves = 1\\
+    &\quad \text{if } sw\_reserves = 1\\
 \end{aligned}
     \tag{26}
 $$

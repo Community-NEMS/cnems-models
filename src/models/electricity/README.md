@@ -8,25 +8,68 @@
 
 ## Introduction
 
-**The electricity model is formulated as a least-cost optimization problem to meet electricity demand with generation from multiple technology options**. It includes both electricity dispatch and the option for capacity expansion. Users can also specify various power sector operations they would like to represent, for example, capabilities for representing capacity reserves, operating reserves, and ramping constraints, as well as others that will be described in more detail below.
+**The electricity model is formulated as a least-cost optimization problem to
+meet electricity demand with generation from multiple technology options**. It
+includes both electricity dispatch and the option for capacity expansion. Users
+can also specify various power sector operations they would like to represent,
+for example, capabilities for representing capacity reserves, operating
+reserves, and ramping constraints, as well as others that will be described in
+more detail below.
 
-**The model has both temporal and spatial flexibility**, which can be specified by the user depending on the purpose of a study. The temporal flexibility includes the ability to specify both the years and the time segments within a year, with the finest granularity available being 8760 hours annually. The 8760 hours within a year can be aggregated up by hours within a day as well as days within a season. If a user is running the model for more than one year, the user can choose how non-modeled intervals between years are aggregated. In terms of spatial flexibility, users can specify which regions they want to run and if regions have the capability to trade with one another.
+**The model has both temporal and spatial flexibility**, which can be specified
+by the user depending on the purpose of a study. The temporal flexibility
+includes the ability to specify both the years and the time segments within a
+year, with the finest granularity available being 8760 hours annually. The 8760
+hours within a year can be aggregated up by hours within a day as well as days
+within a season. If a user is running the model for more than one year, the user
+can choose how non-modeled intervals between years are aggregated. In terms of
+spatial flexibility, users can specify which regions they want to run and if
+regions have the capability to trade with one another.
 
-**The model uses linear optimization by default, but if running the model with capacity expansion, a user has the option of representing cost reductions using a nonlinear technology learning function**. This function can be modeled endogenously, by either turning the problem into a nonlinear program, or by running successive iterations of linear programs over a fixed nonlinear learning function. Users can also specify which technology options are allowed to expand or retire.
+**The model uses linear optimization by default, but if running the model with
+capacity expansion, a user has the option of representing cost reductions using
+a nonlinear technology learning function**. This function can be modeled
+endogenously, by either turning the problem into a nonlinear program, or by
+running successive iterations of linear programs over a fixed nonlinear learning
+function. Users can also specify which technology options are allowed to expand
+or retire.
 
-After completing a run, the module will return datasets in the output directory for the variables, parameters, sets, and constraints. These datasets will be stored in the output directory at the top level. The viewer within the output directory includes options for reviewing electricity model variable results. If running the model in standalone mode, the model will also produce a graphic showing the distribution of electricity prices within the output directory.
+After completing a run, the module will return datasets in the output directory
+for the variables, parameters, sets, and constraints. These datasets will be
+stored in the output directory at the top level. The viewer within the output
+directory includes options for reviewing electricity model variable results. If
+running the model in standalone mode, the model will also produce a graphic
+showing the distribution of electricity prices within the output directory.
 
 ## Prepare Data
 
-The data needed for the electricity model is stored within the input directory in the capacity expansion model e.g., cem_input subdirectory. The inputs include regionally indexed and technology indexed input assumptions data for items like transmission and technology costs and operations. In addition, there is supply curve price and quantity data that provides the fuel cost assumptions for each power technology.
+The data needed for the electricity model is stored within the input directory
+in the capacity expansion model e.g., cem_input subdirectory. The inputs include
+regionally indexed and technology indexed input assumptions data for items like
+transmission and technology costs and operations. In addition, there is supply
+curve price and quantity data that provides the fuel cost assumptions for each
+power technology.
 
-The data is prepared within the preprocessor.py file within the scripts directory. The preprocessor script creates an initial sets class for the model, based on the setting data provided by the integrator code. Sets are organized into regional sets, temporal sets, and technology-based sets. Next the preprocessor reads in all of the input data within the cem_inputs directory and processes it into the format needed for the PowerModel based on the spatial and temporal settings specified. When the preprocessor is finished, it passes a dictionary of input data as well as the sets class to the PowerModel for further processing.
+The data is prepared within the preprocessor.py file within the scripts
+directory. The preprocessor script creates an initial sets class for the model,
+based on the setting data provided by the integrator code. Sets are organized
+into regional sets, temporal sets, and technology-based sets. Next the
+preprocessor reads in all of the input data within the cem_inputs directory and
+processes it into the format needed for the PowerModel based on the spatial and
+temporal settings specified. When the preprocessor is finished, it passes a
+dictionary of input data as well as the sets class to the PowerModel for further
+processing.
 
-There are several files where features can be switched (sw) on/off and different crosswalks (cw) can be selected. All of these options exist in [run_config.toml](/src/integrator/run_config.toml) file the integrator directory.
+There are several files where features can be switched (sw) on/off and different
+crosswalks (cw) can be selected. All of these options exist in
+[run_config.toml](/src/integrator/run_config.toml) file the integrator
+directory.
 
 ### Feature Settings
 
-The [run_config.toml](/src/integrator/run_config.toml) file contains the main switches through which features for the electricity module can be toggled. The setup column names various constraint settings:
+The [run_config.toml](/src/integrator/run_config.toml) file contains the main
+switches through which features for the electricity module can be toggled. The
+setup column names various constraint settings:
 
 |Switch    | Description   | Values | Notes |
 |:----- | :------ | :--------- | :---: |
@@ -40,7 +83,10 @@ The [run_config.toml](/src/integrator/run_config.toml) file contains the main sw
 
 ### Technology Settings
 
-The model contains 14 technologies (tech) in its initial layout. Users could change the technology assignments and add more technology types or remove technology types, but any changes to the code would require updates to the cooresponding input data. The technologies represented include:
+The model contains 14 technologies (tech) in its initial layout. Users could
+change the technology assignments and add more technology types or remove
+technology types, but any changes to the code would require updates to the
+cooresponding input data. The technologies represented include:
 <br> 1.)	Coal Steam
 <br> 2.)	Oil Steam
 <br> 3.)	Natural Gas Single-Cycle Combustion Turbine
@@ -57,7 +103,9 @@ The model contains 14 technologies (tech) in its initial layout. Users could cha
 <br> 14.)	Wind, Onshore
 <br> 15.)	Solar  (step 1 = utility-scale; step 2 = end-use)
 
-The technologies (tech) are also combined into group based on the applicability of different constraints. These groups are defined in tech_subsets.csv within the electricity/input directory and includes:
+The technologies (tech) are also combined into group based on the applicability
+of different constraints. These groups are defined in tech_subsets.csv within
+the electricity/input directory and includes:
 * T_conv: conventional
 * T_re: renewable energy
 * T_hydro: hydroelectric
@@ -69,7 +117,10 @@ The technologies (tech) are also combined into group based on the applicability 
 * T_disp: dispatchable
 * T_gen: generating
 
-When the capacity expansion switch is turned on, a user can select which technologies they want to have expansion and retirement capabilities. Turning these switches on allows for builds and/or retirements of a given technology and supply curve step. These files are located in the electricity/input directory.
+When the capacity expansion switch is turned on, a user can select which
+technologies they want to have expansion and retirement capabilities. Turning
+these switches on allows for builds and/or retirements of a given technology and
+supply curve step. These files are located in the electricity/input directory.
 
 |Switch    | Description   | Values | Notes |
 |:----- | :------: | :--------- | :---: |
@@ -115,7 +166,8 @@ When the capacity expansion switch is turned on, a user can select which technol
 |$\Theta_{traLL^{int}}$ | TranLineLimitInt_index | Sparse set | International interregional trade line limit set |
 
 ### Re-Indexed Sets
-These sets are re-indexed for specific constraints. They are all sub-sets accessed by certain indicies to return the remaining indicies.
+These sets are re-indexed for specific constraints. They are all sub-sets
+accessed by certain indicies to return the remaining indicies.
 
 |Set    | Code    | Data Type  | Short Description |
 |:----- | :------ | :--------- | :---------------- |
@@ -133,7 +185,8 @@ These sets are re-indexed for specific constraints. They are all sub-sets access
 |$\theta^{HSH}_{seas}$ | HourSHydro| Sparse subset | Set for hours indexed by season |
 
 ### Parameters
-Note: the existing code shows cost units in MW/MWh instead of GW/GWh; we are aware and just haven't updated the code yet.
+Note: the existing code shows cost units in MW/MWh instead of GW/GWh; we are
+aware and just haven't updated the code yet.
 
 | Parameter | Code     | Domain     | Short Description      | Units |
 |:-----     | :------  | :---------    | :----------------      | :-----|
@@ -196,7 +249,11 @@ Note: the existing code shows cost units in MW/MWh instead of GW/GWh; we are awa
 
 ### Objective Function
 
-Objective is to minimize costs to the electric power system. Costs include dispatch cost (e.g., variable O&M cost), fixed operation and maintenance (FOM) cost, capacity expansion cost component (nonlinear and linear options available), interregional trade cost, ramping cost, operating reserve cost and unmet load cost (note: unmet load cost should equal zero).
+Objective is to minimize costs to the electric power system. Costs include
+dispatch cost (e.g., variable O&M cost), fixed operation and maintenance (FOM)
+cost, capacity expansion cost component (nonlinear and linear options
+available), interregional trade cost, ramping cost, operating reserve cost and
+unmet load cost (note: unmet load cost should equal zero).
 
 Minimize total cost (\$)
 
@@ -308,9 +365,13 @@ $$
 ### Constraints
 
 #### Balance Constraints
-Balance constraints exist for generation as well as energy storage. For demand, this means that generation must equal to or exceed demand for electricity.
+Balance constraints exist for generation as well as energy storage. For demand,
+this means that generation must equal to or exceed demand for electricity.
 
-For energy storage technologies, the balance constraints ensure that the storage level in the current time segment is equal to the storage level in the previous time-segment plus any storage charge and/or discharge (while also accounting for round-trip efficiency losses).
+For energy storage technologies, the balance constraints ensure that the storage
+level in the current time segment is equal to the storage level in the previous
+time-segment plus any storage charge and/or discharge (while also accounting for
+round-trip efficiency losses).
 
 Demand balance constraint:
 
@@ -351,11 +412,20 @@ $$
 
 #### Generation Upper Bounds
 
-Generation upper bound constraints limit generation from generating technologies, accounting for reserve requirements, operating capacity, and capacity factors where:
+Generation upper bound constraints limit generation from generating
+technologies, accounting for reserve requirements, operating capacity, and
+capacity factors where:
 
 $$ Generation + Reserve Procurement <= Capacity \times Capacity Factor $$
 
-This is the same constraint for dispatchable, hydroelectric, and intermittent technologies. For intermittent technologies, the capacity factors are exogenously specified in the input data. In addition, hydroelectric generation has an additional seasonal constraint, where hydroelectric capacity is seasonally limited based on assumed availability of water resources seasonally, as specified in the input data. Storage upper bound constraints need to account for the upper bounds on both the charge and discharge of the technology, as well as the operating level in any given time segment.
+This is the same constraint for dispatchable, hydroelectric, and intermittent
+technologies. For intermittent technologies, the capacity factors are
+exogenously specified in the input data. In addition, hydroelectric generation
+has an additional seasonal constraint, where hydroelectric capacity is
+seasonally limited based on assumed availability of water resources seasonally,
+as specified in the input data. Storage upper bound constraints need to account
+for the upper bounds on both the charge and discharge of the technology, as well
+as the operating level in any given time segment.
 
 Hydroelectric generation seasonal upper bound:
 
@@ -435,7 +505,11 @@ $$
 
 #### Capacity Expansion
 
-The model can build new generating technologies each year (when the expansion switch is turned on). The expansion constraint ensures that operating capacity is based on the capacity in the previous year, plus any additions and minus any retirements. The retirement constraint ensures that retirements never exceed the capacity available on the system.
+The model can build new generating technologies each year (when the expansion
+switch is turned on). The expansion constraint ensures that operating capacity
+is based on the capacity in the previous year, plus any additions and minus any
+retirements. The retirement constraint ensures that retirements never exceed the
+capacity available on the system.
 
 Total capacity balance:
 
@@ -465,7 +539,11 @@ $$
 
 
 #### Trade
-Electricity trade constraints ensure that trade within any given time segment cannot exceed the capabilities of the transmission lines between the regions trading. In addition, there are supply quantity/price constraints for international trade, where supply from international regions cannot exceed the availability from the region.
+Electricity trade constraints ensure that trade within any given time segment
+cannot exceed the capabilities of the transmission lines between the regions
+trading. In addition, there are supply quantity/price constraints for
+international trade, where supply from international regions cannot exceed the
+availability from the region.
 
 International interregional trade line capacity upper bound:
 
@@ -499,7 +577,12 @@ $$
 $$
 
 #### Reserve Margin
-Reserve margin constraints ensure that there is additional quantity of capacity available beyond load requirements in each time segment. Available capacity that can contribute to the reserve margin is also potentially decremented based on capacity credit assumptions. Storage technologies have additional reserve margin constraints accounts for both the power capacity and the energy capacity availability towards contributing to reserve margin requirements.
+Reserve margin constraints ensure that there is additional quantity of capacity
+available beyond load requirements in each time segment. Available capacity that
+can contribute to the reserve margin is also potentially decremented based on
+capacity credit assumptions. Storage technologies have additional reserve margin
+constraints accounts for both the power capacity and the energy capacity
+availability towards contributing to reserve margin requirements.
 
 Reserve margin requirement constraint:
 
@@ -514,7 +597,8 @@ $$
 $$
 
 
-Constraint to ensure available storage capacity to meet RM <= power cap, upper bound:
+Constraint to ensure available storage capacity to meet RM <= power cap, upper
+bound:
 
 $$
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq    \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
@@ -524,7 +608,8 @@ $$
 $$
 
 
-Constraint to ensure available storage capacity to meet RM <= existing storage level, upper bound:
+Constraint to ensure available storage capacity to meet RM <= existing storage
+level, upper bound:
 
 $$
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq
@@ -535,7 +620,9 @@ $$
 $$
 
 #### Ramping
-Ramping constraints ensure that generating technologies are limited in the rate in which they can increase or decrease their generation from one time segment to the next. Ramping capabilities are balanced within each day.
+Ramping constraints ensure that generating technologies are limited in the rate
+in which they can increase or decrease their generation from one time segment to
+the next. Ramping capabilities are balanced within each day.
 
 First hour ramping balance constraint:
 
@@ -580,7 +667,12 @@ $$
 $$
 
 #### Operating Reserves
-The model allows for three different types of operating reserves to be represented within the model, either spinning reserves, regulation reserves, or flexibility reserve requirements. These operating reserves reflect the need to additional capacity to be held in reserve to meet and short-term needs for generation based on un-expected changes in things like electricity demand or variable renewable generation output.
+The model allows for three different types of operating reserves to be
+represented within the model, either spinning reserves, regulation reserves, or
+flexibility reserve requirements. These operating reserves reflect the need to
+additional capacity to be held in reserve to meet and short-term needs for
+generation based on un-expected changes in things like electricity demand or
+variable renewable generation output.
 
 Spinning reserve requirement constraint. 3\% of load required:
 
@@ -592,7 +684,8 @@ $$
     \tag{23}
 $$
 
-Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind generation + 0.3\% of solar capacity required:
+Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind
+generation + 0.3\% of solar capacity required:
 
 $$
     0.01 \times LOAD_{r,y,h}\\
@@ -606,7 +699,8 @@ $$
 $$
 
 
-Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of solar capacity required:
+Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of
+solar capacity required:
 
 $$
     0.1 \times \sum_{{t^w,s} \in \theta^{windor}_{y,r,h}}{\mathbf{GEN}_{t^w,y,r,s,h}} \\

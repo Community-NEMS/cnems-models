@@ -224,7 +224,8 @@ def run_unified(settings: Config_settings):
         if settings.electricity:
             # we can still poll the elec load used from the elec model in all iterations which
             # will show the value used in the next iteration with/without the 0th update above
-            agg_load = sum(pyo.value(meta.elec.Load[idx]) for idx in meta.elec.Load)  # type: ignore
+            # type: ignore[missing-attribute, no-matching-overload]
+            agg_load = sum(pyo.value(meta.elec.Load[idx]) for idx in meta.elec.Load)
             load_records.append((i + 1, agg_load))
 
             # dev note:  the res block is now depleted... we have extracted the new load values

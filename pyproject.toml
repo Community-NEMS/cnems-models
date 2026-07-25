@@ -75,6 +75,11 @@ max-complexity = 10
 # the rest of the dependencies -- can still resolve imports.
 project-includes = ["src"]
 python-version = "3.14"
+# Resolve imports against whichever `python` is first on PATH, which inside `pixi run` is
+# the pixi env. Without this pyrefly falls back to an arbitrary interpreter found on the
+# machine and reports spurious missing-import errors for pyomo/pandas/etc. A literal path
+# to .pixi/envs/default/bin/python would be wrong on win-64, which this workspace targets.
+fallback-python-interpreter-name = "python"
 
 
 [tool.pytest.ini_options]

@@ -280,9 +280,10 @@ def poll_hydrogen_price(
     # print(list(demand_constraint.index_set()))
     # print(list(model.dual.keys()))
 
-    rows = [(HI(*k), model.dual[demand_constraint[k]]) for k, v in demand_constraint.items()]  # type: ignore
+    # type: ignore[bad-index, missing-attribute]
+    rows = [(HI(*k), model.dual[demand_constraint[k]]) for k, v in demand_constraint.items()]
     logger.debug('current h2 prices:  %s', rows)
-    return rows  # type: ignore
+    return rows  # type: ignore[bad-return]
 
 
 def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]:
@@ -368,7 +369,7 @@ def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
     update_count = 0
     no_update = set()
     good_updates = set()
-    for region, tech, step, yr, season in model.H2Price:  # type: ignore
+    for region, tech, step, yr, season in model.H2Price:
         if tech in h2_techs:
             if (region, yr) in h2_prices:
                 model.H2Price[region, tech, step, yr, season] = h2_prices[

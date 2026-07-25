@@ -33,7 +33,7 @@ def plot_it(
 ):
     """cheap plotter of iterative progress"""
 
-    fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)  # type: ignore
+    fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)
     ax1_b = ax1.twinx()
     ax2_b = ax2.twinx()
     # ax2.set_yscale('log')

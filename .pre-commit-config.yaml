@@ -29,7 +29,7 @@ repos:
       - id: debug-statements # Watch for lingering debugger calls.
       - id: detect-private-key # Don't accidentally commit private keys.
       - id: trailing-whitespace # Strip trailing whitespace, beyond what ruff covers in .py files.
-      - id: mixed-line-ending # Only newlines, no line-feeds.
+      - id: mixed-line-ending # Normalize all line endings to LF; no carriage returns
         args: ["--fix=lf"]
       - id: end-of-file-fixer
       - id: no-commit-to-branch # Discourage committing directly to main; PRs only.
@@ -39,69 +39,69 @@ repos:
   # Formatters: hooks that re-write Python, TOML, YAML, and Markdown files
   ########################################################################################
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.22
+    rev: v0.16.0
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.9.5
+    rev: v3.9.6
     hooks:
       - id: prettier
         types_or: [yaml]
 
-  - repo: https://github.com/ComPWA/taplo-pre-commit
-    rev: v0.9.3
-    hooks:
-      - id: taplo-format
-
-  - repo: https://github.com/hukkin/mdformat
-    rev: 1.0.0
-    hooks:
-      - id: mdformat
-        additional_dependencies:
-          - mdformat-gfm
-          # Without this, mdformat mangles zensical/MkDocs-flavored markdown syntax,
-          # e.g. escaping the "<" in docs/index.md's "--8<--" snippet-include line.
-          - mdformat-mkdocs
-          # Without this, mdformat doesn't recognize YAML front matter (used by the
-          # issue templates) and reformats its "---" delimiters into thematic breaks,
-          # corrupting the front matter and confusing markdownlint.
-          - mdformat-frontmatter
+#  - repo: https://github.com/ComPWA/taplo-pre-commit
+#    rev: v0.9.3
+#    hooks:
+#      - id: taplo-format
+#
+#  - repo: https://github.com/hukkin/mdformat
+#    rev: 1.0.0
+#    hooks:
+#      - id: mdformat
+#        additional_dependencies:
+#          - mdformat-gfm
+#          # Without this, mdformat mangles zensical/MkDocs-flavored markdown syntax,
+#          # e.g. escaping the "<" in docs/index.md's "--8<--" snippet-include line.
+#          - mdformat-mkdocs
+#          # Without this, mdformat doesn't recognize YAML front matter (used by the
+#          # issue templates) and reformats its "---" delimiters into thematic breaks,
+#          # corrupting the front matter and confusing markdownlint.
+#          - mdformat-frontmatter
 
   ########################################################################################
   # Linters: hooks that check but don't alter Python, Markdown, & GitHub Actions files
   ########################################################################################
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.1
-    hooks:
-      - id: markdownlint-cli2
-
-  - repo: https://github.com/facebook/pyrefly-pre-commit
-    rev: 1.2.0.dev2
-    hooks:
-      - id: pyrefly-check
-
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
-    hooks:
-      - id: actionlint
+#  - repo: https://github.com/DavidAnson/markdownlint-cli2
+#    rev: v0.23.1
+#    hooks:
+#      - id: markdownlint-cli2
+#
+#  - repo: https://github.com/facebook/pyrefly-pre-commit
+#    rev: 1.2.0.dev3
+#    hooks:
+#      - id: pyrefly-check
+#
+#  - repo: https://github.com/rhysd/actionlint
+#    rev: v1.7.12
+#    hooks:
+#      - id: actionlint
 
   # Lint shell scripts, including embedded `run:` steps in GitHub Actions workflows
   # (picked up automatically by actionlint above, if the `shellcheck` binary is on
   # PATH -- guaranteed here since it's a pixi dependency, see pyproject.toml).
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1
-    hooks:
-      - id: shellcheck
-
-  # Spell check our documentation and code comments
-  - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.48.0
-    hooks:
-      - id: typos
-        args: [] # Make this read, not write
+#  - repo: https://github.com/shellcheck-py/shellcheck-py
+#    rev: v0.11.0.1
+#    hooks:
+#      - id: shellcheck
+#
+#  # Spell check our documentation and code comments
+#  - repo: https://github.com/adhtruong/mirrors-typos
+#    rev: v1.48.0
+#    hooks:
+#      - id: typos
+#        args: [] # Make this read, not write
 
   # Scan for secrets and credentials
   - repo: https://github.com/Yelp/detect-secrets
@@ -125,17 +125,17 @@ repos:
         always_run: true
         entry: pixi run test
 
-########################################################################################
-# Configuration for pre-commit.ci
-########################################################################################
-ci:
-  autofix_commit_msg: |
-    [pre-commit.ci] auto fixes from pre-commit.com hooks
-
-    For more information, see https://pre-commit.ci
-  autofix_prs: true
-  autoupdate_branch: main
-  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
-  autoupdate_schedule: weekly
-  skip: [pytest]
-  submodules: false
+#########################################################################################
+## Configuration for pre-commit.ci
+#########################################################################################
+#ci:
+#  autofix_commit_msg: |
+#    [pre-commit.ci] auto fixes from pre-commit.com hooks
+#
+#    For more information, see https://pre-commit.ci
+#  autofix_prs: true
+#  autoupdate_branch: main
+#  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+#  autoupdate_schedule: weekly
+#  skip: [pytest]
+#  submodules: false

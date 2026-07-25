@@ -1,4 +1,10 @@
 ---
+# The old_docs/ tree is inherited, unmaintained Sphinx output (see CLAUDE.md). Excluding it
+# globally -- this key applies to every hook below -- keeps the formatting hooks from
+# rewriting ~52 files nobody owns, and stops check-yaml failing on
+# old_docs/envs/sphinx_bsky.yml, which isn't valid UTF-8.
+exclude: ^old_docs/
+
 repos:
   # Quick content checks based on grepping for python specific patterns:
   - repo: https://github.com/pre-commit/pygrep-hooks

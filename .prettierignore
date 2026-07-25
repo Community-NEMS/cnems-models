@@ -1,0 +1,4 @@
+# Inherited, unmaintained Sphinx tree -- see CLAUDE.md. The pre-commit config excludes it
+# too; this file is what keeps the `format-yaml` pixi task, which invokes prettier
+# directly, from reaching into old_docs/.
+old_docs/

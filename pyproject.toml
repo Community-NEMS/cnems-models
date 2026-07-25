@@ -22,6 +22,11 @@ dependencies = []
 
 [tool.ruff]
 line-length = 100
+# Inherited, unmaintained Sphinx tree (see CLAUDE.md). "extend-" keeps ruff's built-in
+# default excludes rather than replacing them. Needed even though .gitignore lists
+# old_docs: the pre-commit ruff hook passes paths explicitly, which bypasses
+# gitignore-based filtering, and only honors this because its entry uses --force-exclude.
+extend-exclude = ["old_docs"]
 
 [tool.ruff.format]
 quote-style = 'single'

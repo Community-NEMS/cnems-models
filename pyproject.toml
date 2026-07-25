@@ -148,6 +148,7 @@ pytest-cov = '*'  # test-runner
 pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
+pixi-pycharm = ">=0.0.12,<0.0.13"
 
 
 [tool.pixi.tasks]

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
+# TODO:  Update/clean this up to align with pyproject
 project = 'BlueSky Prototype Model'
 copyright = '2024, U.S. Energy Information Administration'
 author = 'U.S. Energy Information Administration'

@@ -1,0 +1,141 @@
+---
+repos:
+  # Quick content checks based on grepping for python specific patterns:
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+      - id: python-use-type-annotations # Use annotations not old-style type comments
+      - id: python-check-blanket-noqa # Require noqa comments to specify an error code.
+      - id: python-check-blanket-type-ignore # Require type: ignore to specify a code.
+      - id: python-no-log-warn # Use logger.warning() instead of deprecated logger.warn()
+      - id: python-no-eval # Flag uses of the eval() builtin.
+      - id: text-unicode-replacement-char # Catch mangled-encoding artifacts.
+
+  # Other file formatting, plus common Git mistakes & text file standardization:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files # Don't accidentally commit giant files.
+        # The default 500 KB limit is smaller than pixi.lock ends up being with this
+        # many conda + PyPI dependencies resolved across 5 platforms.
+        args: ["--maxkb=2048"]
+      - id: check-merge-conflict # Watch for lingering merge markers.
+      - id: check-yaml # Validate all YAML files.
+      - id: check-toml # Validate all TOML files.
+      - id: check-json # Validate all JSON files, including Jupyter notebooks.
+      - id: check-case-conflict # Avoid case sensitivity in file names.
+      - id: check-illegal-windows-names # Avoid filenames that break on Windows.
+      - id: destroyed-symlinks # Catch symlinks silently replaced with copies.
+      - id: debug-statements # Watch for lingering debugger calls.
+      - id: detect-private-key # Don't accidentally commit private keys.
+      - id: trailing-whitespace # Strip trailing whitespace, beyond what ruff covers in .py files.
+      - id: mixed-line-ending # Only newlines, no line-feeds.
+        args: ["--fix=lf"]
+      - id: end-of-file-fixer
+      - id: no-commit-to-branch # Discourage committing directly to main; PRs only.
+        args: ["--branch", "main"]
+
+  ########################################################################################
+  # Formatters: hooks that re-write Python, TOML, YAML, and Markdown files
+  ########################################################################################
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.5
+    hooks:
+      - id: prettier
+        types_or: [yaml]
+
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+
+  - repo: https://github.com/hukkin/mdformat
+    rev: 1.0.0
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          # Without this, mdformat mangles zensical/MkDocs-flavored markdown syntax,
+          # e.g. escaping the "<" in docs/index.md's "--8<--" snippet-include line.
+          - mdformat-mkdocs
+          # Without this, mdformat doesn't recognize YAML front matter (used by the
+          # issue templates) and reformats its "---" delimiters into thematic breaks,
+          # corrupting the front matter and confusing markdownlint.
+          - mdformat-frontmatter
+
+  ########################################################################################
+  # Linters: hooks that check but don't alter Python, Markdown, & GitHub Actions files
+  ########################################################################################
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.1
+    hooks:
+      - id: markdownlint-cli2
+
+  - repo: https://github.com/facebook/pyrefly-pre-commit
+    rev: 1.2.0.dev2
+    hooks:
+      - id: pyrefly-check
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Lint shell scripts, including embedded `run:` steps in GitHub Actions workflows
+  # (picked up automatically by actionlint above, if the `shellcheck` binary is on
+  # PATH -- guaranteed here since it's a pixi dependency, see pyproject.toml).
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  # Spell check our documentation and code comments
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.48.0
+    hooks:
+      - id: typos
+        args: [] # Make this read, not write
+
+  # Scan for secrets and credentials
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+
+  ########################################################################################
+  # Custom local hooks
+  ########################################################################################
+  - repo: local
+    hooks:
+      # Run the (fast) tests
+      - id: pytest
+        name: pytest
+        stages: [pre-commit]
+        language: system
+        verbose: false
+        pass_filenames: false
+        always_run: true
+        entry: pixi run test
+
+########################################################################################
+# Configuration for pre-commit.ci
+########################################################################################
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    For more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: main
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+  autoupdate_schedule: weekly
+  skip: [pytest]
+  submodules: false

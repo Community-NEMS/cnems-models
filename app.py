@@ -37,7 +37,7 @@ app = dash.Dash(
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     assets_folder='docs/images/',
 )
-app.title = 'BlueSky Model Runner'
+app.title = 'Model Runner'
 
 docs_dir = os.path.abspath('docs/build/html')
 
@@ -69,7 +69,7 @@ app.layout = dbc.Container(
             ),
             justify='start',
         ),
-        html.H1('BlueSky Model Runner', className='text-center'),
+        html.H1('Model Runner', className='text-center'),
         html.Img(src=image_src),
         html.H2(id='status', className='text-center', style={'color': 'red'}),
         html.H3(id='output-state'),

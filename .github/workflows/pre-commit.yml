@@ -1,0 +1,36 @@
+---
+name: pre-commit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # prek (the Rust pre-commit runner) is a pixi dependency, so the hooks run out
+      # of the same locked environment developers get locally -- no separate pip
+      # install of pre-commit, and no second source of tool versions to drift.
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          cache: true
+
+      - name: Run pre-commit hooks
+        # --all-files rather than only the PR's diff: hook additions and `rev` bumps
+        # should surface violations everywhere, not just in files a PR happens to touch.
+        run: pixi run prek run --all-files --show-diff-on-failure
+        env:
+          # no-commit-to-branch fails on any checkout of main, including this one --
+          # it exists to stop local commits to main, which CI can't meaningfully check.
+          # pytest is already run by pytest.yml with coverage; running the suite again
+          # here would roughly double CI time for no added signal.
+          SKIP: no-commit-to-branch,pytest

@@ -11,7 +11,7 @@
 .pytest_cache
 __pycache__
 *.pyc
-.coverage
+
 
 # Doc files
 /docs/run_sphinx.bat
@@ -43,3 +43,7 @@ run_configs/last_app_config.json
 
 # agents & such
 /.claude/
+
+# coverage
+coverage.xml
+.coverage

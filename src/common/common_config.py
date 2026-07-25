@@ -41,8 +41,11 @@ class CommonConfig(BaseModel):
     @model_validator(mode='after')
     def check_paths(self):
         self.output_path = PROJECT_ROOT / self.output_path
-        if not self.output_path.is_dir():
-            raise ValueError(f'Output path {self.output_path} is not a directory')
+        # the output root is not tracked in git, so create it on demand (fresh clones/CI)
+        try:
+            self.output_path.mkdir(parents=True, exist_ok=True)
+        except OSError as e:  # includes FileExistsError when the path is a non-directory
+            raise ValueError(f'Output path {self.output_path} is not a usable directory: {e}')
         self.residential_data_path = PROJECT_ROOT / self.residential_data_path
         if not self.residential_data_path.is_dir():
             raise ValueError(

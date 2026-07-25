@@ -19,6 +19,7 @@ __pycache__
 /docs/elec_debug.txt
 /docs/process_md_files.py
 /docs/build
+old_docs
 
 /src/models/electricity/process_md_files.py
 

@@ -19,16 +19,26 @@ styles = {
 
 def plot_it(
     OUTPUT_ROOT,
-    h2_price_records=[],
-    elec_price_records=[],
-    h2_obj_records=[],
-    elec_obj_records=[],
-    h2_demand_records=[],
-    elec_demand_records=[],
-    load_records=[],
-    elec_price_to_res_records=[],
+    h2_price_records: list | None = None,
+    elec_price_records: list | None = None,
+    h2_obj_records: list | None = None,
+    elec_obj_records: list | None = None,
+    h2_demand_records: list | None = None,
+    elec_demand_records: list | None = None,
+    load_records: list | None = None,
+    elec_price_to_res_records: list | None = None,
 ):
     """Cheap plotter of iterative progress."""
+    h2_price_records = h2_price_records if h2_price_records is not None else []
+    elec_price_records = elec_price_records if elec_price_records is not None else []
+    h2_obj_records = h2_obj_records if h2_obj_records is not None else []
+    elec_obj_records = elec_obj_records if elec_obj_records is not None else []
+    h2_demand_records = h2_demand_records if h2_demand_records is not None else []
+    elec_demand_records = elec_demand_records if elec_demand_records is not None else []
+    load_records = load_records if load_records is not None else []
+    elec_price_to_res_records = (
+        elec_price_to_res_records if elec_price_to_res_records is not None else []
+    )
     fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)
     ax1_b = ax1.twinx()
     ax2_b = ax2.twinx()
@@ -64,7 +74,9 @@ def plot_it(
     ax2.legend(handles=p2a + p2b, reverse=True)
 
     p3a = ax3.plot(*list(zip(*load_records, strict=True)), label='Load', **styles['Load'])
-    p3b = ax3_b.plot(*list(zip(*elec_price_to_res_records, strict=True)), label='Price', **styles['Price'])
+    p3b = ax3_b.plot(
+        *list(zip(*elec_price_to_res_records, strict=True)), label='Price', **styles['Price']
+    )
     ax3.legend(handles=p3a + p3b, reverse=True)
 
     p4a = ax4.plot(*list(zip(*h2_obj_records, strict=True)), label='H2', **styles['H2'])
@@ -104,7 +116,7 @@ def plot_it(
 def plot_price_distro(OUTPUT_ROOT, price_records: list[float]):
     """cheap/quick analyisis and plot of the price records."""
     # convert $/GWh to $/MWh
-    plt.hist(list(t / 1000 for t in price_records), bins=100, label='Price')
+    plt.hist([t / 1000 for t in price_records], bins=100, label='Price')
     plt.xlabel('Electricity price ($/MWh)')
     plt.ylabel('Number of representative hours')
     plt.savefig(Path(OUTPUT_ROOT / 'histogram.png'), format='png')

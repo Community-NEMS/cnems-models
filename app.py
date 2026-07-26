@@ -207,7 +207,10 @@ def run_mode(n_clicks, selected_mode):
         )
     except Exception as exc:
         logger.error('Run failed for mode %s: %s', selected_mode, exc)
-        error_msg = f'Error, not able to run {selected_mode}. Please check the log script/terminal, exit out of browser, and restart.'
+        error_msg = (
+            f'Error, not able to run {selected_mode}. Please check the log script/terminal, '
+            'exit out of browser, and restart.'
+        )
         return error_msg, 0
 
 

@@ -147,28 +147,26 @@ def read_parameter_csv(
                         try:
                             row[col_label] = int(float(row[col_label]))
                             flag_floats = True
-                        except ValueError:
+                        except ValueError as err:
                             logger.error(
                                 'Unable to convert %s to int in file %s', row[col_label], file_path
                             )
-                            raise (
-                                ValueError(
-                                    f'Unable to convert {row[col_label]} to int in file {file_path}'
-                                )
-                            )
+                            raise ValueError(
+                                f'Unable to convert {row[col_label]} to int in file {file_path}'
+                            ) from err
 
             # apply filters, if any
             if filter_package:
                 if filter_package.region_filter:
-                    discovered_regions = set(
+                    discovered_regions = {
                         row.get(col) for col in filter_package.region_cols if row.get(col)
-                    )
+                    }
                     if not discovered_regions.issubset(filter_package.region_filter):
                         continue
                 if filter_package.year_filter:
-                    discovered_years = set(
+                    discovered_years = {
                         row.get(col) for col in filter_package.year_col if row.get(col)
-                    )
+                    }
                     if not discovered_years.issubset(filter_package.year_filter):
                         continue
 
@@ -217,15 +215,13 @@ def read_property_csv(
                         try:
                             row[col_label] = int(float(row[col_label]))
                             flag_floats = True
-                        except ValueError:
+                        except ValueError as err:
                             logger.error(
                                 'Unable to convert %s to int in file %s', row[col_label], file_path
                             )
-                            raise (
-                                ValueError(
-                                    f'Unable to convert {row[col_label]} to int in file {file_path}'
-                                )
-                            )
+                            raise ValueError(
+                                f'Unable to convert {row[col_label]} to int in file {file_path}'
+                            ) from err
 
             # grab index
             try:
@@ -313,13 +309,10 @@ def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
     dict[str, dict[str, list[str]]]
         one entry per property source, mapping each property name to the indices that satisfy it.
     """
-    return dict(
-        (
-            k,
-            read_property_csv(input_dir / source.filename, source.property_cols, source.index_cols),
-        )
+    return {
+        k: read_property_csv(input_dir / source.filename, source.property_cols, source.index_cols)
         for k, source in PROPERTY_SOURCES.items()
-    )
+    }
 
 
 def load_dataframes(
@@ -361,7 +354,7 @@ def load_dataframes(
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
     logger.debug('Testing the load_param_data and load_property_data functions')
-    regions = set(list('478'))
+    regions = set('478')
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     source_dir = PROJECT_ROOT / 'input/electricity/cem_inputs'

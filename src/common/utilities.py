@@ -92,12 +92,15 @@ def get_args():
         choices=['unified-combo', 'gs-combo', 'standalone', 'elec', 'h2', 'residential'],
         dest='op_mode',
         help='The mode to run:\n\n'
-        'unified-combo:  run unified optimization method, iteratively solves modules turned on in the run_congif file\n'
-        'gs-combo:  run gauss-seidel method, iteratively solves modules turned on in the run_congif file\n'
+        'unified-combo:  run unified optimization method, iteratively solves modules '
+        'turned on in the run_congif file\n'
+        'gs-combo:  run gauss-seidel method, iteratively solves modules turned on in the '
+        'run_congif file\n'
         'standalone: runs in standalone the modules that are turned on in the run_config file\n'
         'elec:  run the electricity module standalone\n'
         'h2:  run the hydrogen module standalone\n'
-        'residential: run the residential module standalone, solves updated load based on new given prices\n\n'
+        'residential: run the residential module standalone, solves updated load based on '
+        'new given prices\n\n'
         'Mode can be set either via --mode command or in run_config.toml.\n'
         'If no --mode option is provided, default_mode in run_config.toml is used.',
     )

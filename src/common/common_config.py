@@ -49,7 +49,9 @@ class CommonConfig(BaseModel):
         try:
             self.output_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:  # includes FileExistsError when the path is a non-directory
-            raise ValueError(f'Output path {self.output_path} is not a usable directory: {e}')
+            raise ValueError(
+                f'Output path {self.output_path} is not a usable directory: {e}'
+            ) from e
         self.residential_data_path = PROJECT_ROOT / self.residential_data_path
         if not self.residential_data_path.is_dir():
             raise ValueError(

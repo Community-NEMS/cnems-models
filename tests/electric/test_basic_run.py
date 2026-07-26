@@ -207,13 +207,12 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
 
 
 def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
-    """Exercise the linear-learning iteration on the micro dataset in
-    tests/electric/test_data_linear_learning_test.
+    """Exercise the linear-learning iteration on a single-region micro dataset.
 
-    The dataset (single region 'CA', single tech 'NG_Fired_Plant') has 2.0 units of existing
-    capacity against a load that starts at 4.0 units and grows 5 units/year, forcing step-3
-    builds every year.  Asserts on the convergence log emitted by
-    ``ElectricitySequencer.solve_model`` each iteration.
+    The dataset lives in tests/electric/test_data_linear_learning_test.  It has a single region
+    'CA' and a single tech 'NG_Fired_Plant', with 2.0 units of existing capacity against a load
+    that starts at 4.0 units and grows 5 units/year, forcing step-3 builds every year.  Asserts on
+    the convergence log emitted by ``ElectricitySequencer.solve_model`` each iteration.
     """
     common_config, elec_config = learning_config_set
 

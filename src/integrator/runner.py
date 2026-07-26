@@ -31,44 +31,45 @@ def run_elec_solo(settings: Config_settings | None = None):
 
     # write out prices and plot them
     elec_price = utilities.get_elec_price(instance)
-    price_records = utilities.get_annual_wt_avg(elec_price)
     elec_price.to_csv(Path(settings.OUTPUT_ROOT / 'electricity' / 'prices' / 'elec_price.csv'))
     # plot_price_distro(settings.OUTPUT_ROOT, list(elec_price.price_wt))
 
 
 def run_h2_solo(settings: Config_settings | None = None):
-    """
-    Runs hydrogen model by itself as defined in settings.
+    """Runs hydrogen model by itself as defined in settings.
 
     Parameters
     ----------
     settings: Config_settings
         Contains configuration settings for which regions and years to run
-    """
-    logger.info('Running Hydrogen Module')
 
-    if settings:
-        run_hydrogen_model(settings)
-    else:
-        logger.info('No settings passed to Hydrogen Module')
-        empty_settings = object()
-        empty_settings.years = None
-        empty_settings.regions = None
-        empty_settings.h2_data_folder = 'input/hydrogen/single_region'
-        run_hydrogen_model(empty_settings)
+    Raises
+    ------
+    NotImplementedError
+        Always; the hydrogen module is not part of this fork.
+    """
+    raise NotImplementedError(
+        'The hydrogen module was removed from this fork; only the electricity model is supported.'
+    )
 
 
 def run_residential_solo(settings: Config_settings | None = None):
-    """
-    Runs residential model by itself as defined in settings.
+    """Runs residential model by itself as defined in settings.
 
     Parameters
     ----------
     settings: Config_settings
         Contains configuration settings for which regions and years to run
+
+    Raises
+    ------
+    NotImplementedError
+        Always; the residential module is not part of this fork.
     """
-    logger.info('Running Residential Module')
-    run_residential(settings)
+    raise NotImplementedError(
+        'The residential module was removed from this fork; '
+        'only the electricity model is supported.'
+    )
 
 
 def run_standalone(settings: Config_settings):

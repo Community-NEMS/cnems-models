@@ -58,7 +58,7 @@ def run_gs(settings):
     h2_obj_records = []
     elec_obj_records = []
     h2_demand_records = []
-    elec_demand_records = []
+    elec_demand_records = []  # noqa: F841 - used by the commented-out plot_it call below
     load_records = []
     elec_price_to_res_records = []
     i = 0
@@ -77,7 +77,8 @@ def run_gs(settings):
     update_load = settings.method_options['update_load']
 
     logger.info(
-        f'Starting Iterative Run: electricity: {settings.electricity}, hydrogen: {settings.hydrogen}, residential: {settings.residential}'
+        f'Starting Iterative Run: electricity: {settings.electricity}, '
+        f'hydrogen: {settings.hydrogen}, residential: {settings.residential}'
     )
 
     #####
@@ -125,7 +126,6 @@ def run_gs(settings):
 
     # run_gs - GS_LOOP: Set initial objective sums for each module (not all used)
     done = False
-    old_obj_sum = 1
     old_res_obj_sum = 1
     old_elec_obj_sum = 1
     old_h2_obj_sum = 1
@@ -158,7 +158,6 @@ def run_gs(settings):
             # run_gs - ELEC->H2: Pull regional annual prices to pass to hydrogen?
             if update_elec_price:
                 rap = regional_annual_prices(elec_model)
-                annual_avg = sum(rap.values()) / len(rap)
                 # avg_elec_price = sum(t[1] for t in new_elec_prices) / len(new_elec_prices)
                 grand_avg = sum(rap.values()) / len(rap)
                 elec_price_records.append((i + 1, grand_avg))
@@ -241,7 +240,8 @@ def run_gs(settings):
 
         if settings.residential:
             # run_gs - RES->ELEC:  now the meta.blk variable "Load" contains new load requests
-            # that can be inspected... put them in the elec model parameter (update the mutable param)
+            # that can be inspected... put them in the elec model parameter (update the
+            # mutable param)
             if update_load:
                 elec_model.Load.store_values(meta.blk.Load.extract_values())
             # type: ignore[no-matching-overload]

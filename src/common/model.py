@@ -86,7 +86,8 @@ class Model(pyo.ConcreteModel):
         new_sname : str
             Name of output set or IndexedSet
         create_indexed_set : bool | None, optional
-            Indicator for whether output set should include values as well as new index (IndexedSets), by default False
+            Indicator for whether output set should include values as well as new index
+            (IndexedSets), by default False
         return_set: bool | None, optional
             Indicator for whether to return the constructed set
         reorg_set_cols : List[str] | None, optional
@@ -115,31 +116,32 @@ class Model(pyo.ConcreteModel):
         # reorganize_index_set -- Throw error if both reorg options provided
         if reorg_set_cols and reorg_set_sname:
             raise ValueError(
-                f'Populate function is either-or for reorg_set_cols and reorg_set_sname, received both: {reorg_set_cols}, {reorg_set_sname}'
+                'Populate function is either-or for reorg_set_cols and reorg_set_sname, '
+                f'received both: {reorg_set_cols}, {reorg_set_sname}'
             )
         elif not reorg_set_cols and not reorg_set_sname:
             raise ValueError(
-                'Populate function is either-or for reorg_set_cols and reorg_set_sname; need to provide a template or names for new set or indexedset'
+                'Populate function is either-or for reorg_set_cols and reorg_set_sname; need '
+                'to provide a template or names for new set or indexedset'
             )
 
         # reorganize_index_set --
         if reorg_set_sname:
-            reorg_set = getattr(
+            _reorg_set = getattr(
                 self, reorg_set_sname
             )  # placeholder for a function that crosschecks the indices if desired
             reorg_set_cols = self.cols_dict[reorg_set_sname]
 
-        # reorganize_index_set -- Check to ensure names desired are included in the reorg set (or columns)
+        # reorganize_index_set -- Check to ensure names desired are included in the reorg set
+        # (or columns)
         missing_elements = set(reorg_set_cols) - set(set_in_cols)
         if bool(missing_elements):
             raise ValueError(
                 f'Elements missing from input set desired in new set: {missing_elements}'
             )
 
-        set_out_key_index = set([set_in_cols.index(x) for x in reorg_set_cols])
-        set_out_val_index = set(
-            [set_in_cols.index(x) for x in set_in_cols if x not in reorg_set_cols]
-        )
+        set_out_key_index = {set_in_cols.index(x) for x in reorg_set_cols}
+        set_out_val_index = {set_in_cols.index(x) for x in set_in_cols if x not in reorg_set_cols}
 
         # build dictionary result of the indexed set from the input set
         self.cols_dict[new_sname] = reorg_set_cols
@@ -190,9 +192,11 @@ class Model(pyo.ConcreteModel):
         switch : bool | None, optional
             Return None if False, by default True
         create_indexed_set : bool | None, optional
-            If dict, indicator for whether output set should include values as well as new index (IndexedSets), by default True
+            If dict, indicator for whether output set should include values as well as new
+            index (IndexedSets), by default True
         use_values : bool | None, optional
-            If dict and create_indexed_set is False, use the values of sdata rather than keys for pyo Set members, by default False
+            If dict and create_indexed_set is False, use the values of sdata rather than keys
+            for pyo Set members, by default False
         use_columns: bool | None, optional
             If Pandas, use columns as indices for pyo set rather than row index, by default False
 
@@ -201,7 +205,8 @@ class Model(pyo.ConcreteModel):
         pyo.Set
             Pyomo Set Object
         """
-        # declare_set -- Based on instance of sdata, call appropriate function and pass to sub-methods
+        # declare_set -- Based on instance of sdata, call appropriate function and pass to
+        # sub-methods
         if isinstance(sdata, (pd.DataFrame, pd.Series)):
             return self._declare_set_with_pandas(
                 sname, sdata, return_set=return_set, switch=switch, use_columns=use_columns
@@ -268,7 +273,7 @@ class Model(pyo.ConcreteModel):
             return None
 
         if use_columns:
-            sset = pyo.Set(initialize=sdata.values.tolist())
+            sset = pyo.Set(initialize=sdata.to_numpy().tolist())
             scols = sdata.columns.to_list()
         else:
             sset = pyo.Set(initialize=sdata.index)
@@ -276,8 +281,9 @@ class Model(pyo.ConcreteModel):
             for label in scols:
                 if not label:
                     raise ValueError(
-                        f'Unnamed index in {sname} pandas object; check names of indices in input DataFrame or Series \
-                    or set use_columns = True to create set with columnar data (and column names as index labels)'
+                        f'Unnamed index in {sname} pandas object; check names of indices in '
+                        'input DataFrame or Series or set use_columns = True to create set '
+                        'with columnar data (and column names as index labels)'
                     )
 
         # declare_set -- update cols_dict with column names
@@ -330,7 +336,9 @@ class Model(pyo.ConcreteModel):
             empty = True
             scols = sname
             warnings.warn(
-                f'For {sname}, sdata: {type(sdata)} is length 0; returning empty set called {sname}'
+                f'For {sname}, sdata: {type(sdata)} is length 0; returning empty set '
+                f'called {sname}',
+                stacklevel=2,
             )
         else:
             empty = False
@@ -344,16 +352,19 @@ class Model(pyo.ConcreteModel):
         # declare_set_with_iterable -- initialize pyo set
         sset = pyo.Set(initialize=sdata)
 
-        # declare_set_with_iterable -- check to ensure column labels exist before assigning to cols_dict
+        # declare_set_with_iterable -- check to ensure column labels exist before assigning
+        # to cols_dict
         if not scols and not empty:
             if isinstance(sdata[0], (list, tuple)):
                 if len(sdata[0]) > 1:
                     raise ValueError(
-                        'if using list or set w/ multiple dimensional index, need to provide labels of indices'
+                        'if using list or set w/ multiple dimensional index, need to '
+                        'provide labels of indices'
                     )
             else:
                 logger.info(
-                    f'declare_set_with_iterable assumes desired index name is sname = {sname} when instantiating 1-D set'
+                    'declare_set_with_iterable assumes desired index name is sname = '
+                    f'{sname} when instantiating 1-D set'
                 )
                 scols = [sname]
 
@@ -382,7 +393,8 @@ class Model(pyo.ConcreteModel):
     ) -> pyo.Set:
         """Declares a pyomo Set object named 'sname' using input index values and labels.
 
-        Function takes a dictionary argument and creates pyomo set object from keys, values, or both.
+        Function takes a dictionary argument and creates pyomo set object from keys, values,
+        or both.
 
         If an indexed set is desired, set create_indexed_set to True; the function will create an
         indexed set with its own indices set as keys. Otherwise, an Ordered Scalar Set will be
@@ -404,9 +416,11 @@ class Model(pyo.ConcreteModel):
         switch : bool | None, optional
             Return None if False, by default True
         create_indexed_set : bool | None, optional
-            Indicator for whether output set should include values as well as new index (IndexedSets), by default True
+            Indicator for whether output set should include values as well as new index
+            (IndexedSets), by default True
         use_values : bool | None, optional
-            If create_indexed_set is False, use the values of sdata rather than keys for pyo Set members, by default False
+            If create_indexed_set is False, use the values of sdata rather than keys for pyo
+            Set members, by default False
 
         Returns
         -------
@@ -431,12 +445,12 @@ class Model(pyo.ConcreteModel):
             scols = [scols]
 
         # check if scols dim is equal to dimension of index
-        index_dim = len([[x for x in sdata.keys()][0]])
+        index_dim = len(list(sdata.keys())[0])
         if len(scols) != index_dim:
             raise ValueError(
-                f"number of index labels provided in scols ({len(scols)}) doesn't match dimension of index \
-                in set ({index_dim}). Check set_values and ensure \
-                dimension of scols is equal to dimension of elements of values in sdata"
+                f"number of index labels provided in scols ({len(scols)}) doesn't match "
+                f'dimension of index in set ({index_dim}). Check set_values and ensure '
+                'dimension of scols is equal to dimension of elements of values in sdata'
             )
 
         # declare_set_with_iterable -- update cols_dict with column names
@@ -515,7 +529,8 @@ class Model(pyo.ConcreteModel):
         Pyomo set products are used to unpack and create new set values that are ordered by the
         hierarchy provided:
 
-        (year1, month1, day1) , (year1, month1, day2) , ... , (year2, month1, day1) , ... (yearY, monthM, dayD)
+        (year1, month1, day1) , (year1, month1, day2) , ... , (year2, month1, day1) , ...
+        (yearY, monthM, dayD)
 
 
         Parameters
@@ -640,7 +655,7 @@ class Model(pyo.ConcreteModel):
         # declare_lagged_time_set  -- if time_sets provided, use timesets to lag; unpack into list
         # to modify set objects
         setnames = [x.getname() for x in sets]
-        sets = [x for x in sets]
+        sets = list(sets)
         if not shift_sets:
             shift_sets = [setnames[-1]]
 
@@ -648,11 +663,12 @@ class Model(pyo.ConcreteModel):
         for shift_set in shift_sets:
             if shift_set not in setnames:
                 raise ValueError(
-                    f'You provided a shift set that was not included in the set arguments: {shift_set}'
+                    'You provided a shift set that was not included in the set arguments: '
+                    f'{shift_set}'
                 )
 
             shift_set_index = setnames.index(shift_set)
-            shifted_set = [x for x in sets[shift_set_index]]
+            shifted_set = list(sets[shift_set_index])
             match shift_type:
                 case 'lag':
                     shifted_set = shifted_set[shift_size:]
@@ -774,7 +790,8 @@ class Model(pyo.ConcreteModel):
             Index set for new pyo Variable
         return_var : bool | None, optional
             Return component rather than assign internally, by default False
-        within : str in ["NonNegativeReals", "Binary", "Reals", "NonNegativeIntegers"] | None, optional
+        within : str in ["NonNegativeReals", "Binary", "Reals", "NonNegativeIntegers"] | None,
+            optional
             pyo.Var keyword argument, by default "NonNegativeReals"
         bound : tuple | None, optional
             pyo.Var keyword argument, by default (0, 1000000000)
@@ -866,10 +883,12 @@ class Model(pyo.ConcreteModel):
         sname : str
             name of input pyomo set to base reindexing
         set_base_name : str, optional
-            the name of the set to be the base of the reindexing, if left blank, uses set_base2, by default ''
+            the name of the set to be the base of the reindexing, if left blank, uses
+            set_base2, by default ''
         set_base2 : list, optional
             the list of names of set columns to be the base of the reindexing, if left blank, should
-            use set_base_name, by default [] these will form the index set of the indexed set structure
+            use set_base_name, by default [] these will form the index set of the indexed
+            set structure
 
         Returns
         -------
@@ -883,7 +902,8 @@ class Model(pyo.ConcreteModel):
         # organize/locate the names of the index set based on input of set_base_name or set_base2
         if set_base_name and set_base2:
             raise ValueError(
-                f'Populate function is either-or for set_base_name and set_base2, received both: {set_base_name}, {set_base2}'
+                'Populate function is either-or for set_base_name and set_base2, received '
+                f'both: {set_base_name}, {set_base2}'
             )
         label_locs = None
         index_labels = set()
@@ -893,11 +913,11 @@ class Model(pyo.ConcreteModel):
         elif set_base2:
             try:
                 label_locs = [scols.index(t) for t in set_base2]
-            except ValueError:
+            except ValueError as err:
                 missing_elements = set(set_base2) - set(scols)
                 raise ValueError(
                     f'These elements from set_base2 are not in the base set: {missing_elements}'
-                )
+                ) from err
             index_labels.update(set_base2)
             # look for case where we did NOT match all of the desired targets in set_base_2
         else:
@@ -1017,7 +1037,10 @@ class Model(pyo.ConcreteModel):
 
                 # check if indexed_set; if so, replace w/ keys
                 if sset.is_indexed():
-                    warning = f'Provided ParameterExpression with IndexedSet {sname} as Set argument for {pname}; using keys to create OrderedScalarSet'
+                    warning = (
+                        f'Provided ParameterExpression with IndexedSet {sname} as Set argument '
+                        f'for {pname}; using keys to create OrderedScalarSet'
+                    )
                     print(warning)
                     self._args[self._args.index(sset)] = pyo.Set(initialize=sset.keys())
 
@@ -1067,7 +1090,10 @@ class Model(pyo.ConcreteModel):
 
                 # check if indexed_set; if so, replace w/ keys
                 if sset.is_indexed():
-                    warning = f'Provided ConstraintExpression with IndexedSet {sname} as Set argument for {cname}; using keys to create OrderedScalarSet'
+                    warning = (
+                        f'Provided ConstraintExpression with IndexedSet {sname} as Set argument '
+                        f'for {cname}; using keys to create OrderedScalarSet'
+                    )
                     print(warning)
                     self._args[self._args.index(sset)] = pyo.Set(initialize=sset.keys())
 

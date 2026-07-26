@@ -194,7 +194,9 @@ def plot_network(
             mode='markers+text',
             text=[str(n) for n in node_ids],
             textposition='top center',
-            hovertext=[f'Region {n}: degree {d}' for n, d in zip(node_ids, node_degree, strict=True)],
+            hovertext=[
+                f'Region {n}: degree {d}' for n, d in zip(node_ids, node_degree, strict=True)
+            ],
             hoverinfo='text',
             marker={
                 'size': [15 + 4 * d for d in node_degree],

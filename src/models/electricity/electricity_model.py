@@ -123,7 +123,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
         self.ProcurementSetReserves = pyo.Set(
             self.region_analyze,
-            set(t.value for t in ReserveType),
+            {t.value for t in ReserveType},
             self.year,
             self.hour,
             within=self.tech * self.step,
@@ -478,7 +478,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             # note:  The data is cast to cover all combinations of ReserveType and Tech
             #        with 0's as appropriate
             self.ResTechUpperBound = pyo.Param(
-                set(rt.value for rt in ReserveType),
+                {rt.value for rt in ReserveType},
                 self.tech,
                 initialize=all_dicts['res_tech_upper_bound'],
             )

@@ -257,7 +257,8 @@ def variable_to_dataframe(var: pyo.Var) -> pd.DataFrame:
     value_col = var.local_name
     rows = []
     for idx in var:
-        row = dict(zip(columns, idx if isinstance(idx, tuple) else (idx,), strict=True)) if columns else {}
+        idx_tuple = idx if isinstance(idx, tuple) else (idx,)
+        row = dict(zip(columns, idx_tuple, strict=True)) if columns else {}
         row[value_col] = pyo.value(var[idx], exception=False)
         rows.append(row)
 

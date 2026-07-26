@@ -182,7 +182,7 @@ class ParamData:
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
-        model_sets.build_sc_indexes(list(SCI(*t) for t in self.param_frames['supply_curve'].index))
+        model_sets.build_sc_indexes([SCI(*t) for t in self.param_frames['supply_curve'].index])
 
         # populate the trade indices based on gathered parameter data
         model_sets.build_international_travel_index(

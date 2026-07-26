@@ -197,7 +197,7 @@ def create_obj_df(mod_object):
         df['Key'] = df['Key'].str.replace('(', '', regex=False).str.replace(')', '', regex=False)
         temp = df['Key'].str.split(', ', expand=True)
         for col in temp.columns:
-            temp.rename(columns={col: 'i_' + str(col)}, inplace=True)
+            temp = temp.rename(columns={col: 'i_' + str(col)})
         df = df.join(temp, how='outer')
 
     return df

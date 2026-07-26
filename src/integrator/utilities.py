@@ -30,7 +30,8 @@ if typing.TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-# TODO:  This might be a good use case for a persistent solver (1-each) for both the elec & hyd...  hmm
+# TODO:  This might be a good use case for a persistent solver (1-each) for both the
+#        elec & hyd...  hmm
 def simple_solve(m: ConcreteModel):
     """A simple solve routine."""
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
@@ -197,9 +198,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
     return elec_price_ann
 
 
-def regional_annual_prices(
-    m: PowerModel | ConcreteModel, block=None
-) -> dict[HI, float]:
+def regional_annual_prices(m: PowerModel | ConcreteModel, block=None) -> dict[HI, float]:
     """Pulls all regional annual weighted electricity prices.
 
     Parameters
@@ -246,9 +245,7 @@ def convert_elec_price_to_lut(prices: list[tuple[EI, float]]) -> dict[EI, float]
     return res
 
 
-def poll_hydrogen_price(
-    model: H2Model | ConcreteModel, block=None
-) -> list[tuple[HI, float]]:
+def poll_hydrogen_price(model: H2Model | ConcreteModel, block=None) -> list[tuple[HI, float]]:
     """Retrieve the price of H2 from the H2 model.
 
     Parameters

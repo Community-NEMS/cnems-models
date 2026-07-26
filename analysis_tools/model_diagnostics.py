@@ -83,7 +83,9 @@ def breakdown_obj_terms(em: PowerModel) -> None:
         A solved PowerModel instance.
     """
     repn = generate_standard_repn(em.total_cost.expr)
-    terms = [(var, value(coef)) for var, coef in zip(repn.linear_vars, repn.linear_coefs, strict=True)]
+    terms = [
+        (var, value(coef)) for var, coef in zip(repn.linear_vars, repn.linear_coefs, strict=True)
+    ]
     terms.sort(
         key=lambda term: (-abs(term[1]), term[0].parent_component().name, str(term[0].index()))
     )
@@ -110,16 +112,18 @@ def capacity_inspector(em: PowerModel, region: str, year: int):
         for step in em.step:  # [1,2,3]:
             try:
                 print(
-                    f'Capacity for {tech}-{step} in {region} {year}: {value(em.capacity_total[region, tech, step, year])}'
+                    f'Capacity for {tech}-{step} in {region} {year}: '
+                    f'{value(em.capacity_total[region, tech, step, year])}'
                 )  # [region, tech, step, year])}')
-            except:
+            except Exception:
                 print(f'Capacity for {tech}-{step} in {region} {year}: N/A')
             for hour in range(1, 11):
                 try:
                     print(
-                        f'   Generation: {value(em.generation_total[region, tech, step, year, hour])}'
+                        '   Generation: '
+                        f'{value(em.generation_total[region, tech, step, year, hour])}'
                     )
-                except:
+                except Exception:
                     print('   Generation: N/A')
         print()
 
@@ -134,5 +138,5 @@ def load_inspector(em: PowerModel, region: str):
         for hour in range(10):
             try:
                 print(f'Load for {year} hour {hour}: {value(em.Load[region, year, hour])}')
-            except:
+            except Exception:
                 print(f'Load for {year} hour {hour}: N/A')

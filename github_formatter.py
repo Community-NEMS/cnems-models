@@ -65,5 +65,5 @@ if __name__ == '__main__':
     ### List all markdown files
     wd = Path()
 
-    files = [x for x in wd.glob(pattern='**/README.md')]
-    [x for x in map(parser, files)]
+    files = list(wd.glob(pattern='**/README.md'))
+    list(map(parser, files))

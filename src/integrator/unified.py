@@ -72,7 +72,7 @@ def run_unified(settings: Config_settings):
     h2_obj_records = []
     elec_obj_records = []
     h2_demand_records = []
-    elec_demand_records = []
+    elec_demand_records = []  # noqa: F841 - used by the commented-out plot_it call below
     load_records = []
 
     elec_price_to_res_records = []

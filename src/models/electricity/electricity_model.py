@@ -450,7 +450,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=lambda m, ra, ri, y, h: viable_steps.get((ra, ri, y, h), []),
             )
             domestic_destinations = defaultdict(list)
-            for region, region_int, step, year, hour in self.international_trade_index:
+            for region, region_int, _, year, hour in self.international_trade_index:
                 domestic_destinations[region_int, year, hour].append(region)
             # note: this does NOT depend on step, but there could be non-viable hours
             self.domestic_destinations = pyo.Set(

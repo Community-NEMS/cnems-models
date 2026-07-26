@@ -409,6 +409,6 @@ class ModelSets:
     def _create_year_agg_weights(year_map: dict[int, int]) -> dict[int, int]:
         """Creates a dictionary of year aggregation weights."""
         weights = {}
-        for year, agg_year in year_map.items():
+        for _year, agg_year in year_map.items():
             weights[agg_year] = weights.get(agg_year, 0) + 1
         return weights

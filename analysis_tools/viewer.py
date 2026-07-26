@@ -46,7 +46,7 @@ def read_run_csv(csv, run, df_list):
 # get all the electricity run names from the output file
 os.chdir(Path(dir_output))
 all_runs = []
-for root, dirs, files in os.walk(dir_output):
+for root, dirs, _files in os.walk(dir_output):
     if 'electricity' in dirs:
         all_runs.append(Path(root, 'electricity').relative_to(Path.cwd()))
 all_runs = [item for item in all_runs if 'test' not in str(item)]

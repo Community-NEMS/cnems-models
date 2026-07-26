@@ -295,7 +295,7 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     # instance.cap_set = []
     # instance.old_cap_wt = {}
 
-    for r, tech, step, y in instance.CapCostLearning:
+    for _r, tech, _step, y in instance.CapCostLearning:
         if (tech, y) not in initial_growth:
             # each tech will increase cap by 1 GW per year. reasonable starting point.
             # TODO:  come back to this assumption after better understanding of process

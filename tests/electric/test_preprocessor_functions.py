@@ -36,8 +36,7 @@ def dummy_df():
 
 
 def test_avg_by_group(dummy_df, year_map):
-    """test the aggregation function."""
-
+    """Test the aggregation function."""
     grouped_averaged = avg_by_group(df=dummy_df, set_name='year', map_frame=year_map)
 
     expected = pd.DataFrame(

@@ -11,10 +11,10 @@ Reads the fixed, developer-owned mapping of PARAM_SOURCES keys to their backing 
 index columns, value column, and whether the source is required regardless of ElecConfig switches.
 """
 
+import tomllib
 from logging import getLogger
 from pathlib import Path
 
-import tomllib
 from pydantic import BaseModel, ValidationError
 
 logger = getLogger(__name__)

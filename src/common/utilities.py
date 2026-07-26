@@ -21,7 +21,7 @@ logger = getLogger(__name__)
 
 @deprecated('should be using normal Path functions')
 def make_dir(dir_name):
-    """generates an output directory to write model results, output directory is the date/time
+    """Generates an output directory to write model results, output directory is the date/time
     at the time this function executes. It includes subdirs for vars, params, constraints.
 
     Returns
@@ -37,7 +37,7 @@ def make_dir(dir_name):
 
 # Logger Setup
 def setup_logger(settings: CommonConfig, **kwargs):
-    """initiates logging, sets up logger in the output directory specified.
+    """Initiates logging, sets up logger in the output directory specified.
 
     Parameters
     ----------

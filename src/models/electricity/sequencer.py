@@ -236,7 +236,6 @@ def calculate_tolerance(
     float
         The OBJ value (total cost).
     """
-
     if not set(cap_growth.keys()) == set(new_cap_growth.keys()):
         raise ValueError('cap_growth and new_cap_growth must have the same keys')
 
@@ -284,7 +283,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
 
 
 def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
-    """initialize capacity growth for 0th iteration.
+    """Initialize capacity growth for 0th iteration.
 
     Parameters
     ----------
@@ -305,7 +304,7 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
 
 
 def set_new_cap(instance: PowerModel):
-    """calculate new capacity after solve iteration.
+    """Calculate new capacity after solve iteration.
 
     Parameters
     ----------
@@ -338,7 +337,7 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
 
 
 def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
-    """function for updating learning costs by technology and year.
+    """Function for updating learning costs by technology and year.
 
     Parameters
     ----------
@@ -362,7 +361,7 @@ def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
 
 
 def update_expansion_cost(instance, new_cap: dict[tuple, float]):
-    """update capital cost based on new capacity learning."""
+    """Update capital cost based on new capacity learning."""
     new_multiplier = {}
     for tech, y in new_cap:
         new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])

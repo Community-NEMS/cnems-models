@@ -210,7 +210,6 @@ class ParamData:
 
     def build_load_dataframe(self) -> DataFrame:
         """Build the load dataframe."""
-
         # TODO:  Research the functions called here and perhaps move them here as well
         # TODO:  Move the source data out of the "residential" folder to "common"??
         # TODO:  Verify that the Load is defined in all region x year x hour.
@@ -306,7 +305,7 @@ class ParamData:
         tech_hyrdo: Collection[str],
     ) -> DataFrame:
         # def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
-        """builds the capacity credit dataframe.
+        """Builds the capacity credit dataframe.
 
         Parameters
         ----------

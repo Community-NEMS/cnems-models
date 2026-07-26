@@ -323,7 +323,7 @@ def run_unified(settings: Config_settings):
             meta_objs_res.append(res_obj)
 
         def under_tolerance() -> bool:
-            """check tolerance for elec, hyd, and res modules.
+            """Check tolerance for elec, hyd, and res modules.
 
             Returns
             -------

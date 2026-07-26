@@ -190,7 +190,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion:
 
             def retireable(m, _, tech, step, __):
-                """verify that the combination of tech-step is in the eligible set."""
+                """Verify that the combination of tech-step is in the eligible set."""
                 return (tech, step) in m.tech_retireable
 
             self.capacity_retirements_index = pyo.Set(
@@ -948,7 +948,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         @self.Constraint(self.capacity_hydro_ub_index)
         def capacity_hydro_ub(self, r, T_hydro, y, season):
-            """hydroelectric generation seasonal upper bound where
+            """Hydroelectric generation seasonal upper bound where
             Hydo generation <= Hydo capacity * Hydro capacity factor.
 
             Parameters

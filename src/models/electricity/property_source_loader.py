@@ -11,10 +11,10 @@ Reads the fixed, developer-owned mapping of PROPERTY_SOURCES keys to their backi
 the property columns to pivot into truthy-membership sets, and the basis/index columns.
 """
 
+import tomllib
 from logging import getLogger
 from pathlib import Path
 
-import tomllib
 from pydantic import BaseModel, ValidationError
 
 logger = getLogger(__name__)

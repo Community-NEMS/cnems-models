@@ -17,7 +17,7 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, dcc, html
 
 # Import python modules
-from main import app_main, main
+from main import main
 from src.common.config_gui import (
     CONFIG_JSON_PATH,
     ConfigValidationError,
@@ -168,7 +168,7 @@ def save_config_editor(n_clicks, input_values, input_ids):
     prevent_initial_call=True,
 )
 def run_mode(n_clicks, selected_mode):
-    """passes the selected mode to main.py and runs the script.
+    """Passes the selected mode to main.py and runs the script.
 
     Parameters
     ----------
@@ -190,7 +190,7 @@ def run_mode(n_clicks, selected_mode):
     # verify we have a saved config file
     config_path = CONFIG_JSON_PATH
     if not config_path.exists():
-        return f'Error: No config file generated.  Please save config values in GUI.', 0
+        return 'Error: No config file generated.  Please save config values in GUI.', 0
 
     try:
         selected_mode = RunMode(selected_mode)

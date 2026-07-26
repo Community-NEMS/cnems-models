@@ -80,7 +80,7 @@ def report_obj_df(mod_object, instance, dir_out, sub_dir):
 
 @deprecated('Only used by the deprecated postprocessor() entry point.')
 def make_elec_output_dir(output_dir):
-    """generates an output subdirectory to write electricity model results. It includes subdirs for
+    """Generates an output subdirectory to write electricity model results. It includes subdirs for
     vars, params, constraints.
 
     Returns
@@ -105,7 +105,7 @@ def make_elec_output_dir(output_dir):
     'gaussseidel.py). Superseded by extract_all_variables/export_variables_to_csv for Vars.'
 )
 def postprocessor(instance):
-    """master postprocessor function that writes out the final dataframes from to the electricity
+    """Master postprocessor function that writes out the final dataframes from to the electricity
     model. Creates the output directories and writes out dataframes for variables, parameters, and
     constraints. Gets the correct columns names for each dataframe using the cols_dict.
 

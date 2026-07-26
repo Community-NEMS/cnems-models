@@ -76,7 +76,7 @@ _REQUIRED_KEYS = {
 
 
 def test_load_param_sources_count_and_keys():
-    """all 23 entries load, keyed by the same names as the original dict."""
+    """All 23 entries load, keyed by the same names as the original dict."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 23
@@ -84,7 +84,7 @@ def test_load_param_sources_count_and_keys():
 
 
 def test_load_param_sources_transcription_audit():
-    """every filename/index_cols/value_col matches the expected tuple exactly."""
+    """Every filename/index_cols/value_col matches the expected tuple exactly."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     for key, (filename, index_cols, value_col) in _EXPECTED_PARAM_SOURCES.items():
@@ -96,7 +96,7 @@ def test_load_param_sources_transcription_audit():
 
 
 def test_load_param_sources_types():
-    """every entry is a ParamSource with a tuple index and a bool required flag."""
+    """Every entry is a ParamSource with a tuple index and a bool required flag."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     for source in loaded.values():

@@ -77,7 +77,7 @@ def mock_model() -> pyo.ConcreteModel:
 
 class TestCalculateTolerance:
     def test_weighted_absolute_difference(self):
-        """tolerance is the year-weighted sum of absolute growth differences."""
+        """Tolerance is the year-weighted sum of absolute growth differences."""
         cap_growth = {(2, 2030): 10.0, (2, 2035): 20.0}
         new_cap_growth = {(2, 2030): 12.0, (2, 2035): 15.0}
         year_weights = {2030: 2, 2035: 3}
@@ -105,7 +105,7 @@ def test_init_old_cap(mock_model):
 
 
 def test_calculate_cap_growth(mock_model):
-    """growth in year y is the sum of all builds in years strictly before y."""
+    """Growth in year y is the sum of all builds in years strictly before y."""
     result = calculate_cap_growth(mock_model)
 
     assert result[(2, 2030)] == pytest.approx(0.0)  # no years before 2030
@@ -126,7 +126,7 @@ def test_set_new_cap(mock_model):
 
 
 def test_set_new_cap_matches_calculate_cap_growth(mock_model):
-    """the two routines should agree on capacity by (tech, year)."""
+    """The two routines should agree on capacity by (tech, year)."""
     growth = calculate_cap_growth(mock_model)
     set_new_cap(mock_model)
 
@@ -135,11 +135,11 @@ def test_set_new_cap_matches_calculate_cap_growth(mock_model):
 
 class TestCostLearningFunc:
     def test_no_new_capacity_in_start_year(self, mock_model):
-        """with no growth in the base year the multiplier is 1.0."""
+        """With no growth in the base year the multiplier is 1.0."""
         assert cost_learning_func(mock_model, 2, Y0, 0.0) == pytest.approx(1.0)
 
     def test_multiplier_decreases_with_capacity(self, mock_model):
-        """learning drives the cost multiplier below 1 as capacity grows."""
+        """Learning drives the cost multiplier below 1 as capacity grows."""
         low = cost_learning_func(mock_model, 2, Y0, 10.0)
         high = cost_learning_func(mock_model, 2, Y0, 100.0)
 
@@ -151,8 +151,9 @@ class TestCostLearningFunc:
         assert cost_learning_func(mock_model, 2, 2035, 50.0) == pytest.approx(expected)
 
     def test_higher_learning_rate_lowers_cost(self, mock_model):
-        """tech 3 has the higher learning rate, so a like-for-like fraction of
-        its supply curve yields a bigger cost reduction."""
+        """Tech 3 has the higher learning rate, so a like-for-like fraction of
+        its supply curve yields a bigger cost reduction.
+        """
         tech_2 = cost_learning_func(mock_model, 2, Y0, 50.0)  # 50% of 100
         tech_3 = cost_learning_func(mock_model, 3, Y0, 100.0)  # 50% of 200
 
@@ -173,7 +174,7 @@ def test_update_expansion_cost(mock_model):
 
 
 def test_update_expansion_cost_no_growth_is_unchanged(mock_model):
-    """zero growth in the base year leaves the initial cost in place."""
+    """Zero growth in the base year leaves the initial cost in place."""
     new_cap = {(tech, y): 0.0 for tech in TECHS for y in YEARS}
 
     update_expansion_cost(mock_model, new_cap)

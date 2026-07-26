@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pandas as pd
 import pyomo.opt as pyo
-from pyomo.contrib.appsi.base import Solver
 from pyomo.environ import ConcreteModel, value
 from pyomo.opt import OptSolver
 
@@ -33,8 +32,7 @@ logger = getLogger(__name__)
 
 # TODO:  This might be a good use case for a persistent solver (1-each) for both the elec & hyd...  hmm
 def simple_solve(m: ConcreteModel):
-    """a simple solve routine."""
-
+    """A simple solve routine."""
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
     # TODO:  experiment with pyomo's persistent solver interface, one for each ELEC, H2
     opt = select_solver(m)
@@ -54,7 +52,6 @@ def simple_solve_no_opt(m: ConcreteModel, opt: pyo.SolverFactory):
     opt: SolverFactory
         Solver object initiated prior to solve
     """
-
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
     # TODO:  experiment with pyomo's persistent solver interface, one for each ELEC, H2
     logger.info('solving w/ solver-factory object instantiated outside of loop')
@@ -113,7 +110,7 @@ HI = namedtuple('HI', ['region', 'year'])
 
 
 def get_elec_price(instance: typing.Union['PowerModel', ConcreteModel], block=None) -> pd.DataFrame:
-    """pulls hourly electricity prices from completed PowerModel and de-weights them.
+    """Pulls hourly electricity prices from completed PowerModel and de-weights them.
 
     Prices from the duals are weighted by the day and year weights applied in the OBJ function
     This function retrieves the prices for all hours and removes the day and annual weights to
@@ -133,7 +130,6 @@ def get_elec_price(instance: typing.Union['PowerModel', ConcreteModel], block=No
         df of raw prices and the day weights to re-apply (if needed)
         columns: [r, y, hour, day_weight, raw_price]
     """
-
     if block:
         c = block.demand_balance
         model = block
@@ -164,7 +160,7 @@ def get_elec_price(instance: typing.Union['PowerModel', ConcreteModel], block=No
 
 
 def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
-    """takes annual weighted average of hourly electricity prices.
+    """Takes annual weighted average of hourly electricity prices.
 
     Parameters
     ----------
@@ -178,7 +174,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
     """
 
     def my_agg(x):
-        """aggregate average price based on day weights.
+        """Aggregate average price based on day weights.
 
         Parameters
         ----------
@@ -204,7 +200,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
 def regional_annual_prices(
     m: typing.Union['PowerModel', ConcreteModel], block=None
 ) -> dict[HI, float]:
-    """pulls all regional annual weighted electricity prices.
+    """Pulls all regional annual weighted electricity prices.
 
     Parameters
     ----------
@@ -231,7 +227,7 @@ def regional_annual_prices(
 
 
 def convert_elec_price_to_lut(prices: list[tuple[EI, float]]) -> dict[EI, float]:
-    """convert electricity prices to dictionary, look up table.
+    """Convert electricity prices to dictionary, look up table.
 
     Parameters
     ----------
@@ -287,8 +283,9 @@ def poll_hydrogen_price(
 
 
 def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]:
-    """simple coversion from list of records to a dictionary LUT
-    repeat entries should not occur and will generate an error."""
+    """Simple coversion from list of records to a dictionary LUT
+    repeat entries should not occur and will generate an error.
+    """
     res = {}
     for hi, price in records:
         if hi in res:
@@ -300,7 +297,7 @@ def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]
 
 
 def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, float]:
-    """retrieve a REPRESENTATIVE price at the annual level from a listing of prices.
+    """Retrieve a REPRESENTATIVE price at the annual level from a listing of prices.
 
     This function computes the AVERAGE elec price for each region-year combo
 
@@ -330,7 +327,7 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
 def poll_h2_prices_from_elec(
     model: 'PowerModel', tech, regions: typing.Iterable
 ) -> dict[typing.Any, float]:
-    """poll the step-1 H2 price currently in the model for region/year, averaged over any steps.
+    """Poll the step-1 H2 price currently in the model for region/year, averaged over any steps.
 
     Parameters
     ----------
@@ -362,7 +359,6 @@ def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
     h2_prices : list[tuple[HI, float]]
         new prices
     """
-
     # TODO:  Fix this hard-coding below!
     h2_techs = {5}  # temp hard-coding of the tech who's price we're going to set
 
@@ -453,7 +449,6 @@ def create_temporal_mapping(sw_temporal):
         a dataframe with 8760 rows that include each hour, hour type, day, day type, and season.
         It also includes the weights for each day type and hour type.
     """
-
     # Temporal Sets - read data
     # SD = season/day; hr = hour
     data_root = Path(PROJECT_ROOT, 'input/integrator')

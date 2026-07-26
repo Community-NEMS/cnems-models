@@ -42,7 +42,6 @@ def tech_name_check(model: ConcreteModel, tech: str) -> bool:
     """
     Validate the tech name (letters + numbers only + underscore).
     """
-
     if re.match(r'[a-zA-Z0-9_]+\Z', tech):
         return True
     logger.error(

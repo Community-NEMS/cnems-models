@@ -3,8 +3,7 @@ from src.models.electricity.sequencer import ElectricitySequencer
 
 
 def test_poll_elec_prices(config_set):
-    """test that we can poll prices from elec and get "reasonable" answers."""
-
+    """Test that we can poll prices from elec and get "reasonable" answers."""
     # dev note:  currently, this test is a little "shaky", but it is a good pattern for testing
     #            extracted prices, so it is retained, minimally as a pattern going forward.
     common_config, elec_config = config_set

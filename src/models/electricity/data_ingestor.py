@@ -197,14 +197,13 @@ def read_parameter_csv(
 def read_property_csv(
     file_path: Path, param_cols: Iterable[str], index_cols: Iterable[str]
 ) -> dict[str, list[str]]:
-    """read csv file that has 'properties as columns' and some index columns and convert
+    """Read csv file that has 'properties as columns' and some index columns and convert
     to dictionary of indices that satisfy each property (pivot).
 
 
     Assume the first column is the index/reference column and gather those entries in master set.
     For other columns, look for True/true and capture
     """
-
     with open(file_path, 'r') as f:
         reader = DictReader(f)
         flag_floats = False

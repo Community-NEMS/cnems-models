@@ -98,7 +98,7 @@ def readin_sql(all_frames):
 
 @deprecated('DB reading is currently not supported.')
 def load_data(tablename, metadata, engine):
-    """loads the data from the SQL database; used in readin_sql function.
+    """Loads the data from the SQL database; used in readin_sql function.
 
     Parameters
     ----------
@@ -126,7 +126,7 @@ def load_data(tablename, metadata, engine):
 
 @deprecated('no current uses')
 def subset_dfs(all_frames, setin, i):
-    """filters dataframes based on the values within the set.
+    """Filters dataframes based on the values within the set.
 
     Parameters
     ----------
@@ -175,7 +175,7 @@ def fill_values(row, subset_list):
 
 
 def avg_by_group(df, set_name, map_frame):
-    """takes in a dataframe and groups it by the set specified and then averages the data.
+    """Takes in a dataframe and groups it by the set specified and then averages the data.
 
     Parameters
     ----------
@@ -222,7 +222,7 @@ def avg_by_group(df, set_name, map_frame):
 
 # add seasons to data without seasons
 def add_season_index(cw_temporal, df, pos):
-    """adds a season index to the input dataframe.
+    """Adds a season index to the input dataframe.
 
     Parameters
     ----------
@@ -247,7 +247,7 @@ def add_season_index(cw_temporal, df, pos):
 
 
 def time_map(cw_temporal, rename_cols):
-    """create temporal mapping parameters.
+    """Create temporal mapping parameters.
 
     Parameters
     ----------
@@ -266,7 +266,7 @@ def time_map(cw_temporal, rename_cols):
 
 
 def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
-    """builds the capacity credit dataframe.
+    """Builds the capacity credit dataframe.
 
     Parameters
     ----------
@@ -353,7 +353,7 @@ def create_subsets(df, col, subset):
 
 
 def create_hourly_sets(all_frames, df):
-    """expands sets that are indexed by season to be indexed by hour.
+    """Expands sets that are indexed by season to be indexed by hour.
 
     Parameters
     ----------
@@ -395,7 +395,7 @@ def hourly_sc_subset(all_frames, subset):
 
 
 def hr_sub_sc_subset(all_frames, T_subset, hr_subset):
-    """creates supply curve subsets by hour.
+    """Creates supply curve subsets by hour.
 
     Parameters
     ----------
@@ -419,7 +419,7 @@ def hr_sub_sc_subset(all_frames, T_subset, hr_subset):
 
 
 def step_sub_sc_subset(all_frames, T_subset, step_subset):
-    """creates supply curve subsets by step.
+    """Creates supply curve subsets by step.
 
     Parameters
     ----------
@@ -445,7 +445,7 @@ def step_sub_sc_subset(all_frames, T_subset, step_subset):
 
 @deprecated('done in ModelSets')
 def create_sc_sets(all_frames, setin):
-    """creates supply curve sets.
+    """Creates supply curve sets.
 
     Parameters
     ----------
@@ -498,7 +498,7 @@ def create_sc_sets(all_frames, setin):
 
 @deprecated('done in ModelSets')
 def create_other_sets(all_frames, setin):
-    """creates other (non-supply curve) sets.
+    """Creates other (non-supply curve) sets.
 
     Parameters
     ----------
@@ -578,7 +578,7 @@ def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
 def preprocessor(
     setin: ModelSets, common_config: CommonConfig, elec_config: ElecConfig
 ) -> tuple[dict[str, DataFrame], dict[str, dict[tuple, float]], ModelSets]:
-    """main preprocessor function that generates the final dataframes and sets sent over to the
+    """Main preprocessor function that generates the final dataframes and sets sent over to the
     electricity model. This function reads in the input data, modifies it based on the temporal
     and regional mapping specified in the inputs, and gets it into the final formatting needed.
     Also adds some additional regional sets to the set class based on parameter inputs.
@@ -595,7 +595,6 @@ def preprocessor(
     setin : ModelSets
         an initial batch of sets that are used to solve electricity model
     """
-
     # READ IN INPUT DATA
     # TODO:  For now, we will handle some params separately and leave some in "all_frames".  Merge
     #        them later...?
@@ -720,7 +719,7 @@ def preprocessor(
 
     @deprecated('should not be required with proper data')
     def price_MWh_to_GWh(dic, names: list[str]):
-        """changing units of prices to all be in $/GWh so obj is $.
+        """Changing units of prices to all be in $/GWh so obj is $.
 
         Parameters
         ----------
@@ -807,7 +806,7 @@ def preprocessor(
 
 @deprecated('no known (needed) uses')
 def makedir(dir_out):
-    """creates a folder directory based on the path provided.
+    """Creates a folder directory based on the path provided.
 
     Parameters
     ----------
@@ -820,7 +819,7 @@ def makedir(dir_out):
 
 @deprecated('likely not needed.  Just regurgitated inputs.  Future removal?')
 def output_inputs(OUTPUT_ROOT):
-    """function developed initial for QA purposes, writes out to csv all of the dfs and sets passed
+    """Function developed initial for QA purposes, writes out to csv all of the dfs and sets passed
     to the electricity model to an output directory.
 
     Parameters
@@ -857,7 +856,7 @@ def output_inputs(OUTPUT_ROOT):
 
 @deprecated('no known uses')
 def print_sets(setin):
-    """function developed initially for QA purposes, prints out all of the sets passed to the
+    """Function developed initially for QA purposes, prints out all of the sets passed to the
     electricity model.
 
     Parameters

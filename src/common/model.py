@@ -199,7 +199,6 @@ class Model(pyo.ConcreteModel):
         pyo.Set
             Pyomo Set Object
         """
-
         # declare_set -- Based on instance of sdata, call appropriate function and pass to sub-methods
         if isinstance(sdata, (pd.DataFrame, pd.Series)):
             return self._declare_set_with_pandas(
@@ -411,7 +410,6 @@ class Model(pyo.ConcreteModel):
         pyo.Set
             Pyomo Set Object
         """
-
         # declare_set_with_dict -- If switch off, return empty set
         if not switch:
             return None
@@ -871,7 +869,6 @@ class Model(pyo.ConcreteModel):
         pyomo set
             reindexed set to be added to model
         """
-
         # get a hook to the input set
         set_in = getattr(m1, sname)
         # get a hook to the column names for the set...

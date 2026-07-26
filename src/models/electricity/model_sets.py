@@ -114,7 +114,7 @@ class ModelSets:
         else:
             # the "year_map" is just a trivial mapping of the selected years onto themselves
             self.year_map = {y: y for y in common_config.summary_years}
-            self.year_agg_weights = {y: 1 for y in common_config.summary_years}
+            self.year_agg_weights = dict.fromkeys(common_config.summary_years, 1)
 
         # the year-map is used as a df in some spots, so add it here
         self.year_map_df = pd.DataFrame(self.year_map.items(), columns=['year', 'Map_year'])
@@ -141,7 +141,7 @@ class ModelSets:
         # Technology Sets
         @deprecated('currently not used.  Data ingestion makes these tech subsets from the file')
         def load_and_assign_subsets(df, col):
-            """create list based on tech subset assignment.
+            """Create list based on tech subset assignment.
 
             Parameters
             ----------

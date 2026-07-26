@@ -1,11 +1,13 @@
 """This file contains Config_settings class. It establishes the main settings used when running
 the model. It takes these settings from the run_config.toml file. It has universal configurations
-(e.g., configs that cut across modules and/or solve options) and module specific configs."""
+(e.g., configs that cut across modules and/or solve options) and module specific configs.
+"""
 
 ###################################################################################################
 # Setup
 
 import argparse
+import tomllib
 import types
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +15,6 @@ from warnings import deprecated
 
 import numpy as np
 import pandas as pd
-import tomllib
 
 from definitions import PROJECT_ROOT
 from src.common.utilities import make_dir

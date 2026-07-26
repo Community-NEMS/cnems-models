@@ -27,7 +27,8 @@ _EXPECTED_VAR_NAMES = {
 def test_breakdown_obj_terms(solved_model, capsys):
     """breakdown_obj_terms should print a header row followed by (variable, index,
     coefficient) triplets, sorted by descending coefficient magnitude, with duplicate
-    coefficients collapsed into a single row plus an "... and x others" summary line."""
+    coefficients collapsed into a single row plus an "... and x others" summary line.
+    """
     _, _, elec_model = solved_model
 
     breakdown_obj_terms(elec_model)
@@ -66,6 +67,6 @@ verbose = False
 
 @pytest.mark.skipif(not verbose, reason='only run verbosely')
 def test_obj_function_scaling(solved_model):
-    """print to screen the objective coefficients."""
+    """Print to screen the objective coefficients."""
     _, _, elec_model = solved_model
     breakdown_obj_terms(elec_model)

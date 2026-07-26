@@ -2,12 +2,9 @@
 
 # Import packages
 import logging
-import os
 import types
 from pathlib import Path
 from warnings import deprecated
-
-import tomllib
 
 # Import python modules
 from definitions import PROJECT_ROOT
@@ -24,7 +21,7 @@ default_config_path = Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml')
 
 @deprecated('needs reconfig if preserved')
 def app_main(selected_mode):
-    """main run through the bsky gui app.
+    """Main run through the bsky gui app.
 
     Parameters
     ----------
@@ -46,7 +43,7 @@ def main(
     Runs model as defined in settings.
 
     Parameters
-    -------
+    ----------
     args: settings
         Contains configuration settings for which models and solvers to run
     """

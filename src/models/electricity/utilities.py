@@ -163,7 +163,7 @@ def check_results(results, SolutionStatus, TerminationCondition):
 
 @deprecated('replaced with new post-processing function')
 def create_obj_df(mod_object):
-    """takes pyomo component objects (e.g., variables, parameters, constraints) and processes the
+    """Takes pyomo component objects (e.g., variables, parameters, constraints) and processes the
     pyomo data and converts it to a dataframe and then writes the dataframe out to an output dir.
     The dataframe contains a key column which is the original way the pyomo data is structured,
     as well as columns broken out for each set and the final values.
@@ -204,7 +204,7 @@ def create_obj_df(mod_object):
 
 # TODO:  QA uses of this.  RN, it is only used as a test helper
 def annual_count(hour, m) -> int:
-    """return the aggregate weight of this hour in the representative year
+    """Return the aggregate weight of this hour in the representative year
     we know the hour weight, and the hours are unique to days, so we can
     get the day weight.
 

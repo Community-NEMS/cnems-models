@@ -29,7 +29,7 @@ _ORIGINAL_PROPERTY_SOURCES = {
 
 
 def test_load_property_sources_count_and_keys():
-    """all 4 entries load, keyed by the same names as the original dict."""
+    """All 4 entries load, keyed by the same names as the original dict."""
     loaded = load_property_sources(PROPERTY_SOURCES_TOML)
 
     assert len(loaded) == len(_ORIGINAL_PROPERTY_SOURCES) == 4
@@ -37,7 +37,7 @@ def test_load_property_sources_count_and_keys():
 
 
 def test_load_property_sources_transcription_audit():
-    """every filename/property_cols/index_cols matches the original tuple exactly."""
+    """Every filename/property_cols/index_cols matches the original tuple exactly."""
     loaded = load_property_sources(PROPERTY_SOURCES_TOML)
 
     for key, (filename, property_cols, index_cols) in _ORIGINAL_PROPERTY_SOURCES.items():
@@ -49,7 +49,7 @@ def test_load_property_sources_transcription_audit():
 
 
 def test_load_property_sources_types():
-    """every entry is a PropertySource with tuple property_cols/index_cols."""
+    """Every entry is a PropertySource with tuple property_cols/index_cols."""
     loaded = load_property_sources(PROPERTY_SOURCES_TOML)
 
     for source in loaded.values():

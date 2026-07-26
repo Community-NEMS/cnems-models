@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -22,7 +22,7 @@ from src.models.electricity.sequencer import ElectricitySequencer
 
 @pytest.fixture
 def config_set() -> tuple[CommonConfig, ElecConfig]:
-    """build a CommonConfig and ElecConfig for testing"""
+    """build a CommonConfig and ElecConfig for testing."""
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
     elec_config = ElecConfig(**remainder.pop('elec_config'))
@@ -46,7 +46,7 @@ def learning_config_set() -> tuple[CommonConfig, ElecConfig]:
 
 @pytest.fixture
 def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """build an un-solved PowerModel for testing"""
+    """build an un-solved PowerModel for testing."""
     common_config, elec_config = config_set
 
     sequencer = ElectricitySequencer()
@@ -56,7 +56,7 @@ def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
 
 @pytest.fixture
 def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """build a solved PowerModel for testing"""
+    """build a solved PowerModel for testing."""
     common_config, elec_config = config_set
 
     sequencer = ElectricitySequencer()

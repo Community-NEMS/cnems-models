@@ -1,5 +1,5 @@
 """
-Unifying the solve of both H2 and Elec and Res
+Unifying the solve of both H2 and Elec and Res.
 
 Dev Notes:
 
@@ -55,7 +55,7 @@ logger = getLogger(__name__)
 
 
 def run_unified(settings: Config_settings):
-    """Runs unified solve method based on
+    """Runs unified solve method based on.
 
     Parameters
     ----------
@@ -146,7 +146,7 @@ def run_unified(settings: Config_settings):
                 h2_demand_equations_from_elec[HI(region=r, year=y)] += h2_demand_weighted
 
         def link_h2_demand(meta, r, y):
-            """Link h2 demand from h2 model and elec together with a constraint
+            """Link h2 demand from h2 model and elec together with a constraint.
 
             Parameters
             ----------
@@ -323,7 +323,7 @@ def run_unified(settings: Config_settings):
             meta_objs_res.append(res_obj)
 
         def under_tolerance() -> bool:
-            """check tolerance for elec, hyd, and res modules
+            """check tolerance for elec, hyd, and res modules.
 
             Returns
             -------

@@ -1,5 +1,5 @@
 """
-A gathering of utility functions for dealing with model interconnectivity
+A gathering of utility functions for dealing with model interconnectivity.
 """
 
 import argparse
@@ -37,7 +37,7 @@ def make_dir(dir_name):
 
 # Logger Setup
 def setup_logger(settings: CommonConfig, **kwargs):
-    """initiates logging, sets up logger in the output directory specified
+    """initiates logging, sets up logger in the output directory specified.
 
     Parameters
     ----------
@@ -72,7 +72,7 @@ def setup_logger(settings: CommonConfig, **kwargs):
 
 
 def get_args():
-    """Parses args
+    """Parses args.
 
     Returns
     -------

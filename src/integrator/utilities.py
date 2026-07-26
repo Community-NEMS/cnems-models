@@ -1,5 +1,5 @@
 """
-A gathering of utility functions for dealing with model interconnectivity
+A gathering of utility functions for dealing with model interconnectivity.
 
 Dev Note:  At some review point, some decisions may move these back & forth with parent
 models after it is decided if it is a utility job to do .... or a class method.
@@ -33,7 +33,7 @@ logger = getLogger(__name__)
 
 # TODO:  This might be a good use case for a persistent solver (1-each) for both the elec & hyd...  hmm
 def simple_solve(m: ConcreteModel):
-    """a simple solve routine"""
+    """a simple solve routine."""
 
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
     # TODO:  experiment with pyomo's persistent solver interface, one for each ELEC, H2
@@ -45,7 +45,7 @@ def simple_solve(m: ConcreteModel):
 
 
 def simple_solve_no_opt(m: ConcreteModel, opt: pyo.SolverFactory):
-    """Solve concrete model using solver factory object
+    """Solve concrete model using solver factory object.
 
     Parameters
     ----------
@@ -65,7 +65,7 @@ def simple_solve_no_opt(m: ConcreteModel, opt: pyo.SolverFactory):
 
 
 def select_solver(instance: ConcreteModel) -> OptSolver:
-    """Select solver based on learning method
+    """Select solver based on learning method.
 
     Parameters
     ----------
@@ -164,7 +164,7 @@ def get_elec_price(instance: typing.Union['PowerModel', ConcreteModel], block=No
 
 
 def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
-    """takes annual weighted average of hourly electricity prices
+    """takes annual weighted average of hourly electricity prices.
 
     Parameters
     ----------
@@ -178,7 +178,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
     """
 
     def my_agg(x):
-        """aggregate average price based on day weights
+        """aggregate average price based on day weights.
 
         Parameters
         ----------
@@ -204,7 +204,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
 def regional_annual_prices(
     m: typing.Union['PowerModel', ConcreteModel], block=None
 ) -> dict[HI, float]:
-    """pulls all regional annual weighted electricity prices
+    """pulls all regional annual weighted electricity prices.
 
     Parameters
     ----------
@@ -231,7 +231,7 @@ def regional_annual_prices(
 
 
 def convert_elec_price_to_lut(prices: list[tuple[EI, float]]) -> dict[EI, float]:
-    """convert electricity prices to dictionary, look up table
+    """convert electricity prices to dictionary, look up table.
 
     Parameters
     ----------
@@ -253,7 +253,7 @@ def convert_elec_price_to_lut(prices: list[tuple[EI, float]]) -> dict[EI, float]
 def poll_hydrogen_price(
     model: typing.Union['H2Model', ConcreteModel], block=None
 ) -> list[tuple[HI, float]]:
-    """Retrieve the price of H2 from the H2 model
+    """Retrieve the price of H2 from the H2 model.
 
     Parameters
     ----------
@@ -288,7 +288,7 @@ def poll_hydrogen_price(
 
 def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]:
     """simple coversion from list of records to a dictionary LUT
-    repeat entries should not occur and will generate an error"""
+    repeat entries should not occur and will generate an error."""
     res = {}
     for hi, price in records:
         if hi in res:
@@ -300,7 +300,7 @@ def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]
 
 
 def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, float]:
-    """retrieve a REPRESENTATIVE price at the annual level from a listing of prices
+    """retrieve a REPRESENTATIVE price at the annual level from a listing of prices.
 
     This function computes the AVERAGE elec price for each region-year combo
 
@@ -330,7 +330,7 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
 def poll_h2_prices_from_elec(
     model: 'PowerModel', tech, regions: typing.Iterable
 ) -> dict[typing.Any, float]:
-    """poll the step-1 H2 price currently in the model for region/year, averaged over any steps
+    """poll the step-1 H2 price currently in the model for region/year, averaged over any steps.
 
     Parameters
     ----------
@@ -355,7 +355,7 @@ def poll_h2_prices_from_elec(
 
 
 def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
-    """Update the H2 prices held in the model
+    """Update the H2 prices held in the model.
 
     Parameters
     ----------
@@ -388,7 +388,7 @@ def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
 
 def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
     """
-    Update the external electical demand parameter with demands from the H2 model
+    Update the external electical demand parameter with demands from the H2 model.
 
     Parameters
     ----------
@@ -404,7 +404,7 @@ def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
 
 def poll_h2_demand(model: 'PowerModel') -> dict[HI, float]:
     """
-    Get the hydrogen demand by rep_year and region
+    Get the hydrogen demand by rep_year and region.
 
     Use the Generation variable for h2 techs
 

@@ -1,5 +1,5 @@
 """
-A plotter that can be used for combined solves
+A plotter that can be used for combined solves.
 
 """
 
@@ -31,7 +31,7 @@ def plot_it(
     load_records=[],
     elec_price_to_res_records=[],
 ):
-    """cheap plotter of iterative progress"""
+    """cheap plotter of iterative progress."""
 
     fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)
     ax1_b = ax1.twinx()
@@ -106,7 +106,7 @@ def plot_it(
 
 
 def plot_price_distro(OUTPUT_ROOT, price_records: list[float]):
-    """cheap/quick analyisis and plot of the price records"""
+    """cheap/quick analyisis and plot of the price records."""
     # convert $/GWh to $/MWh
     plt.hist(list(t / 1000 for t in price_records), bins=100, label='Price')
     plt.xlabel('Electricity price ($/MWh)')

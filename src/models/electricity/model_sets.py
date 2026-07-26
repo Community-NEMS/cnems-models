@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -37,7 +37,7 @@ class ModelSets:
     - Temporal sets
     - Technology type sets
     - Supply curve step sets
-    - Other
+    - Other.
 
     """
 
@@ -141,7 +141,7 @@ class ModelSets:
         # Technology Sets
         @deprecated('currently not used.  Data ingestion makes these tech subsets from the file')
         def load_and_assign_subsets(df, col):
-            """create list based on tech subset assignment
+            """create list based on tech subset assignment.
 
             Parameters
             ----------

@@ -28,7 +28,7 @@ class ElectricityMethods(Model):
 
     # Populate sets functions
     def populate_by_hour_sets_rule(m):
-        """Creates new reindexed sets for dispatch_cost calculations
+        """Creates new reindexed sets for dispatch_cost calculations.
 
         Parameters
         ----------
@@ -42,7 +42,7 @@ class ElectricityMethods(Model):
         m.H2GenHour_index = Model.populate_sets_rule(m, 'H2Gen_index', set_base_name='hour')
 
     def populate_demand_balance_sets_rule(m):
-        """Creates new reindexed sets for demand balance constraint
+        """Creates new reindexed sets for demand balance constraint.
 
         Parameters
         ----------
@@ -66,7 +66,7 @@ class ElectricityMethods(Model):
         #     )
 
     def populate_trade_sets_rule(m):
-        """Creates new reindexed sets for trade constraints
+        """Creates new reindexed sets for trade constraints.
 
         Parameters
         ----------
@@ -81,7 +81,7 @@ class ElectricityMethods(Model):
         )
 
     def populate_RM_sets_rule(m):
-        """Creates new reindexed sets for reserve margin constraint
+        """Creates new reindexed sets for reserve margin constraint.
 
         Parameters
         ----------
@@ -93,7 +93,7 @@ class ElectricityMethods(Model):
         )
 
     def populate_hydro_sets_rule(m):
-        """Creates new reindexed sets for hydroelectric generation seasonal upper bound constraint
+        """Creates new reindexed sets for hydroelectric generation seasonal upper bound constraint.
 
         Parameters
         ----------
@@ -106,7 +106,7 @@ class ElectricityMethods(Model):
 
     @deprecated('done in model now')
     def populate_reserves_sets_rule(m):
-        """Creates new reindexed sets for operating reserves constraints
+        """Creates new reindexed sets for operating reserves constraints.
 
         Parameters
         ----------
@@ -137,7 +137,7 @@ class ElectricityMethods(Model):
 
 @deprecated('use Pyomo internal function in lieu of this')
 def check_results(results, SolutionStatus, TerminationCondition):
-    """Check results for termination condition and solution status
+    """Check results for termination condition and solution status.
 
     Parameters
     ----------
@@ -206,7 +206,7 @@ def create_obj_df(mod_object):
 def annual_count(hour, m) -> int:
     """return the aggregate weight of this hour in the representative year
     we know the hour weight, and the hours are unique to days, so we can
-    get the day weight
+    get the day weight.
 
     Parameters
     ----------

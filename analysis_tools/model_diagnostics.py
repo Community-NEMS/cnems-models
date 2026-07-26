@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -41,7 +41,7 @@ def gather_constraint_data(em: PowerModel):
 
 
 def breakdown_obj_elements(em: PowerModel):
-    """Break out the elements of the objective function"""
+    """Break out the elements of the objective function."""
     print(f'Dispatch cost: {value(em.dispatch_cost):.2f}')
     print(f'Unmet load cost: {value(em.unmet_load_cost):.2f}')
     try:
@@ -101,8 +101,9 @@ def breakdown_obj_terms(em: PowerModel) -> None:
 
 
 def capacity_inspector(em: PowerModel, region: str, year: int):
-    """breakdown the capacity variable for all techs in a particular region-year combo from
-    this variable:
+    """breakdown the capacity variable for all techs in a particular region-year combo.
+
+    Reads from this variable:
     self.capacity_total[r, tech, step, y]
     """
     for tech in em.tech:  # range(1,16):
@@ -124,7 +125,9 @@ def capacity_inspector(em: PowerModel, region: str, year: int):
 
 
 def load_inspector(em: PowerModel, region: str):
-    """Inpsect the load parameter:
+    """Inpsect the load parameter.
+
+    Reads from this parameter:
     self.Load[(r, y, hr)]
     """
     for year in [2025, 2030]:

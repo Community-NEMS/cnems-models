@@ -852,7 +852,7 @@ class Model(pyo.ConcreteModel):
 
     def populate_sets_rule(m1, sname, set_base_name=None, set_base2=None) -> pyo.Set:
         """Generic function to create a new re-indexed set for a pyomo ConcreteModel instance which
-        should speed up build time. Must pass non-empty (either) set_base_name or set_base2
+        should speed up build time. Must pass non-empty (either) set_base_name or set_base2.
 
         Parameters
         ----------
@@ -920,7 +920,7 @@ class Model(pyo.ConcreteModel):
         return t
 
     def get_duals(self, component_name: str) -> defaultdict:
-        """Extract duals from a solved model instance
+        """Extract duals from a solved model instance.
 
         Parameters
         ----------
@@ -964,7 +964,7 @@ class Model(pyo.ConcreteModel):
 
         @classmethod
         def assign_model(cls, model):
-            """Class-method that assigns a model instance to DefaultDecorator
+            """Class-method that assigns a model instance to DefaultDecorator.
 
             Parameters
             ----------
@@ -995,7 +995,7 @@ class Model(pyo.ConcreteModel):
         def __call__(self, expression):
             """Upon instantiation, __call__ unpacks indices for each argument in decorator and
             assigns to cols_dict. Keyword arguments unpack into creation of parameter object, and
-            then parameter is assigned to the model instance pointed to in DefaultDecorator
+            then parameter is assigned to the model instance pointed to in DefaultDecorator.
 
             Parameters
             ----------
@@ -1043,7 +1043,7 @@ class Model(pyo.ConcreteModel):
         def __call__(self, expression):
             """Upon instantiation, __call__ unpacks indices for each argument in decorator and
             assigns to cols_dict. Keyword arguments unpack into creation of constraint object, and
-            then constraint is assigned to the model instance pointed to in DefaultDecorator
+            then constraint is assigned to the model instance pointed to in DefaultDecorator.
 
             Parameters
             ----------

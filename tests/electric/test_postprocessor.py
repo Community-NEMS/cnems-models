@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -22,7 +22,7 @@ from src.models.electricity.postprocessor import (
 
 
 def test_scalar_var():
-    """a scalar (unindexed) Var yields a single row with just a value column"""
+    """a scalar (unindexed) Var yields a single row with just a value column."""
     m = pyo.ConcreteModel()
     m.x = pyo.Var(initialize=5.0)
     m.x.fix(5.0)
@@ -35,7 +35,7 @@ def test_scalar_var():
 
 
 def test_dedupe_repeated_set_names():
-    """crossing a Set against itself must not produce colliding column names"""
+    """crossing a Set against itself must not produce colliding column names."""
     m = pyo.ConcreteModel()
     m.A = pyo.Set(initialize=['a', 'b'])
     m.v = pyo.Var(m.A, m.A, initialize=0)
@@ -49,7 +49,7 @@ def test_dedupe_repeated_set_names():
 
 
 def test_unsolved_var_gives_none_value():
-    """an uninitialized Var entry should surface as None rather than raising"""
+    """an uninitialized Var entry should surface as None rather than raising."""
     m = pyo.ConcreteModel()
     m.A = pyo.Set(initialize=['a', 'b'])
     m.v = pyo.Var(m.A)
@@ -61,7 +61,7 @@ def test_unsolved_var_gives_none_value():
 
 
 def test_empty_var_returns_empty_dataframe_with_columns():
-    """a Var with zero elements still returns the correct column headers"""
+    """a Var with zero elements still returns the correct column headers."""
     m = pyo.ConcreteModel()
     m.A = pyo.Set(initialize=[])
     m.v = pyo.Var(m.A)
@@ -73,7 +73,7 @@ def test_empty_var_returns_empty_dataframe_with_columns():
 
 
 def test_get_known_column_names():
-    """column names are known for all variables in the PowerModel"""
+    """column names are known for all variables in the PowerModel."""
     m = pyo.ConcreteModel()
     m.generation_total = pyo.Var()
     assert get_known_column_names(m.generation_total) == core_variable_indices.get(
@@ -90,7 +90,7 @@ def test_get_known_column_names():
     ids=['crossed-Set var', 'raw-tuple-list var'],
 )
 def test_column_names_on_real_model(solved_model, var_name, expected_columns):
-    """column derivation on the real PowerModel: crossed Sets decompose, tuple lists fall back"""
+    """column derivation on the real PowerModel: crossed Sets decompose, tuple lists fall back."""
     _, _, elec_model = solved_model
     var = getattr(elec_model, var_name)
 
@@ -103,7 +103,7 @@ def test_column_names_on_real_model(solved_model, var_name, expected_columns):
 
 def test_extract_all_variables_covers_every_var(solved_model):
     """with core_only=False, extract_all_variables returns exactly the Vars present on the
-    model, no more, no less"""
+    model, no more, no less."""
     _, _, elec_model = solved_model
 
     dfs = extract_all_variables(elec_model, core_only=False)
@@ -113,7 +113,7 @@ def test_extract_all_variables_covers_every_var(solved_model):
 
 
 def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
-    """the core_only default must skip active Vars that aren't in core_variable_indices"""
+    """the core_only default must skip active Vars that aren't in core_variable_indices."""
     _, _, elec_model = solved_model
 
     dfs = extract_all_variables(elec_model)
@@ -124,7 +124,7 @@ def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
 
 
 def test_export_variables_to_csv_writes_files(solved_model, tmp_path):
-    """CSV export writes one file per variable and round-trips row counts"""
+    """CSV export writes one file per variable and round-trips row counts."""
     _, _, elec_model = solved_model
 
     dfs = export_variables_to_csv(elec_model, output_dir=tmp_path)

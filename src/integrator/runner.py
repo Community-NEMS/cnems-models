@@ -1,5 +1,5 @@
 """
-A gathering of functions for running models solo
+A gathering of functions for running models solo.
 
 """
 
@@ -20,7 +20,7 @@ logger = getLogger(__name__)
 
 def run_elec_solo(settings: Config_settings | None = None):
     """
-    Runs electricity model by itself as defined in settings
+    Runs electricity model by itself as defined in settings.
 
     Parameters
     ----------
@@ -41,7 +41,7 @@ def run_elec_solo(settings: Config_settings | None = None):
 
 def run_h2_solo(settings: Config_settings | None = None):
     """
-    Runs hydrogen model by itself as defined in settings
+    Runs hydrogen model by itself as defined in settings.
 
     Parameters
     ----------
@@ -63,7 +63,7 @@ def run_h2_solo(settings: Config_settings | None = None):
 
 def run_residential_solo(settings: Config_settings | None = None):
     """
-    Runs residential model by itself as defined in settings
+    Runs residential model by itself as defined in settings.
 
     Parameters
     ----------
@@ -75,7 +75,7 @@ def run_residential_solo(settings: Config_settings | None = None):
 
 
 def run_standalone(settings: Config_settings):
-    """Runs standalone methods based on settings selections; running 1 or more modules
+    """Runs standalone methods based on settings selections; running 1 or more modules.
 
     Parameters
     ----------

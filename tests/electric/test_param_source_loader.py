@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -76,7 +76,7 @@ _REQUIRED_KEYS = {
 
 
 def test_load_param_sources_count_and_keys():
-    """all 23 entries load, keyed by the same names as the original dict"""
+    """all 23 entries load, keyed by the same names as the original dict."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 23
@@ -84,7 +84,7 @@ def test_load_param_sources_count_and_keys():
 
 
 def test_load_param_sources_transcription_audit():
-    """every filename/index_cols/value_col matches the expected tuple exactly"""
+    """every filename/index_cols/value_col matches the expected tuple exactly."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     for key, (filename, index_cols, value_col) in _EXPECTED_PARAM_SOURCES.items():
@@ -96,7 +96,7 @@ def test_load_param_sources_transcription_audit():
 
 
 def test_load_param_sources_types():
-    """every entry is a ParamSource with a tuple index and a bool required flag"""
+    """every entry is a ParamSource with a tuple index and a bool required flag."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     for source in loaded.values():
@@ -106,7 +106,7 @@ def test_load_param_sources_types():
 
 
 def test_required_flags_match_switch_gating_table():
-    """required=True set matches the always-used files; everything else is switch-gated"""
+    """required=True set matches the always-used files; everything else is switch-gated."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
     required = {key for key, source in loaded.items() if source.required}
@@ -114,5 +114,5 @@ def test_required_flags_match_switch_gating_table():
 
 
 def test_data_ingestor_param_sources_matches_loader():
-    """data_ingestor.PARAM_SOURCES (built at import time) matches a direct load"""
+    """data_ingestor.PARAM_SOURCES (built at import time) matches a direct load."""
     assert data_ingestor.PARAM_SOURCES == load_param_sources(PARAM_SOURCES_TOML)

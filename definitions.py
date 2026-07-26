@@ -1,5 +1,5 @@
 """
-Module to hold some top-level constants
+Module to hold some top-level constants.
 """
 
 # Import packages

@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -209,7 +209,7 @@ class ParamData:
             self.param_dicts[name] = data
 
     def build_load_dataframe(self) -> DataFrame:
-        """Build the load dataframe"""
+        """Build the load dataframe."""
 
         # TODO:  Research the functions called here and perhaps move them here as well
         # TODO:  Move the source data out of the "residential" folder to "common"??
@@ -239,7 +239,7 @@ class ParamData:
         return df
 
     def build_temporal_maps(self):
-        """Build the time-based dataframes"""
+        """Build the time-based dataframes."""
         self.param_frames['MapDaySeason'] = time_map(
             self.model_sets.cw_temporal, {'Map_day': 'day', 'Map_s': 'season'}
         ).set_index('day')
@@ -279,7 +279,7 @@ class ParamData:
         ).set_index('season')
 
     def aggregate_time(self, df: DataFrame):
-        """Aggregate a time-based dataframe at yearly and hourly levels"""
+        """Aggregate a time-based dataframe at yearly and hourly levels."""
         # average values in years/hours used
 
         if 'year' in df.columns:
@@ -289,7 +289,7 @@ class ParamData:
         return df
 
     def apply_hourly_weights(self, hour_weight: DataFrame, target: DataFrame) -> DataFrame:
-        """Apply the hourly weights to the data in the target dataframe by matching hour weights"""
+        """Apply the hourly weights to the data in the target dataframe by matching hour weights."""
         # Update load to be the total demand in each time segment rather than the average
         df = pd.merge(target, hour_weight, how='left', on=['hour'])
         df['Load'] = df['Load'] * df['WeightHour']
@@ -306,7 +306,7 @@ class ParamData:
         tech_hyrdo: Collection[str],
     ) -> DataFrame:
         # def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
-        """builds the capacity credit dataframe
+        """builds the capacity credit dataframe.
 
         Parameters
         ----------
@@ -365,7 +365,7 @@ class ParamData:
 
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
-        """Filter a dataframe by a column and a list of values"""
+        """Filter a dataframe by a column and a list of values."""
         return target[target[column].isin(values)]
 
     @staticmethod
@@ -376,7 +376,7 @@ class ParamData:
         set_index: bool = True,
         name: str = '',
     ) -> DataFrame:
-        """Expands params that are indexed by season to be indexed by hour"""
+        """Expands params that are indexed by season to be indexed by hour."""
         orig_size = len(target)
         target = target.reset_index()
         map_no_index = hour_season_map.reset_index()

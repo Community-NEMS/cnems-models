@@ -5,7 +5,7 @@ from warnings import deprecated
 
 @deprecated('unknown use case, will be removed')
 def parser(markdown):
-    """Parses original markdown formatting into Github-compatible version
+    """Parses original markdown formatting into Github-compatible version.
 
     Parameters
     ----------

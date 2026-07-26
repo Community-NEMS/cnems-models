@@ -1,5 +1,5 @@
 """
-Iteratively solve 2 models with GS methodology
+Iteratively solve 2 models with GS methodology.
 
 see README for process explanation
 
@@ -41,7 +41,7 @@ logger = getLogger(__name__)
 
 
 def run_gs(settings):
-    """Start the iterative GS process
+    """Start the iterative GS process.
 
     Parameters
     ----------

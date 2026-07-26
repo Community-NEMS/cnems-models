@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Sequencer for the electricity model.
 
@@ -68,7 +68,7 @@ class ElectricitySequencer(IntegratedModelSequencer):
 
     @model.setter
     def model(self, value: PowerModel):
-        """Set the model instance.  Caution:  Alignment with config settings not checked"""
+        """Set the model instance.  Caution:  Alignment with config settings not checked."""
         self._model = value
 
     def build_model(
@@ -284,7 +284,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
 
 
 def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
-    """initialize capacity growth for 0th iteration
+    """initialize capacity growth for 0th iteration.
 
     Parameters
     ----------
@@ -305,7 +305,7 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
 
 
 def set_new_cap(instance: PowerModel):
-    """calculate new capacity after solve iteration
+    """calculate new capacity after solve iteration.
 
     Parameters
     ----------
@@ -326,7 +326,7 @@ def set_new_cap(instance: PowerModel):
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
-    """Calculate the current capacity of all buildable tech by year"""
+    """Calculate the current capacity of all buildable tech by year."""
     result = defaultdict(float)
     for r, tech, step, y in instance.CapCostLearning:
         result[(tech, y)] = sum(
@@ -338,7 +338,7 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
 
 
 def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
-    """function for updating learning costs by technology and year
+    """function for updating learning costs by technology and year.
 
     Parameters
     ----------
@@ -362,7 +362,7 @@ def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
 
 
 def update_expansion_cost(instance, new_cap: dict[tuple, float]):
-    """update capital cost based on new capacity learning"""
+    """update capital cost based on new capacity learning."""
     new_multiplier = {}
     for tech, y in new_cap:
         new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])

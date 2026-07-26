@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -10,7 +10,7 @@ from src.models.electricity.model_sets import ModelSets
 
 
 def test_year_aggregation():
-    """Test the aggregation functions for years"""
+    """Test the aggregation functions for years."""
     agg_years = [2030, 2025, 2040]
     start_year = 2000
 
@@ -21,7 +21,7 @@ def test_year_aggregation():
 
 
 def test_year_agg_weights():
-    """Test the aggregation weights"""
+    """Test the aggregation weights."""
     agg_years = [2030, 2025, 2040]
     start_year = 2000
     weights = ModelSets._create_year_agg_weights(ModelSets._create_year_map(agg_years, start_year))

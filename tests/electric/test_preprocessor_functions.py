@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -36,7 +36,7 @@ def dummy_df():
 
 
 def test_avg_by_group(dummy_df, year_map):
-    """test the aggregation function"""
+    """test the aggregation function."""
 
     grouped_averaged = avg_by_group(df=dummy_df, set_name='year', map_frame=year_map)
 

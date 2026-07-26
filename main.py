@@ -1,4 +1,4 @@
-"""main.py for Bluesky Prototype"""
+"""main.py for Bluesky Prototype."""
 
 # Import packages
 import logging
@@ -24,7 +24,7 @@ default_config_path = Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml')
 
 @deprecated('needs reconfig if preserved')
 def app_main(selected_mode):
-    """main run through the bsky gui app
+    """main run through the bsky gui app.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def main(
     common_config_path: Path = default_config_path, elec_config_path: Path | None = None, **kwargs
 ):
     """
-    Runs model as defined in settings
+    Runs model as defined in settings.
 
     Parameters
     -------

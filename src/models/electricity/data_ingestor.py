@@ -1,5 +1,5 @@
 """
-Created as part of C-NEMS Project
+Created as part of C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -58,7 +58,8 @@ INTEGER_COLS = {'step', 'year', 'hour'}
 
 @dataclass
 class FilterPackage:
-    """Container to hold the values to use for filtering and the column names they apply to
+    """Container to hold the values to use for filtering and the column names they apply to.
+
     Example:
         region_filter = {'south', 'west'}
         region_cols = ['region', 'region_destination']
@@ -197,7 +198,7 @@ def read_property_csv(
     file_path: Path, param_cols: Iterable[str], index_cols: Iterable[str]
 ) -> dict[str, list[str]]:
     """read csv file that has 'properties as columns' and some index columns and convert
-    to dictionary of indices that satisfy each property (pivot)
+    to dictionary of indices that satisfy each property (pivot).
 
 
     Assume the first column is the index/reference column and gather those entries in master set.
@@ -315,7 +316,7 @@ def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
 def load_dataframes(
     param_data: dict, names_to_convert: Iterable[str] = TIME_BASED_DFS
 ) -> dict[str, DataFrame]:
-    """Convert param data into Dataframes for the named items listed"""
+    """Convert param data into Dataframes for the named items listed."""
     res = {}
     for name in names_to_convert:
         if name not in PARAM_SOURCES:

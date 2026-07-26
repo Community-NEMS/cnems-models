@@ -126,7 +126,7 @@ def load_data(tablename, metadata, engine):
 
 @deprecated('no current uses')
 def subset_dfs(all_frames, setin, i):
-    """filters dataframes based on the values within the set
+    """filters dataframes based on the values within the set.
 
     Parameters
     ----------
@@ -222,7 +222,7 @@ def avg_by_group(df, set_name, map_frame):
 
 # add seasons to data without seasons
 def add_season_index(cw_temporal, df, pos):
-    """adds a season index to the input dataframe
+    """adds a season index to the input dataframe.
 
     Parameters
     ----------
@@ -247,7 +247,7 @@ def add_season_index(cw_temporal, df, pos):
 
 
 def time_map(cw_temporal, rename_cols):
-    """create temporal mapping parameters
+    """create temporal mapping parameters.
 
     Parameters
     ----------
@@ -266,7 +266,7 @@ def time_map(cw_temporal, rename_cols):
 
 
 def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
-    """builds the capacity credit dataframe
+    """builds the capacity credit dataframe.
 
     Parameters
     ----------
@@ -308,7 +308,7 @@ def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
 
 
 def create_hourly_params(all_frames, key, cols):
-    """Expands params that are indexed by season to be indexed by hour
+    """Expands params that are indexed by season to be indexed by hour.
 
     Parameters
     ----------
@@ -332,7 +332,7 @@ def create_hourly_params(all_frames, key, cols):
 
 
 def create_subsets(df, col, subset):
-    """Create subsets off of full sets
+    """Create subsets off of full sets.
 
     Parameters
     ----------
@@ -353,7 +353,7 @@ def create_subsets(df, col, subset):
 
 
 def create_hourly_sets(all_frames, df):
-    """expands sets that are indexed by season to be indexed by hour
+    """expands sets that are indexed by season to be indexed by hour.
 
     Parameters
     ----------
@@ -374,7 +374,7 @@ def create_hourly_sets(all_frames, df):
 
 
 def hourly_sc_subset(all_frames, subset):
-    """Creates sets/subsets that are related to the supply curve
+    """Creates sets/subsets that are related to the supply curve.
 
     Parameters
     ----------
@@ -395,7 +395,7 @@ def hourly_sc_subset(all_frames, subset):
 
 
 def hr_sub_sc_subset(all_frames, T_subset, hr_subset):
-    """creates supply curve subsets by hour
+    """creates supply curve subsets by hour.
 
     Parameters
     ----------
@@ -419,7 +419,7 @@ def hr_sub_sc_subset(all_frames, T_subset, hr_subset):
 
 
 def step_sub_sc_subset(all_frames, T_subset, step_subset):
-    """creates supply curve subsets by step
+    """creates supply curve subsets by step.
 
     Parameters
     ----------
@@ -445,7 +445,7 @@ def step_sub_sc_subset(all_frames, T_subset, step_subset):
 
 @deprecated('done in ModelSets')
 def create_sc_sets(all_frames, setin):
-    """creates supply curve sets
+    """creates supply curve sets.
 
     Parameters
     ----------
@@ -498,7 +498,7 @@ def create_sc_sets(all_frames, setin):
 
 @deprecated('done in ModelSets')
 def create_other_sets(all_frames, setin):
-    """creates other (non-supply curve) sets
+    """creates other (non-supply curve) sets.
 
     Parameters
     ----------
@@ -720,7 +720,7 @@ def preprocessor(
 
     @deprecated('should not be required with proper data')
     def price_MWh_to_GWh(dic, names: list[str]):
-        """changing units of prices to all be in $/GWh so obj is $
+        """changing units of prices to all be in $/GWh so obj is $.
 
         Parameters
         ----------
@@ -807,7 +807,7 @@ def preprocessor(
 
 @deprecated('no known (needed) uses')
 def makedir(dir_out):
-    """creates a folder directory based on the path provided
+    """creates a folder directory based on the path provided.
 
     Parameters
     ----------

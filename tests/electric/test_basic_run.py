@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -120,7 +120,7 @@ configs = [
 def test_basic_run(config_info, expected_total_cost, expected_nvariables, expected_nconstraints):
     """
     Perform a couple of basic runs (with some features in isolation) and compare
-    results to captured values
+    results to captured values.
 
     dev notes:
     1.  basic config file turns OFF many features that may need separate verification

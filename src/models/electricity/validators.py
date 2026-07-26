@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def region_check(model: ConcreteModel, region: str) -> bool:
     """
-    Validate the region name (letters + numbers only + underscore)
+    Validate the region name (letters + numbers only + underscore).
     """
     # screen against illegal names
     illegal_region_names = {'global', 'all'}
@@ -40,7 +40,7 @@ def region_check(model: ConcreteModel, region: str) -> bool:
 
 def tech_name_check(model: ConcreteModel, tech: str) -> bool:
     """
-    Validate the tech name (letters + numbers only + underscore)
+    Validate the tech name (letters + numbers only + underscore).
     """
 
     if re.match(r'[a-zA-Z0-9_]+\Z', tech):

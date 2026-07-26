@@ -30,11 +30,11 @@ class Config_settings:
     - Spatial Config Settings \n
     - Temporal Config Settings \n
     - Electricity Config Settings \n
-    - Other
+    - Other.
     """
 
     def __init__(self, config_path: Path, args: argparse.Namespace | None = None, test=False):
-        """Creates configuration object upon instantiation
+        """Creates configuration object upon instantiation.
 
         Parameters
         ----------
@@ -202,7 +202,7 @@ class Config_settings:
 
     # Runs configuration checks when you set attributes
     def __setattr__(self, name, value):
-        """Update to generic setattr function that includes checks for appropriate attribute values
+        """Update to generic setattr function that includes checks for appropriate attribute values.
 
         Parameters
         ----------
@@ -259,7 +259,7 @@ class Config_settings:
     # Check Methods
 
     def _has_all_attributes(self, attrs: set):
-        """Determines if all attributes within the set exist or not
+        """Determines if all attributes within the set exist or not.
 
         Parameters
         ----------
@@ -367,7 +367,7 @@ class Config_settings:
                     raise ValueError('sw_expansion: Must turn learning switch off if no expansion')
 
     def _check_true_false(self, name, value):
-        """Checks if attribute is either true or false
+        """Checks if attribute is either true or false.
 
         Parameters
         ----------
@@ -389,7 +389,7 @@ class Config_settings:
             raise ValueError(f'{name}: Must be either true or false')
 
     def _check_int(self, name, value):
-        """Checks if attribute is an integer
+        """Checks if attribute is an integer.
 
         Parameters
         ----------
@@ -407,7 +407,7 @@ class Config_settings:
             raise ValueError(f'{name}: Must be an integer')
 
     def _check_zero_one(self, name, value):
-        """Checks if attribute is either zero or one
+        """Checks if attribute is either zero or one.
 
         Parameters
         ----------
@@ -427,7 +427,7 @@ class Config_settings:
             raise ValueError(f'{name}: Must be either 0 or 1')
 
     def _check_res_settings(self, name, value):
-        """Checks if view year or region settings are subsets of year or region
+        """Checks if view year or region settings are subsets of year or region.
 
         Parameters
         ----------

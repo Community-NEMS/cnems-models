@@ -15,7 +15,7 @@ logger = getLogger(__name__)
 
 
 def test_sets(unsolved_model):
-    """test to ensure the years set is injested properly"""
+    """test to ensure the years set is injested properly."""
     common_config, _, elec_model = unsolved_model
 
     # check that the years are set correctly
@@ -32,10 +32,10 @@ def test_sets(unsolved_model):
 
 
 def test_hours_set():
-    """test to ensure the total Load is consistently calculated for different time mappings"""
+    """test to ensure the total Load is consistently calculated for different time mappings."""
 
     def get_tot_load(sw_temporal):
-        """sum total load using hours and dayweights"""
+        """sum total load using hours and dayweights."""
         # generate configs
         config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
         common_config, remainder = CommonConfig.from_toml(config_path)

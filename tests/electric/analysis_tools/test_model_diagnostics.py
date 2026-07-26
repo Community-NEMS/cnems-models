@@ -1,5 +1,5 @@
 """
-Created as part of the C-NEMS Project
+Created as part of the C-NEMS Project.
 
 Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
@@ -66,6 +66,6 @@ verbose = False
 
 @pytest.mark.skipif(not verbose, reason='only run verbosely')
 def test_obj_function_scaling(solved_model):
-    """print to screen the objective coefficients"""
+    """print to screen the objective coefficients."""
     _, _, elec_model = solved_model
     breakdown_obj_terms(elec_model)

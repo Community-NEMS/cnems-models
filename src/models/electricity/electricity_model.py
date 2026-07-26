@@ -190,7 +190,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion:
 
             def retireable(m, _, tech, step, __):
-                """verify that the combination of tech-step is in the eligible set"""
+                """verify that the combination of tech-step is in the eligible set."""
                 return (tech, step) in m.tech_retireable
 
             self.capacity_retirements_index = pyo.Set(
@@ -876,7 +876,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """Storage balance constraint for the first hour time-segment in each day-type where
             Storage level == Storage level (in final hour time-segment in current day-type)
                             + Storage inflow * Battery efficiency
-                            - Storage outflow
+                            - Storage outflow.
 
             Parameters
             ----------
@@ -910,7 +910,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             the first hour time-segment where
             Storage level == Storage level (in previous hour time-segment)
                             + Storage inflow * Battery efficiency
-                            - Storage outflow
+                            - Storage outflow.
 
             Parameters
             ----------
@@ -949,7 +949,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(self.capacity_hydro_ub_index)
         def capacity_hydro_ub(self, r, T_hydro, y, season):
             """hydroelectric generation seasonal upper bound where
-            Hydo generation <= Hydo capacity * Hydro capacity factor
+            Hydo generation <= Hydo capacity * Hydro capacity factor.
 
             Parameters
             ----------
@@ -981,7 +981,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(self.generation_dispatchable_ub_index)
         def generation_dispatchable_ub(self, r, T_disp, step, y, hr):
             """Dispatchable generation upper bound where
-            Dispatchable generation + reserve procurement <= capacity * capacity factor
+            Dispatchable generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
@@ -1017,7 +1017,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(self.generation_hydro_ub_index)
         def generation_hydro_ub(self, r, T_hydro, step, y, hr):
             """Hydroelectric generation upper bound where
-            Hydroelectric generation + reserve procurement <= capacity * capacity factor
+            Hydroelectric generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
@@ -1052,7 +1052,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(self.generation_vre_ub_index)
         def generation_vre_ub(self, r, T_vre, step, y, hr):
             """Intermittent generation upper bound where
-            Intermittent generation + reserve procurement <= capacity * capacity factor
+            Intermittent generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
@@ -1091,7 +1091,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(model_sets.storage_index)
         def storage_inflow_ub(self, r, tech, step, y, hr):
             """Storage inflow upper bound where
-            Storage inflow <= Storage Capacity
+            Storage inflow <= Storage Capacity.
 
             Parameters
             ----------
@@ -1122,7 +1122,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(model_sets.storage_index)
         def storage_outflow_ub(self, r, tech, step, y, hr):
             """Storage outflow upper bound where
-            Storage outflow <= Storage Capacity
+            Storage outflow <= Storage Capacity.
 
             Parameters
             ----------
@@ -1159,7 +1159,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         @self.Constraint(model_sets.storage_index)
         def storage_level_ub(self, r, tech, step, y, hr):
             """Storage level upper bound where
-            Storage level <= Storage power capacity * storage energy capacity
+            Storage level <= Storage power capacity * storage energy capacity.
 
             Parameters
             ----------
@@ -1190,7 +1190,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """Capacity Equality constraint where
             Capacity = Operating Capacity
                       + New Builds Capacity
-                      - Retired Capacity
+                      - Retired Capacity.
 
             Parameters
             ----------
@@ -1232,7 +1232,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """Retirement upper bound where
                 Capacity Retired <= Operating Capacity
                                    + New Builds Capacity
-                                   - Retired Capacity
+                                   - Retired Capacity.
 
                 Parameters
                 ----------
@@ -1285,7 +1285,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(idx)  # (self.TranLineLimitInt_index)
             def trade_international_capacity_ub(self, r, R_int, y, hr):
                 """International interregional trade upper bound where
-                Interregional Trade <= Interregional Transmission Capabilities * Time
+                Interregional Trade <= Interregional Transmission Capabilities * Time.
 
                 basically:  sum across all steps that use this line and ensure within
                 capacity of line
@@ -1325,7 +1325,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(idx)
             def trade_international_generation_ub(self, R_int, step, y, hr):
                 """International electricity supply upper bound where
-                Interregional Trade <= Interregional Supply
+                Interregional Trade <= Interregional Supply.
 
                 sum across all destination regions to ensure the international generation capacity
                 for this international region is not exceeded
@@ -1357,7 +1357,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.trade_interregional.index_set())
             def trade_domestic_ub(self, r, r1, y, hr):
                 """Interregional trade upper bound where
-                Interregional Trade <= Interregional Transmission Capabilities * Time
+                Interregional Trade <= Interregional Transmission Capabilities * Time.
 
                 Parameters
                 ----------
@@ -1388,7 +1388,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.Load.index_set())
             def reserve_margin_lb(self, r, y, hr):
                 """Reserve margin requirement where
-                Load * Reserve Margin <= Capacity * Capacity Credit * Time
+                Load * Reserve Margin <= Capacity * Capacity Credit * Time.
 
                 # must meet reserve margin requirement
                 # apply to every hour, a fraction above the final year's load
@@ -1424,7 +1424,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             @self.Constraint(model_sets.storage_index)
             def reserve_margin_storage_avail_cap_ub(self, r, T_stor, step, y, hr):
-                """Available storage power capacity for meeting reserve margin
+                """Available storage power capacity for meeting reserve margin.
 
                 # ensure available capacity to meet RM for storage < power capacity
 
@@ -1453,7 +1453,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             @self.Constraint(model_sets.storage_index)
             def reserve_margin_storage_avail_level_ub(self, r, T_stor, step, y, hr):
-                """Available storage energy capacity for meeting reserve margin
+                """Available storage energy capacity for meeting reserve margin.
 
                 # ensure available capacity to meet RM for storage < existing SOC
 
@@ -1488,7 +1488,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """Ramp constraint for the first hour time-segment in each day-type where
                 Generation == Generation (in final hour time-segment in current day-type)
                             + Ramp Up
-                            - Ramp Down
+                            - Ramp Down.
 
                 Parameters
                 ----------
@@ -1521,7 +1521,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 the first hour time-segment where
                 Generation == Generation (in previous hour time-segment)
                             + Ramp Up
-                            - Ramp Down
+                            - Ramp Down.
 
                 Parameters
                 ----------
@@ -1551,7 +1551,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.generation_ramp_index)
             def ramp_up_ub(self, r, T_conv, step, y, hr):
                 """Ramp rate up upper constraint where
-                Ramp Up <= Capaciry * Ramp Rate * Time
+                Ramp Up <= Capaciry * Ramp Rate * Time.
 
                 Parameters
                 ----------
@@ -1581,7 +1581,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.generation_ramp_index)
             def ramp_down_ub(self, r, T_conv, step, y, hr):
                 """Ramp rate down upper constraint where
-                Ramp Up <= Capaciry * Ramp Rate * Time
+                Ramp Up <= Capaciry * Ramp Rate * Time.
 
                 Parameters
                 ----------
@@ -1615,7 +1615,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             @self.Constraint(self.Load.index_set())
             def reserve_requirement_spin_lb(self, r, y, hr):
                 """Spinning reserve requirements (3% of load) where
-                Spinning reserve procurement >= 0.03 * Load
+                Spinning reserve procurement >= 0.03 * Load.
 
                 Parameters
                 ----------
@@ -1641,7 +1641,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             @self.Constraint(self.Load.index_set())
             def reserve_requirement_reg_lb(self, r, y, hr):
-                """Regulation Reserve Req (1% of load + 0.5% of wind gen + 0.3% of solar cap) where
+                """Regulation Reserve Req (1% of load + 0.5% of wind gen + 0.3% of solar cap).
+
                 Reserves Requirement >= 0.01 * Load
                                       + 0.005 * Wind Gen
                                       + 0.003 * Solar Cap
@@ -1675,7 +1676,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             @self.Constraint(self.Load.index_set())
             def reserve_requirement_flex_lb(self, r, y, hr):
-                """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap) where
+                """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap).
+
                 Reserves Requirement >= 0.10 * Wind Gen
                                       + 0.04 * Solar Cap
 
@@ -1713,7 +1715,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """Reserve Requirement Procurement Upper Bound where
                 Reserve Procurement <= Capacity
                                     * Tech Reserve Contribution Share
-                                    * Time
+                                    * Time.
 
                 Parameters
                 ----------

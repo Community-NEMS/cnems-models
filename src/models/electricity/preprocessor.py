@@ -59,69 +59,6 @@ def readin_csvs(all_frames):
     return all_frames
 
 
-### Load table from SQLite DB
-@deprecated('DB reading is currently not supported.')
-def readin_sql(all_frames):
-    """Reads in all of the tables from a SQL database and returns a dictionary of dataframes.
-
-    The key is the table name and the value is the table data.
-
-    Parameters
-    ----------
-    all_frames : dictionary
-        empty dictionary to be filled with dataframes
-
-    Returns
-    -------
-    dictionary
-        completed dictionary filled with dataframes from the input directory
-    """
-    db_dir = data_root / 'cem_inputs_database.db'
-    engine = create_engine('sqlite:///' + db_dir)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    Base = automap_base()
-    Base.prepare(autoload_with=engine)
-    metadata = MetaData()
-    metadata.reflect(engine)
-
-    for table in metadata.tables.keys():
-        all_frames[table] = load_data(table, metadata, engine)
-        all_frames[table] = all_frames[table].drop(columns=['id'])
-
-    session.close()
-
-    return all_frames
-
-
-@deprecated('DB reading is currently not supported.')
-def load_data(tablename, metadata, engine):
-    """Loads the data from the SQL database; used in readin_sql function.
-
-    Parameters
-    ----------
-    tablename : string
-        table name
-    metadata : SQL metadata
-        SQL metadata
-    engine : SQL engine
-        SQL engine
-
-    Returns
-    -------
-    dataframe
-        table from SQL db as a dataframe
-    """
-    table = Table(tablename, metadata, autoload_with=engine)
-    query = select(table.c).where()
-
-    with engine.connect() as connection:
-        result = connection.execute(query)
-        df = pd.read_sql(query, connection)
-
-    return df
-
 
 @deprecated('no current uses')
 def subset_dfs(all_frames, setin, i):

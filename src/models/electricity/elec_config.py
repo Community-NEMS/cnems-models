@@ -22,6 +22,8 @@ logger = getLogger(__name__)
 #           current data
 @unique
 class ReserveType(Enum):
+    """Operating reserve products the model can require."""
+
     SPINNING = 'spinning'
     REGULATION = 'regulation'
     FLEX = 'flex'
@@ -29,6 +31,8 @@ class ReserveType(Enum):
 
 @unique
 class ExpansionLearningType(Enum):
+    """How capacity expansion costs respond to cumulative builds."""
+
     DISABLED = 'disabled'
     LINEAR = 'linear'
     NONLINEAR = 'nonlinear'
@@ -36,11 +40,15 @@ class ExpansionLearningType(Enum):
 
 @unique
 class LoadScaleMode(Enum):
+    """Which scalar set is used to grow base-year load across model years."""
+
     END_USE = 'end_use'
     ANNUAL = 'annual'
 
 
 class ElecConfig(BaseModel):
+    """Settings from the ``[elec_config]`` TOML section, controlling the electricity model."""
+
     input_path: Path
     region_filter: list[str] | None = None
     regional_exchange: bool
@@ -53,6 +61,7 @@ class ElecConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_paths(self):
+        """Resolve ``input_path`` against PROJECT_ROOT and check that it is a directory."""
         self.input_path = PROJECT_ROOT / self.input_path
         if not self.input_path.is_dir():
             raise ValueError(f'Input path {self.input_path} is not a directory')
@@ -60,6 +69,7 @@ class ElecConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_switch_logic(self):
+        """Reject switch combinations the formulation cannot support."""
         # check for logic violations in switches
         # reserve margin requires capacity expansion
         if self.reserve_margin_required and not self.capacity_expansion:
@@ -75,6 +85,7 @@ class ElecConfig(BaseModel):
 
     @classmethod
     def from_toml(cls, path: Path) -> ElecConfig:
+        """Parse the ``[elec_config]`` section of ``path`` into an ``ElecConfig``."""
         with open(path, 'rb') as f:
             data = tomllib.load(f)
         try:

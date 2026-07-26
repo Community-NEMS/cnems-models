@@ -31,7 +31,9 @@ class IntegratedModelSequencer(ABC):
 
     @property
     @abstractmethod
-    def model(self) -> IntegratedModel: ...
+    def model(self) -> IntegratedModel:
+        """The model instance this sequencer owns."""
+        ...
 
     @abstractmethod
     def build_model(

@@ -1,3 +1,5 @@
+"""Tests for ``ModelSets`` and the set/index construction that feeds the electricity model."""
+
 from logging import getLogger
 from pathlib import Path
 

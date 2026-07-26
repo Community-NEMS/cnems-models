@@ -21,7 +21,7 @@ logger = getLogger(__name__)
 
 @warnings.deprecated('No longer used.')
 class Model(pyo.ConcreteModel):
-    """This is the base model class for the models.
+    """Base model class for the models.
 
     This class contains methods for declaring pyomo components, extracting duals, and
     decorating expressions. The model class methods and attributes provide functionality
@@ -63,9 +63,10 @@ class Model(pyo.ConcreteModel):
         reorg_set_cols: list[str] | None = None,
         reorg_set_sname: str | None = None,
     ):
-        """Creates new pyomo sets based on an input set and a desired set of indices for an output
-        set. User should provide either names of columns desired for reorganized output set OR the
-        name of a set that mirrors the desired indexing.
+        """Creates new pyomo sets based on an input set and a desired set of output indices.
+
+        User should provide either names of columns desired for reorganized output set OR the name
+        of a set that mirrors the desired indexing.
 
         For instance, an input set indexed by (yr, region, month, day) can be reorganized into an
         output set:
@@ -237,8 +238,9 @@ class Model(pyo.ConcreteModel):
         switch: bool | None = True,
         use_columns: bool | None = False,
     ):
-        """Declares a pyomo Set object named 'sname' using input index values and labels from a
-        Pandas object.
+        """Declares a pyomo Set object named 'sname' from a Pandas object.
+
+        Uses the input index values and labels.
 
         Function assumes that the index values are the desired data to construct set object. User
         can specify whether to create set with column values instead
@@ -492,9 +494,10 @@ class Model(pyo.ConcreteModel):
         return sset
 
     def declare_ordered_time_set(self, sname: str, *sets: pyo.Set, return_set: bool | None = False):
-        """Unnest the time sets into a single, unnested ordered, synchronous time set, an IndexedSet
-        object keyed by the values in the time set, and an IndexedSet object keyed by the combined,
-        original input sets.
+        """Unnest the time sets into a single ordered, synchronous time set plus two IndexedSets.
+
+        The IndexedSets are keyed by the values in the time set and by the combined, original input
+        sets, respectively.
 
         These three set outputs are directly set as attributes of the model instance:
 
@@ -572,8 +575,9 @@ class Model(pyo.ConcreteModel):
         return_set: bool | None = False,
         shift_sets: list | None = None,
     ):
-        """A generalize shifting function that creates sets compatible with leads or lags in pyomo
-        components.
+        """A generalize shifting function that creates sets compatible with leads or lags.
+
+        The sets it creates are compatible with leads or lags in pyomo components.
 
         For example, with a storage constraint where the current value is contrained to be equal to
         the value of storage in the previous period:
@@ -850,8 +854,10 @@ class Model(pyo.ConcreteModel):
             return None
 
     def populate_sets_rule(m1, sname, set_base_name=None, set_base2=None) -> pyo.Set:
-        """Generic function to create a new re-indexed set for a pyomo ConcreteModel instance which
-        should speed up build time. Must pass non-empty (either) set_base_name or set_base2.
+        """Generic function to create a new re-indexed set for a pyomo ConcreteModel instance.
+
+        Re-indexing should speed up build time. Must pass non-empty (either) set_base_name or
+        set_base2.
 
         Parameters
         ----------
@@ -950,8 +956,9 @@ class Model(pyo.ConcreteModel):
     ###
 
     class DefaultDecorator:
-        """Default decorator class that handles assignment of model scope/pointer in order to use
-        pyomo-style parameter and constraint decorators.
+        """Default decorator class that handles assignment of the model scope/pointer.
+
+        The assignment is what allows pyomo-style parameter and constraint decorators to be used.
 
         Upon initialization, the decorator handles model assignment at class level to ensure
         inheriting classes have access to the models within local scope.
@@ -972,17 +979,17 @@ class Model(pyo.ConcreteModel):
             cls.model = model
 
     class ParameterExpression(DefaultDecorator):
-        """Parameter Expression decorator that works the same as pyomo decorators, while keeping
-        column dictionary updated for any indexed parameters given.
+        """Parameter Expression decorator that works the same as pyomo decorators.
 
+        Keeps the column dictionary updated for any indexed parameters given.
         """
 
         def __init__(self, *args, **kwargs):
-            """Upon initialization, assign the model instance stored in DefaultDecorator to scope of
-            constraint expression. Named and unnamed keywords assigned to instance.
+            """Assign the DefaultDecorator model instance to the constraint expression's scope.
 
-            Arguments must be pyomo set instances, and named keywords need to be additional params
-            passed to pyo.Constraint. This works in practice the same as decorator use in Pyomo.
+            Named and unnamed keywords are assigned to the instance. Arguments must be pyomo set
+            instances, and named keywords need to be additional params passed to pyo.Constraint.
+            This works in practice the same as decorator use in Pyomo.
 
             @model.ParameterExpression(model.set1, model.set2, keywordarg = "value")
             """
@@ -991,9 +998,10 @@ class Model(pyo.ConcreteModel):
             self.instance = super().model
 
         def __call__(self, expression):
-            """Upon instantiation, __call__ unpacks indices for each argument in decorator and
-            assigns to cols_dict. Keyword arguments unpack into creation of parameter object, and
-            then parameter is assigned to the model instance pointed to in DefaultDecorator.
+            """Unpack the indices for each argument in the decorator and assign to cols_dict.
+
+            Keyword arguments unpack into creation of the parameter object, and then the parameter
+            is assigned to the model instance pointed to in DefaultDecorator.
 
             Parameters
             ----------
@@ -1021,16 +1029,17 @@ class Model(pyo.ConcreteModel):
             return expression
 
     class ConstraintExpression(DefaultDecorator):
-        """Constraint Expression decorator that works the same as pyomo decorators, while keeping
-        column dictionary updated for any indexed parameters given.
+        """Constraint Expression decorator that works the same as pyomo decorators.
+
+        Keeps the column dictionary updated for any indexed parameters given.
         """
 
         def __init__(self, *args, **kwargs):
-            """Upon initialization, assign the model instance stored in DefaultDecorator to scope of
-            constraint expression. Named and unnamed keywords assigned to instance.
+            """Assign the DefaultDecorator model instance to the constraint expression's scope.
 
-            Arguments must be pyomo set instances, and named keywords need to be additional params
-            passed to pyo.Constraint. This works in practice the same as decorator use in Pyomo.
+            Named and unnamed keywords are assigned to the instance. Arguments must be pyomo set
+            instances, and named keywords need to be additional params passed to pyo.Constraint.
+            This works in practice the same as decorator use in Pyomo.
 
             @model.ConstraintExpression(model.set1, model.set2, keywordarg = "value")
             """
@@ -1039,9 +1048,10 @@ class Model(pyo.ConcreteModel):
             self.instance = super().model
 
         def __call__(self, expression):
-            """Upon instantiation, __call__ unpacks indices for each argument in decorator and
-            assigns to cols_dict. Keyword arguments unpack into creation of constraint object, and
-            then constraint is assigned to the model instance pointed to in DefaultDecorator.
+            """Unpack the indices for each argument in the decorator and assign to cols_dict.
+
+            Keyword arguments unpack into creation of the constraint object, and then the
+            constraint is assigned to the model instance pointed to in DefaultDecorator.
 
             Parameters
             ----------

@@ -1,3 +1,5 @@
+"""Dash viewer for browsing and comparing electricity model run outputs."""
+
 ####################################################################################################################
 # Setup
 
@@ -23,6 +25,7 @@ _header_bg_data_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
 
 # add a new index using a mapping dataframe and return a dataframe with the input index
 def mapping(df, mapdf, col, indexes):
+    """Merge ``mapdf`` onto ``df`` by ``col`` and return only ``indexes``, dropping empty rows."""
     df = pd.merge(df, mapdf, on=col, how='outer')
     df = df[indexes]
     df = df.dropna(how='any', axis=0)
@@ -32,6 +35,7 @@ def mapping(df, mapdf, col, indexes):
 
 # read the .csv while appending the dataframe to a list
 def read_run_csv(csv, run, df_list):
+    """Read ``csv``, tag it with the ``run`` name, append it to ``df_list``, and return the list."""
     df = pd.read_csv(csv)
     df['run'] = run
     df_list.append(df)
@@ -637,6 +641,7 @@ app.layout = html.Div(
     Input('gentech', 'value'),
 )
 def update_figure(region, genyear, run, gentech):
+    """Build the stacked-area generation-by-tech figure for the selected regions/year/runs."""
     filtered_df_gen = df_generation[(df_generation.year == genyear)]
 
     if region:
@@ -681,6 +686,7 @@ def update_figure(region, genyear, run, gentech):
     Input('run', 'value'),
 )
 def update_figure(region, genyear, run):
+    """Build the stacked-area storage-level figure for the selected regions/year/runs."""
     filtered_df_storagelevel = df_storagelevel[(df_storagelevel.year == genyear)]
 
     if region:
@@ -730,6 +736,7 @@ def update_figure(region, genyear, run):
     Input('run', 'value'),
 )
 def update_figure(region, genyear, run):
+    """Build the stacked-area storage charge/discharge figure for the selected regions/year/runs."""
     filtered_df_storagecharge = df_storagecharge[(df_storagecharge.year == genyear)]
 
     if region:
@@ -779,6 +786,7 @@ def update_figure(region, genyear, run):
     Input('run', 'value'),
 )
 def update_figure(region, genyear, run):
+    """Build the stacked-area unmet-load figure for the selected regions/year/runs."""
     filtered_df_unmetload = df_unmetload[(df_unmetload.year == genyear)]
 
     if region:
@@ -810,6 +818,7 @@ def update_figure(region, genyear, run):
     Input('gentech2', 'value'),
 )
 def update_figure(region, genyear, run, gentech2):
+    """Build the line generation figure for a single tech across the selected regions/year/runs."""
     filtered_df_gen = df_generation[
         (df_generation.year == genyear) & (df_generation.tech_type == gentech2)
     ]
@@ -841,6 +850,7 @@ def update_figure(region, genyear, run, gentech2):
     Input('gentech2', 'value'),
 )
 def update_figure(region, genyear, run, gentech2):
+    """Build the line storage-level figure for one tech across the selected regions/year/runs."""
     filtered_df_storagelevel = df_storagelevel[
         (df_storagelevel.year == genyear) & (df_storagelevel.tech_type == gentech2)
     ]
@@ -876,6 +886,7 @@ def update_figure(region, genyear, run, gentech2):
     Input('gentech2', 'value'),
 )
 def update_figure(region, genyear, run, gentech2):
+    """Build the line storage flow figure for one tech across the selected regions/year/runs."""
     filtered_df_storagecharge = df_storagecharge[
         (df_storagecharge.year == genyear) & (df_storagecharge.tech_type == gentech2)
     ]
@@ -910,6 +921,7 @@ def update_figure(region, genyear, run, gentech2):
     Input('run', 'value'),
 )
 def update_figure(region, genyear, run):
+    """Build the line unmet-load figure for the selected regions/year/runs."""
     filtered_df_unmetload = df_unmetload[(df_unmetload.year == genyear)]
 
     if region:
@@ -937,6 +949,7 @@ def update_figure(region, genyear, run):
     Input('captech', 'value'),
 )
 def update_figure(region, run, captech):
+    """Build the bar total-capacity-by-tech figure for the selected regions/techs/runs."""
     filtered_df_capacitytotal = df_capacitytotal
 
     if region:
@@ -989,6 +1002,7 @@ def update_figure(region, run, captech):
     Input('captech', 'value'),
 )
 def update_figure(region, run, captech):
+    """Build the bar capacity-builds-by-tech figure for the selected regions/techs/runs."""
     filtered_df_capacitybuilds = df_capacitybuilds
 
     if region:
@@ -1041,6 +1055,7 @@ def update_figure(region, run, captech):
     Input('captech', 'value'),
 )
 def update_figure(region, run, captech):
+    """Build the bar capacity-retirements-by-tech figure for the selected regions/techs/runs."""
     filtered_df_capacityretire = df_capacityretire
 
     if region:
@@ -1093,6 +1108,7 @@ def update_figure(region, run, captech):
     Input('run', 'value'),
 )
 def update_figure(region, trdyear, run):
+    """Build the stacked-area interregional trade figure for the selected regions/year/runs."""
     filtered_df_trade = df_trade[(df_trade.year == trdyear)]
 
     if region:
@@ -1137,6 +1153,7 @@ def update_figure(region, trdyear, run):
     Input('run', 'value'),
 )
 def update_figure(region, trdyear, run):
+    """Build the stacked-area international trade figure for the selected regions/year/runs."""
     filtered_df_tradecan = df_tradecan[(df_tradecan.year == trdyear)]
 
     if region:

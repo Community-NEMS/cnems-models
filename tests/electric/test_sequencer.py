@@ -76,6 +76,8 @@ def mock_model() -> pyo.ConcreteModel:
 
 
 class TestCalculateTolerance:
+    """Tests for ``calculate_tolerance``, the linear-learning convergence measure."""
+
     def test_weighted_absolute_difference(self):
         """Tolerance is the year-weighted sum of absolute growth differences."""
         cap_growth = {(2, 2030): 10.0, (2, 2035): 20.0}
@@ -86,10 +88,12 @@ class TestCalculateTolerance:
         assert calculate_tolerance(cap_growth, new_cap_growth, year_weights) == pytest.approx(19.0)
 
     def test_identical_growth_is_zero(self):
+        """Identical growth dicts give a tolerance of exactly zero."""
         cap_growth = {(2, 2030): 10.0, (3, 2030): 5.0}
         assert calculate_tolerance(cap_growth, dict(cap_growth), {2030: 4}) == 0.0
 
     def test_mismatched_keys_raise(self):
+        """Growth dicts with different keys are rejected rather than silently compared."""
         with pytest.raises(ValueError):
             calculate_tolerance({(2, 2030): 1.0}, {(3, 2030): 1.0}, {2030: 1})
 
@@ -134,6 +138,8 @@ def test_set_new_cap_matches_calculate_cap_growth(mock_model):
 
 
 class TestCostLearningFunc:
+    """Tests for ``cost_learning_func``, the capacity-cost learning multiplier."""
+
     def test_no_new_capacity_in_start_year(self, mock_model):
         """With no growth in the base year the multiplier is 1.0."""
         assert cost_learning_func(mock_model, 2, Y0, 0.0) == pytest.approx(1.0)
@@ -151,8 +157,9 @@ class TestCostLearningFunc:
         assert cost_learning_func(mock_model, 2, 2035, 50.0) == pytest.approx(expected)
 
     def test_higher_learning_rate_lowers_cost(self, mock_model):
-        """Tech 3 has the higher learning rate, so a like-for-like fraction of
-        its supply curve yields a bigger cost reduction.
+        """Tech 3 has the higher learning rate.
+
+        So a like-for-like fraction of its supply curve yields a bigger cost reduction.
         """
         tech_2 = cost_learning_func(mock_model, 2, Y0, 50.0)  # 50% of 100
         tech_3 = cost_learning_func(mock_model, 3, Y0, 100.0)  # 50% of 200

@@ -21,6 +21,8 @@ logger = getLogger(__name__)
 
 
 class CommonConfig(BaseModel):
+    """Settings from the ``[common]`` TOML section that cut across all sectoral modules."""
+
     mode: RunMode
     models_to_run: list[ModelType]
     common_data_path: Path
@@ -34,12 +36,14 @@ class CommonConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_year_aggregation(self):
+        """Require ``aggregate_start_year`` whenever ``aggregate_years`` is set."""
         if self.aggregate_years and self.aggregate_start_year is None:
             raise ValueError('aggregate_start_year must be set when aggregate_years is True')
         return self
 
     @model_validator(mode='after')
     def check_paths(self):
+        """Resolve the output/residential paths against PROJECT_ROOT and check they are usable."""
         self.output_path = PROJECT_ROOT / self.output_path
         # the output root is not tracked in git, so create it on demand (fresh clones/CI)
         try:
@@ -55,6 +59,7 @@ class CommonConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_scenario_name(self):
+        """Require a scenario name of 4+ alphanumeric/underscore characters."""
         if len(self.scenario_name) < 4:
             raise ValueError('scenario_name must be at least 4 characters long')
         if not re.match(r'^[a-zA-Z0-9_]+$', self.scenario_name):
@@ -65,6 +70,7 @@ class CommonConfig(BaseModel):
 
     @classmethod
     def from_toml(cls, path: Path) -> tuple[CommonConfig, dict]:
+        """Parse the ``[common]`` section of ``path``, returning it and the remaining sections."""
         with open(path, 'rb') as f:
             data = tomllib.load(f)
         try:

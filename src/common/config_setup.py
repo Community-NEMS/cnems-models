@@ -1,6 +1,7 @@
-"""This file contains Config_settings class. It establishes the main settings used when running
-the model. It takes these settings from the run_config.toml file. It has universal configurations
-(e.g., configs that cut across modules and/or solve options) and module specific configs.
+"""Legacy ``Config_settings`` class holding the main settings used when running the model.
+
+Settings are taken from the run_config.toml file, and cover both universal configurations (e.g.,
+configs that cut across modules and/or solve options) and module specific configs.
 """
 
 ###################################################################################################
@@ -26,11 +27,14 @@ from src.integrator.utilities import create_temporal_mapping
 
 @deprecated('Legacy: Use src.common.common_config and model-specific config instead.')
 class Config_settings:
-    """Generates the model settings that are used to solve. Settings include:  \n
-    - Iterative Solve Config Settings \n
-    - Spatial Config Settings \n
-    - Temporal Config Settings \n
-    - Electricity Config Settings \n
+    """Generates the model settings that are used to solve.
+
+    Settings include:
+
+    - Iterative Solve Config Settings
+    - Spatial Config Settings
+    - Temporal Config Settings
+    - Electricity Config Settings
     - Other.
     """
 
@@ -275,8 +279,9 @@ class Config_settings:
         return all(hasattr(self, attr) for attr in attrs)
 
     def _additional_year_settings(self, name, value):
-        """Checks year related settings to see if values are within expected ranges and updates
-        other settings linked to years if years is changed.
+        """Checks year related settings to see if values are within expected ranges.
+
+        Also updates other settings linked to years if years is changed.
 
         Parameters
         ----------

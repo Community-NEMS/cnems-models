@@ -14,6 +14,8 @@ from enum import Enum, unique
 
 @unique
 class ModelType(Enum):
+    """The individual models available to a run."""
+
     ELECTRICITY = 'electricity'
     NATURAL_GAS = 'natural_gas'
     INTEGRATOR = 'integrator'

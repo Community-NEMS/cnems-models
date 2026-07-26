@@ -25,9 +25,10 @@ _EXPECTED_VAR_NAMES = {
 
 
 def test_breakdown_obj_terms(solved_model, capsys):
-    """breakdown_obj_terms should print a header row followed by (variable, index,
-    coefficient) triplets, sorted by descending coefficient magnitude, with duplicate
-    coefficients collapsed into a single row plus an "... and x others" summary line.
+    """breakdown_obj_terms prints a header row followed by (variable, index, coefficient) triplets.
+
+    Triplets are sorted by descending coefficient magnitude, with duplicate coefficients collapsed
+    into a single row plus an "... and x others" summary line.
     """
     _, _, elec_model = solved_model
 

@@ -189,6 +189,7 @@ class ElectricitySequencer(IntegratedModelSequencer):
         return IterationStatus.BEST
 
     def iteration_postprocess(self, **kwargs):
+        """No-op; the electricity model has nothing to do between iterations."""
         pass
 
     def full_postprocess(self, **kwargs) -> None:

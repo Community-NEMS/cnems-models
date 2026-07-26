@@ -1,3 +1,5 @@
+"""Tests for the price-extraction interface between the electricity model and the integrator."""
+
 from src.integrator.utilities import get_elec_price, regional_annual_prices
 from src.models.electricity.sequencer import ElectricitySequencer
 

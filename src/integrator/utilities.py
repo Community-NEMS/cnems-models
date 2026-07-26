@@ -283,8 +283,9 @@ def poll_hydrogen_price(
 
 
 def convert_h2_price_records(records: list[tuple[HI, float]]) -> dict[HI, float]:
-    """Simple coversion from list of records to a dictionary LUT
-    repeat entries should not occur and will generate an error.
+    """Simple coversion from list of records to a dictionary LUT.
+
+    Repeat entries should not occur and will generate an error.
     """
     res = {}
     for hi, price in records:
@@ -437,11 +438,12 @@ def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
 
 
 def create_temporal_mapping(sw_temporal):
-    """Combines the input mapping files within the electricity model to create a master temporal
-    mapping dataframe. The df is used to build multiple temporal parameters used within the  model.
-    It creates a single dataframe that has 8760 rows for each hour in the year.
-    Each hour in the year is assigned a season type, day type, and hour type used in the model.
-    This defines the number of time periods the model will use based on cw_s_day and cw_hr inputs.
+    """Combines the electricity model input mapping files into a master temporal mapping frame.
+
+    The df is used to build multiple temporal parameters used within the  model. It creates a
+    single dataframe that has 8760 rows for each hour in the year. Each hour in the year is
+    assigned a season type, day type, and hour type used in the model. This defines the number of
+    time periods the model will use based on cw_s_day and cw_hr inputs.
 
     Returns
     -------

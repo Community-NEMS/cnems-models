@@ -76,6 +76,7 @@ class FilterPackage:
     year_col: Iterable[str] = ('year',)
 
     def __post_init__(self):
+        """Validate the filter element types and convert the filters to sets for fast lookup."""
         # check for correct types for proper filter functionality
         if any(isinstance(v, str) for v in self.year_filter):
             raise ValueError('Year filter must be a set of integers')
@@ -128,10 +129,9 @@ def read_parameter_csv(
     value_col: str,
     filter_package: FilterPackage | None = None,
 ) -> dict[tuple, float]:
-    """
-    Reads a CSV file and processes its content into a dictionary mapping index tuples
-    to float values while applying optional region and year filtering.
+    """Read a CSV file into a dictionary mapping index tuples to float values.
 
+    Optional region and year filtering is applied while reading.
     """
     with open(file_path) as f:
         res = {}
@@ -197,12 +197,10 @@ def read_parameter_csv(
 def read_property_csv(
     file_path: Path, param_cols: Iterable[str], index_cols: Iterable[str]
 ) -> dict[str, list[str]]:
-    """Read csv file that has 'properties as columns' and some index columns and convert
-    to dictionary of indices that satisfy each property (pivot).
-
+    """Read a 'properties as columns' csv into a dict of indices satisfying each property.
 
     Assume the first column is the index/reference column and gather those entries in master set.
-    For other columns, look for True/true and capture
+    For other columns, look for True/true and capture.
     """
     with open(file_path) as f:
         reader = DictReader(f)
@@ -303,6 +301,18 @@ def load_param_data(
 
 
 def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
+    """Read every source in ``PROPERTY_SOURCES`` from ``input_dir``, keyed by source name.
+
+    Parameters
+    ----------
+    input_dir : Path
+        directory holding the property CSVs named by ``PROPERTY_SOURCES``.
+
+    Returns
+    -------
+    dict[str, dict[str, list[str]]]
+        one entry per property source, mapping each property name to the indices that satisfy it.
+    """
     return dict(
         (
             k,

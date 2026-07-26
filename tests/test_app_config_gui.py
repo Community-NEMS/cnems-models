@@ -28,6 +28,7 @@ BASIC_CONFIG_TOML = PROJECT_ROOT / 'tests/electric/basic_elec_config.toml'
 
 @pytest.fixture
 def config_pair() -> tuple[CommonConfig, ElecConfig]:
+    """The (CommonConfig, ElecConfig) pair parsed from the basic test TOML."""
     common_config, remainder = parse_config_file(BASIC_CONFIG_TOML)
     elec_config = ElecConfig(**remainder.pop('elec_config'))
     return common_config, elec_config

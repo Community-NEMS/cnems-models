@@ -1,6 +1,4 @@
-"""
-A gathering of utility functions for dealing with model interconnectivity.
-"""
+"""A gathering of utility functions for dealing with model interconnectivity."""
 
 import argparse
 import logging
@@ -20,8 +18,10 @@ logger = getLogger(__name__)
 
 @deprecated('should be using normal Path functions')
 def make_dir(dir_name):
-    """Generates an output directory to write model results, output directory is the date/time
-    at the time this function executes. It includes subdirs for vars, params, constraints.
+    """Generates an output directory to write model results.
+
+    The output directory is the date/time at the time this function executes. It includes subdirs
+    for vars, params, constraints.
 
     Returns
     -------
@@ -110,10 +110,11 @@ def get_args():
 
 
 def scale_load(data_root):
-    """Reads in BaseLoad.csv (load for all regions/hours for first year)
-    and LoadScalar.csv (a multiplier for all model years). Merges the
-    data and multiplies the load by the scalar to generate new load
-    estimates for all model years.
+    """Scales the base-year load out to every model year.
+
+    Reads in BaseLoad.csv (load for all regions/hours for first year) and LoadScalar.csv (a
+    multiplier for all model years). Merges the data and multiplies the load by the scalar to
+    generate new load estimates for all model years.
 
     Returns
     -------
@@ -139,10 +140,12 @@ def scale_load(data_root):
 # TODO:  Simple profiling shows that this function is SUPER slow.  Consider refactor ideas...
 # update to above:  pre-filtering regions makes this much more tolerable.  More to do ?
 def scale_load_with_enduses(data_root: Path, regions: Collection[str]):
-    """Reads in BaseLoad.csv (load for all regions/hours for first year), EnduseBaseShares.csv
-    (the shares of demand for each enduse in the base year) and EnduseScalar.csv (a multiplier
-    for all model years by enduse category). Merges the data and multiplies the load by the
-    adjusted enduse scalar and then sums up to new load estimates for all model years.
+    """Scales the base-year load out to every model year using per-enduse scalars.
+
+    Reads in BaseLoad.csv (load for all regions/hours for first year), EnduseBaseShares.csv (the
+    shares of demand for each enduse in the base year) and EnduseScalar.csv (a multiplier for all
+    model years by enduse category). Merges the data and multiplies the load by the adjusted
+    enduse scalar and then sums up to new load estimates for all model years.
 
     Returns
     -------

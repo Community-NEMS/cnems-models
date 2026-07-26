@@ -118,9 +118,9 @@ configs = [
     ],
 )
 def test_basic_run(config_info, expected_total_cost, expected_nvariables, expected_nconstraints):
-    """
-    Perform a couple of basic runs (with some features in isolation) and compare
-    results to captured values.
+    """Perform a couple of basic runs (with some features in isolation).
+
+    Results are compared to captured values.
 
     dev notes:
     1.  basic config file turns OFF many features that may need separate verification

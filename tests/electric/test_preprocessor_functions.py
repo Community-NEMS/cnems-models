@@ -14,6 +14,7 @@ from src.models.electricity.preprocessor import avg_by_group
 
 @pytest.fixture
 def year_map():
+    """Crosswalk mapping individual years to their representative summary year."""
     df = pd.DataFrame(
         {
             'year': [2000, 2002, 2001, 2008, 2020, 2025, 2029],
@@ -25,6 +26,7 @@ def year_map():
 
 @pytest.fixture
 def dummy_df():
+    """Small (year, color, value) frame to aggregate over."""
     df = pd.DataFrame(
         {
             'year': [2000, 2002, 2001, 2008, 2020, 2025, 2029],

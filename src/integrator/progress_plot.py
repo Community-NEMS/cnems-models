@@ -1,7 +1,4 @@
-"""
-A plotter that can be used for combined solves.
-
-"""
+"""A plotter that can be used for combined solves."""
 
 from pathlib import Path
 

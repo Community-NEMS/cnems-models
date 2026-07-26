@@ -31,14 +31,16 @@ SCI = namedtuple('SCI', ['region', 'tech', 'step', 'year'])
 
 
 class ModelSets:
-    """Generates an initial batch of sets that are used to solve electricity model. Sets include:
+    """Generates an initial batch of sets that are used to solve electricity model.
+
+    Sets include:
+
     - Scenario descriptor and model switches
     - Regional sets
     - Temporal sets
     - Technology type sets
     - Supply curve step sets
     - Other.
-
     """
 
     capacity_index: list[tuple]
@@ -177,9 +179,9 @@ class ModelSets:
         self.step = range(1, 5)
 
     def build_sc_indexes(self, supply_curve_index: Collection[SCI]):
-        """
-        Use the supply curve to build the index sets based on crossing techs with hours and
-        supply curve steps.
+        """Use the supply curve to build the index sets.
+
+        Built by crossing techs with hours and supply curve steps.
         """
         self.capacity_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year) for idx in supply_curve_index
@@ -362,8 +364,9 @@ class ModelSets:
     def build_international_travel_index(
         self, intl_capacity: DataFrame, intl_gen_limit: DataFrame
     ) -> list[tuple]:
-        """Create the valid international trading index, which relies on the capacity and
-        the step from generation limits.
+        """Create the valid international trading index.
+
+        Relies on the capacity and the step from generation limits.
         """
         df = (
             pd.merge(

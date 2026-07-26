@@ -1,3 +1,6 @@
-"""
-This directory contains the subdirectory for the integrator module and the subdirectories for the sectoral modules. The integrator module contains code for the different solve methods (standalone, iterative, or unified). The sectoral modules currently represented in this prototype include the electricity model, hydrogen model, and residential model. For more details on each of these, please see the READMEs located within each subdirectory.
+"""Top-level source package for the C-NEMS models.
+
+Holds the ``integrator`` module (solve-method orchestration) and the ``models`` package of
+sectoral modules. Only the electricity model is active in this fork; see the READMEs in each
+subdirectory for details.
 """

@@ -1,7 +1,4 @@
-"""
-A gathering of functions for running models solo.
-
-"""
+"""A gathering of functions for running models solo."""
 
 # Import packages
 from logging import getLogger

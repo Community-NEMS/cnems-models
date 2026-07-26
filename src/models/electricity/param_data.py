@@ -34,6 +34,12 @@ logger = logging.getLogger(__name__)
 
 
 class ParamData:
+    """Reads and shapes the electricity model's parameter data from the raw input files.
+
+    Simple parameters are held as plain dicts; parameters that still need manipulation are held as
+    DataFrames.
+    """
+
     # constructed temporal dataframes
     weight_year: DataFrame
     weight_season: DataFrame
@@ -309,6 +315,16 @@ class ParamData:
 
         Parameters
         ----------
+        augmented_supply_curve : DataFrame
+            supply curve providing the (region, tech, step, year) basis to expand to hours
+        hour_season_map : DataFrame
+            crosswalk mapping each hour to its season
+        cap_factor_vre : DataFrame
+            capacity factors for the variable renewable techs
+        hydro_cap_factor : DataFrame
+            seasonal capacity factors for the hydro techs
+        tech_hyrdo : Collection[str]
+            techs treated as hydro, which draw their credit from ``hydro_cap_factor``
 
         Returns
         -------

@@ -1,3 +1,5 @@
+"""Rewrite markdown into a GitHub-compatible flavor."""
+
 import re
 from pathlib import Path
 from warnings import deprecated

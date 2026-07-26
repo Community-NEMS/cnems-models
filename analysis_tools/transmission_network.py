@@ -141,8 +141,9 @@ def plot_network(
     degrees: pd.Series,
     save_path: Path | None = None,
 ) -> None:
-    """Draw the network on a US map, with node size/color scaled by degree and line thickness
-    scaled by TranLimit.
+    """Draw the network on a US map.
+
+    Node size/color is scaled by degree and line thickness by TranLimit.
 
     Nodes are placed at approximate region centroids from `REGION_COORDS` and drawn over an
     outline map of the US with state boundaries. Each edge's line width is

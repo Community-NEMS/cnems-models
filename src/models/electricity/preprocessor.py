@@ -1,11 +1,10 @@
-"""This file is the main preprocessor for the electricity model.
+"""Main preprocessor for the electricity model.
 
-It established the parameters and sets that will be used in the model. It contains:
+It establishes the parameters and sets that will be used in the model. It contains:
  - A class that contains all sets used in the model
  - A collection of support functions to read in and setup parameter data
  - The preprocessor function, which produces an instance of the Set class and a dict of params
  - A collection of support functions to write out the inputs to the output directory
-
 """
 
 import logging
@@ -39,8 +38,9 @@ data_root = Path(PROJECT_ROOT, 'input', 'electricity')
 ### Load csvs
 @deprecated('CSV files are read in using data_ingestor.py')
 def readin_csvs(all_frames):
-    """Reads in all of the CSV files from the input dir and returns a dictionary of dataframes,
-    where the key is the file name and the value is the table data.
+    """Reads in all of the CSV files from the input dir and returns a dictionary of dataframes.
+
+    The key is the file name and the value is the table data.
 
     Parameters
     ----------
@@ -62,8 +62,9 @@ def readin_csvs(all_frames):
 ### Load table from SQLite DB
 @deprecated('DB reading is currently not supported.')
 def readin_sql(all_frames):
-    """Reads in all of the tables from a SQL databased and returns a dictionary of dataframes,
-    where the key is the table name and the value is the table data.
+    """Reads in all of the tables from a SQL database and returns a dictionary of dataframes.
+
+    The key is the table name and the value is the table data.
 
     Parameters
     ----------
@@ -149,8 +150,9 @@ def subset_dfs(all_frames, setin, i):
 
 @deprecated('no current uses')
 def fill_values(row, subset_list):
-    """Function to fill in the subset values, is used to assign all years within the year
-    solve range to each year the model will solve for.
+    """Function to fill in the subset values.
+
+    Used to assign all years within the year solve range to each year the model will solve for.
 
     Parameters
     ----------
@@ -542,9 +544,7 @@ def create_other_sets(all_frames, setin):
 
 @deprecated('no known uses')
 def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
-    """
-    Computes the indices of the non-overlapping keys after performing an inner join operation
-    on the keys of two dictionaries.
+    """Computes the indices of the non-overlapping keys after an inner join on two dicts' keys.
 
     The method identifies the common keys between `param_1` and `param_2`, keeps only those
     keys in the original dictionaries, and calculates how many keys are lost in each dictionary
@@ -576,10 +576,11 @@ def inner_join_indices(param_1: dict, param_2: dict) -> tuple[int, int]:
 def preprocessor(
     setin: ModelSets, common_config: CommonConfig, elec_config: ElecConfig
 ) -> tuple[dict[str, DataFrame], dict[str, dict[tuple, float]], ModelSets]:
-    """Main preprocessor function that generates the final dataframes and sets sent over to the
-    electricity model. This function reads in the input data, modifies it based on the temporal
-    and regional mapping specified in the inputs, and gets it into the final formatting needed.
-    Also adds some additional regional sets to the set class based on parameter inputs.
+    """Main preprocessor that generates the final dataframes and sets sent to the electricity model.
+
+    Reads in the input data, modifies it based on the temporal and regional mapping specified in
+    the inputs, and gets it into the final formatting needed. Also adds some additional regional
+    sets to the set class based on parameter inputs.
 
     Parameters
     ----------
@@ -817,8 +818,10 @@ def makedir(dir_out):
 
 @deprecated('likely not needed.  Just regurgitated inputs.  Future removal?')
 def output_inputs(OUTPUT_ROOT):
-    """Function developed initial for QA purposes, writes out to csv all of the dfs and sets passed
-    to the electricity model to an output directory.
+    """Function developed initially for QA purposes.
+
+    Writes out to csv all of the dfs and sets passed to the electricity model to an output
+    directory.
 
     Parameters
     ----------
@@ -854,8 +857,9 @@ def output_inputs(OUTPUT_ROOT):
 
 @deprecated('no known uses')
 def print_sets(setin):
-    """Function developed initially for QA purposes, prints out all of the sets passed to the
-    electricity model.
+    """Function developed initially for QA purposes.
+
+    Prints out all of the sets passed to the electricity model.
 
     Parameters
     ----------

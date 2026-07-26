@@ -102,8 +102,9 @@ def test_column_names_on_real_model(solved_model, var_name, expected_columns):
 
 
 def test_extract_all_variables_covers_every_var(solved_model):
-    """With core_only=False, extract_all_variables returns exactly the Vars present on the
-    model, no more, no less.
+    """With core_only=False, extract_all_variables returns exactly the Vars on the model.
+
+    No more, no less.
     """
     _, _, elec_model = solved_model
 

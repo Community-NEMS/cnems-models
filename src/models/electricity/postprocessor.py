@@ -1,4 +1,4 @@
-"""This file is the postprocessor for the electricity model.
+"""Postprocessor for the electricity model.
 
 Legacy section (deprecated): the original postprocessor relied on ``instance.cols_dict``, a
 column-naming lookup only ever populated by the deprecated ``src.common.model.Model`` base class.
@@ -37,9 +37,10 @@ logger = getLogger(__name__)
     'PowerModel no longer subclasses it. Superseded by extract_all_variables for Vars.'
 )
 def report_obj_df(mod_object, instance, dir_out, sub_dir):
-    """Creates a df of the component object within the pyomo model, separates the key data into
-    different columns and then names the columns if the names are included in the cols_dict.
-    Writes the df out to the output directory.
+    """Creates a df of the component object within the pyomo model.
+
+    Separates the key data into different columns and then names the columns if the names are
+    included in the cols_dict. Writes the df out to the output directory.
 
     Parameters
     ----------
@@ -79,8 +80,9 @@ def report_obj_df(mod_object, instance, dir_out, sub_dir):
 
 @deprecated('Only used by the deprecated postprocessor() entry point.')
 def make_elec_output_dir(output_dir):
-    """Generates an output subdirectory to write electricity model results. It includes subdirs for
-    vars, params, constraints.
+    """Generates an output subdirectory to write electricity model results.
+
+    It includes subdirs for vars, params, constraints.
 
     Returns
     -------
@@ -104,8 +106,9 @@ def make_elec_output_dir(output_dir):
     'gaussseidel.py). Superseded by extract_all_variables/export_variables_to_csv for Vars.'
 )
 def postprocessor(instance):
-    """Master postprocessor function that writes out the final dataframes from to the electricity
-    model. Creates the output directories and writes out dataframes for variables, parameters, and
+    """Master postprocessor that writes out the final dataframes from the electricity model.
+
+    Creates the output directories and writes out dataframes for variables, parameters, and
     constraints. Gets the correct columns names for each dataframe using the cols_dict.
 
     Parameters

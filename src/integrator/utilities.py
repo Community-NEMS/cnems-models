@@ -24,6 +24,8 @@ from definitions import PROJECT_ROOT
 
 if typing.TYPE_CHECKING:
     from src.models.electricity.electricity_model import PowerModel
+
+    # pyrefly: ignore[missing-import]  - hydrogen module removed from this fork
     from src.models.hydrogen.model.h2_model import H2Model
 
 # Establish logger

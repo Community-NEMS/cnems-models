@@ -82,6 +82,11 @@ max-complexity = 10
 # Limited to "src" so the pre-commit hook -- which only installs pyrefly itself, not
 # the rest of the dependencies -- can still resolve imports.
 project-includes = ["src"]
+# The project has no [build-system] and is run from the repo root, so `definitions` and the
+# `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic
+# infers roots from the checked files (i.e. `src/`), so without this it can resolve neither and
+# reports ~60 spurious missing-import errors. Paths are relative to this config file.
+search-path = ["."]
 python-version = "3.14"
 # Resolve imports against whichever `python` is first on PATH, which inside `pixi run` is
 # the pixi env. Without this pyrefly falls back to an arbitrary interpreter found on the

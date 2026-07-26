@@ -47,7 +47,11 @@ from src.models.electricity.sequencer import (
     set_new_cap,
     update_expansion_cost,
 )
+
+# pyrefly: ignore[missing-import]  - hydrogen module removed from this fork
 from src.models.hydrogen.model import actions
+
+# pyrefly: ignore[missing-import]  - residential module removed from this fork
 from src.models.residential.scripts.residential import residentialModule
 
 # Establish logger

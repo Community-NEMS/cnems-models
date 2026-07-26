@@ -200,7 +200,7 @@ class ElectricitySequencer(IntegratedModelSequencer):
         instance = self.model
 
         logger.info('Displaying solution...')
-        logger.info(f'instance.total_cost(): {instance.total_cost()}')
+        logger.info(f'instance.total_cost(): {pyo.value(instance.total_cost)}')
 
         logger.info('Logging infeasible constraints...')
         log_infeasible_constraints(instance, logger=logger)

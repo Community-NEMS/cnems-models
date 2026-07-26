@@ -82,6 +82,10 @@ max-complexity = 10
 # Limited to "src" so the pre-commit hook -- which only installs pyrefly itself, not
 # the rest of the dependencies -- can still resolve imports.
 project-includes = ["src"]
+# The pyomo formulation attaches Sets/Params/Vars to the model at runtime, so pyrefly sees them
+# as the base `Component` class and reports ~68 spurious errors (calling a Set, indexing a Param,
+# iterating a Var).  None are actionable without annotating pyomo itself, so skip the file.
+project-excludes = ["src/models/electricity/electricity_model.py"]
 # The project has no [build-system] and is run from the repo root, so `definitions` and the
 # `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic
 # infers roots from the checked files (i.e. `src/`), so without this it can resolve neither and
@@ -185,7 +189,9 @@ test-runner = {cmd="pytest --cov=src --cov-append --cov-report=xml --cov-fail-un
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
-lint-pyrefly = { cmd = "pyrefly check src", description = "Type check the code with pyrefly." }
+# No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`
+# from the config.  Scope comes from `project-includes` under [tool.pyrefly] instead.
+lint-pyrefly = { cmd = "pyrefly check", description = "Type check the code with pyrefly." }
 lint = { depends-on = [
   "lint-ruff",
   "lint-pyrefly",

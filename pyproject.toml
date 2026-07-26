@@ -66,6 +66,8 @@ ignore = [
 #  "RET504", # Ignore unnecessary assignment before return
 #  "S101",   # Use of assert
   "PTH123",  # allow open(  ) construct
+  # TODO:  work toward clearing C901
+  "C901" # looks for if-else complexity.  Aspirational!
 ]
 
 [tool.ruff.lint.isort]

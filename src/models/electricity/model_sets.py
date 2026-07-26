@@ -178,7 +178,7 @@ class ModelSets:
         # Misc Inputs
         self.step = range(1, 5)
 
-    def build_sc_indexes(self, supply_curve_index: Collection[SCI]):
+    def build_sc_indexes(self, supply_curve_index: Collection[SCI]): # noqa: C901 - simple build
         """Use the supply curve to build the index sets.
 
         Built by crossing techs with hours and supply curve steps.

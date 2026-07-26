@@ -127,8 +127,8 @@ def postprocessor(instance):
     for variable in instance.component_objects(pyo.Var, active=True):
         report_obj_df(variable, instance, output_dir, 'variables')
 
-    for set in instance.component_objects(pyo.Set, active=True):
-        report_obj_df(set, instance, output_dir, 'sets')
+    for s in instance.component_objects(pyo.Set, active=True):
+        report_obj_df(s, instance, output_dir, 'sets')
 
     for parameter in instance.component_objects(pyo.Param, active=True):
         report_obj_df(parameter, instance, output_dir, 'parameters')

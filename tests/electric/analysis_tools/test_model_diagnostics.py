@@ -55,7 +55,7 @@ def test_breakdown_obj_terms(solved_model, capsys):
 
     # inspect the first few data rows for plausible content and descending sort order
     coefficients = [float(line.split()[-1]) for line in data_lines[:5]]
-    for line, coefficient in zip(data_lines[:5], coefficients):
+    for line, coefficient in zip(data_lines[:5], coefficients, strict=True):
         var_name = line.split()[0]
         assert var_name in _EXPECTED_VAR_NAMES
         assert coefficient >= 0

@@ -83,7 +83,7 @@ def breakdown_obj_terms(em: PowerModel) -> None:
         A solved PowerModel instance.
     """
     repn = generate_standard_repn(em.total_cost.expr)
-    terms = [(var, value(coef)) for var, coef in zip(repn.linear_vars, repn.linear_coefs)]
+    terms = [(var, value(coef)) for var, coef in zip(repn.linear_vars, repn.linear_coefs, strict=True)]
     terms.sort(
         key=lambda term: (-abs(term[1]), term[0].parent_component().name, str(term[0].index()))
     )

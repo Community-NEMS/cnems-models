@@ -35,7 +35,7 @@ def config_pair() -> tuple[CommonConfig, ElecConfig]:
 
 
 def _find_value(input_ids: list[dict], input_values: list, section: str, field: str):
-    for id_dict, value in zip(input_ids, input_values):
+    for id_dict, value in zip(input_ids, input_values, strict=True):
         if id_dict['section'] == section and id_dict['field'] == field:
             return value
     raise KeyError((section, field))

@@ -220,7 +220,7 @@ def parse_form_values(input_ids: list[dict], input_values: list) -> tuple[dict, 
         `ElecConfig(**elec_raw)`.
     """
     raw: dict[str, dict] = {'common': {}, 'elec_config': {}}
-    for id_dict, value in zip(input_ids, input_values):
+    for id_dict, value in zip(input_ids, input_values, strict=True):
         section = id_dict['section']
         field = id_dict['field']
         model_cls = _SECTION_MODELS[section]

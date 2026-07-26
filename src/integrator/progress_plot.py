@@ -55,20 +55,20 @@ def plot_it(
     ax4.set_ylabel('H2')
     ax4_b.set_ylabel('ELEC/NET')
 
-    p1a = ax1.plot(*list(zip(*h2_demand_records)), label='H2', **styles['H2'])
-    p1b = ax1_b.plot(*list(zip(*elec_demand_records)), label='ELEC', **styles['ELEC'])
+    p1a = ax1.plot(*list(zip(*h2_demand_records, strict=True)), label='H2', **styles['H2'])
+    p1b = ax1_b.plot(*list(zip(*elec_demand_records, strict=True)), label='ELEC', **styles['ELEC'])
     ax1.legend(handles=p1a + p1b, reverse=True)
 
-    p2a = ax2.plot(*list(zip(*h2_price_records)), label='H2', **styles['H2'])
-    p2b = ax2_b.plot(*list(zip(*elec_price_records)), label='ELEC', **styles['ELEC'])
+    p2a = ax2.plot(*list(zip(*h2_price_records, strict=True)), label='H2', **styles['H2'])
+    p2b = ax2_b.plot(*list(zip(*elec_price_records, strict=True)), label='ELEC', **styles['ELEC'])
     ax2.legend(handles=p2a + p2b, reverse=True)
 
-    p3a = ax3.plot(*list(zip(*load_records)), label='Load', **styles['Load'])
-    p3b = ax3_b.plot(*list(zip(*elec_price_to_res_records)), label='Price', **styles['Price'])
+    p3a = ax3.plot(*list(zip(*load_records, strict=True)), label='Load', **styles['Load'])
+    p3b = ax3_b.plot(*list(zip(*elec_price_to_res_records, strict=True)), label='Price', **styles['Price'])
     ax3.legend(handles=p3a + p3b, reverse=True)
 
-    p4a = ax4.plot(*list(zip(*h2_obj_records)), label='H2', **styles['H2'])
-    p4b = ax4_b.plot(*list(zip(*elec_obj_records)), label='ELEC', **styles['ELEC'])
+    p4a = ax4.plot(*list(zip(*h2_obj_records, strict=True)), label='H2', **styles['H2'])
+    p4b = ax4_b.plot(*list(zip(*elec_obj_records, strict=True)), label='ELEC', **styles['ELEC'])
 
     # let's compute and a net objective line, which will help compare
     # need to break these down in the odd case that the iterations don't line up
@@ -79,7 +79,7 @@ def plot_it(
     for i in range(min(all_keys), max(all_keys) + 1):
         net_obj_records.append((i, h2_dict.get(i, 0) + e_dict.get(i, 0)))
 
-    p4c = ax4_b.plot(*list(zip(*net_obj_records)), label='NET', **styles['NET'])
+    p4c = ax4_b.plot(*list(zip(*net_obj_records, strict=True)), label='NET', **styles['NET'])
 
     ax4.legend(handles=p4a + p4b + p4c, reverse=True)
 

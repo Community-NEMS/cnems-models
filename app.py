@@ -10,6 +10,7 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 # Import packages
 import dash
@@ -39,7 +40,7 @@ app = dash.Dash(
 )
 app.title = 'Model Runner'
 
-docs_dir = os.path.abspath('docs/build/html')
+docs_dir = Path('docs/build/html').resolve()
 
 # use the current python interpreter to run the html docs in the background
 with open(os.devnull, 'w') as devnull:

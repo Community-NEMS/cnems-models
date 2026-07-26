@@ -74,7 +74,7 @@ class ElecConfig(BaseModel):
         return self
 
     @classmethod
-    def from_toml(cls, path: Path) -> 'ElecConfig':
+    def from_toml(cls, path: Path) -> ElecConfig:
         with open(path, 'rb') as f:
             data = tomllib.load(f)
         try:

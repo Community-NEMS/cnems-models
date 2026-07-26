@@ -109,7 +109,7 @@ HI = namedtuple('HI', ['region', 'year'])
 """(region, year)"""
 
 
-def get_elec_price(instance: typing.Union['PowerModel', ConcreteModel], block=None) -> pd.DataFrame:
+def get_elec_price(instance: PowerModel | ConcreteModel, block=None) -> pd.DataFrame:
     """Pulls hourly electricity prices from completed PowerModel and de-weights them.
 
     Prices from the duals are weighted by the day and year weights applied in the OBJ function
@@ -198,7 +198,7 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
 
 
 def regional_annual_prices(
-    m: typing.Union['PowerModel', ConcreteModel], block=None
+    m: PowerModel | ConcreteModel, block=None
 ) -> dict[HI, float]:
     """Pulls all regional annual weighted electricity prices.
 
@@ -247,7 +247,7 @@ def convert_elec_price_to_lut(prices: list[tuple[EI, float]]) -> dict[EI, float]
 
 
 def poll_hydrogen_price(
-    model: typing.Union['H2Model', ConcreteModel], block=None
+    model: H2Model | ConcreteModel, block=None
 ) -> list[tuple[HI, float]]:
     """Retrieve the price of H2 from the H2 model.
 
@@ -325,7 +325,7 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
 
 
 def poll_h2_prices_from_elec(
-    model: 'PowerModel', tech, regions: typing.Iterable
+    model: PowerModel, tech, regions: typing.Iterable
 ) -> dict[typing.Any, float]:
     """Poll the step-1 H2 price currently in the model for region/year, averaged over any steps.
 
@@ -351,7 +351,7 @@ def poll_h2_prices_from_elec(
     return res
 
 
-def update_h2_prices(model: 'PowerModel', h2_prices: dict[HI, float]) -> None:
+def update_h2_prices(model: PowerModel, h2_prices: dict[HI, float]) -> None:
     """Update the H2 prices held in the model.
 
     Parameters
@@ -398,7 +398,7 @@ def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
     logger.debug('Stored new fixed electrical request in elec model: %s', elec_demand)
 
 
-def poll_h2_demand(model: 'PowerModel') -> dict[HI, float]:
+def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
     """
     Get the hydrogen demand by rep_year and region.
 

@@ -4,8 +4,9 @@
 # Setup
 import warnings
 from collections import defaultdict
+from collections.abc import MutableSequence, Sequence
 from logging import getLogger
-from typing import DefaultDict, Dict, List, Literal, MutableSequence, Sequence, Set, Tuple
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -59,7 +60,7 @@ class Model(pyo.ConcreteModel):
         new_sname: str,
         return_set: bool | None = False,
         create_indexed_set: bool | None = False,
-        reorg_set_cols: List[str] | None = None,
+        reorg_set_cols: list[str] | None = None,
         reorg_set_sname: str | None = None,
     ):
         """Creates new pyomo sets based on an input set and a desired set of indices for an output
@@ -162,7 +163,7 @@ class Model(pyo.ConcreteModel):
     def declare_set(
         self,
         sname: str,
-        sdata: MutableSequence | pd.DataFrame | pd.Series | Dict,
+        sdata: MutableSequence | pd.DataFrame | pd.Series | dict,
         scols: MutableSequence | None = None,
         return_set: bool | None = False,
         switch: bool | None = True,
@@ -289,7 +290,7 @@ class Model(pyo.ConcreteModel):
     def _declare_set_with_iterable(
         self,
         sname: str,
-        sdata: Sequence | Set | np.array,
+        sdata: Sequence | set | np.array,
         scols: Sequence[str] | None = None,
         return_set: bool | None = False,
         switch: bool | None = True,
@@ -370,7 +371,7 @@ class Model(pyo.ConcreteModel):
     def _declare_set_with_dict(
         self,
         sname: str,
-        sdata: Dict | DefaultDict,
+        sdata: dict | defaultdict,
         scols: MutableSequence,
         return_set: bool | None = False,
         switch: bool | None = True,
@@ -569,7 +570,7 @@ class Model(pyo.ConcreteModel):
         shift_type: Literal['lag', 'lead'],
         *sets: pyo.Set,
         return_set: bool | None = False,
-        shift_sets: List | None = None,
+        shift_sets: list | None = None,
     ):
         """A generalize shifting function that creates sets compatible with leads or lags in pyomo
         components.
@@ -801,7 +802,7 @@ class Model(pyo.ConcreteModel):
         return var
 
     def unpack_set_arguments(
-        self, sname: str, sets: Tuple[pyo.Set], return_set_product: bool | None = True
+        self, sname: str, sets: tuple[pyo.Set], return_set_product: bool | None = True
     ) -> pyo.Set:
         """Handles unnamed pyo.Set arguments for multiple declaration functions.
 

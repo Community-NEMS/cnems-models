@@ -133,7 +133,7 @@ def read_parameter_csv(
     to float values while applying optional region and year filtering.
 
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         res = {}
         reader = DictReader(f)
         flag_floats = False
@@ -204,7 +204,7 @@ def read_property_csv(
     Assume the first column is the index/reference column and gather those entries in master set.
     For other columns, look for True/true and capture
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         reader = DictReader(f)
         flag_floats = False
         # make set of dictionaries to catch the "True" vals

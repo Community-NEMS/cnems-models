@@ -9,7 +9,6 @@ It established the parameters and sets that will be used in the model. It contai
 """
 
 import logging
-import os
 from pathlib import Path
 from warnings import deprecated
 
@@ -54,10 +53,9 @@ def readin_csvs(all_frames):
         completed dictionary filled with dataframes from the input directory
     """
     csv_dir = Path(data_root, 'cem_inputs')
-    for filename in os.listdir(csv_dir):
-        f = Path(csv_dir, filename)
-        if os.path.isfile(f):
-            all_frames[filename[:-4]] = pd.read_csv(f)
+    for f in Path(csv_dir).iterdir():
+        if f.is_file():
+            all_frames[f.name[:-4]] = pd.read_csv(f)
     return all_frames
 
 
@@ -813,8 +811,8 @@ def makedir(dir_out):
     dir_out : str
         path of directory
     """
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
+    if not Path(dir_out).exists():
+        Path(dir_out).mkdir(parents=True)
 
 
 @deprecated('likely not needed.  Just regurgitated inputs.  Future removal?')

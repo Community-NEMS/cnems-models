@@ -53,7 +53,7 @@ select = [
 #  "RSE", # unnecessary parenthises on raised exceptions
 #  "S",   # flake8-bandit
 #  "SIM", # flake8-simplify
-#  "UP",  # pyupgrade (use modern python syntax)
+  "UP",  # pyupgrade (use modern python syntax)
 #  "W",   # pycodestyle warnings
 ]
 ignore = [
@@ -65,6 +65,7 @@ ignore = [
   "PD015",  # Use of pd.merge() rather than df.merge()
 #  "RET504", # Ignore unnecessary assignment before return
 #  "S101",   # Use of assert
+  "PTH123",  # allow open(  ) construct
 ]
 
 [tool.ruff.lint.isort]

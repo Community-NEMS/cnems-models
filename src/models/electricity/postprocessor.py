@@ -14,7 +14,6 @@ dependency on any precomputed column-naming dict.
 ###################################################################################################
 # Setup
 
-import os
 from logging import getLogger
 from pathlib import Path
 from warnings import deprecated
@@ -88,14 +87,14 @@ def make_elec_output_dir(output_dir):
     string
         the name of the output directory
     """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        os.makedirs(Path(output_dir / 'variables'))
-        os.makedirs(Path(output_dir / 'parameters'))
-        os.makedirs(Path(output_dir / 'constraints'))
-        os.makedirs(Path(output_dir / 'sets'))
-        os.makedirs(Path(output_dir / 'prices'))
-        os.makedirs(Path(output_dir / 'obj'))
+    if not Path(output_dir).exists():
+        Path(output_dir).mkdir(parents=True)
+        Path(output_dir / 'variables').mkdir(parents=True)
+        Path(output_dir / 'parameters').mkdir(parents=True)
+        Path(output_dir / 'constraints').mkdir(parents=True)
+        Path(output_dir / 'sets').mkdir(parents=True)
+        Path(output_dir / 'prices').mkdir(parents=True)
+        Path(output_dir / 'obj').mkdir(parents=True)
 
 
 ###################################################################################################

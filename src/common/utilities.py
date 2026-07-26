@@ -4,7 +4,6 @@ A gathering of utility functions for dealing with model interconnectivity.
 
 import argparse
 import logging
-import os
 from collections.abc import Collection
 from datetime import datetime
 from logging import getLogger
@@ -29,8 +28,8 @@ def make_dir(dir_name):
     string
         the name of the output directory
     """
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
+    if not Path(dir_name).exists():
+        Path(dir_name).mkdir(parents=True)
     else:
         logger.info('Asked to make dir that already exists:' + str(dir_name))
 

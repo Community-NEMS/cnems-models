@@ -64,7 +64,7 @@ class CommonConfig(BaseModel):
         return self
 
     @classmethod
-    def from_toml(cls, path: Path) -> tuple['CommonConfig', dict]:
+    def from_toml(cls, path: Path) -> tuple[CommonConfig, dict]:
         with open(path, 'rb') as f:
             data = tomllib.load(f)
         try:

@@ -21,7 +21,6 @@ from src.models.electricity.sequencer import (
     calculate_tolerance,
     cost_learning_func,
     init_old_cap,
-    set_new_cap,
     update_expansion_cost,
 )
 
@@ -115,26 +114,6 @@ def test_calculate_cap_growth(mock_model):
     assert result[(2, 2030)] == pytest.approx(0.0)  # no years before 2030
     assert result[(2, 2035)] == pytest.approx(10.0)  # 2030 build only
     assert result[(3, 2035)] == pytest.approx(20.0)
-
-
-def test_set_new_cap(mock_model):
-    """new_cap matches cap growth; new_cap_wt applies the year weight."""
-    set_new_cap(mock_model)
-
-    assert mock_model.new_cap[(2, 2030)] == pytest.approx(0.0)
-    assert mock_model.new_cap[(2, 2035)] == pytest.approx(10.0)
-    assert mock_model.new_cap[(3, 2035)] == pytest.approx(20.0)
-
-    assert mock_model.new_cap_wt[(2, 2035)] == pytest.approx(10.0 * 3)
-    assert mock_model.new_cap_wt[(3, 2030)] == pytest.approx(0.0)
-
-
-def test_set_new_cap_matches_calculate_cap_growth(mock_model):
-    """The two routines should agree on capacity by (tech, year)."""
-    growth = calculate_cap_growth(mock_model)
-    set_new_cap(mock_model)
-
-    assert mock_model.new_cap == pytest.approx(dict(growth))
 
 
 class TestCostLearningFunc:

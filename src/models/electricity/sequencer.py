@@ -51,7 +51,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         self._elec_config: ElecConfig | None = None
         self._common_config: CommonConfig | None = None
         self._opt = None
-        print('init')
 
     @property
     def model(self) -> PowerModel:
@@ -70,6 +69,32 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
     def model(self, value: PowerModel):
         """Set the model instance.  Caution:  Alignment with config settings not checked."""
         self._model = value
+
+    @property
+    def elec_config(self) -> ElecConfig:
+        """The electricity config the model was built from.
+
+        Raises
+        ------
+        RuntimeError
+            If accessed before :meth:`build_model`.
+        """
+        if self._elec_config is None:
+            raise RuntimeError('Config is not available; call build_model() first.')
+        return self._elec_config
+
+    @property
+    def common_config(self) -> CommonConfig:
+        """The common config the model was built from.
+
+        Raises
+        ------
+        RuntimeError
+            If accessed before :meth:`build_model`.
+        """
+        if self._common_config is None:
+            raise RuntimeError('Config is not available; call build_model() first.')
+        return self._common_config
 
     def build_model(
         self, common_config: CommonConfig, model_config: ElecConfig, **kwargs
@@ -139,7 +164,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
         logger.info('Solving model')
 
-        if self._elec_config.expansion_learning_type == ExpansionLearningType.LINEAR:
+        if self.elec_config.expansion_learning_type == ExpansionLearningType.LINEAR:
             # run iterative (external) learning
             eps = float('inf')
             i = 0
@@ -163,7 +188,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 eps = calculate_tolerance(
                     cap_growth=cap_growth,
                     new_cap_growth=new_cap_growth,
-                    year_weights=instance.WeightYear,
+                    year_weights=instance.WeightYear.extract_values(),
                 )
 
                 # update the cap growth for potential next iteration
@@ -171,6 +196,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
                 logger.info('Tolerance in linear learning iteration %d: %0.4f', i, eps)
                 i += 1
+
+            if results is None:  # pragma: no cover - the loop always runs at least once
+                raise RuntimeError('Linear learning loop exited without solving the model.')
         else:
             results = self._opt.solve(instance)
 
@@ -207,19 +235,19 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
         logger.info('dispatch cost value = %.2f', pyo.value(instance.dispatch_cost))
         logger.info('unmet load cost value = %.2f', pyo.value(instance.unmet_load_cost))
-        if self._elec_config.capacity_expansion:
+        if self.elec_config.capacity_expansion:
             logger.info('cap expansion value = %.2f', pyo.value(instance.capacity_expansion_cost))
             logger.info('fixed om cost value = %.2f', pyo.value(instance.fixed_om_cost))
-        if self._elec_config.spinning_reserve_required:
+        if self.elec_config.spinning_reserve_required:
             logger.info('op res value = %.2f', pyo.value(instance.operating_reserves_cost))
-        if self._elec_config.ramping_required:
+        if self.elec_config.ramping_required:
             logger.info('ramp cost value = %.2f', pyo.value(instance.ramp_cost))
-        if self._elec_config.regional_exchange:
+        if self.elec_config.regional_exchange:
             logger.info('trade cost value = %.2f', pyo.value(instance.trade_cost))
         logger.info('Obj complete')
 
         scenario_dir = (
-            self._common_config.output_path / self._common_config.scenario_name / 'electricity'
+            self.common_config.output_path / self.common_config.scenario_name / 'electricity'
         )
         export_variables_to_csv(instance, output_dir=scenario_dir / 'variables', core_only=True)
 
@@ -295,6 +323,7 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     # instance.cap_set = []
     # instance.old_cap_wt = {}
 
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for _r, tech, _step, y in instance.CapCostLearning:
         if (tech, y) not in initial_growth:
             # each tech will increase cap by 1 GW per year. reasonable starting point.
@@ -305,30 +334,20 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
 
 
 def set_new_cap(instance: PowerModel):
-    """Calculate new capacity after solve iteration.
+    """Currently no-op.
 
-    Parameters
-    ----------
-    instance : PowerModel
-        solved electricity pyomo model
+    This legacy approach added instance variables to the model.  See the design pattern in
+    the control loop above.  All that should be needed is to calculate the growth where needed
     """
-    instance.new_cap = {}
-    instance.new_cap_wt = {}
-    for r, tech, step, y in instance.CapCostLearning:
-        if (tech, y) not in instance.new_cap:
-            instance.new_cap[(tech, y)] = 0.0
-        instance.new_cap[(tech, y)] = instance.new_cap[(tech, y)] + sum(
-            instance.capacity_builds[(r, tech, step, year)].value
-            for year in instance.year
-            if year < y
-        )
-        instance.new_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.new_cap[(tech, y)]
+    raise NotImplementedError('see docstring')
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     """Calculate the current capacity of all buildable tech by year."""
     result = defaultdict(float)
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for r, tech, step, y in instance.CapCostLearning:
+        # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
         result[(tech, y)] = sum(
             value(instance.capacity_builds[r, tech, step, year])
             for year in instance.year
@@ -357,6 +376,7 @@ def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
     cost = (
         (instance.SupplyCurveLearning[tech] + 0.0001 * (y - instance.y0_learning) + new_cap)
         / instance.SupplyCurveLearning[tech]
+        # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
     ) ** (-1.0 * instance.LearningRate[tech])
     return cost
 

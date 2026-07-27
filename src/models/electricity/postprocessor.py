@@ -185,6 +185,7 @@ def _derive_column_names(component: IndexedComponent) -> list[str]:
         return []
 
     subsets = list(component.index_set().subsets(expand_all_set_operators=True))
+    names: list[str]
     if len(subsets) > 1:
         names = [s.local_name for s in subsets]
     elif subsets[0].dimen == 1:

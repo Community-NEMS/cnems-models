@@ -131,8 +131,7 @@ correct, not verified against an independent source).
 ## Ignore / do not touch
 
 - `old_docs/` — outdated; ignore completely until it is updated.
-- **Legacy config + Dash GUI stack**: `src/common/config_setup.py` (`Config_settings`),
-  `src/common/config_gui.py`, `app.py`, `run_dash_app.bat`, `main.py::app_main`, and
+- **Legacy config + Dash GUI stack**: `src/common/config_setup.py` (`Config_settings`) and
   `src/integrator/{unified,gaussseidel,runner}.py`. These still use the old flat-TOML config style.
   Don't build on them and don't fix breakage in them. (`src/integrator/utilities.py` is *not* legacy —
   `select_solver` and `create_temporal_mapping` are live dependencies of the electricity path.)

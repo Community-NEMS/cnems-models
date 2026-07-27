@@ -110,7 +110,10 @@ class ModelSets:
         # if aggregation is commanded make a year map and weighting map, else create a trivial map
         if common_config.aggregate_years:
             self.year_map = ModelSets._create_year_map(
-                agg_years=common_config.summary_years, start_year=common_config.aggregate_start_year
+                agg_years=common_config.summary_years,
+                # pyrefly: ignore[bad-argument-type]  - CommonConfig validates that
+                # aggregate_start_year is set whenever aggregate_years is True
+                start_year=common_config.aggregate_start_year,
             )
             self.year_agg_weights = ModelSets._create_year_agg_weights(self.year_map)
         else:

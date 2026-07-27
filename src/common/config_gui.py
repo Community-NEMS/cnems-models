@@ -139,7 +139,7 @@ def _build_field_input(section: str, name: str, annotation: Any, current: Any) -
 
 def _build_section_rows(section: str, model_cls: type, instance: Any) -> list[Component]:
     """Build one labeled form row per field of `model_cls`, populated from `instance`."""
-    rows = []
+    rows: list[Component] = []
     for name, field in model_cls.model_fields.items():
         current = getattr(instance, name)
         component = _build_field_input(section, name, field.annotation, current)
@@ -309,7 +309,9 @@ def save_configs(
             for err in e.errors()
         ]
 
-    if errors:
+    # the None checks are unreachable when `errors` is empty, but they make the "both models
+    # validated" invariant explicit rather than implied by the try/except pairing above
+    if errors or common_config is None or elec_config is None:
         raise ConfigValidationError(errors)
 
     path.parent.mkdir(parents=True, exist_ok=True)

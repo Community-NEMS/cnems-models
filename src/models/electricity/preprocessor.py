@@ -150,6 +150,7 @@ def avg_by_group(df, set_name, map_frame):
     df.insert(pos, set_name, y_col)
 
     # used to qa
+    # pyrefly: ignore[bad-argument-type]  - pandas types column labels as Hashable, not str
     df = df.sort_values(by=list(df[:-1])).reset_index(drop=True)
     # print(df.tail())
 

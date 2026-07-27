@@ -78,7 +78,7 @@ class FilterPackage:
     def __post_init__(self):
         """Validate the filter element types and convert the filters to sets for fast lookup."""
         # check for correct types for proper filter functionality
-        if any(isinstance(v, str) for v in self.year_filter):
+        if self.year_filter and any(isinstance(v, str) for v in self.year_filter):
             raise ValueError('Year filter must be a set of integers')
         if self.region_filter and any(isinstance(v, int) for v in self.region_filter):
             raise ValueError('Region filter must be a set of strings')
@@ -119,7 +119,7 @@ def convert_to_df(param_dict: dict, index_names: Sequence[str], value_name: str)
     df = pd.DataFrame.from_dict(param_dict, orient='index', columns=[value_name])
 
     # Convert tuple index to MultiIndex to flatten tuples and then reset & return
-    df.index = pd.MultiIndex.from_tuples(df.index, names=index_names)
+    df.index = pd.MultiIndex.from_tuples(df.index, names=list(index_names))
     return df.reset_index()
 
 
@@ -194,11 +194,14 @@ def read_parameter_csv(
 
 def read_property_csv(
     file_path: Path, param_cols: Iterable[str], index_cols: Iterable[str]
-) -> dict[str, list[str]]:
+) -> dict[str, list]:
     """Read a 'properties as columns' csv into a dict of indices satisfying each property.
 
     Assume the first column is the index/reference column and gather those entries in master set.
     For other columns, look for True/true and capture.
+
+    The collected index keys are heterogeneous: a tuple when ``index_cols`` names more than one
+    column, otherwise the bare value -- an int for anything in ``INTEGER_COLS``, else a str.
     """
     with open(file_path) as f:
         reader = DictReader(f)

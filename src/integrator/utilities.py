@@ -45,14 +45,14 @@ def simple_solve(m: ConcreteModel):
     raise RuntimeError('failed solve in iterator')
 
 
-def simple_solve_no_opt(m: ConcreteModel, opt: pyo.SolverFactory):
+def simple_solve_no_opt(m: ConcreteModel, opt: OptSolver):
     """Solve concrete model using solver factory object.
 
     Parameters
     ----------
     m : ConcreteModel
         Pyomo model
-    opt: SolverFactory
+    opt: OptSolver
         Solver object initiated prior to solve
     """
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
@@ -143,16 +143,23 @@ def get_elec_price(instance: PowerModel | ConcreteModel, block=None) -> pd.DataF
     # get electricity price duals and de-weight them (costs in the OBJ are up-weighted
     # by the day weight and year weight)
     records = []
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for index in c:
+        # pyrefly: ignore[not-iterable]  - index is a pyomo key tuple, untyped
         ei = EI(*index)
+        # pyrefly: ignore[bad-index, bad-argument-type]  - pyomo Suffix/Constraint access is untyped
         weighted_value = float(instance.dual[c[index]])
 
         # gather the weights for this hour
+        # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
         day = model.MapHourDay[ei.hour]
+        # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
         day_wt = model.WeightDay[day]
+        # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
         year_wt = model.WeightYear[ei.year]
 
         # remove the weighting & record
+        # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
         unweighted_cost = weighted_value / day_wt / year_wt
         records.append((*ei, day_wt, unweighted_cost))
 
@@ -162,7 +169,7 @@ def get_elec_price(instance: PowerModel | ConcreteModel, block=None) -> pd.DataF
     return res
 
 
-def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
+def get_annual_wt_avg(elec_price: pd.DataFrame) -> pd.DataFrame:
     """Takes annual weighted average of hourly electricity prices.
 
     Parameters
@@ -172,8 +179,9 @@ def get_annual_wt_avg(elec_price: pd.DataFrame) -> dict[HI, float]:
 
     Returns
     -------
-    dict[HI, float]
-        annual weighted average electricity prices
+    pd.DataFrame
+        annual weighted average electricity prices, indexed by (region, year) with a single
+        ``weighted_ave_price`` column
     """
 
     def my_agg(x):
@@ -343,11 +351,14 @@ def poll_h2_prices_from_elec(
         a dictionary of (region, seasons, year): price
     """
     res = {}
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for idx in model.H2Price:
+        # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
         r, t, step, y, season = idx
         if t == tech and r in regions and step == 1:  # TODO:  remove hard coding
             res[r, season, y] = value(model.H2Price[idx])
 
+    # pyrefly: ignore[bad-return]  - pyomo's value() is typed as returning None too
     return res
 
 
@@ -365,6 +376,7 @@ def update_h2_prices(model: PowerModel, h2_prices: dict[HI, float]) -> None:
     update_count = 0
     no_update = set()
     good_updates = set()
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for region, tech, step, yr, season in model.H2Price:
         if tech in h2_techs:
             if (region, yr) in h2_prices:
@@ -421,10 +433,13 @@ def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
     #
     # Gwh * kg/Gwh = kg
     # so we need 1/heat_rate for kg/Gwh
+    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for idx in model.generation_total.index_set():
+        # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
         r, tech, step, y, hr = idx
         if tech in h2_consuming_techs:
             h2_demand_weighted = (
+                # pyrefly: ignore[unsupported-operation]  - pyomo's value() may return None
                 value(model.generation_total[idx])
                 * model.WeightDay[model.MapHourDay[hr]]
                 / model.H2Heatrate

@@ -101,7 +101,9 @@ class ElectricityMethods(Model):
             pyomo electricity model instance
         """
         m.HourSeason_index = pyo.Set(m.season)
+        # pyrefly: ignore[missing-attribute]  - pyomo components attached at runtime read as Component
         for hr, season in (m.MapHourSeason.extract_values()).items():
+            # pyrefly: ignore[bad-index, missing-attribute]  - pyomo IndexedSet access is untyped
             m.HourSeason_index[season].add(hr)
 
     @deprecated('done in model now')
@@ -119,6 +121,7 @@ class ElectricityMethods(Model):
         m.ProcurementSetReserves = Model.populate_sets_rule(
             m, 'reserves_procurement_index', set_base2=['restypes', 'region', 'year', 'hour']
         )
+        # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
         for tech, year, r, step, hour in m.generation_vre_ub_index:
             if (year, r, hour) not in m.WindSetReserves:
                 m.WindSetReserves[(year, r, hour)] = []
@@ -190,6 +193,7 @@ def create_obj_df(mod_object):
     if isinstance(mod_object, pyo.Set):
         pass
     else:
+        # pyrefly: ignore[unsupported-operation]  - pyomo's value() is typed as returning None too
         df[name] = [pyo.value(mod_object[i]) for i in mod_object]
 
     if not df.empty:

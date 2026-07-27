@@ -36,13 +36,13 @@ _LEARNING_TOLERANCE = 0.1
 _LEARNING_MAX_ITER = 20
 
 
-class ElectricitySequencer(IntegratedModelSequencer):
+class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
     """Build/solve orchestration for the electricity :class:`PowerModel`.
 
     Ports the functionality formerly held by ``runner.py`` into the
-    :class:`~src.common.integrated_model_sequencer.IntegratedModelSequencer` interface. The built
-    model plus the configs it was built from are retained on the instance so the solve/postprocess
-    steps can run without re-threading arguments.
+    :class:`~src.common.integrated_model_sequencer.IntegratedModelSequencer` interface, specialized
+    to the ``(PowerModel, ElecConfig)`` pair. The built model plus the configs it was built from are
+    retained on the instance so the solve/postprocess steps can run without re-threading arguments.
     """
 
     def __init__(self):

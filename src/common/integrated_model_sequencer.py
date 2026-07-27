@@ -26,24 +26,34 @@ class IterationStatus(Enum):
     ERROR = 3
 
 
-class IntegratedModelSequencer(ABC):
-    """A sequencer for a model that may be subject to integrated runs."""
+class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: BaseModel](ABC):
+    """A sequencer for a model that may be subject to integrated runs.
+
+    Generic in the model and config types so an implementation can name the concrete pair it
+    handles (e.g. ``IntegratedModelSequencer[PowerModel, ElecConfig]``) without narrowing an
+    inherited parameter type, which would be a Liskov violation.
+
+    Type Parameters
+    ---------------
+    ModelT
+        The concrete :class:`~src.common.integrated_model.IntegratedModel` this sequencer builds.
+    ConfigT
+        The model-specific pydantic config that :meth:`build_model` consumes.
+    """
 
     @property
     @abstractmethod
-    def model(self) -> IntegratedModel:
+    def model(self) -> ModelT:
         """The model instance this sequencer owns."""
         ...
 
     @abstractmethod
-    def build_model(
-        self, common_config: CommonConfig, model_config: BaseModel, **kwargs
-    ) -> IntegratedModel:
+    def build_model(self, common_config: CommonConfig, model_config: ConfigT, **kwargs) -> ModelT:
         """Build a model new model instance."""
         ...
 
     @abstractmethod
-    def update_model(self, **kwargs) -> IntegratedModel:
+    def update_model(self, **kwargs) -> ModelT:
         """Update the model with some new data, etc."""
         ...
 

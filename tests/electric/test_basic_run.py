@@ -19,6 +19,7 @@ from tabulate import tabulate
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
+    cost_per_kwh,
     gather_constraint_data,
     gather_param_data,
     gather_set_data,
@@ -38,7 +39,7 @@ from src.models.electricity.sequencer import (
 
 # "verbose" mode is supplied for these basic tests to screen output key data to aid in
 # development
-verbose = False
+verbose = True
 
 # Always-required ParamSource keys -> the pyomo Param attribute they end up as on PowerModel.
 # Declared unconditionally in electricity_model.py, so should exist for every config.
@@ -179,6 +180,11 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
                 value(elec_model.capacity_retirements[i]) for i in elec_model.capacity_retirements
             )
             print(f'sum of retirements: {retirements}')
+
+        print()
+        # drumroll...
+        cost_per_kwh(elec_model)
+
     # for test development/capture:
     print(value(elec_model.total_cost), elec_model.nvariables(), elec_model.nconstraints())
 

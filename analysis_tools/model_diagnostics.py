@@ -140,3 +140,13 @@ def load_inspector(em: PowerModel, region: str):
                 print(f'Load for {year} hour {hour}: {value(em.Load[region, year, hour])}')
             except Exception:
                 print(f'Load for {year} hour {hour}: N/A')
+
+
+def cost_per_kwh(em: PowerModel) ->None:
+    """Report the grand avg cost per KWh from a solved model."""
+    total_cost = value(em.total_cost)
+    total_load = sum(em.Load[idx] for idx in em.Load)
+
+    print(f'total cost: $M {total_cost/1e6:,.2f}')
+    print(f'total load: {total_load:,.2f} GWh')
+    print(f'cost per kWh: $ {total_cost/1e6/total_load:,.2f}')

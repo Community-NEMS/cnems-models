@@ -38,4 +38,3 @@ ramping_required=false
 # "annual" will scale the base year electricity demand by an annual scalar value
 # "end_use" will scale the base year electricity demand by hourly end use demand profiles
 load_scale_mode = "end_use"
-

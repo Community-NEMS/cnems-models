@@ -39,7 +39,7 @@ from src.models.electricity.sequencer import (
 
 # "verbose" mode is supplied for these basic tests to screen output key data to aid in
 # development
-verbose = True
+verbose = False
 
 # Always-required ParamSource keys -> the pyomo Param attribute they end up as on PowerModel.
 # Declared unconditionally in electricity_model.py, so should exist for every config.

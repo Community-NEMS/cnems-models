@@ -9,7 +9,7 @@ Created on:  6/18/26
 import pandas as pd
 import pytest
 
-from src.models.electricity.preprocessor import avg_by_group
+from src.models.electricity.param_utilities import avg_by_group
 
 
 @pytest.fixture

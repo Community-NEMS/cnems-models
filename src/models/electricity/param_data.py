@@ -28,7 +28,7 @@ from src.models.electricity.data_ingestor import (
 )
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
 from src.models.electricity.model_sets import SCI, ModelSets
-from src.models.electricity.preprocessor import add_season_index, avg_by_group, time_map
+from src.models.electricity.param_utilities import add_season_index, avg_by_group, time_map
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +150,8 @@ class ParamData:
 
         # expand season columns to the appropriate rep-hours for the season where season is used
         # we can skip this if no international connections:
+        # TODO:  Investigate why this is done.  It seems unnecessary bloat to expand with
+        #        duplicate information.  Why not just index with [season]?
         if len(self.param_frames['tran_limit_cap_int']) > 0:
             TLCI_cols = ['region', 'region_international', 'year', 'hour', 'capacity']
             TLGI_cols = ['region_international', 'step', 'year', 'hour', 'generation']

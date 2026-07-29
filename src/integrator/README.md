@@ -8,23 +8,23 @@
 
 ## Introduction
 
-Finding an equilibrium solution among several modules requires exchanging information that is common between modules and/or having modules access information contained in another module. The Prototype chooses to find an equilibrium solution through this integrator module. 
+Finding an equilibrium solution among several modules requires exchanging information that is common between modules and/or having modules access information contained in another module. The Prototype chooses to find an equilibrium solution through this integrator module.
 
-The essential common information that modules exchange is related to prices and quantities, which have to coincide among the modules for an equilibrium. Modules might exchange other information, such as updated marginal costs and discount rates, but mathematically, there's two types of variables exchanged between modules: 
+The essential common information that modules exchange is related to prices and quantities, which have to coincide among the modules for an equilibrium. Modules might exchange other information, such as updated marginal costs and discount rates, but mathematically, there's two types of variables exchanged between modules:
 
-1) **Primal Variables**, or those that explicitly are defined within the problem, and exist as unknowns that the problem solves for. This mostly include quantities. 
+1) **Primal Variables**, or those that explicitly are defined within the problem, and exist as unknowns that the problem solves for. This mostly include quantities.
 
-2) **Dual Variables**, or those outputs available once the problem is solved but are not explicitly defined in the problem formulation. Examples of this are prices that are calculated from multipliers or shadow prices of market clearing conditions in individual modules. 
+2) **Dual Variables**, or those outputs available once the problem is solved but are not explicitly defined in the problem formulation. Examples of this are prices that are calculated from multipliers or shadow prices of market clearing conditions in individual modules.
 
-**The Prototype shows generalizable methods to exchange both these pieces of information under two different methods to solve for an equilibrium.** While the Prototype only displays specific examples, they are programmed in a generalized way so that modules can exchange any primal and dual variables within modules. The "Primal" and "Dual" terminology is borrowed from mathematical optimization but can apply to any module depending on how the variables are defined. Note that any parameters could be exchanged as primal variables. 
+**The Prototype shows generalizable methods to exchange both these pieces of information under two different methods to solve for an equilibrium.** While the Prototype only displays specific examples, they are programmed in a generalized way so that modules can exchange any primal and dual variables within modules. The "Primal" and "Dual" terminology is borrowed from mathematical optimization but can apply to any module depending on how the variables are defined. Note that any parameters could be exchanged as primal variables.
 
-This module provides computational methods to integrate the sectoral modules and solve for equilibrium. The module exchanges prices (Dual Variables) and quantities (Primal Variables) as in the figure below until values converge. 
+This module provides computational methods to integrate the sectoral modules and solve for equilibrium. The module exchanges prices (Dual Variables) and quantities (Primal Variables) as in the figure below until values converge.
 
 <img src="images/IntegrationModules.png" alt="Integration Modules" width="600"/>
 
 ## Model Overview
 
-The prototype has two different methods to solve for equilibrium, the iterative Gauss-Seidel and the unified single optimization method. 
+The prototype has two different methods to solve for equilibrium, the iterative Gauss-Seidel and the unified single optimization method.
 
 Mathematically, if both methods converge, the point they converge to is guaranteed to be an equilibrium. In our integrator methods, the Hydrogen demand is a primal variable, and in the unified optimization method, is coded as a variable that is shared in the overall problem. The Hydrogen price and Electricity price are dual variables and are only available after the optimization has been solved. The problem needs to be resolved with the updated dual variables until it converges. Other primal and dual variables that are common between modules can be coded by the methodology presented here.
 
@@ -42,9 +42,9 @@ A unified single optimization method that combines all modules into a single opt
 
 ## Prepare Data
 
-### Run Configuration 
+### Run Configuration
 
-The majority of the options for integrating and solving modules rely upon a configuration file located in the common folder: run_config.toml. This file contains settings shared across modules as well as settings specific to each module. 
+The majority of the options for integrating and solving modules rely upon a configuration file located in the common folder: run_config.toml. This file contains settings shared across modules as well as settings specific to each module.
 
 #### Integrator Settings
 
@@ -63,7 +63,7 @@ The model runs a number of representative days (self-looping) with a number of p
 | :---------- | :--- | :---------- |
 | Hours | cw_hr.csv | **Contains the representative hour mapping crosswalk** <br> <li> Index_hour represent each hour in a 24 hour period <br> <li> Map_hour is the representative hour number each Index_hour is being mapped to. Hours must be in chronological order. <br> <li> Map_hour 1 can wrap around from 24 to 1. |
 | Days | cw_s_day.csv | **Contains the representative hour mapping crosswalk** <br> <li> Index_day is the day number of the year: 1-365 <br> <li> Map_s is the season mapping of these days. *Note: Do not change this unless you need to make larger changes to the code because input files are based on the seasons* <br> <li> Map_day is the representative day that this Index_day is mapped to. Representative days are created using weighted averages of Index_day. *Note: You cannot have a representative day span multiple seasons.* |
-| Years | sw_year.csv | **Contains the representative year mapping switches** <br> <li> Points to a csv file that contains switches for years being run. Runs the models for the years that are switched on, e.g., **1** = On <br> <li> If **sw_agg_year** in the toml file is also tuned on, the representative year will be an average of all of those before it (until the previous year switched on). This also properly weights the years. Otherwise, it only runs the years that are switched on. 
+| Years | sw_year.csv | **Contains the representative year mapping switches** <br> <li> Points to a csv file that contains switches for years being run. Runs the models for the years that are switched on, e.g., **1** = On <br> <li> If **sw_agg_year** in the toml file is also tuned on, the representative year will be an average of all of those before it (until the previous year switched on). This also properly weights the years. Otherwise, it only runs the years that are switched on.
 
 #### Spatial Settings
 This model currently has 25 regions. Turning on and off certain regions allows only specific regions to be run.

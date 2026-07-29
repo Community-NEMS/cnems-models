@@ -7,8 +7,3 @@ REM call "C:\Program Files\Anaconda3\condabin\activate.bat"
 
 REM navigate to project directory , activate new conda env, and run the app
 cd %cd% && conda activate bsky && python app.py
-
-
-
-
-

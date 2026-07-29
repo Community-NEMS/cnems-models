@@ -141,6 +141,7 @@ def postprocessor(instance):
 # New: model-native variable extraction
 storage_index_names = ['region', 'tech', 'step', 'year', 'hour']
 
+# mapping the names of the indices to the core variables to use as labels in extraction
 core_variable_indices = {
     'generation_total': ['region', 'tech', 'step', 'year', 'hour'],
     'capacity_builds': ['region', 'tech', 'step', 'year'],
@@ -313,7 +314,7 @@ def export_variables_to_csv(
         A solved electricity model.
     output_dir : Path | str | None, optional
         Directory to write one ``{variable_name}.csv`` file per variable into (created if
-        missing). Defaults to ``PROJECT_ROOT / 'outputs'``.
+        missing). Defaults to ``PROJECT_ROOT / 'outputs/temp/electricity/variables'``.
     core_only : bool, optional
         Passed through to :func:`extract_all_variables`. If True (default), only the recognized
         "core" Vars (keys of ``core_variable_indices``) are extracted and written; if False,
@@ -325,7 +326,11 @@ def export_variables_to_csv(
         Same return value as :func:`extract_all_variables`, so callers get the in-memory frames
         without a second extraction pass.
     """
-    out_dir = Path(output_dir) if output_dir is not None else PROJECT_ROOT / 'outputs'
+    out_dir = (
+        Path(output_dir)
+        if output_dir is not None
+        else PROJECT_ROOT / 'outputs/temp/electricity/variables'
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     dfs = extract_all_variables(model, core_only=core_only)

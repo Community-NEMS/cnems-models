@@ -90,9 +90,12 @@ project-includes = ["src"]
 # not worth fixing or suppressing in code that should not be built on.
 project-excludes = [
   "src/models/electricity/electricity_model.py",
-  "src/integrator/gaussseidel.py",
-  "src/integrator/unified.py",
-  "src/common/model.py",
+  "src/models/electricity/preprocessor.py",  # flagged for removal
+  "src/integrator/gaussseidel.py",  # not in upgrade scope yet
+  "src/integrator/unified.py",  # not in upgrade scope yet
+  "src/integrator/runner.py",  # flagged for removal
+  "src/common/model.py",  # flagged for removal
+  "src/common/config_setup.py",  # flagged for removal
 ]
 # The project has no [build-system] and is run from the repo root, so `definitions` and the
 # `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic

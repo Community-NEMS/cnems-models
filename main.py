@@ -9,7 +9,6 @@ from warnings import deprecated
 # Import python modules
 from definitions import PROJECT_ROOT
 from src.common.common_config import parse_config_file
-from src.common.config_setup import Config_settings
 from src.common.models_modes import ModelType, RunMode
 from src.common.utilities import get_args, setup_logger
 from src.models.electricity.elec_config import ElecConfig
@@ -32,8 +31,8 @@ def app_main(selected_mode):
     app_args.op_mode = selected_mode
     app_args.debug = False
 
-    app_settings, config_data = Config_settings(config_path=default_config_path, args=app_args)
-    main(app_settings)
+    # app_settings, config_data = Config_settings(config_path=default_config_path, args=app_args)
+    # main(app_settings)
 
 
 def main(

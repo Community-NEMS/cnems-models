@@ -1,6 +1,7 @@
 # Electricity Model
 
 ### Table of Contents
+
 - [Introduction](#introduction)
 - [Prepare Data](#prepare-data)
 - [Model Overview](#model-overview)
@@ -71,15 +72,15 @@ The [run_config.toml](/src/integrator/run_config.toml) file contains the main
 switches through which features for the electricity module can be toggled. The
 setup column names various constraint settings:
 
-|Switch    | Description   | Values | Notes |
-|:----- | :------ | :--------- | :---: |
-|sw_trade | Interregional trade | **0** = Off <br> **1** = On | |
-|sw_expansion | Capacity expansion/retirement | **0** = Off <br> **1** = On | Note the file cem_inputs/AllowBuilds.csv also contains settings of which technologies are available to expand. cem_inputs/AllowRet.csv contains which technologies have the option to economically retire. |
-|sw_agg_year | Aggregate years | **0** = Only runs sw_year <br> **1** = Aggregates all unselected years into subsequent selected year | Switch to aggregate years based on the selected years in sw_year.csv|
-|sw_rm | Reserve margin requirement | **0** = Off <br> **1** = On | |
-|sw_ramp | Maximum ramping constaint | **0** = Off <br> **1** = On | |
-|sw_reserves | Operating reserve requirement | **0** = Off <br> **1** = On ||
-|sw_learning | Technology cost learning | **0** = Exogenous learning <br> **1** = Iterative linear learning <br> **2** = Nonlinear learning | The method of which technology costs decrease as more capacity is built. Note this switch does nothing unless sw_expansion=1 |
+| Switch       | Description                   | Values                                                                                               |                                                                                                   Notes                                                                                                    |
+| :----------- | :---------------------------- | :--------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| sw_trade     | Interregional trade           | **0** = Off <br> **1** = On                                                                          |                                                                                                                                                                                                            |
+| sw_expansion | Capacity expansion/retirement | **0** = Off <br> **1** = On                                                                          | Note the file cem_inputs/AllowBuilds.csv also contains settings of which technologies are available to expand. cem_inputs/AllowRet.csv contains which technologies have the option to economically retire. |
+| sw_agg_year  | Aggregate years               | **0** = Only runs sw_year <br> **1** = Aggregates all unselected years into subsequent selected year |                                                                    Switch to aggregate years based on the selected years in sw_year.csv                                                                    |
+| sw_rm        | Reserve margin requirement    | **0** = Off <br> **1** = On                                                                          |                                                                                                                                                                                                            |
+| sw_ramp      | Maximum ramping constaint     | **0** = Off <br> **1** = On                                                                          |                                                                                                                                                                                                            |
+| sw_reserves  | Operating reserve requirement | **0** = Off <br> **1** = On                                                                          |                                                                                                                                                                                                            |
+| sw_learning  | Technology cost learning      | **0** = Exogenous learning <br> **1** = Iterative linear learning <br> **2** = Nonlinear learning    |                                        The method of which technology costs decrease as more capacity is built. Note this switch does nothing unless sw_expansion=1                                        |
 
 ### Technology Settings
 
@@ -87,165 +88,168 @@ The model contains 14 technologies (tech) in its initial layout. Users could
 change the technology assignments and add more technology types or remove
 technology types, but any changes to the code would require updates to the
 cooresponding input data. The technologies represented include:
-<br> 1.)	Coal Steam
-<br> 2.)	Oil Steam
-<br> 3.)	Natural Gas Single-Cycle Combustion Turbine
-<br> 4.)	Natural Gas Combined-Cycle
-<br> 5.)	Hydrogen Turbine
-<br> 6.)	Nuclear
-<br> 7.)	Biomass
-<br> 8.)	Geothermal
-<br> 9.)	Municipal-Solid-Waste
-<br> 10.)	Hydroelectric Generation
-<br> 11.)	Pumped Hydroelectric Storage
-<br> 12.)	Battery Energy Storage
-<br> 13.)	Wind, Offshore
-<br> 14.)	Wind, Onshore
-<br> 15.)	Solar  (step 1 = utility-scale; step 2 = end-use)
+<br> 1.) Coal Steam
+<br> 2.) Oil Steam
+<br> 3.) Natural Gas Single-Cycle Combustion Turbine
+<br> 4.) Natural Gas Combined-Cycle
+<br> 5.) Hydrogen Turbine
+<br> 6.) Nuclear
+<br> 7.) Biomass
+<br> 8.) Geothermal
+<br> 9.) Municipal-Solid-Waste
+<br> 10.) Hydroelectric Generation
+<br> 11.) Pumped Hydroelectric Storage
+<br> 12.) Battery Energy Storage
+<br> 13.) Wind, Offshore
+<br> 14.) Wind, Onshore
+<br> 15.) Solar (step 1 = utility-scale; step 2 = end-use)
 
 The technologies (tech) are also combined into group based on the applicability
 of different constraints. These groups are defined in tech_subsets.csv within
 the electricity/input directory and includes:
-* T_conv: conventional
-* T_re: renewable energy
-* T_hydro: hydroelectric
-* T_stor: storage
-* T_vre: variable renewable energy
-* T_wind: wind
-* T_solar: solar
-* T_h2: hydrogen
-* T_disp: dispatchable
-* T_gen: generating
+
+- T_conv: conventional
+- T_re: renewable energy
+- T_hydro: hydroelectric
+- T_stor: storage
+- T_vre: variable renewable energy
+- T_wind: wind
+- T_solar: solar
+- T_h2: hydrogen
+- T_disp: dispatchable
+- T_gen: generating
 
 When the capacity expansion switch is turned on, a user can select which
 technologies they want to have expansion and retirement capabilities. Turning
 these switches on allows for builds and/or retirements of a given technology and
 supply curve step. These files are located in the electricity/input directory.
 
-|Switch    | Description   | Values | Notes |
-|:----- | :------: | :--------- | :---: |
-|sw_builds | Contains switches for technologies and supply curve steps where capacity is allowed to build | **0** = Not Allowed to Build <br> **1** = Allowed to Build | Switches contained in Sw_ptbuilds.csv |
-|sw_retires | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **0** = Not Allowed to Retire <br> **1** = Allowed to Retire | Switches contained in Sw_ptbuilds.csv |
-
+| Switch     |                                          Description                                          | Values                                                       |                 Notes                 |
+| :--------- | :-------------------------------------------------------------------------------------------: | :----------------------------------------------------------- | :-----------------------------------: |
+| sw_builds  | Contains switches for technologies and supply curve steps where capacity is allowed to build  | **0** = Not Allowed to Build <br> **1** = Allowed to Build   | Switches contained in Sw_ptbuilds.csv |
+| sw_retires | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **0** = Not Allowed to Retire <br> **1** = Allowed to Retire | Switches contained in Sw_ptbuilds.csv |
 
 ## Model Overview
 
 ### Sets
-|Set    | Code    | Data Type  | Short Description |
-|:----- | :------ | :--------- | :---------------- |
-|$H$ | hour | Set | All representative hours|
-|$Y$ | year | Sparse set | All selected model years|
-|$SEA$ | season | Set | All seasons|
-|$D$ | day | Set | All representative days|
-|$R$ | region | Set | All selected model domestic regions|
-|$R^{int}$ | region_int | Set | All selected model international regions|
-|$\Theta_{load}$ |demand_balance_index | Sparse set | All load sparse set|
-|$\Theta_{gen}$ |generation_total_index | Sparse set | All non-storage generation sparse set|
-|$\Theta_{H2gen}$ |H2GenSet | Sparse set | All hydrogen generation sparse set|
-|$\Theta_{stor}$ | StorageSet | Sparse set | All storage set|
-|$\Theta_{um}$ |unmet_load_index | Sparse Set | All unmet load set|
-|$\Theta_{SC}$ | capacity_total_index| Sparse Set | Existing capacity set|
-|$\Theta_{dt^{max}}$ | generation_dispatchable_ub_index| Sparse Set | Dispatchable technology generation upper bound set|
-|$\Theta_{it^{max}}$ | generation_vre_ub_index| Sparse Set | Intermittent technology generation upper bound set|
-|$\Theta_{ht^{max}}$ | generation_hydro_ub_index | Sparse Set | Hydroelectric generation upper bound set|
-|$\Theta_{hs}$ | capacity_hydro_ub_index | Sparse Set | Hydroelectric generation seasonal upper bound set|
-|$\Theta_{ret}$ | capacity_retirements_index| Sparse Set | Retirable capacity set|
-|$\Theta_{new}$ | BuildSet| Sparse Set | Buildable capacity set|
-|$\Theta_{cc}$ | capacity_builds_index| Sparse Set | Set of  capacity costs |
-|$\Theta_{cc0}$ | CapCostInitial_index| Sparse Set | Set of initial year's capacity costs |
-|$\Theta_{SBFH}$ |storage_first_hour_balance_index | Sparse set | First hour storage balance set|
-|$\Theta_{SBH}$ | storage_most_hours_balance_index | Sparse set | (non-first hour) storage balance set|
-|$\Theta_{proc}$ | reserves_procurement_index | Sparse set | Set for procurement of operating reserves |
-|$\Theta_{ramp}$ | generation_ramp_index | Sparse set | Set for ramping |
-|$\Theta_{ramp1}$ | ramp_first_hour_balance_index | Sparse set | Set for ramping in first hour of each representative day |
-|$\Theta_{ramp23}$ | ramp_most_hours_balance_index | Sparse set | Set for ramping in non-first hour of each representative day |
-|$\Theta_{tra}$ | trade_interregional_index | Sparse set | Domestic interregional trade set |
-|$\Theta_{tracan}$ | trade_interational_index | Sparse set | International interregional trade set |
-|$\Theta_{traL^{int}}$ | TranLimitInt_index | Sparse set | International interregional trade limit set |
-|$\Theta_{traLL}$ | TranLimit_index | Sparse set | Domestic interregional trade limit set |
-|$\Theta_{traLL^{int}}$ | TranLineLimitInt_index | Sparse set | International interregional trade line limit set |
+
+| Set                    | Code                             | Data Type  | Short Description                                            |
+| :--------------------- | :------------------------------- | :--------- | :----------------------------------------------------------- |
+| $H$                    | hour                             | Set        | All representative hours                                     |
+| $Y$                    | year                             | Sparse set | All selected model years                                     |
+| $SEA$                  | season                           | Set        | All seasons                                                  |
+| $D$                    | day                              | Set        | All representative days                                      |
+| $R$                    | region                           | Set        | All selected model domestic regions                          |
+| $R^{int}$              | region_int                       | Set        | All selected model international regions                     |
+| $\Theta_{load}$        | demand_balance_index             | Sparse set | All load sparse set                                          |
+| $\Theta_{gen}$         | generation_total_index           | Sparse set | All non-storage generation sparse set                        |
+| $\Theta_{H2gen}$       | H2GenSet                         | Sparse set | All hydrogen generation sparse set                           |
+| $\Theta_{stor}$        | StorageSet                       | Sparse set | All storage set                                              |
+| $\Theta_{um}$          | unmet_load_index                 | Sparse Set | All unmet load set                                           |
+| $\Theta_{SC}$          | capacity_total_index             | Sparse Set | Existing capacity set                                        |
+| $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index | Sparse Set | Dispatchable technology generation upper bound set           |
+| $\Theta_{it^{max}}$    | generation_vre_ub_index          | Sparse Set | Intermittent technology generation upper bound set           |
+| $\Theta_{ht^{max}}$    | generation_hydro_ub_index        | Sparse Set | Hydroelectric generation upper bound set                     |
+| $\Theta_{hs}$          | capacity_hydro_ub_index          | Sparse Set | Hydroelectric generation seasonal upper bound set            |
+| $\Theta_{ret}$         | capacity_retirements_index       | Sparse Set | Retirable capacity set                                       |
+| $\Theta_{new}$         | BuildSet                         | Sparse Set | Buildable capacity set                                       |
+| $\Theta_{cc}$          | capacity_builds_index            | Sparse Set | Set of capacity costs                                        |
+| $\Theta_{cc0}$         | CapCostInitial_index             | Sparse Set | Set of initial year's capacity costs                         |
+| $\Theta_{SBFH}$        | storage_first_hour_balance_index | Sparse set | First hour storage balance set                               |
+| $\Theta_{SBH}$         | storage_most_hours_balance_index | Sparse set | (non-first hour) storage balance set                         |
+| $\Theta_{proc}$        | reserves_procurement_index       | Sparse set | Set for procurement of operating reserves                    |
+| $\Theta_{ramp}$        | generation_ramp_index            | Sparse set | Set for ramping                                              |
+| $\Theta_{ramp1}$       | ramp_first_hour_balance_index    | Sparse set | Set for ramping in first hour of each representative day     |
+| $\Theta_{ramp23}$      | ramp_most_hours_balance_index    | Sparse set | Set for ramping in non-first hour of each representative day |
+| $\Theta_{tra}$         | trade_interregional_index        | Sparse set | Domestic interregional trade set                             |
+| $\Theta_{tracan}$      | trade_interational_index         | Sparse set | International interregional trade set                        |
+| $\Theta_{traL^{int}}$  | TranLimitInt_index               | Sparse set | International interregional trade limit set                  |
+| $\Theta_{traLL}$       | TranLimit_index                  | Sparse set | Domestic interregional trade limit set                       |
+| $\Theta_{traLL^{int}}$ | TranLineLimitInt_index           | Sparse set | International interregional trade line limit set             |
 
 ### Re-Indexed Sets
+
 These sets are re-indexed for specific constraints. They are all sub-sets
 accessed by certain indicies to return the remaining indicies.
 
-|Set    | Code    | Data Type  | Short Description |
-|:----- | :------ | :--------- | :---------------- |
-|$\theta^{H2H}_h$ | H2GenSetByHour | Sparse subset | Set for H2 generation indexed by hour |
-|$\theta^{GSH}_h$ | GenSetByHour | Sparse subset | Set for generation indexed by hour |
-|$\theta^{SSH}_h$ | StorageSetByHour | Sparse subset | Set for storage indexed by hour |
-|$\theta^{GDB}_{y,r,h}$ | GenSetDemandBalance | Sparse subset | Set for generation indexed by y,r,h |
-|$\theta^{SDB}_{y,r,h}$ | StorageSetDemandBalance | Sparse subset | Set for storage indexed by y,r,h |
-|$\theta^{TDB}_{y,r,h}$ | TradeSetDemandBalance | Sparse subset | Set for trade indexed by y,r,h |
-|$\theta^{TCDB}_{y,r,h}$ | TradeCanSetDemandBalance| Sparse subset | Set for international trade indexed by y,r,h |
-|$\theta^{windor}_{y,r,h}$ |WindSetReserves| Sparse subset | Set for wind generaton for operational reserves indexed by y,r,h |
-|$\theta^{solor}_{y,r,h}$ | SolarSetReserves| Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h |
-|$\theta^{opres}_{y,r,h}$ | ProcurementSetReserves| Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
-|$\theta^{scrm}_{y,r,seas}$ | SupplyCurveRM| Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas |
-|$\theta^{HSH}_{seas}$ | HourSHydro| Sparse subset | Set for hours indexed by season |
+| Set                        | Code                     | Data Type     | Short Description                                                                   |
+| :------------------------- | :----------------------- | :------------ | :---------------------------------------------------------------------------------- |
+| $\theta^{H2H}_h$           | H2GenSetByHour           | Sparse subset | Set for H2 generation indexed by hour                                               |
+| $\theta^{GSH}_h$           | GenSetByHour             | Sparse subset | Set for generation indexed by hour                                                  |
+| $\theta^{SSH}_h$           | StorageSetByHour         | Sparse subset | Set for storage indexed by hour                                                     |
+| $\theta^{GDB}_{y,r,h}$     | GenSetDemandBalance      | Sparse subset | Set for generation indexed by y,r,h                                                 |
+| $\theta^{SDB}_{y,r,h}$     | StorageSetDemandBalance  | Sparse subset | Set for storage indexed by y,r,h                                                    |
+| $\theta^{TDB}_{y,r,h}$     | TradeSetDemandBalance    | Sparse subset | Set for trade indexed by y,r,h                                                      |
+| $\theta^{TCDB}_{y,r,h}$    | TradeCanSetDemandBalance | Sparse subset | Set for international trade indexed by y,r,h                                        |
+| $\theta^{windor}_{y,r,h}$  | WindSetReserves          | Sparse subset | Set for wind generaton for operational reserves indexed by y,r,h                    |
+| $\theta^{solor}_{y,r,h}$   | SolarSetReserves         | Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h                    |
+| $\theta^{opres}_{y,r,h}$   | ProcurementSetReserves   | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
+| $\theta^{scrm}_{y,r,seas}$ | SupplyCurveRM            | Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas                         |
+| $\theta^{HSH}_{seas}$      | HourSHydro               | Sparse subset | Set for hours indexed by season                                                     |
 
 ### Parameters
+
 Note: the existing code shows cost units in MW/MWh instead of GW/GWh; we are
 aware and just haven't updated the code yet.
 
-| Parameter | Code     | Domain     | Short Description      | Units |
-|:-----     | :------  | :---------    | :----------------      | :-----|
-|$YR0$ | y0 | $\mathbb{I}$ | First year of model | unitless |
-|$N$ | num_hr_day | $\mathbb{I}$ | Number of representative hours in a representative day | unitless |
-|$LOAD_{r,y,h}$ | Load | $\mathbb{R}^+_0$ | Electricity demand | instantaneous GW |
-|$CAP^{exist}_{r,seas,t,s,y}$ | SupplyCurve | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial) | GW |
-|$SPR_{r,seas,t,s,y}$ | SupplyPrice | $\mathbb{R}^+_0$ | Fuel + variable O&M price | \$/GWh |
-|$ICF_{t,y,r,s,h}$ | CapFactorVRE | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor | fraction |
-|$HCF_{t,y,r,s,h}$ | HydroCapFactor | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor | fraction |
-|$STORLC$ | StorageLevelCost |$\mathbb{R}^+_0$  | Cost to hold storage (mimics losses) | \$/GWh |
-|$EFF_t$ | StorageEfficiency | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage | fraction |
-|$STOR^{dur}_t$ | HourstoBuy | $\mathbb{R}^+_0$ | Storage duration | hours |
-|$UMLPEN$ | UnmetLoadPenalty | $\mathbb{R}^+_0$ | Unmet load penalty | \$/GWh |
-|$WY_y$ | WeightYear | $\mathbb{I}$ | number of years represented by a representative year (weight) | years/representative years |
-|$HW_h$ | WeightHour | $\mathbb{I}$ | number of hours represented by a representative hours(weight) | hours/representative hours |
-|$WeightDay_d$ | WeightDay | $\mathbb{I}$ | number of days representated by a representative day (weight) | days/representative day |
-|$MHD_h$ | MapHourDay | $\mathbb{I}$ | map representative hour to representative day | unitless |
-|$WHS_{seas}$ | WeightSeason | $\mathbb{I}$ | number of hours (per year) in a season (weight) | unitless |
-|$MHS_h$ | MapHourSeason |$\mathbb{I}$  | map representative hour to season | unitless |
-|$FOMC_{r,t,s}$ | FOMCost | $\mathbb{R}^+_0$ | Fixed O&M cost | \$/GW-year |
-|$CC_{t,y,r,s,h}$ | CapacityCredit | $\mathbb{R}^+_0$ | Capacity credit | fraction |
-|$RM_r$ | ReserveMargin | $\mathbb{R}^+_0$ | Reserve margin requirement | fraction |
-|$RUC_{t}$ | RampUpCost | $\mathbb{R}^+_0$ | Ramp up cost | \$/GW |
-|$RDC_{t}$ | RampDownCost | $\mathbb{R}^+_0$ | Ramp down cost | \$/GW |
-|$RR_t$ | RampRate | $\mathbb{R}^+_0$ | Max ramp rate | GW |
-|$TRALINLIM_{r,r1,seas,y}$ | TranLimit | $\mathbb{R}^+_0$ | Domestic interregional trade line limit | GW |
-|$TRALIM^{int}_{r^{int},c,y,h}$ | TranLimitGenInt | $\mathbb{R}^+_0$ |  International interregional trade limit | GW |
-|$TRALINLIM^{int}_{r,r^{int},y,h}$ | TranLimitCapInt | $\mathbb{R}^+_0$ | International interregional trade line limit | GW |
-|$TRAC_{r,r1,y}$ | TranCost | $\mathbb{R}^+_0$ | Transmission hurdle rate (cost) | \$/GWh |
-|$TRACC_{r,r^{int},c,y}$ | TranCostInt | $\mathbb{R}^+_0$ | International transmission hurdle rate (cost) | \$/GWh |
-|$LL$ | TransLoss | $\mathbb{R}^+_0$ | Transmission line losses from 1 region to another  | fraction |
-|$OPRP_t$ | RegReservesCost | $\mathbb{R}^+_0$ | Cost of operating reserve procurement (TODO: update this in code so it contains all optypes) | \$/GWh |
-|$RTUB_{o,t}$ | ResTechUpperBound | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves | fraction |
-|$H2HR$ | H2Heatrate | $\mathbb{R}^+_0$ | Hydrogen heatrate | kg/GWh |
-|$H2PR_{r,seas,t,s,y}$ | H2Price | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter. | \$/kg |
-|$CAPCL_{r,t,y,s}$ | CapCostLearning | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter. | \$/GW |
-|$CAPC0_{r,t,s}$ |CapCostInitial | $\mathbb{R}^+_0$ | Initial year's capacity cost to build | \$/GW |
-|$LR_t$ | LearningRate | $\mathbb{R}^+_0$ | Learning rate factor | unitless |
-|$SCL_t$ | SupplyCurveLearning | $\mathbb{R}^+_0$ | Learning rate factor | unitless |
+| Parameter                         | Code                | Domain           | Short Description                                                                            | Units                      |
+| :-------------------------------- | :------------------ | :--------------- | :------------------------------------------------------------------------------------------- | :------------------------- |
+| $YR0$                             | y0                  | $\mathbb{I}$     | First year of model                                                                          | unitless                   |
+| $N$                               | num_hr_day          | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
+| $LOAD_{r,y,h}$                    | Load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
+| $CAP^{exist}_{r,seas,t,s,y}$      | SupplyCurve         | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
+| $SPR_{r,seas,t,s,y}$              | SupplyPrice         | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | \$/GWh                     |
+| $ICF_{t,y,r,s,h}$                 | CapFactorVRE        | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
+| $HCF_{t,y,r,s,h}$                 | HydroCapFactor      | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor                                             | fraction                   |
+| $STORLC$                          | StorageLevelCost    | $\mathbb{R}^+_0$ | Cost to hold storage (mimics losses)                                                         | \$/GWh                     |
+| $EFF_t$                           | StorageEfficiency   | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
+| $STOR^{dur}_t$                    | HourstoBuy          | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
+| $UMLPEN$                          | UnmetLoadPenalty    | $\mathbb{R}^+_0$ | Unmet load penalty                                                                           | \$/GWh                     |
+| $WY_y$                            | WeightYear          | $\mathbb{I}$     | number of years represented by a representative year (weight)                                | years/representative years |
+| $HW_h$                            | WeightHour          | $\mathbb{I}$     | number of hours represented by a representative hours(weight)                                | hours/representative hours |
+| $WeightDay_d$                     | WeightDay           | $\mathbb{I}$     | number of days representated by a representative day (weight)                                | days/representative day    |
+| $MHD_h$                           | MapHourDay          | $\mathbb{I}$     | map representative hour to representative day                                                | unitless                   |
+| $WHS_{seas}$                      | WeightSeason        | $\mathbb{I}$     | number of hours (per year) in a season (weight)                                              | unitless                   |
+| $MHS_h$                           | MapHourSeason       | $\mathbb{I}$     | map representative hour to season                                                            | unitless                   |
+| $FOMC_{r,t,s}$                    | FOMCost             | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | \$/GW-year                 |
+| $CC_{t,y,r,s,h}$                  | CapacityCredit      | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
+| $RM_r$                            | ReserveMargin       | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
+| $RUC_{t}$                         | RampUpCost          | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | \$/GW                      |
+| $RDC_{t}$                         | RampDownCost        | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | \$/GW                      |
+| $RR_t$                            | RampRate            | $\mathbb{R}^+_0$ | Max ramp rate                                                                                | GW                         |
+| $TRALINLIM_{r,r1,seas,y}$         | TranLimit           | $\mathbb{R}^+_0$ | Domestic interregional trade line limit                                                      | GW                         |
+| $TRALIM^{int}_{r^{int},c,y,h}$    | TranLimitGenInt     | $\mathbb{R}^+_0$ | International interregional trade limit                                                      | GW                         |
+| $TRALINLIM^{int}_{r,r^{int},y,h}$ | TranLimitCapInt     | $\mathbb{R}^+_0$ | International interregional trade line limit                                                 | GW                         |
+| $TRAC_{r,r1,y}$                   | TranCost            | $\mathbb{R}^+_0$ | Transmission hurdle rate (cost)                                                              | \$/GWh                     |
+| $TRACC_{r,r^{int},c,y}$           | TranCostInt         | $\mathbb{R}^+_0$ | International transmission hurdle rate (cost)                                                | \$/GWh                     |
+| $LL$                              | TransLoss           | $\mathbb{R}^+_0$ | Transmission line losses from 1 region to another                                            | fraction                   |
+| $OPRP_t$                          | RegReservesCost     | $\mathbb{R}^+_0$ | Cost of operating reserve procurement (TODO: update this in code so it contains all optypes) | \$/GWh                     |
+| $RTUB_{o,t}$                      | ResTechUpperBound   | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
+| $H2HR$                            | H2Heatrate          | $\mathbb{R}^+_0$ | Hydrogen heatrate                                                                            | kg/GWh                     |
+| $H2PR_{r,seas,t,s,y}$             | H2Price             | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
+| $CAPCL_{r,t,y,s}$                 | CapCostLearning     | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
+| $CAPC0_{r,t,s}$                   | CapCostInitial      | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
+| $LR_t$                            | LearningRate        | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| $SCL_t$                           | SupplyCurveLearning | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
 
 ### Variables
-| Variable  | Code     | Domain     | Short Description      | Units | Switch notes |
-|:-----     | :------  | :---------    | :----------------      | :-----| :---------|
-|$STOR^{in}_{t,y,r,s,h}$ | storage_inflow | $\mathbb{R}^+_0$ | Storage inflow | GW | |
-|$STOR^{out}_{t,y,r,s,h}$ | storage_outflow |$\mathbb{R}^+_0$  | Storage outflow | GW | |
-|$STOR^{level}_{t,y,r,s,h}$ | storage_level |$\mathbb{R}^+_0$  | Storage level (state-of-charge) | GWh | |
-|$GEN_{t,y,r,s,h}$ | generation_total | $\mathbb{R}^+_0$ | Instantaneous generation | GW | |
-|$UNLOAD_{r,y,h}$ | unmet_load | $\mathbb{R}^+_0$ | Unmet load | GW | |
-|$CAP^{tot}_{r,seas,t,s,y}$ | capacity_total | $\mathbb{R}^+_0$  | Total capacity | GW | |
-|$CAP^{new}_{r,t,y,s}$ | capacity_builds | $\mathbb{R}^+_0$ | New capacity built | GW | Only created if sw_expansion=1 |
-|$CAP^{ret}_{t,y,r,s}$ | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity | GW | Only created if sw_expansion=1|
-|$TRA_{r,r1,y,h}$ | trade_interregional | $\mathbb{R}^+_0$ | Interregional trade from region $r1$ to region $r$ | GW | Only created if sw_trade=1 |
-|$TRA^{int}_{r,r^{int},y,c,h}$ | trade_interational | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | GW | Only created if sw_trade=1 |
-|$RAMP^{up}_{t,y,r,s,h}$ | generation_ramp_up | $\mathbb{R}^+_0$  | Ramp up (increase in generation for dispatchable cap) | GW | Only created if sw_ramp=1 |
-|$RAMP^{down}_{t,y,r,s,h}$ | generation_ramp_down  | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap) | GW | Only created if sw_ramp=1 |
-|$ORP_{o,t,y,r,s,h}$ | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount | GW | Only created if sw_reserves=1 |
-|$STOR^{avail}_{t,y,r,s,h}R$ | storage_avail_cap | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin | GW | Only created if sw_rm=1 |
 
+| Variable                      | Code                 | Domain           | Short Description                                                     | Units | Switch notes                   |
+| :---------------------------- | :------------------- | :--------------- | :-------------------------------------------------------------------- | :---- | :----------------------------- |
+| $STOR^{in}_{t,y,r,s,h}$       | storage_inflow       | $\mathbb{R}^+_0$ | Storage inflow                                                        | GW    |                                |
+| $STOR^{out}_{t,y,r,s,h}$      | storage_outflow      | $\mathbb{R}^+_0$ | Storage outflow                                                       | GW    |                                |
+| $STOR^{level}_{t,y,r,s,h}$    | storage_level        | $\mathbb{R}^+_0$ | Storage level (state-of-charge)                                       | GWh   |                                |
+| $GEN_{t,y,r,s,h}$             | generation_total     | $\mathbb{R}^+_0$ | Instantaneous generation                                              | GW    |                                |
+| $UNLOAD_{r,y,h}$              | unmet_load           | $\mathbb{R}^+_0$ | Unmet load                                                            | GW    |                                |
+| $CAP^{tot}_{r,seas,t,s,y}$    | capacity_total       | $\mathbb{R}^+_0$ | Total capacity                                                        | GW    |                                |
+| $CAP^{new}_{r,t,y,s}$         | capacity_builds      | $\mathbb{R}^+_0$ | New capacity built                                                    | GW    | Only created if sw_expansion=1 |
+| $CAP^{ret}_{t,y,r,s}$         | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity                                                   | GW    | Only created if sw_expansion=1 |
+| $TRA_{r,r1,y,h}$              | trade_interregional  | $\mathbb{R}^+_0$ | Interregional trade from region $r1$ to region $r$                    | GW    | Only created if sw_trade=1     |
+| $TRA^{int}_{r,r^{int},y,c,h}$ | trade_interational   | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | GW    | Only created if sw_trade=1     |
+| $RAMP^{up}_{t,y,r,s,h}$       | generation_ramp_up   | $\mathbb{R}^+_0$ | Ramp up (increase in generation for dispatchable cap)                 | GW    | Only created if sw_ramp=1      |
+| $RAMP^{down}_{t,y,r,s,h}$     | generation_ramp_down | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap)               | GW    | Only created if sw_ramp=1      |
+| $ORP_{o,t,y,r,s,h}$           | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount                                 | GW    | Only created if sw_reserves=1  |
+| $STOR^{avail}_{t,y,r,s,h}R$   | storage_avail_cap    | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin                 | GW    | Only created if sw_rm=1        |
 
 ### Objective Function
 
@@ -315,7 +319,6 @@ C_{exp} =
        \tag{4a}
 $$
 
-
 $$
 \begin{aligned}
         C_{exp} =
@@ -326,7 +329,7 @@ $$
        \tag{4b}
 $$
 
-Fixed O\&M cost:
+Fixed O&M cost:
 
 $$
 \begin{aligned}
@@ -381,6 +384,7 @@ $$
 ### Constraints
 
 #### Balance Constraints
+
 Balance constraints exist for generation as well as energy storage. For demand,
 this means that generation must equal to or exceed demand for electricity.
 
@@ -418,7 +422,6 @@ $$
 \end{aligned}
         \tag{2}
 $$
-
 
 Storage balance (not first hour) constraint:
 
@@ -460,7 +463,6 @@ $$
             \tag{4}
 $$
 
-
 Dispatchable technology generation upper bound:
 
 $$
@@ -473,7 +475,6 @@ $$
 \end{aligned}
         \tag{5}
 $$
-
 
 Hydroelectric technology generation upper bound:
 
@@ -488,7 +489,6 @@ $$
         \tag{6}
 $$
 
-
 Intermittent technology upper bound:
 
 $$
@@ -501,7 +501,6 @@ $$
 \end{aligned}
         \tag{7}
 $$
-
 
 Storage technology inflow upper bound:
 
@@ -526,7 +525,6 @@ $$
 \end{aligned}
         \tag{9}
 $$
-
 
 Storage technology level upper bound:
 
@@ -562,7 +560,6 @@ $$
         \tag{11}
 $$
 
-
 Capacity retirement upper bound:
 
 $$
@@ -577,8 +574,8 @@ $$
         \tag{12}
 $$
 
-
 #### Trade
+
 Electricity trade constraints ensure that trade within any given time segment
 cannot exceed the capabilities of the transmission lines between the regions
 trading. In addition, there are supply quantity/price constraints for
@@ -609,7 +606,6 @@ $$
         \tag{14}
 $$
 
-
 Domestic interregional trade line capacity upper bound:
 
 $$
@@ -623,6 +619,7 @@ $$
 $$
 
 #### Reserve Margin
+
 Reserve margin constraints ensure that there is additional quantity of capacity
 available beyond load requirements in each time segment. Available capacity that
 can contribute to the reserve margin is also potentially decremented based on
@@ -644,8 +641,7 @@ $$
         \tag{16}
 $$
 
-
-Constraint to ensure available storage capacity to meet RM <= power cap, upper
+Constraint to ensure available storage capacity to meet RM \<= power cap, upper
 bound:
 
 $$
@@ -657,8 +653,7 @@ $$
         \tag{17}
 $$
 
-
-Constraint to ensure available storage capacity to meet RM <= existing storage
+Constraint to ensure available storage capacity to meet RM \<= existing storage
 level, upper bound:
 
 $$
@@ -672,6 +667,7 @@ $$
 $$
 
 #### Ramping
+
 Ramping constraints ensure that generating technologies are limited in the rate
 in which they can increase or decrease their generation from one time segment to
 the next. Ramping capabilities are balanced within each day.
@@ -698,7 +694,6 @@ $$
     \tag{20}
 $$
 
-
 Ramp up upper bound:
 
 $$
@@ -711,7 +706,6 @@ $$
 \end{aligned}
     \tag{21}
 $$
-
 
 Ramp down upper bound:
 
@@ -727,6 +721,7 @@ $$
 $$
 
 #### Operating Reserves
+
 The model allows for three different types of operating reserves to be
 represented within the model, either spinning reserves, regulation reserves, or
 flexibility reserve requirements. These operating reserves reflect the need to
@@ -734,7 +729,7 @@ additional capacity to be held in reserve to meet and short-term needs for
 generation based on un-expected changes in things like electricity demand or
 variable renewable generation output.
 
-Spinning reserve requirement constraint. 3\% of load required:
+Spinning reserve requirement constraint. 3% of load required:
 
 $$
 \begin{aligned}
@@ -746,8 +741,8 @@ $$
     \tag{23}
 $$
 
-Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind
-generation + 0.3\% of solar capacity required:
+Regulation reserve requirement constraint. 1% of load + 0.5% of wind
+generation + 0.3% of solar capacity required:
 
 $$
 \begin{aligned}
@@ -762,8 +757,7 @@ $$
     \tag{24}
 $$
 
-
-Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of
+Flexibility reserve requirement constraint. 10% of wind generation + 4% of
 solar capacity required:
 
 $$
@@ -791,7 +785,6 @@ $$
 \end{aligned}
     \tag{26}
 $$
-
 
 ## Code Documentation
 

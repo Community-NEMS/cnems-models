@@ -197,7 +197,7 @@ def _coerce_value(annotation: Any, value: Any) -> Any:
     if base in (int, float) and value is not None:
         try:
             return base(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return value
 
     return value

@@ -272,7 +272,7 @@ def poll_hydrogen_price(model: H2Model | ConcreteModel, block=None) -> list[tupl
     """
     # ensure valid class
     if not isinstance(model, ConcreteModel):
-        raise ValueError('invalid input')
+        raise TypeError('invalid input')
 
     # TODO:  what should happen if there is no entry for a particular region (no hubs)?
     if block:
@@ -436,7 +436,7 @@ def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for idx in model.generation_total.index_set():
         # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
-        r, tech, step, y, hr = idx
+        r, tech, _, y, hr = idx
         if tech in h2_consuming_techs:
             h2_demand_weighted = (
                 # pyrefly: ignore[unsupported-operation]  - pyomo's value() may return None

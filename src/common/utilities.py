@@ -155,7 +155,7 @@ def scale_load_with_enduses(data_root: Path, regions: Collection[str]):
     pandas.core.frame.DataFrame
         dataframe that contains load for all regions/years/hours
     """
-    tic = datetime.now()
+    tic = datetime.now().astimezone()
 
     if len(regions) == 0:
         logger.warning('No regions specified, returning empty Load DataFrame when scaling end uses')
@@ -201,7 +201,7 @@ def scale_load_with_enduses(data_root: Path, regions: Collection[str]):
     load['Load'] = load['Load'] + load['increment']
     load = load[['region', 'year', 'hour', 'Load']]
 
-    toc = datetime.now()
+    toc = datetime.now().astimezone()
     logger.info(f'Time to scale load: {(toc - tic).total_seconds():0.2f} sec')
 
     return load

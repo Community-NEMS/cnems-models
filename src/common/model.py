@@ -233,7 +233,7 @@ class Model(pyo.ConcreteModel):
                 create_indexed_set=create_indexed_set,
             )
         else:
-            raise ValueError(f"Object type {type(sdata)} not supported in 'declare_set'")
+            raise TypeError(f"Object type {type(sdata)} not supported in 'declare_set'")
 
     def _declare_set_with_pandas(
         self,
@@ -445,7 +445,7 @@ class Model(pyo.ConcreteModel):
             scols = [scols]
 
         # check if scols dim is equal to dimension of index
-        index_dim = len(list(sdata.keys())[0])
+        index_dim = len(next(iter(sdata.keys())))
         if len(scols) != index_dim:
             raise ValueError(
                 f"number of index labels provided in scols ({len(scols)}) doesn't match "
@@ -755,7 +755,7 @@ class Model(pyo.ConcreteModel):
 
         # declare_param -- throw error if datatype not supported
         else:
-            raise ValueError(f'Data type {type(data)} currently unsupported in declare_set method')
+            raise TypeError(f'Data type {type(data)} currently unsupported in declare_set method')
 
         # declare_param -- assign cols to cols_dict
         self.cols_dict[pname] = pcols
@@ -959,7 +959,7 @@ class Model(pyo.ConcreteModel):
         # get_duals: get component
         component = getattr(self, component_name)
         if not isinstance(component, pyo.Constraint):
-            raise ValueError(
+            raise TypeError(
                 f'Component {component} is not a pyo.Constraint object; cannot extract duals'
             )
 

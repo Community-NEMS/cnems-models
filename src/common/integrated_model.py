@@ -12,4 +12,3 @@ A model that conforms to the "integration standards"
 
 class IntegratedModel:
     """Marker base class for models that conform to the integration standards."""
-

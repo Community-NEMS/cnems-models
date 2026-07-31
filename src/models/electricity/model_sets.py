@@ -161,7 +161,7 @@ class ModelSets:
                 list of techs in subset
             """
             # set attributes for the main list
-            main = list(df.columns)[0]
+            main = next(iter(df.columns))
             df = df.set_index(df[main])
 
             # return subset of list based on col assignments
@@ -181,7 +181,7 @@ class ModelSets:
         # Misc Inputs
         self.step = range(1, 5)
 
-    def build_sc_indexes(self, supply_curve_index: Collection[SCI]):  # noqa: C901 - simple build
+    def build_sc_indexes(self, supply_curve_index: Collection[SCI]):
         """Use the supply curve to build the index sets.
 
         Built by crossing techs with hours and supply curve steps.
@@ -412,6 +412,6 @@ class ModelSets:
     def _create_year_agg_weights(year_map: dict[int, int]) -> dict[int, int]:
         """Creates a dictionary of year aggregation weights."""
         weights = {}
-        for _year, agg_year in year_map.items():
+        for agg_year in year_map.values():
             weights[agg_year] = weights.get(agg_year, 0) + 1
         return weights

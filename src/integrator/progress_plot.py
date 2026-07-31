@@ -39,7 +39,7 @@ def plot_it(
     elec_price_to_res_records = (
         elec_price_to_res_records if elec_price_to_res_records is not None else []
     )
-    fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)
+    _, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, sharex=True, constrained_layout=True)
     ax1_b = ax1.twinx()
     ax2_b = ax2.twinx()
     # ax2.set_yscale('log')

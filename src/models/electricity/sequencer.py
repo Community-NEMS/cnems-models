@@ -274,7 +274,7 @@ def calculate_tolerance(
 
 def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
     """Build the electricity model (and solve + postprocess if ``solve``), returning the model."""
-    start_time = datetime.now()
+    start_time = datetime.now().astimezone()
     timer = TicTocTimer(logger=logger)
     timer.tic('start')
 
@@ -295,7 +295,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
 
     sequencer.full_postprocess()
 
-    end_time = datetime.now()
+    end_time = datetime.now().astimezone()
     run_time = end_time - start_time
     timer.toc('finished')
     logger.info(
@@ -382,7 +382,8 @@ def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
 def update_expansion_cost(instance, new_cap: dict[tuple, float]):
     """Update capital cost based on new capacity learning."""
     new_multiplier = {}
-    for tech, y in new_cap:
+    for key in new_cap:
+        tech, y = key
         new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
 
     # Assign new cost

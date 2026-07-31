@@ -115,7 +115,7 @@ def capacity_inspector(em: PowerModel, region: str, year: int):
                     f'Capacity for {tech}-{step} in {region} {year}: '
                     f'{value(em.capacity_total[region, tech, step, year])}'
                 )  # [region, tech, step, year])}')
-            except Exception:
+            except Exception:  # noqa: BLE001 - diagnostic tool use OK
                 print(f'Capacity for {tech}-{step} in {region} {year}: N/A')
             for hour in range(1, 11):
                 try:
@@ -123,7 +123,7 @@ def capacity_inspector(em: PowerModel, region: str, year: int):
                         '   Generation: '
                         f'{value(em.generation_total[region, tech, step, year, hour])}'
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001 - diagnostic tool use OK
                     print('   Generation: N/A')
         print()
 
@@ -138,7 +138,7 @@ def load_inspector(em: PowerModel, region: str):
         for hour in range(10):
             try:
                 print(f'Load for {year} hour {hour}: {value(em.Load[region, year, hour])}')
-            except Exception:
+            except Exception:  # noqa: BLE001 - diagnostic tool use OK
                 print(f'Load for {year} hour {hour}: N/A')
 
 

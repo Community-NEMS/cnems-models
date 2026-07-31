@@ -341,13 +341,11 @@ def preprocessor(
     #     ]
 
     # average values in years/hours used
-    for key in all_frames:
-        if 'year' in all_frames[key].columns:
-            all_frames[key] = avg_by_group(all_frames[key], 'year', setin.year_map)
-        if 'hour' in all_frames[key].columns:
-            all_frames[key] = avg_by_group(
-                all_frames[key], 'hour', cw_temporal[['hour', 'Map_hour']]
-            )
+    for key, df in all_frames.items():
+        if 'year' in df.columns:
+            all_frames[key] = avg_by_group(df, 'year', setin.year_map)
+        if 'hour' in df.columns:
+            all_frames[key] = avg_by_group(df, 'hour', cw_temporal[['hour', 'Map_hour']])
 
     all_frames['MapDaySeason'] = time_map(cw_temporal, {'Map_day': 'day', 'Map_s': 'season'})
     all_frames['MapHourDay'] = time_map(cw_temporal, {'Map_hour': 'hour', 'Map_day': 'day'})

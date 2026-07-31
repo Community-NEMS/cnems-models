@@ -201,11 +201,13 @@ def run_mode(n_clicks, selected_mode):
         main(common_config_path=config_path, run_mode=selected_mode)
 
         return (
-            f'{selected_mode.value.capitalize()} mode has finished running. '
-            f"See results in output/'{selected_mode.value}'.",
+            (
+                f'{selected_mode.value.capitalize()} mode has finished running. '
+                f"See results in output/'{selected_mode.value}'."
+            ),
             100,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - top-level catch-all
         logger.error('Run failed for mode %s: %s', selected_mode, exc)
         error_msg = (
             f'Error, not able to run {selected_mode}. Please check the log script/terminal, '

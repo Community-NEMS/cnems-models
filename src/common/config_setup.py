@@ -247,7 +247,7 @@ class Config_settings:
         all_check_sets = set()
 
         # __SETATTR__: For each check method pass the setting attributes through
-        for check_method in check_dict.keys():
+        for check_method in check_dict:
             # __SETATTR__: Add checks to all_check_sets
             all_check_sets.union(check_dict[check_method])
 
@@ -387,9 +387,7 @@ class Config_settings:
         TypeError
             Error
         """
-        if value is True:
-            pass
-        elif value is False:
+        if value is True or value is False:
             pass
         else:
             raise ValueError(f'{name}: Must be either true or false')

@@ -695,7 +695,7 @@ class Model(pyo.ConcreteModel):
         self,
         pname: str,
         p_set: pyo.Set | None,
-        data: dict | pd.DataFrame | pd.Series | int | float,
+        data: dict | pd.DataFrame | pd.Series | float,
         return_param: bool | None = False,
         default: int | None = 0,
         mutable: bool | None = False,

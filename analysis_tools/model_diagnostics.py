@@ -94,7 +94,7 @@ def breakdown_obj_terms(em: PowerModel) -> None:
     for coef_value, group in groupby(terms, key=lambda term: term[1]):
         group = list(group)
         var, _ = group[0]
-        print(f'{var.parent_component().name:<30}{str(var.index()):<50}{coef_value:>19.4e}')
+        print(f'{var.parent_component().name:<30}{var.index()!s:<50}{coef_value:>19.4e}')
         if len(group) > 1:
             print(f'  ... and {len(group) - 1} others with same coefficient')
 

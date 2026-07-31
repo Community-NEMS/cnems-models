@@ -240,7 +240,7 @@ def run_unified(settings: Config_settings):
             # solve above
             prices = get_elec_price(meta, block=meta.elec)
             prices = prices.set_index(['region', 'year', 'hour'])['raw_price'].to_dict()
-            prices = [(EI(*k), prices[k]) for k, v in prices.items()]
+            prices = [(EI(*k), v) for k, v in prices.items()]
 
             # dev note:  we must use this because the Res model needs (r, yr, hr) not just (r, yr)!
             price_lut = convert_elec_price_to_lut(prices=prices)

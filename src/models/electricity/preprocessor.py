@@ -341,7 +341,7 @@ def preprocessor(
     #     ]
 
     # average values in years/hours used
-    for key in all_frames.keys():
+    for key in all_frames:
         if 'year' in all_frames[key].columns:
             all_frames[key] = avg_by_group(all_frames[key], 'year', setin.year_map)
         if 'hour' in all_frames[key].columns:

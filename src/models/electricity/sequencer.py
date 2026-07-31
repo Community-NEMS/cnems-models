@@ -143,7 +143,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
     def update_model(self, **kwargs) -> PowerModel:
         """TBD update process for the electricity model."""
-        ...
 
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the electricity model, iterating externally for linear learning.
@@ -218,7 +217,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
     def iteration_postprocess(self, **kwargs):
         """No-op; the electricity model has nothing to do between iterations."""
-        pass
 
     def full_postprocess(self, **kwargs) -> None:
         """Log solution diagnostics and export the model variables to CSV.

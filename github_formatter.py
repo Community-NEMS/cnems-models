@@ -35,7 +35,6 @@ def parser(markdown):
                 else:
                     math = False
 
-                    #
                     newline = ['\\end{aligned}\n', '$$\n', '\n']
                     for each in newline:
                         newlines.append(each)
@@ -58,7 +57,6 @@ def parser(markdown):
     with open(Path('.', markdown), 'w', encoding='utf8') as f:
         f.writelines(newlines)
         f.close()
-    return
 
 
 if __name__ == '__main__':

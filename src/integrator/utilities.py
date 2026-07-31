@@ -284,7 +284,7 @@ def poll_hydrogen_price(model: H2Model | ConcreteModel, block=None) -> list[tupl
     # print(list(model.dual.keys()))
 
     # type: ignore[bad-index, missing-attribute]
-    rows = [(HI(*k), model.dual[demand_constraint[k]]) for k, v in demand_constraint.items()]
+    rows = [(HI(*k), model.dual[v]) for k, v in demand_constraint.items()]
     logger.debug('current h2 prices:  %s', rows)
     return rows  # type: ignore[bad-return]
 

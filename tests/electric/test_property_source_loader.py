@@ -19,7 +19,7 @@ PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.
 _ORIGINAL_PROPERTY_SOURCES = {
     'tech_data': (
         'tech_data.csv',
-        'tech,T_conv,T_re,T_hydro,T_stor,T_vre,T_wind,T_solar,T_h2,T_disp,T_gen'.split(','),
+        ['tech', 'T_conv', 'T_re', 'T_hydro', 'T_stor', 'T_vre', 'T_wind', 'T_solar', 'T_h2', 'T_disp', 'T_gen'],
         ('tech',),
     ),
     'buildable_techs': ('build_data.csv', ['builds'], ('tech', 'step')),

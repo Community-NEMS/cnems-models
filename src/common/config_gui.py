@@ -35,7 +35,7 @@ CONFIG_JSON_PATH = (
 )  # TODO:  This may migrate to /tmp or such?
 DEFAULT_TOML_PATH = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
 
-_SECTION_MODELS: dict[str, type[CommonConfig] | type[ElecConfig]] = {
+_SECTION_MODELS: dict[str, type[CommonConfig | ElecConfig]] = {
     'common': CommonConfig,
     'elec_config': ElecConfig,
 }

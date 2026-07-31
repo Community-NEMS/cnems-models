@@ -45,16 +45,10 @@ extend-select = [
 #  "N",   # pep8-naming
   "NPY", # NumPy specific checks
   "PD",  # pandas checks
-#  "PGH", # pygrep-hooks
-#  "PIE", # flake8-pie miscellaneous linting
   "PTH", # use pathlib
 #  "Q",   # flake8-quotes
-#  "RET", # check return values
 #  "RSE", # unnecessary parenthises on raised exceptions
-#  "S",   # flake8-bandit
-#  "SIM", # flake8-simplify
   "UP",  # pyupgrade (use modern python syntax)
-#  "W",   # pycodestyle warnings
 ]
 ignore = [
   "D401",   # Require imperative mood in docstrings.

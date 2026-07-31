@@ -115,7 +115,7 @@ def load_config_editor(_):
     """
     try:
         common_config, elec_config, _path = load_config()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - surface any config error in the UI
         logger.error('Failed to load configuration: %s', exc)
         return [html.Div(f'Error loading configuration: {exc}', style={'color': 'red'})], True
 

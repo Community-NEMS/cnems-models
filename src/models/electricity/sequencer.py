@@ -142,7 +142,14 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         return instance
 
     def update_model(self, **kwargs) -> PowerModel:
-        """TBD update process for the electricity model."""
+        """TBD update process for the electricity model.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; the electricity model has no update step yet.
+        """
+        raise NotImplementedError('update_model is not implemented for the electricity model.')
 
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the electricity model, iterating externally for linear learning.

@@ -85,10 +85,13 @@ def select_solver(instance: ConcreteModel) -> OptSolver:
     if hasattr(instance, 'sw_learning'):  # check if sw_learning exists in model (electricity model)
         if instance.sw_learning == 2:  # nonlinear solver
             nonlinear_solver = True
-    elif hasattr(instance, 'elec'):  # check if sw_learning exists in meta unified model
-        if hasattr(instance.elec, 'sw_learning'):
-            if instance.elec.sw_learning == 2:  # nonlinear solver
-                nonlinear_solver = True
+    # check if sw_learning exists in meta unified model; sw_learning == 2 -> nonlinear solver
+    elif (
+        hasattr(instance, 'elec')
+        and hasattr(instance.elec, 'sw_learning')
+        and instance.elec.sw_learning == 2
+    ):
+        nonlinear_solver = True
 
     if nonlinear_solver:  # if nonlinear learning, set to ipopt
         solver_name = 'ipopt'

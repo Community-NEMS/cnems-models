@@ -191,12 +191,11 @@ def run_unified(settings: Config_settings):
     meta_objs_hyd = deque([], maxlen=3)
 
     # run_unified - UNI_LOOP: Initialize iterative learning
-    if settings.electricity:
-        if meta.elec.sw_learning == 1:  # initializing iterative learning
-            # initialize capacity to set pricing
-            init_old_cap(meta.elec)
-            meta.elec.new_cap = meta.elec.old_cap
-            update_expansion_cost(meta.elec)
+    if settings.electricity and meta.elec.sw_learning == 1:  # initializing iterative learning
+        # initialize capacity to set pricing
+        init_old_cap(meta.elec)
+        meta.elec.new_cap = meta.elec.old_cap
+        update_expansion_cost(meta.elec)
 
     # run_unified - UNI_LOOP: If no res, set-up persistent solver
     if not settings.residential:
@@ -219,11 +218,10 @@ def run_unified(settings: Config_settings):
         # new Load -> elec
 
         # catch the new Load metric from res...
-        if settings.electricity and settings.residential:
-            if i > 0:
-                meta.elec.Load.store_values(meta.res.Load.extract_values())
-                # meta.res.Load.pprint()
-                # sys.exit(-1)
+        if settings.electricity and settings.residential and i > 0:
+            meta.elec.Load.store_values(meta.res.Load.extract_values())
+            # meta.res.Load.pprint()
+            # sys.exit(-1)
 
         if settings.electricity:
             # we can still poll the elec load used from the elec model in all iterations which
@@ -301,15 +299,14 @@ def run_unified(settings: Config_settings):
             h2_model.update_exchange_params(new_electricity_price=rap)
 
         ### run_unfied - ELEC: Update electricity
-        if settings.electricity:
-            if meta.elec.sw_learning == 1:  # iterative learning update
-                # set new capacities
-                set_new_cap(meta.elec)
-                # update learning costs in model
-                update_expansion_cost(meta.elec)
-                # update old capacities
-                meta.elec.old_cap = meta.elec.new_cap
-                meta.elec.old_cap_wt = meta.elec.new_cap_wt
+        if settings.electricity and meta.elec.sw_learning == 1:  # iterative learning update
+            # set new capacities
+            set_new_cap(meta.elec)
+            # update learning costs in model
+            update_expansion_cost(meta.elec)
+            # update old capacities
+            meta.elec.old_cap = meta.elec.new_cap
+            meta.elec.old_cap_wt = meta.elec.new_cap_wt
 
         #####
         ### run_unified - TERM: check termination

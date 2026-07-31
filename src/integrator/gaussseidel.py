@@ -271,15 +271,14 @@ def run_gs(settings):
         #####
         ### run_gs - ELEC_Learning: Update capital costs in learning if sw_learning
         #####
-        if settings.electricity:
-            if elec_model.sw_learning == 1:  # iterative learning update
-                # set new capacities
-                set_new_cap(elec_model)
-                # update learning costs in model
-                update_expansion_cost(elec_model)
-                # update old capacities
-                elec_model.old_cap = elec_model.new_cap
-                elec_model.old_cap_wt = elec_model.new_cap_wt
+        if settings.electricity and elec_model.sw_learning == 1:  # iterative learning update
+            # set new capacities
+            set_new_cap(elec_model)
+            # update learning costs in model
+            update_expansion_cost(elec_model)
+            # update old capacities
+            elec_model.old_cap = elec_model.new_cap
+            elec_model.old_cap_wt = elec_model.new_cap_wt
 
         #####
         ### run_gs - TERM: Check termination criteria at end of loop

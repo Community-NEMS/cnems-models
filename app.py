@@ -36,7 +36,7 @@ app = dash.Dash(
     __name__,
     prevent_initial_callbacks=True,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
-    assets_folder='docs/images/',
+    assets_folder='app_images/',
 )
 app.title = 'Model Runner'
 

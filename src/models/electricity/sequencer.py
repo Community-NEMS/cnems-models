@@ -166,7 +166,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         instance = self.model
         if instance is None:
             raise RuntimeError('Solve called on model that has not been built.')
-        self._opt = select_solver(instance)
+        self._opt = select_solver(
+            instance,
+            nonlinear=self.elec_config.expansion_learning_type is ExpansionLearningType.NONLINEAR,
+        )
 
         logger.info('Solving model')
 

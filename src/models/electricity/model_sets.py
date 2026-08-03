@@ -101,9 +101,8 @@ class ModelSets:
         # self.load_scalar = common_config.scale_load
 
         # Temporal Sets
-        self.sw_temporal = common_config.temporal_resolution
         self.cw_temporal: pd.DataFrame = create_temporal_mapping(
-            self.sw_temporal
+            common_config.temporal_resolution
         )  # TODO:  review this creator
 
         # Temporal Sets - Years

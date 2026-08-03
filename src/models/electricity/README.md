@@ -50,36 +50,42 @@ transmission and technology costs and operations. In addition, there is supply
 curve price and quantity data that provides the fuel cost assumptions for each
 power technology.
 
-The data is prepared within the preprocessor.py file within the scripts
-directory. The preprocessor script creates an initial sets class for the model,
-based on the setting data provided by the integrator code. Sets are organized
-into regional sets, temporal sets, and technology-based sets. Next the
-preprocessor reads in all of the input data within the cem_inputs directory and
+The data is prepared by `model_sets.py` and `param_data.py`, with the raw CSV
+reads handled by `data_ingestor.py` (a few helpers remain in `preprocessor.py`).
+`ModelSets` creates the sets for the model from the configuration data. Sets are
+organized into regional sets, temporal sets, and technology-based sets. Next
+`ParamData` reads in all of the input data within the cem_inputs directory and
 processes it into the format needed for the PowerModel based on the spatial and
-temporal settings specified. When the preprocessor is finished, it passes a
-dictionary of input data as well as the sets class to the PowerModel for further
+temporal settings specified. Both are passed to the PowerModel for further
 processing.
 
-There are several files where features can be switched (sw) on/off and different
-crosswalks (cw) can be selected. All of these options exist in
-[run_config.toml](/src/integrator/run_config.toml) file the integrator
-directory.
+Features are toggled and crosswalks (cw) selected through the run configuration
+TOML files in [run_configs](/run_configs). Each file has a `[common]` section
+parsed into `CommonConfig` and an `[elec_config]` section parsed into
+`ElecConfig`.
 
 ### Feature Settings
 
-The [run_config.toml](/src/integrator/run_config.toml) file contains the main
-switches through which features for the electricity module can be toggled. The
-setup column names various constraint settings:
+The `[elec_config]` section contains the main settings through which features for
+the electricity module can be toggled:
 
-|Switch    | Description   | Values | Notes |
+|Setting    | Description   | Values | Notes |
 |:----- | :------ | :--------- | :---: |
-|sw_trade | Interregional trade | **0** = Off <br> **1** = On | |
-|sw_expansion | Capacity expansion/retirement | **0** = Off <br> **1** = On | Note the file cem_inputs/AllowBuilds.csv also contains settings of which technologies are available to expand. cem_inputs/AllowRet.csv contains which technologies have the option to economically retire. |
-|sw_agg_year | Aggregate years | **0** = Only runs sw_year <br> **1** = Aggregates all unselected years into subsequent selected year | Switch to aggregate years based on the selected years in sw_year.csv|
-|sw_rm | Reserve margin requirement | **0** = Off <br> **1** = On | |
-|sw_ramp | Maximum ramping constaint | **0** = Off <br> **1** = On | |
-|sw_reserves | Operating reserve requirement | **0** = Off <br> **1** = On ||
-|sw_learning | Technology cost learning | **0** = Exogenous learning <br> **1** = Iterative linear learning <br> **2** = Nonlinear learning | The method of which technology costs decrease as more capacity is built. Note this switch does nothing unless sw_expansion=1 |
+|regional_exchange | Interregional trade | **false** = Off <br> **true** = On | |
+|capacity_expansion | Capacity expansion/retirement | **false** = Off <br> **true** = On | Note the file build_data.csv also contains settings of which technologies are available to expand. retire_data.csv contains which technologies have the option to economically retire. |
+|reserve_margin_required | Reserve margin requirement | **false** = Off <br> **true** = On | Requires capacity_expansion; the combination is rejected by ElecConfig validation. |
+|ramping_required | Maximum ramping constaint | **false** = Off <br> **true** = On | |
+|spinning_reserve_required | Operating reserve requirement | **false** = Off <br> **true** = On | Enables all three reserve products in ReserveType (spinning, regulation, flex), not just spinning. |
+|expansion_learning_type | Technology cost learning | **disabled** = Exogenous learning <br> **linear** = Iterative linear learning <br> **nonlinear** = Nonlinear learning | The method of which technology costs decrease as more capacity is built. Any value other than disabled requires capacity_expansion; the combination is rejected by ElecConfig validation. |
+
+The `[common]` section holds settings that are not specific to the electricity
+module:
+
+|Setting    | Description   | Values | Notes |
+|:----- | :------ | :--------- | :---: |
+|aggregate_years | Aggregate years | **false** = Only runs the selected years <br> **true** = Aggregates all unselected years into subsequent selected year | Aggregates based on the years listed in summary_years.  Requires aggregate_start_year. |
+|temporal_resolution | Temporal resolution | **default**, **d8h12**, **d4h24**, or a custom crosswalk name | Selects the representative day/hour mapping.  See [the integrator README](/src/integrator/README.md). |
+|summary_years | Years to run | list of years, e.g. `[2025, 2030]` | The years the model solves and reports. |
 
 ### Technology Settings
 
@@ -104,8 +110,8 @@ cooresponding input data. The technologies represented include:
 <br> 15.)	Solar  (step 1 = utility-scale; step 2 = end-use)
 
 The technologies (tech) are also combined into group based on the applicability
-of different constraints. These groups are defined in tech_subsets.csv within
-the electricity/input directory and includes:
+of different constraints. These groups are defined in tech_data.csv within
+the input/electricity directory and includes:
 * T_conv: conventional
 * T_re: renewable energy
 * T_hydro: hydroelectric
@@ -117,15 +123,16 @@ the electricity/input directory and includes:
 * T_disp: dispatchable
 * T_gen: generating
 
-When the capacity expansion switch is turned on, a user can select which
-technologies they want to have expansion and retirement capabilities. Turning
-these switches on allows for builds and/or retirements of a given technology and
-supply curve step. These files are located in the electricity/input directory.
+When capacity_expansion is turned on, a user can select which technologies they
+want to have expansion and retirement capabilities. Turning these switches on
+allows for builds and/or retirements of a given technology and supply curve step.
+These files are located in the input/electricity directory and are declared in
+property_sources.toml.
 
-|Switch    | Description   | Values | Notes |
+|Data column | Description   | Values | Notes |
 |:----- | :------: | :--------- | :---: |
-|sw_builds | Contains switches for technologies and supply curve steps where capacity is allowed to build | **0** = Not Allowed to Build <br> **1** = Allowed to Build | Switches contained in Sw_ptbuilds.csv |
-|sw_retires | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **0** = Not Allowed to Retire <br> **1** = Allowed to Retire | Switches contained in Sw_ptbuilds.csv |
+|builds | Contains switches for technologies and supply curve steps where capacity is allowed to build | **0** = Not Allowed to Build <br> **1** = Allowed to Build | Switches contained in build_data.csv (property key buildable_techs) |
+|retires | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **0** = Not Allowed to Retire <br> **1** = Allowed to Retire | Switches contained in retire_data.csv (property key retireable_techs) |
 
 
 ## Model Overview
@@ -237,14 +244,14 @@ aware and just haven't updated the code yet.
 |$GEN_{t,y,r,s,h}$ | generation_total | $\mathbb{R}^+_0$ | Instantaneous generation | GW | |
 |$UNLOAD_{r,y,h}$ | unmet_load | $\mathbb{R}^+_0$ | Unmet load | GW | |
 |$CAP^{tot}_{r,seas,t,s,y}$ | capacity_total | $\mathbb{R}^+_0$  | Total capacity | GW | |
-|$CAP^{new}_{r,t,y,s}$ | capacity_builds | $\mathbb{R}^+_0$ | New capacity built | GW | Only created if sw_expansion=1 |
-|$CAP^{ret}_{t,y,r,s}$ | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity | GW | Only created if sw_expansion=1|
-|$TRA_{r,r1,y,h}$ | trade_interregional | $\mathbb{R}^+_0$ | Interregional trade from region $r1$ to region $r$ | GW | Only created if sw_trade=1 |
-|$TRA^{int}_{r,r^{int},y,c,h}$ | trade_interational | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | GW | Only created if sw_trade=1 |
-|$RAMP^{up}_{t,y,r,s,h}$ | generation_ramp_up | $\mathbb{R}^+_0$  | Ramp up (increase in generation for dispatchable cap) | GW | Only created if sw_ramp=1 |
-|$RAMP^{down}_{t,y,r,s,h}$ | generation_ramp_down  | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap) | GW | Only created if sw_ramp=1 |
-|$ORP_{o,t,y,r,s,h}$ | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount | GW | Only created if sw_reserves=1 |
-|$STOR^{avail}_{t,y,r,s,h}R$ | storage_avail_cap | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin | GW | Only created if sw_rm=1 |
+|$CAP^{new}_{r,t,y,s}$ | capacity_builds | $\mathbb{R}^+_0$ | New capacity built | GW | Only created if capacity_expansion is True |
+|$CAP^{ret}_{t,y,r,s}$ | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity | GW | Only created if capacity_expansion is True|
+|$TRA_{r,r1,y,h}$ | trade_interregional | $\mathbb{R}^+_0$ | Interregional trade from region $r1$ to region $r$ | GW | Only created if regional_exchange is True |
+|$TRA^{int}_{r,r^{int},y,c,h}$ | trade_interational | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | GW | Only created if regional_exchange is True |
+|$RAMP^{up}_{t,y,r,s,h}$ | generation_ramp_up | $\mathbb{R}^+_0$  | Ramp up (increase in generation for dispatchable cap) | GW | Only created if ramping_required is True |
+|$RAMP^{down}_{t,y,r,s,h}$ | generation_ramp_down  | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap) | GW | Only created if ramping_required is True |
+|$ORP_{o,t,y,r,s,h}$ | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount | GW | Only created if spinning_reserve_required is True |
+|$STOR^{avail}_{t,y,r,s,h}R$ | storage_avail_cap | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin | GW | Only created if reserve_margin_required is True |
 
 
 ### Objective Function
@@ -260,10 +267,10 @@ Minimize total cost (\$)
 $$
 \begin{aligned}
         \min \mathbf{C_{tot}} = &C_{disp}+ C_{unload} \\
-        &+ C_{exp} + C_{fom} \quad (if  sw\_expansion = 1 )\\
-        &+ C_{tra} \quad (\text{if } sw\_trade = 1 )\\
-        &+ C_{ramp} \quad (\text{if } sw\_ramp = 1 )\\
-        &+ C_{or}\quad (\text{if } sw\_reserves = 1 )
+        &+ C_{exp} + C_{fom} \quad (\text{if } \mathtt{capacity\_expansion})\\
+        &+ C_{tra} \quad (\text{if } \mathtt{regional\_exchange} )\\
+        &+ C_{ramp} \quad (\text{if } \mathtt{ramping\_required} )\\
+        &+ C_{or}\quad (\text{if } \mathtt{spinning\_reserve\_required} )
 \end{aligned}
         \tag{1}
 $$
@@ -310,7 +317,7 @@ C_{exp} =
             }{SCL_t} \right) ^{-LR_t}
 \times \mathbf{CAP^{new}}_{r,t,y,s}
          \\
-        &\quad \text{if } sw\_learning = 2
+        &\quad \text{if } \mathtt{expansion\_learning\_type} = \mathtt{nonlinear}
 \end{aligned}
        \tag{4a}
 $$
@@ -321,7 +328,7 @@ $$
         C_{exp} =
         &\sum_{{r,t,y,s} \in \Theta_{cc}}{
        CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\
-       &\quad \text{if } sw\_learning \lt 2
+       &\quad \text{if } \mathtt{expansion\_learning\_type} \neq \mathtt{nonlinear}
 \end{aligned}
        \tag{4b}
 $$
@@ -398,10 +405,10 @@ $$
     - \mathbf{STOR^{in}}_{t,y,r,s,h})}\\
         &+ \mathbf{UNLOAD}_{r,y,h}\\
         &(+ \sum_{r1 \in \theta^{TDB}_{y,r,h}}{\left(\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)}
-        \quad \text{if } sw\_trade = 1)\\
+        \quad \text{if } \mathtt{regional\_exchange})\\
     &(+ \sum_{r_{int},c \in \theta^{TCDB}_{y,r,h}}{(\mathbf{TRA}^{int}_{r,r_{int},y,c,h}
     \times (1 - LL) - \mathbf{TRA}^{int}_{r_{int},r,y,c,h})}
-    \quad \text{if } sw\_trade = 1)\\
+    \quad \text{if } \mathtt{regional\_exchange})\\
         &\forall  {r,y,h} \in \Theta_{load}
 \end{aligned}
         \tag{1}
@@ -467,7 +474,7 @@ $$
 \begin{aligned}
         &\mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad \text{if } sw\_rm = 1)\\
+        \quad \text{if } \mathtt{reserve\_margin\_required})\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{dt^{max}}
 \end{aligned}
@@ -481,7 +488,7 @@ $$
 \begin{aligned}
         &\mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad \text{if } sw\_rm = 1)\\
+        \quad \text{if } \mathtt{reserve\_margin\_required})\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HCF_{r,MHS_h} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{ht^{max}}
 \end{aligned}
@@ -495,7 +502,7 @@ $$
 \begin{aligned}
         \mathbf{GEN}_{t,y,r,s,h} \\
         &(+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad \text{if } sw\_rm = 1)\\
+        \quad \text{if } \mathtt{reserve\_margin\_required})\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times ICF_{t,y,r,s,h} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{it^{max}}
 \end{aligned}
@@ -520,7 +527,7 @@ $$
 \begin{aligned}
         &\mathbf{STOR^{out}}_{t,y,r,s,h} \\
         &(+\sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}}
-        \quad \text{if } sw\_rm = 1)\\
+        \quad \text{if } \mathtt{reserve\_margin\_required})\\
         &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}
 \end{aligned}
@@ -554,9 +561,9 @@ $$
         \mathbf{CAP^{tot}}_{r,seas,t,s,y}
         = &CAP^{exist}_{r,seas,t,s,y} \\
         &(+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,cy,s}}
-        \quad \text{if } sw\_expansion = 1)\\
+        \quad \text{if } \mathtt{capacity\_expansion})\\
         &(+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{t,cy,r,s}}
-        \quad \text{if } sw\_expansion = 1)\\
+        \quad \text{if } \mathtt{capacity\_expansion})\\
         &\forall {r,seas,t,s,y} \in \Theta_{SC}
 \end{aligned}
         \tag{11}
@@ -572,7 +579,7 @@ $$
         \sum_{cy \in Y \lt y}{\mathbf{CAP^{new}}_{r,t,cy,s}} -
         &\sum_{cy \in Y \lt y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \\
         &\forall {t,y,r,s} \in \Theta_{ret} \\
-        &\quad \text{if } sw\_expansion = 1 \\
+        &\quad \text{if } \mathtt{capacity\_expansion} \\
 \end{aligned}
         \tag{12}
 $$
@@ -592,7 +599,7 @@ $$
         \sum_{c}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq
         &TRALINLIM^{int}_{r,r^{int},y,h} * HW_h \\
         &\forall {r,r^{int},y,h} \in \Theta_{traLL^{int}} \\
-        &\quad \text{if } sw\_trade = 1\\
+        &\quad \text{if } \mathtt{regional\_exchange}\\
 \end{aligned}
         \tag{13}
 $$
@@ -604,7 +611,7 @@ $$
         \sum_{r}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq
         &TRALIM^{int}_{r^{int},c,y,h} * HW_h \\
         &\forall {r,r^{int},y,h} \in \Theta_{traL^{int}} \\
-        &\quad \text{if } sw\_trade = 1\\
+        &\quad \text{if } \mathtt{regional\_exchange}\\
 \end{aligned}
         \tag{14}
 $$
@@ -617,7 +624,7 @@ $$
         \mathbf{TRA}_{r,r1,y,h} \leq
         &TRALINLIM_{r,r1,MHS_h,y} * HW_h \\
         &\forall {r,r1,y,h} \in \Theta_{traLL} \\
-        &\quad \text{if } sw\_trade = 1\\
+        &\quad \text{if } \mathtt{regional\_exchange}\\
 \end{aligned}
         \tag{15}
 $$
@@ -639,7 +646,7 @@ $$
         &HW_h \times \\
         &\sum_{{t,s} \in \theta^{scrm}_{y,r,MHS_h}}{CC_{t,y,r,s,h} \times (\mathbf{STOR^{avail}}_{t,y,r,s,h} + \mathbf{CAP^{tot}_{r,MHS_h,t,s,y}})}\\
         &\forall {r,y,h} \in \Theta_{load}\\
-        &\quad \text{if } sw\_rm = 1\\
+        &\quad \text{if } \mathtt{reserve\_margin\_required}\\
 \end{aligned}
         \tag{16}
 $$
@@ -652,7 +659,7 @@ $$
 \begin{aligned}
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq    &\mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}\\
-        &\quad \text{if } sw\_rm = 1\\
+        &\quad \text{if } \mathtt{reserve\_margin\_required}\\
 \end{aligned}
         \tag{17}
 $$
@@ -666,7 +673,7 @@ $$
     \mathbf{STOR^{avail}}_{t,y,r,s,h} \leq
     &\mathbf{STOR^{level}}_{t,y,r,s,h}\\
         &\forall {t,y,r,s,h} \in \Theta_{stor}\\
-        &\quad \text{if } sw\_rm = 1\\
+        &\quad \text{if } \mathtt{reserve\_margin\_required}\\
 \end{aligned}
         \tag{18}
 $$
@@ -682,7 +689,7 @@ $$
 \begin{aligned}
     \mathbf{GEN}_{t,y,r,s,h} =    &\mathbf{GEN}_{t,y,r,s,h+N-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp1} \\
-        &\quad \text{if } sw\_ramp = 1\\
+        &\quad \text{if } \mathtt{ramping\_required}\\
 \end{aligned}
     \tag{19}
 $$
@@ -693,7 +700,7 @@ $$
 \begin{aligned}
     \mathbf{GEN}_{t,y,r,s,h} =    &\mathbf{GEN}_{t,y,r,s,h-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp23} \\
-        &\quad \text{if } sw\_ramp = 1\\
+        &\quad \text{if } \mathtt{ramping\_required}\\
 \end{aligned}
     \tag{20}
 $$
@@ -707,7 +714,7 @@ $$
     &HW_h \times RR_t \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp} \\
-        &\quad \text{if } sw\_ramp = 1\\
+        &\quad \text{if } \mathtt{ramping\_required}\\
 \end{aligned}
     \tag{21}
 $$
@@ -721,7 +728,7 @@ $$
     &HW_h \times RR_t \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\
     &\forall {t,y,r,s,h} \in \Theta_{ramp} \\
-        &\quad \text{if } sw\_ramp = 1\\
+        &\quad \text{if } \mathtt{ramping\_required}\\
 \end{aligned}
     \tag{22}
 $$
@@ -741,7 +748,7 @@ $$
     0.03 \times LOAD_{r,y,h} \leq
     &\sum_{{t,s} \in \theta^{opres}_{1,r,y,h}}{\mathbf{ORP}_{1,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad \text{if } sw\_reserves = 1\\
+        &\quad \text{if } \mathtt{spinning\_reserve\_required}\\
 \end{aligned}
     \tag{23}
 $$
@@ -757,7 +764,7 @@ $$
     \leq
     &\sum_{{t,s} \in \theta^{opres}_{2,r,y,h}}{\mathbf{ORP}_{2,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad \text{if } sw\_reserves = 1\\
+        &\quad \text{if } \mathtt{spinning\_reserve\_required}\\
 \end{aligned}
     \tag{24}
 $$
@@ -773,7 +780,7 @@ $$
     \leq
     &\sum_{{t,s} \in \theta^{opres}_{3,r,y,h}}{\mathbf{ORP}_{3,t,y,r,s,h}}\\
     &\forall {r,y,h} \in \Theta_{load} \\
-        &\quad \text{if } sw\_reserves = 1\\
+        &\quad \text{if } \mathtt{spinning\_reserve\_required}\\
 \end{aligned}
     \tag{25}
 $$
@@ -787,7 +794,7 @@ $$
     &RTUB_{o,t} \times HW_h \times
     \mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}\\
     &\forall {o,t,y,r,s,h} \in \Theta_{proc} \\
-    &\quad \text{if } sw\_reserves = 1\\
+    &\quad \text{if } \mathtt{spinning\_reserve\_required}\\
 \end{aligned}
     \tag{26}
 $$

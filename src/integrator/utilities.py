@@ -64,13 +64,16 @@ def simple_solve_no_opt(m: ConcreteModel, opt: OptSolver):
     raise RuntimeError('failed solve in iterator')
 
 
-def select_solver(instance: ConcreteModel) -> OptSolver:
+def select_solver(instance: ConcreteModel, nonlinear: bool = False) -> OptSolver:
     """Select solver based on learning method.
 
     Parameters
     ----------
     instance : PowerModel
         electricity pyomo model
+    nonlinear : bool, default False
+        select the nonlinear solver.  Callers on the electricity path pass
+        ``expansion_learning_type is ExpansionLearningType.NONLINEAR``.
 
     Returns
     -------
@@ -80,20 +83,8 @@ def select_solver(instance: ConcreteModel) -> OptSolver:
     # default = linear solver
     solver_name = 'appsi_highs'
     opt = pyo.SolverFactory(solver_name)
-    nonlinear_solver = False
 
-    if hasattr(instance, 'sw_learning'):  # check if sw_learning exists in model (electricity model)
-        if instance.sw_learning == 2:  # nonlinear solver
-            nonlinear_solver = True
-    # check if sw_learning exists in meta unified model; sw_learning == 2 -> nonlinear solver
-    elif (
-        hasattr(instance, 'elec')
-        and hasattr(instance.elec, 'sw_learning')
-        and instance.elec.sw_learning == 2
-    ):
-        nonlinear_solver = True
-
-    if nonlinear_solver:  # if nonlinear learning, set to ipopt
+    if nonlinear:  # if nonlinear learning, set to ipopt
         solver_name = 'ipopt'
         opt = pyo.SolverFactory(solver_name, tee=True)  # , tee=True
         # Select options. The prefix "OF_" tells pyomo to create an options file
@@ -454,13 +445,19 @@ def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
     return res
 
 
-def create_temporal_mapping(sw_temporal):
+def create_temporal_mapping(temporal_resolution):
     """Combines the electricity model input mapping files into a master temporal mapping frame.
 
     The df is used to build multiple temporal parameters used within the  model. It creates a
     single dataframe that has 8760 rows for each hour in the year. Each hour in the year is
     assigned a season type, day type, and hour type used in the model. This defines the number of
     time periods the model will use based on cw_s_day and cw_hr inputs.
+
+    Parameters
+    ----------
+    temporal_resolution : str
+        ``CommonConfig.temporal_resolution``; ``'default'`` reads the base crosswalks, any
+        other value selects the matching pair under ``temporal_mapping/``.
 
     Returns
     -------
@@ -471,12 +468,12 @@ def create_temporal_mapping(sw_temporal):
     # Temporal Sets - read data
     # SD = season/day; hr = hour
     data_root = Path(PROJECT_ROOT, 'input/integrator')
-    if sw_temporal == 'default':
+    if temporal_resolution == 'default':
         sd_file = pd.read_csv(data_root / 'cw_s_day.csv')
         hr_file = pd.read_csv(data_root / 'cw_hr.csv')
     else:
-        cw_s_day = 'cw_s_day_' + sw_temporal + '.csv'
-        cw_hr = 'cw_hr_' + sw_temporal + '.csv'
+        cw_s_day = 'cw_s_day_' + temporal_resolution + '.csv'
+        cw_hr = 'cw_hr_' + temporal_resolution + '.csv'
         sd_file = pd.read_csv(data_root / 'temporal_mapping' / cw_s_day)
         hr_file = pd.read_csv(data_root / 'temporal_mapping' / cw_hr)
 

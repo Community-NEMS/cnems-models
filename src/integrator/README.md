@@ -53,24 +53,24 @@ The majority of the options for integrating and solving modules rely upon a conf
 |force_10 | Forces 10 iterations to occur when running combo solves | **false** = Off <br> **true** = On| Only allows for true/false options, does not impact H2 or elec modes |
 | tol | Tolerance setting for iterative solves | $tol \in (0, 1)$| Represents the acceptable percent difference in objective values between iterative solves needed to achieve convergence
 | max_iter | Maximum number of iterations allowed | $int$ | If tolerance criteria is not met, iterative solves will stop +1 solve after max_iter
-| sw_temporal | Temporal resolution (inter-annual) switch | **default** = 16 representative (rep) days and 4 rep hours <br> **d8h12** = 8 rep days and 12 rep hours <br> **d4h24** = 4 rep days and 24 rep hours   |Temporal switch to select different prespecified temporal resolutions. Advanced users can also specify their own temporal resolution by creating their own “cw_s_day” and “cw_hr” files in the “src\integrator\input\temporal_mapping” directory. See more details below in the temporal settings section
+| temporal_resolution | Temporal resolution (inter-annual) setting | **default** = 16 representative (rep) days and 4 rep hours <br> **d8h12** = 8 rep days and 12 rep hours <br> **d4h24** = 4 rep days and 24 rep hours   |Temporal setting to select different prespecified temporal resolutions. Advanced users can also specify their own temporal resolution by creating their own “cw_s_day” and “cw_hr” files in the “input/integrator/temporal_mapping” directory. See more details below in the temporal settings section
 
 #### Temporal Settings
 
 The model runs a number of representative days (self-looping) with a number of periods (hour-several hours) per representative day. Any number of aggregated representative days can be used, but there must be at least 1 per season. The representative days and hours use a weighted average of inputs where necessary.
 
-| Temporality | File | Description |
+| Temporality | File / Setting | Description |
 | :---------- | :--- | :---------- |
 | Hours | cw_hr.csv | **Contains the representative hour mapping crosswalk** <br> <li> Index_hour represent each hour in a 24 hour period <br> <li> Map_hour is the representative hour number each Index_hour is being mapped to. Hours must be in chronological order. <br> <li> Map_hour 1 can wrap around from 24 to 1. |
 | Days | cw_s_day.csv | **Contains the representative hour mapping crosswalk** <br> <li> Index_day is the day number of the year: 1-365 <br> <li> Map_s is the season mapping of these days. *Note: Do not change this unless you need to make larger changes to the code because input files are based on the seasons* <br> <li> Map_day is the representative day that this Index_day is mapped to. Representative days are created using weighted averages of Index_day. *Note: You cannot have a representative day span multiple seasons.* |
-| Years | sw_year.csv | **Contains the representative year mapping switches** <br> <li> Points to a csv file that contains switches for years being run. Runs the models for the years that are switched on, e.g., **1** = On <br> <li> If **sw_agg_year** in the toml file is also tuned on, the representative year will be an average of all of those before it (until the previous year switched on). This also properly weights the years. Otherwise, it only runs the years that are switched on.
+| Years | summary_years | **Contains the representative year mapping** <br> <li> A list of the years being run, set in the `[common]` section of the run config, e.g., `summary_years = [2025, 2030]` <br> <li> If **aggregate_years** in the toml file is also turned on, the representative year will be an average of all of those before it (until the previous selected year). This also properly weights the years. Otherwise, it only runs the years that are listed.
 
 #### Spatial Settings
 This model currently has 25 regions. Turning on and off certain regions allows only specific regions to be run.
 
-| Regionality | File | Description |
+| Regionality | File / Setting | Description |
 | :---------- | :--- | :---------- |
-|Regions | sw_reg.csv | **Contains the representative region mapping switches** <br> <li> Points to a csv file that contains switches for regions being run. Runs the models for the regions that are switched on, e.g., **1** = On
+|Regions | region_filter | **Contains the representative region mapping** <br> <li> A list of the regions being run, set in the `[elec_config]` section of the run config, e.g., `region_filter = ["7"]`.  Omit it (or leave it null) to run all regions.
 
 *Note: Hydrogen data currently has hydrogen production in Region 7 (only) for demonstration.  Simple modifications to the data could expand this.  Most of the instantiations of the Hydrogen model use the 'single_region' data folder in the H2 module*
 

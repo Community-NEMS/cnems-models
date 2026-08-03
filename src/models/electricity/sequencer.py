@@ -396,8 +396,8 @@ def update_expansion_cost(instance, new_cap: dict[tuple, float]):
     # Assign new cost
     for r, tech, step, y in instance.CapCostLearning:
         new_cost = instance.CapCostInitial[r, tech, step] * new_multiplier[tech, y]
-        old_value = instance.CapCostLearning[r, tech, step, y].value
-        instance.CapCostLearning[r, tech, step, y].value = new_cost
+        old_value = value(instance.CapCostLearning[r, tech, step, y])
+        instance.CapCostLearning[r, tech, step, y] = new_cost
         logger.debug(
             'Reduced CapCostLearning[%s, %s, %s, %s] from %0.2f to %0.2f',
             r,

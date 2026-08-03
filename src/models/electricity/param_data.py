@@ -184,7 +184,8 @@ class ParamData:
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
-        model_sets.build_sc_indexes([SCI(*t) for t in self.param_frames['supply_curve'].index])
+        supply_curve_index_vals = [SCI(*t) for t in self.param_frames['supply_curve'].index]
+        model_sets.build_sc_indexes(supply_curve_index_vals)
 
         # populate the trade indices based on gathered parameter data
         model_sets.build_international_travel_index(
@@ -215,6 +216,12 @@ class ParamData:
                     'No data found for %s in the parameter data.  Using empty dict', name
                 )
             self.param_dicts[name] = data
+
+        # build the reserves set, using supply + the UB to be used as a filter in construction
+        model_sets.build_reserves_index(
+            supply_curve_index=supply_curve_index_vals,
+            reserve_ub_limits=self.param_dicts['res_tech_upper_bound'],
+        )
 
     def build_load_dataframe(self) -> DataFrame:
         """Build the load dataframe."""

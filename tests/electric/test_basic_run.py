@@ -95,12 +95,14 @@ configs = [
     ('expansion_no_learning', 3455793875.5, 17610, 19308),
     ('ramping', 3522284566.9, 32412, 41646),
     ('reserve_with_expansion_no_learning', 4925573167.9, 18762, 22188),
+    # no good starting value,
+    # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
         5138465483.62,
-        61962,
-        67116,
-    ),  # <-- no good starting value
+        51594,
+        56748,
+    ),
     ('agg_years', 13363835326.77, 17436, 19182),  # <-- no good starting value
 ]
 

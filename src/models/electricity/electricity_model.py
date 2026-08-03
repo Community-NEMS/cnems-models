@@ -632,7 +632,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # TODO: choosing summer for capacity, may want to revisit this, fix hard coded value
+
             def fixed_om_cost(self):
                 """Fixed operation and maintenance (FOM) cost component for the objective function.
 
@@ -983,14 +983,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
 
         @self.Constraint(self.generation_dispatchable_ub_index)
-        def generation_dispatchable_ub(self, r, T_disp, step, y, hr):
+        def generation_dispatchable_ub(self, r, t_disp, step, y, hr):
             """Dispatchable generation upper bound.
 
             Dispatchable generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
-            T_disp : pyomo.core.base.set.OrderedScalarSet
+            t_disp : pyomo.core.base.set.OrderedScalarSet
                 dispatchable technology set
             y : pyomo.core.base.set.OrderedScalarSet
                 year set
@@ -1007,16 +1007,17 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Dispatchable generation upper bound
             """
             return (
-                self.generation_total[r, T_disp, step, y, hr]
+                self.generation_total[r, t_disp, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, T_disp, step, y, hr]
+                        self.reserves_procurement[r, restype.value, t_disp, step, y, hr]
                         for restype in ReserveType
+                        if (r, restype.value, t_disp, step, y, hr) in self.reserves_procurement
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, T_disp, step, y] * self.WeightHour[hr]
+                <= self.capacity_total[r, t_disp, step, y] * self.WeightHour[hr]
             )
 
         @self.Constraint(self.generation_hydro_ub_index)
@@ -1082,9 +1083,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return (
                 self.generation_total[r, T_vre, step, y, hr]
                 + (
+                    # TODO:  Review this sum over all ReserveType.  The gate below is just for
+                    #        "spinning" so why all types?
                     sum(
                         self.reserves_procurement[r, restype.value, T_vre, step, y, hr]
                         for restype in ReserveType
+                        if (r, restype.value, T_vre, step, y, hr) in self.reserves_procurement
                     )
                     if elec_config.spinning_reserve_required
                     else 0

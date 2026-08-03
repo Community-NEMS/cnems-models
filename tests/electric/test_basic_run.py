@@ -89,12 +89,20 @@ _GATED_ATTRS = {
 # Reserve Margin (mandatory expansion)    4925573167.9       19212        22446
 # Agg Years                               ??  Broken.  Suspect it is used in preprocessor
 
+# Note: the six configs below that run with spinning_reserve_required=False had their expected
+# total cost re-captured when the `generation_hydro_ub` conditional was re-scoped.  Previously the
+# `if spinning_reserve_required else 0` wrapped the whole LHS (generation_total included), so with
+# spinning reserves off the constraint collapsed to `0 <= capacity * cf * weight` and hydro
+# generation was effectively unbounded.  Scoping the conditional to the reserve sum only -- matching
+# generation_dispatchable_ub / generation_vre_ub / storage_outflow_ub -- restores the bound, which
+# raises each of these objectives by ~4-13%.  Variable and constraint counts are unchanged: the
+# degenerate form still referenced capacity_total (a Var), so the constraint was always constructed.
 configs = [
-    ('basic', 3452103301.9, 17436, 19182),
-    ('exchange', 2278237043.0, 20892, 22830),
-    ('expansion_no_learning', 3455793875.5, 17610, 19308),
-    ('ramping', 3522284566.9, 32412, 41646),
-    ('reserve_with_expansion_no_learning', 4925573167.9, 18762, 22188),
+    ('basic', 3664955382.94, 17436, 19182),
+    ('exchange', 2581536448.8, 20892, 22830),
+    ('expansion_no_learning', 3668708970.98, 17610, 19308),
+    ('ramping', 3734942516.56, 32412, 41646),
+    ('reserve_with_expansion_no_learning', 5138465146.53, 18762, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
@@ -103,7 +111,7 @@ configs = [
         51594,
         56748,
     ),
-    ('agg_years', 13363835326.77, 17436, 19182),  # <-- no good starting value
+    ('agg_years', 14185060761.96, 17436, 19182),  # <-- no good starting value
 ]
 
 

@@ -1012,7 +1012,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     sum(
                         self.reserves_procurement[r, restype.value, t_disp, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, t_disp, step, y, hr) in self.reserves_procurement
+                        if (r, restype.value, t_disp, step, y, hr)
+                        in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1046,15 +1047,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """
             return (
                 self.generation_total[r, T_hydro, step, y, hr]
-                + sum(
-                    self.reserves_procurement[r, restype.value, T_hydro, step, y, hr]
-                    for restype in ReserveType
+                + (
+                    sum(
+                        self.reserves_procurement[r, restype.value, T_hydro, step, y, hr]
+                        for restype in ReserveType
+                        if (r, restype.value, T_hydro, step, y, hr)
+                        in self.reserves_procurement_index
+                    )
+                    if elec_config.spinning_reserve_required
+                    else 0
                 )
-                if elec_config.spinning_reserve_required
-                else 0
-            ) <= self.capacity_total[(r, T_hydro, step, y)] * self.HydroCapFactor[
-                r, self.MapHourSeason[hr]
-            ] * self.WeightHour[hr]
+                <= self.capacity_total[r, T_hydro, step, y]
+                * self.HydroCapFactor[r, self.MapHourSeason[hr]]
+                * self.WeightHour[hr]
+            )
 
         @self.Constraint(self.generation_vre_ub_index)
         def generation_vre_ub(self, r, T_vre, step, y, hr):
@@ -1088,7 +1094,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     sum(
                         self.reserves_procurement[r, restype.value, T_vre, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, T_vre, step, y, hr) in self.reserves_procurement
+                        if (r, restype.value, T_vre, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1161,6 +1167,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     sum(
                         self.reserves_procurement[r, restype.value, tech, step, y, hr]
                         for restype in ReserveType
+                        if (r, restype.value, tech, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0

@@ -27,7 +27,12 @@ from src.models.electricity.constants import (
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.validators import region_check, tech_name_check
+from src.models.electricity.validators import (
+    region_check,
+    reserve_procurement_check,
+    reserve_tech_check,
+    tech_name_check,
+)
 
 # Establish logger
 logger = getLogger(__name__)
@@ -106,7 +111,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
         self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
-        self.reserves_procurement_index = pyo.Set(initialize=model_sets.reserves_procurement_index)
+        self.reserves_procurement_index = pyo.Set(
+            initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
+        )
 
         # Derivative reserve indexing sets...
         # TODO:  a little clunky here.  Move to companion file as was done before?
@@ -123,7 +130,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
         self.ProcurementSetReserves = pyo.Set(
             self.region_analyze,
-            {t.value for t in ReserveType},
+            ReserveType,
             self.year,
             self.hour,
             within=self.tech * self.step,
@@ -478,9 +485,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             # note:  The data is cast to cover all combinations of ReserveType and Tech
             #        with 0's as appropriate
             self.ResTechUpperBound = pyo.Param(
-                {rt.value for rt in ReserveType},
+                ReserveType,
                 self.tech,
                 initialize=all_dicts['res_tech_upper_bound'],
+                validate=reserve_tech_check,
             )
 
         # Cross-talk from H2 model  # preserved as basis for expansion/ideas...?
@@ -1664,8 +1672,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return (
                     sum(
-                        self.reserves_procurement[r, 'spinning', tech, step, y, hr]
-                        for (tech, step) in self.ProcurementSetReserves[r, 'spinning', y, hr]
+                        self.reserves_procurement[r, ReserveType.SPINNING, tech, step, y, hr]
+                        for (tech, step) in self.ProcurementSetReserves[
+                            r, ReserveType.SPINNING, y, hr
+                        ]
                     )
                     >= SPINNING_RESERVE_PROPORTION * self.Load[r, y, hr]
                 )
@@ -1693,8 +1703,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Regulation reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, 'regulation', tech, step, y, hr]
-                    for (tech, step) in self.ProcurementSetReserves[r, 'regulation', y, hr]
+                    self.reserves_procurement[r, ReserveType.REGULATION, tech, step, y, hr]
+                    for (tech, step) in self.ProcurementSetReserves[
+                        r, ReserveType.REGULATION, y, hr
+                    ]
                 ) >= REGULATION_RESERVE_PROPORTION * self.Load[
                     (r, y, hr)
                 ] + WIND_REGULATION_RESERVE_PROPORTION * sum(
@@ -1727,8 +1739,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Flexible reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, 'flex', tech, step, y, hr]
-                    for (tech, step) in self.ProcurementSetReserves[r, 'flex', y, hr]
+                    self.reserves_procurement[r, ReserveType.FLEX, tech, step, y, hr]
+                    for (tech, step) in self.ProcurementSetReserves[r, ReserveType.FLEX, y, hr]
                 ) >= WIND_FLEX_RESERVE_PROPORTION * sum(
                     self.generation_total[r, T_wind, step, y, hr]
                     for (T_wind, step) in self.WindSetReserves[r, y, hr]
@@ -1742,7 +1754,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             #        `reserve_procurement` more sparse
             #        and/or use defaults better.
             @self.Constraint(self.reserves_procurement_index)
-            def reserve_procurement_ub(self, r, restypes, tech, step, y, hr):
+            def reserve_procurement_ub(self, r, restype, tech, step, y, hr):
                 """Reserve Requirement Procurement Upper Bound.
 
                 Reserve Procurement <= Capacity
@@ -1751,7 +1763,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
-                restypes : pyomo.core.base.set.OrderedScalarSet
+                restype : pyomo.core.base.set.OrderedScalarSet
                     reserve requirement type set
                 tech : pyomo.core.base.set.OrderedScalarSet
                     technology set
@@ -1770,8 +1782,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Reserve Requirement Procurement Upper Bound
                 """
                 return (
-                    self.reserves_procurement[r, restypes, tech, step, y, hr]
-                    <= self.ResTechUpperBound[restypes, tech]
+                    self.reserves_procurement[r, restype, tech, step, y, hr]
+                    <= self.ResTechUpperBound[restype, tech]
                     * self.WeightHour[hr]
                     * self.capacity_total[r, tech, step, y]
                 )

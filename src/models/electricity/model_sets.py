@@ -182,17 +182,19 @@ class ModelSets:
         self.step = range(1, 5)
 
     def build_reserves_index(
-        self, supply_curve_index: Iterable[SCI], reserve_ub_limits: dict[tuple[str, str], float]
+        self,
+        supply_curve_index: Iterable[SCI],
+        reserve_ub_limits: dict[tuple[ReserveType, str], float],
     ):
         """Build reserve index and use the upper bound limit param to enforce sparsity."""
         self.reserves_procurement_index = sorted(
-            (idx.region, reserve_type.value, idx.tech, idx.step, idx.year, hour)
+            (idx.region, reserve_type, idx.tech, idx.step, idx.year, hour)
             for reserve_type in ReserveType
             for idx in supply_curve_index
             for hour in self.hour
-            if reserve_ub_limits.get((reserve_type.value, idx.tech), 0.0) > 0.0
+            if reserve_ub_limits.get((reserve_type, idx.tech), 0.0) > 0.0
         )
-        """sparse set of viable [r, reserve_type.value, tech, step, year, hour] where ub > 0.0"""
+        """sparse set of viable [r, ReserveType, tech, step, year, hour] where ub > 0.0"""
         if not self.reserves_procurement_index:
             logger.warning('reserves_procurement_index is empty')
 

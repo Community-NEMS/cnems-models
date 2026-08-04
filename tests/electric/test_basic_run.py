@@ -107,7 +107,7 @@ configs = [
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        5140293707.26,
+        5140340877.8,
         51594,
         56748,
     ),

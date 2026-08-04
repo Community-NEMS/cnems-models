@@ -1018,9 +1018,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.generation_total[r, t_disp, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, t_disp, step, y, hr]
+                        self.reserves_procurement[r, restype, t_disp, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, t_disp, step, y, hr)
+                        if (r, restype, t_disp, step, y, hr)
                         in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
@@ -1057,9 +1057,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.generation_total[r, T_hydro, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, T_hydro, step, y, hr]
+                        self.reserves_procurement[r, restype, T_hydro, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, T_hydro, step, y, hr)
+                        if (r, restype, T_hydro, step, y, hr)
                         in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
@@ -1100,9 +1100,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     # TODO:  Review this sum over all ReserveType.  The gate below is just for
                     #        "spinning" so why all types?
                     sum(
-                        self.reserves_procurement[r, restype.value, T_vre, step, y, hr]
+                        self.reserves_procurement[r, restype, T_vre, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, T_vre, step, y, hr) in self.reserves_procurement_index
+                        if (r, restype, T_vre, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1173,9 +1173,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.storage_outflow[r, tech, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, tech, step, y, hr]
+                        self.reserves_procurement[r, restype, tech, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype.value, tech, step, y, hr) in self.reserves_procurement_index
+                        if (r, restype, tech, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0

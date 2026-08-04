@@ -1020,8 +1020,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     sum(
                         self.reserves_procurement[r, restype, t_disp, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype, t_disp, step, y, hr)
-                        in self.reserves_procurement_index
+                        if (r, restype, t_disp, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1059,8 +1058,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     sum(
                         self.reserves_procurement[r, restype, T_hydro, step, y, hr]
                         for restype in ReserveType
-                        if (r, restype, T_hydro, step, y, hr)
-                        in self.reserves_procurement_index
+                        if (r, restype, T_hydro, step, y, hr) in self.reserves_procurement_index
                     )
                     if elec_config.spinning_reserve_required
                     else 0

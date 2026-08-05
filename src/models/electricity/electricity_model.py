@@ -117,39 +117,53 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # Derivative reserve indexing sets...
         # TODO:  a little clunky here.  Move to companion file as was done before?
-        idx = defaultdict(list)
-        wind_idx = defaultdict(list)
-        solar_idx = defaultdict(list)
-        for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
-            idx[region, res_type, year, hour].append((tech, step))
-            if tech in self.tech_wind:
-                wind_idx[region, year, hour].append((tech, step))
-            elif tech in self.tech_solar:
-                solar_idx[region, year, hour].append((tech, step))
+        if elec_config.spinning_reserve_required:
+            idx = defaultdict(list)
+            wind_idx = defaultdict(set)
+            solar_idx = defaultdict(set)
+            associated_res_types: dict[tuple, list[ReserveType]] = defaultdict(list)
+            for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
+                idx[region, res_type, year, hour].append((tech, step))
+                associated_res_types[region, tech, step, year, hour].append(res_type)
+                if tech in self.tech_wind:
+                    wind_idx[region, year, hour].add((tech, step))
+                elif tech in self.tech_solar:
+                    solar_idx[region, year, hour].add((tech, step))
 
-        # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
-        self.ProcurementSetReserves = pyo.Set(
-            self.region_analyze,
-            ReserveType,
-            self.year,
-            self.hour,
-            within=self.tech * self.step,
-            initialize=idx,
-        )
-        self.WindSetReserves = pyo.Set(
-            self.region_analyze,
-            self.year,
-            self.hour,
-            within=self.tech_wind * self.step,
-            initialize=wind_idx,
-        )
-        self.SolarSetReserves = pyo.Set(
-            self.region_analyze,
-            self.year,
-            self.hour,
-            within=self.tech_solar * self.step,
-            initialize=solar_idx,
-        )
+            self.AssociatedReserveTypes = pyo.Set(
+                self.region_analyze,
+                self.tech,
+                self.step,
+                self.year,
+                self.hour,
+                within=ReserveType,
+                initialize=associated_res_types,
+            )
+            """The valid reserve types for this index combo"""
+
+            # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
+            self.ProcurementSetReserves = pyo.Set(
+                self.region_analyze,
+                ReserveType,
+                self.year,
+                self.hour,
+                within=self.tech * self.step,
+                initialize=idx,
+            )
+            self.WindSetReserves = pyo.Set(
+                self.region_analyze,
+                self.year,
+                self.hour,
+                within=self.tech_wind * self.step,
+                initialize=sorted(wind_idx),
+            )
+            self.SolarSetReserves = pyo.Set(
+                self.region_analyze,
+                self.year,
+                self.hour,
+                within=self.tech_solar * self.step,
+                initialize=sorted(solar_idx),
+            )
 
         self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
 
@@ -1019,8 +1033,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 + (
                     sum(
                         self.reserves_procurement[r, restype, t_disp, step, y, hr]
-                        for restype in ReserveType
-                        if (r, restype, t_disp, step, y, hr) in self.reserves_procurement_index
+                        for restype in self.AssociatedReserveTypes[r, t_disp, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1057,8 +1070,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 + (
                     sum(
                         self.reserves_procurement[r, restype, T_hydro, step, y, hr]
-                        for restype in ReserveType
-                        if (r, restype, T_hydro, step, y, hr) in self.reserves_procurement_index
+                        for restype in self.AssociatedReserveTypes[r, T_hydro, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1095,12 +1107,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return (
                 self.generation_total[r, T_vre, step, y, hr]
                 + (
-                    # TODO:  Review this sum over all ReserveType.  The gate below is just for
-                    #        "spinning" so why all types?
+                    # TODO:  Review this.  Why is it gated on spinning reserve when others aren't?
                     sum(
                         self.reserves_procurement[r, restype, T_vre, step, y, hr]
-                        for restype in ReserveType
-                        if (r, restype, T_vre, step, y, hr) in self.reserves_procurement_index
+                        for restype in self.AssociatedReserveTypes[r, T_vre, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1172,8 +1182,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 + (
                     sum(
                         self.reserves_procurement[r, restype, tech, step, y, hr]
-                        for restype in ReserveType
-                        if (r, restype, tech, step, y, hr) in self.reserves_procurement_index
+                        for restype in self.AssociatedReserveTypes[r, tech, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0

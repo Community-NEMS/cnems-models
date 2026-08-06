@@ -140,7 +140,13 @@ repos:
 #########################################################################################
 ## Configuration for pre-commit.ci
 #########################################################################################
-#ci:
+ci:
+  # pre-commit.ci runs hooks in a sandbox that only builds hook environments -- there is
+  # no pixi on PATH there, so the local `pytest` hook (entry: pixi run test) fails with
+  # "Executable `pixi` not found". The suite is already run with coverage by
+  # .github/workflows/pytest.yml, and skipped for the same reason in the SKIP env of
+  # .github/workflows/pre-commit.yml.
+  skip: [pytest]
 #  autofix_commit_msg: |
 #    [pre-commit.ci] auto fixes from pre-commit.com hooks
 #
@@ -149,5 +155,4 @@ repos:
 #  autoupdate_branch: main
 #  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
 #  autoupdate_schedule: weekly
-#  skip: [pytest]
 #  submodules: false

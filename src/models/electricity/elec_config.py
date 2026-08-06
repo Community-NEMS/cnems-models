@@ -28,6 +28,10 @@ class ReserveType(Enum):
     REGULATION = 'regulation'
     FLEX = 'flex'
 
+    def __lt__(self, other):
+        """Compare to other reserve type."""
+        return self.value < other.value
+
 
 @unique
 class ExpansionLearningType(Enum):

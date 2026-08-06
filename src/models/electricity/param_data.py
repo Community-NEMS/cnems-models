@@ -26,7 +26,7 @@ from src.models.electricity.data_ingestor import (
     load_dataframes,
     load_param_data,
 )
-from src.models.electricity.elec_config import ElecConfig, LoadScaleMode
+from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
 from src.models.electricity.model_sets import SCI, ModelSets
 from src.models.electricity.param_utilities import add_season_index, avg_by_group, time_map
 
@@ -184,7 +184,8 @@ class ParamData:
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
-        model_sets.build_sc_indexes([SCI(*t) for t in self.param_frames['supply_curve'].index])
+        supply_curve_index_vals = [SCI(*t) for t in self.param_frames['supply_curve'].index]
+        model_sets.build_sc_indexes(supply_curve_index_vals)
 
         # populate the trade indices based on gathered parameter data
         model_sets.build_international_travel_index(
@@ -215,6 +216,17 @@ class ParamData:
                     'No data found for %s in the parameter data.  Using empty dict', name
                 )
             self.param_dicts[name] = data
+
+        # Convert the res-tech upper bound entries to Enum values for validation
+        self.param_dicts['res_tech_upper_bound'] = ParamData._convert_reserve_types(
+            self.param_dicts['res_tech_upper_bound']
+        )
+
+        # build the reserves set, using supply + the UB to be used as a filter in construction
+        model_sets.build_reserves_index(
+            supply_curve_index=supply_curve_index_vals,
+            reserve_ub_limits=self.param_dicts['res_tech_upper_bound'],
+        )
 
     def build_load_dataframe(self) -> DataFrame:
         """Build the load dataframe."""
@@ -411,3 +423,15 @@ class ParamData:
         if set_index:
             return df.set_index(list(df.columns[:-1]))
         return df
+
+    @staticmethod
+    def _convert_reserve_types(target: dict) -> dict[tuple[ReserveType, str], float]:
+        """Convert strings to enums in this target dict."""
+        res = {}
+        for (restype, tech), value in target.items():
+            try:
+                res[ReserveType(restype), tech] = float(value)
+            except ValueError:
+                logger.error('Invalid reserve type %s for tech %s', restype, tech)
+                raise
+        return res

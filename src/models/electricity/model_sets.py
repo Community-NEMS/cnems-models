@@ -13,7 +13,7 @@ Collection of sets used by model.
 
 import logging
 from collections import defaultdict, namedtuple
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from warnings import deprecated
 
 import pandas as pd
@@ -181,7 +181,24 @@ class ModelSets:
         # Misc Inputs
         self.step = range(1, 5)
 
-    def build_sc_indexes(self, supply_curve_index: Collection[SCI]):
+    def build_reserves_index(
+        self,
+        supply_curve_index: Iterable[SCI],
+        reserve_ub_limits: dict[tuple[ReserveType, str], float],
+    ):
+        """Build reserve index and use the upper bound limit param to enforce sparsity."""
+        self.reserves_procurement_index = sorted(
+            (idx.region, reserve_type, idx.tech, idx.step, idx.year, hour)
+            for reserve_type in ReserveType
+            for idx in supply_curve_index
+            for hour in self.hour
+            if reserve_ub_limits.get((reserve_type, idx.tech), 0.0) > 0.0
+        )
+        """sparse set of viable [r, ReserveType, tech, step, year, hour] where ub > 0.0"""
+        if not self.reserves_procurement_index:
+            logger.warning('reserves_procurement_index is empty')
+
+    def build_sc_indexes(self, supply_curve_index: Iterable[SCI]):
         """Use the supply curve to build the index sets.
 
         Built by crossing techs with hours and supply curve steps.
@@ -329,16 +346,6 @@ class ModelSets:
         if not self.capacity_hydro_ub_index:
             logger.warning('capacity_hydro_ub_index is empty')
 
-        # TODO:  We could probably clamp this down and make it more sparse.  The UB for reserves
-        #        is largely zeros and we aren't taking advantage of that now.
-        self.reserves_procurement_index = sorted(
-            (idx.region, reserve_type.value, idx.tech, idx.step, idx.year, hour)
-            for reserve_type in ReserveType
-            for idx in supply_curve_index
-            for hour in self.hour
-        )
-        if not self.reserves_procurement_index:
-            logger.warning('reserves_procurement_index is empty')
         self.generation_ramp_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index

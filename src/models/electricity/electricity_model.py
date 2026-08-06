@@ -27,7 +27,12 @@ from src.models.electricity.constants import (
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.validators import region_check, tech_name_check
+from src.models.electricity.validators import (
+    region_check,
+    reserve_procurement_check,
+    reserve_tech_check,
+    tech_name_check,
+)
 
 # Establish logger
 logger = getLogger(__name__)
@@ -106,42 +111,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
         self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
-        self.reserves_procurement_index = pyo.Set(initialize=model_sets.reserves_procurement_index)
-
-        # Derivative reserve indexing sets...
-        # TODO:  a little clunky here.  Move to companion file as was done before?
-        idx = defaultdict(list)
-        wind_idx = defaultdict(list)
-        solar_idx = defaultdict(list)
-        for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
-            idx[region, res_type, year, hour].append((tech, step))
-            if tech in self.tech_wind:
-                wind_idx[region, year, hour].append((tech, step))
-            elif tech in self.tech_solar:
-                solar_idx[region, year, hour].append((tech, step))
-
-        # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
-        self.ProcurementSetReserves = pyo.Set(
-            self.region_analyze,
-            {t.value for t in ReserveType},
-            self.year,
-            self.hour,
-            within=self.tech * self.step,
-            initialize=idx,
-        )
-        self.WindSetReserves = pyo.Set(
-            self.region_analyze,
-            self.year,
-            self.hour,
-            within=self.tech_wind * self.step,
-            initialize=wind_idx,
-        )
-        self.SolarSetReserves = pyo.Set(
-            self.region_analyze,
-            self.year,
-            self.hour,
-            within=self.tech_solar * self.step,
-            initialize=solar_idx,
+        self.reserves_procurement_index = pyo.Set(
+            initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
 
         self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
@@ -154,6 +125,55 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
 
         ################# Indexed sets
+
+        # Derivative reserve indexing sets...
+        if elec_config.spinning_reserve_required:
+            idx = defaultdict(list)
+            wind_idx = defaultdict(set)
+            solar_idx = defaultdict(set)
+            associated_res_types: dict[tuple, list[ReserveType]] = defaultdict(list)
+            for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
+                idx[region, res_type, year, hour].append((tech, step))
+                associated_res_types[region, tech, step, year, hour].append(res_type)
+                if tech in self.tech_wind:
+                    wind_idx[region, year, hour].add((tech, step))
+                elif tech in self.tech_solar:
+                    solar_idx[region, year, hour].add((tech, step))
+
+            self.AssociatedReserveTypes = pyo.Set(
+                self.region_analyze,
+                self.tech,
+                self.step,
+                self.year,
+                self.hour,
+                within=ReserveType,
+                initialize=associated_res_types,
+            )
+            """The valid reserve types for this index combo"""
+
+            # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
+            self.ProcurementSetReserves = pyo.Set(
+                self.region_analyze,
+                ReserveType,
+                self.year,
+                self.hour,
+                within=self.tech * self.step,
+                initialize=idx,
+            )
+            self.WindSetReserves = pyo.Set(
+                self.region_analyze,
+                self.year,
+                self.hour,
+                within=self.tech_wind * self.step,
+                initialize=sorted(wind_idx),
+            )
+            self.SolarSetReserves = pyo.Set(
+                self.region_analyze,
+                self.year,
+                self.hour,
+                within=self.tech_solar * self.step,
+                initialize=sorted(solar_idx),
+            )
 
         # make an indexed set of storage (region, tech, step, year) indexed by hour
         self.StorageHour_index = pyo.Set(
@@ -175,7 +195,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.region_analyze, self.year, self.hour, initialize=model_sets.storage_demand_index
         )
 
-        # make a set of capacity sources indexed by region, year
+        # Capacity sources indexed by region, year
         idx = defaultdict(list)
         for region, tech, step, year in model_sets.capacity_index:
             idx[region, year].append((tech, step))
@@ -190,7 +210,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion:
 
             def retireable(m, _, tech, step, __):
-                """Verify that the combination of tech-step is in the eligible set."""
+                """Check if the combination of tech-step is in the eligible set."""
                 return (tech, step) in m.tech_retireable
 
             self.capacity_retirements_index = pyo.Set(
@@ -478,9 +498,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             # note:  The data is cast to cover all combinations of ReserveType and Tech
             #        with 0's as appropriate
             self.ResTechUpperBound = pyo.Param(
-                {rt.value for rt in ReserveType},
+                ReserveType,
                 self.tech,
                 initialize=all_dicts['res_tech_upper_bound'],
+                validate=reserve_tech_check,
             )
 
         # Cross-talk from H2 model  # preserved as basis for expansion/ideas...?
@@ -632,7 +653,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # TODO: choosing summer for capacity, may want to revisit this, fix hard coded value
+
             def fixed_om_cost(self):
                 """Fixed operation and maintenance (FOM) cost component for the objective function.
 
@@ -983,14 +1004,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
 
         @self.Constraint(self.generation_dispatchable_ub_index)
-        def generation_dispatchable_ub(self, r, T_disp, step, y, hr):
+        def generation_dispatchable_ub(self, r, t_disp, step, y, hr):
             """Dispatchable generation upper bound.
 
             Dispatchable generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
-            T_disp : pyomo.core.base.set.OrderedScalarSet
+            t_disp : pyomo.core.base.set.OrderedScalarSet
                 dispatchable technology set
             y : pyomo.core.base.set.OrderedScalarSet
                 year set
@@ -1007,16 +1028,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Dispatchable generation upper bound
             """
             return (
-                self.generation_total[r, T_disp, step, y, hr]
+                self.generation_total[r, t_disp, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, T_disp, step, y, hr]
-                        for restype in ReserveType
+                        self.reserves_procurement[r, restype, t_disp, step, y, hr]
+                        for restype in self.AssociatedReserveTypes[r, t_disp, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, T_disp, step, y] * self.WeightHour[hr]
+                <= self.capacity_total[r, t_disp, step, y] * self.WeightHour[hr]
             )
 
         @self.Constraint(self.generation_hydro_ub_index)
@@ -1045,15 +1066,18 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """
             return (
                 self.generation_total[r, T_hydro, step, y, hr]
-                + sum(
-                    self.reserves_procurement[r, restype.value, T_hydro, step, y, hr]
-                    for restype in ReserveType
+                + (
+                    sum(
+                        self.reserves_procurement[r, restype, T_hydro, step, y, hr]
+                        for restype in self.AssociatedReserveTypes[r, T_hydro, step, y, hr]
+                    )
+                    if elec_config.spinning_reserve_required
+                    else 0
                 )
-                if elec_config.spinning_reserve_required
-                else 0
-            ) <= self.capacity_total[(r, T_hydro, step, y)] * self.HydroCapFactor[
-                r, self.MapHourSeason[hr]
-            ] * self.WeightHour[hr]
+                <= self.capacity_total[r, T_hydro, step, y]
+                * self.HydroCapFactor[r, self.MapHourSeason[hr]]
+                * self.WeightHour[hr]
+            )
 
         @self.Constraint(self.generation_vre_ub_index)
         def generation_vre_ub(self, r, T_vre, step, y, hr):
@@ -1082,9 +1106,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return (
                 self.generation_total[r, T_vre, step, y, hr]
                 + (
+                    # TODO:  Review this.  Why is it gated on spinning reserve when others aren't?
                     sum(
-                        self.reserves_procurement[r, restype.value, T_vre, step, y, hr]
-                        for restype in ReserveType
+                        self.reserves_procurement[r, restype, T_vre, step, y, hr]
+                        for restype in self.AssociatedReserveTypes[r, T_vre, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1155,8 +1180,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.storage_outflow[r, tech, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype.value, tech, step, y, hr]
-                        for restype in ReserveType
+                        self.reserves_procurement[r, restype, tech, step, y, hr]
+                        for restype in self.AssociatedReserveTypes[r, tech, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
@@ -1653,8 +1678,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return (
                     sum(
-                        self.reserves_procurement[r, 'spinning', tech, step, y, hr]
-                        for (tech, step) in self.ProcurementSetReserves[r, 'spinning', y, hr]
+                        self.reserves_procurement[r, ReserveType.SPINNING, tech, step, y, hr]
+                        for (tech, step) in self.ProcurementSetReserves[
+                            r, ReserveType.SPINNING, y, hr
+                        ]
                     )
                     >= SPINNING_RESERVE_PROPORTION * self.Load[r, y, hr]
                 )
@@ -1682,8 +1709,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Regulation reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, 'regulation', tech, step, y, hr]
-                    for (tech, step) in self.ProcurementSetReserves[r, 'regulation', y, hr]
+                    self.reserves_procurement[r, ReserveType.REGULATION, tech, step, y, hr]
+                    for (tech, step) in self.ProcurementSetReserves[
+                        r, ReserveType.REGULATION, y, hr
+                    ]
                 ) >= REGULATION_RESERVE_PROPORTION * self.Load[
                     (r, y, hr)
                 ] + WIND_REGULATION_RESERVE_PROPORTION * sum(
@@ -1716,8 +1745,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Flexible reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, 'flex', tech, step, y, hr]
-                    for (tech, step) in self.ProcurementSetReserves[r, 'flex', y, hr]
+                    self.reserves_procurement[r, ReserveType.FLEX, tech, step, y, hr]
+                    for (tech, step) in self.ProcurementSetReserves[r, ReserveType.FLEX, y, hr]
                 ) >= WIND_FLEX_RESERVE_PROPORTION * sum(
                     self.generation_total[r, T_wind, step, y, hr]
                     for (T_wind, step) in self.WindSetReserves[r, y, hr]
@@ -1731,7 +1760,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             #        `reserve_procurement` more sparse
             #        and/or use defaults better.
             @self.Constraint(self.reserves_procurement_index)
-            def reserve_procurement_ub(self, r, restypes, tech, step, y, hr):
+            def reserve_procurement_ub(self, r, restype, tech, step, y, hr):
                 """Reserve Requirement Procurement Upper Bound.
 
                 Reserve Procurement <= Capacity
@@ -1740,7 +1769,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
-                restypes : pyomo.core.base.set.OrderedScalarSet
+                restype : pyomo.core.base.set.OrderedScalarSet
                     reserve requirement type set
                 tech : pyomo.core.base.set.OrderedScalarSet
                     technology set
@@ -1759,8 +1788,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Reserve Requirement Procurement Upper Bound
                 """
                 return (
-                    self.reserves_procurement[r, restypes, tech, step, y, hr]
-                    <= self.ResTechUpperBound[restypes, tech]
+                    self.reserves_procurement[r, restype, tech, step, y, hr]
+                    <= self.ResTechUpperBound[restype, tech]
                     * self.WeightHour[hr]
                     * self.capacity_total[r, tech, step, y]
                 )

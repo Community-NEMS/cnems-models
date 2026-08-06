@@ -115,8 +115,18 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
 
+        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
+
+        # international trade indices
+        self.international_trade_index = pyo.Set(
+            dimen=5,
+            initialize=model_sets.international_trade_index,
+            within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
+        )
+
+        ################# Indexed sets
+
         # Derivative reserve indexing sets...
-        # TODO:  a little clunky here.  Move to companion file as was done before?
         if elec_config.spinning_reserve_required:
             idx = defaultdict(list)
             wind_idx = defaultdict(set)
@@ -165,17 +175,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=sorted(solar_idx),
             )
 
-        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
-
-        # international trade indices
-        self.international_trade_index = pyo.Set(
-            dimen=5,
-            initialize=model_sets.international_trade_index,
-            within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
-        )
-
-        ################# Indexed sets
-
         # make an indexed set of storage (region, tech, step, year) indexed by hour
         self.StorageHour_index = pyo.Set(
             self.hour,
@@ -196,7 +195,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.region_analyze, self.year, self.hour, initialize=model_sets.storage_demand_index
         )
 
-        # make a set of capacity sources indexed by region, year
+        # Capacity sources indexed by region, year
         idx = defaultdict(list)
         for region, tech, step, year in model_sets.capacity_index:
             idx[region, year].append((tech, step))
@@ -211,7 +210,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion:
 
             def retireable(m, _, tech, step, __):
-                """Verify that the combination of tech-step is in the eligible set."""
+                """Check if the combination of tech-step is in the eligible set."""
                 return (tech, step) in m.tech_retireable
 
             self.capacity_retirements_index = pyo.Set(

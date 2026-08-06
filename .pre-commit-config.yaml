@@ -113,8 +113,14 @@ repos:
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
+      # The baseline isn't here to whitelist known findings (there are none) -- it carries
+      # the `--exclude-files` pattern, which is the only way to stop the hook scanning a
+      # file at all. Without it the numeric input CSVs are scanned line by line, and
+      # input/electricity/cem_inputs/CapFactorVRE.csv alone costs ~45s per run.
+      # Regenerate with:
+      #   detect-secrets scan --exclude-files '(^old_docs/|\.csv$)' > .secrets.baseline
       - id: detect-secrets
-  #        args: ["--baseline", ".secrets.baseline"]
+        args: ["--baseline", ".secrets.baseline"]
 
   ########################################################################################
   # Custom local hooks

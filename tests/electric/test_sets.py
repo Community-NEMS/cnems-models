@@ -36,7 +36,7 @@ def test_sets(unsolved_model):
 def test_hours_set():
     """Test to ensure the total Load is consistently calculated for different time mappings."""
 
-    def get_tot_load(sw_temporal):
+    def get_tot_load(temporal_resolution):
         """Sum total load using hours and dayweights."""
         # generate configs
         config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
@@ -46,7 +46,7 @@ def test_hours_set():
         # override to simplify testing
         common_config.summary_years = [2025]
         elec_config.region_filter = ['7']
-        common_config.temporal_resolution = sw_temporal
+        common_config.temporal_resolution = temporal_resolution
 
         # build the Load dataframe for testing
         model_sets = ModelSets(common_config, elec_config)

@@ -851,7 +851,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #               Constraints
         #  =======================================
 
-        # self.sw_trade = elec_config.regional_exchange  # Only needed by rule (commented out) below
+        # self.regional_exchange = elec_config.regional_exchange  # Only needed by rule below
 
         # below is handled in indexed set creation at top (still incomplete)
         # self.populate_demand_balance_sets = pyo.BuildAction(

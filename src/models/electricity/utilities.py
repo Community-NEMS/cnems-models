@@ -57,7 +57,7 @@ class ElectricityMethods(Model):
         )
 
         # deprecated...
-        # if m.sw_trade == 1:
+        # if m.regional_exchange:
         #     m.TradeSetDemandBalance = Model.populate_sets_rule(
         #         m, 'trade_interregional_index', set_base2=['year', 'region', 'hour']
         #     )

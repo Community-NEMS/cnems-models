@@ -22,7 +22,7 @@ tol = 0.05  # percent tolerance allowed between iterations, specify a number les
 max_iter = 12 # max number of iterations
 
 # Temporal resolution (inter-annual)
-# default = 16 representative (rep) days and 4 rep hours
+# default = 24 representative (rep) days and 4 rep hours
 # d8h12 = 8 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
 sw_temporal = "default"
 

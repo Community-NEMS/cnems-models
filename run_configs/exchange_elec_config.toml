@@ -10,7 +10,7 @@ output_path='output'
 scenario_name = "baseline_exchange"
 
 # Temporal resolution (inter-annual)
-# default = 16 representative (rep) days and 4 rep hours
+# default = 24 representative (rep) days and 4 rep hours
 # d8h12 = 8 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
 temporal_resolution = "default"
 

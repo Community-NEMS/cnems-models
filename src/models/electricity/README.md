@@ -62,7 +62,7 @@ The `[elec_config]` section contains the main settings through which features fo
 | regional_exchange         | Interregional trade           | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
 | capacity_expansion        | Capacity expansion/retirement | **false** = Off <br> **true** = On                                                                                    |  Note the file build_data.csv also contains settings of which technologies are available to expand. retire_data.csv contains which technologies have the option to economically retire.   |
 | reserve_margin_required   | Reserve margin requirement    | **false** = Off <br> **true** = On                                                                                    |                                                    Requires capacity_expansion; the combination is rejected by ElecConfig validation.                                                     |
-| ramping_required          | Maximum ramping constaint     | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
+| ramping_required          | Maximum ramping constraint    | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
 | spinning_reserve_required | Operating reserve requirement | **false** = Off <br> **true** = On                                                                                    |                                            Enables all three reserve products in ReserveType (spinning, regulation, flex), not just spinning.                                             |
 | expansion_learning_type   | Technology cost learning      | **disabled** = Exogenous learning <br> **linear** = Iterative linear learning <br> **nonlinear** = Nonlinear learning | The method of which technology costs decrease as more capacity is built. Any value other than disabled requires capacity_expansion; the combination is rejected by ElecConfig validation. |
 
@@ -76,8 +76,8 @@ The `[common]` section holds settings that are not specific to the electricity m
 
 ### Technology Settings
 
-The model contains 14 technologies (tech) in its initial layout. Users could change the technology assignments and add
-more technology types or remove technology types, but any changes to the code would require updates to the cooresponding
+The model contains 15 technologies (tech) in its initial layout. Users could change the technology assignments and add
+more technology types or remove technology types, but any changes to the code would require updates to the corresponding
 input data. The technologies represented include:
 <br> 1.)    Coal Steam
 <br> 2.)    Oil Steam
@@ -158,8 +158,8 @@ step. These files are located in the input/electricity directory and are declare
 
 ### Re-Indexed Sets
 
-These sets are re-indexed for specific constraints. They are all sub-sets accessed by certain indicies to return the
-remaining indicies.
+These sets are re-indexed for specific constraints. They are all sub-sets accessed by certain indices to return the
+remaining indices.
 
 | Set                        | Code                     | Data Type     | Short Description                                                                   |
 |:---------------------------|:-------------------------|:--------------|:------------------------------------------------------------------------------------|

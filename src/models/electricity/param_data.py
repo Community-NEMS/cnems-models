@@ -14,11 +14,13 @@ held in pandas dataframes.
 
 import logging
 from collections.abc import Collection
+from functools import singledispatchmethod
 
 import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
+from src.common.update_package import ElectricityPriceScaler, UpdatePackage
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
@@ -391,6 +393,44 @@ class ParamData:
         df = df[['region', 'tech', 'step', 'year', 'hour', 'CapacityCredit']]
         df = df.set_index(list(df.columns)[:-1])
         return df
+
+    @singledispatchmethod
+    def apply_update_package(self, update_package: UpdatePackage):
+        """Apply the update package using single dispatch method."""
+        raise NotImplementedError('Missing single dispatch method')
+
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_update_package.register  # type: ignore[no-matching-overload]
+    def _(self, electricity_price_scalar: ElectricityPriceScaler) -> None:
+        """Scale the supply prices of the named techs by the scalar multiplier.
+
+        Parameters
+        ----------
+        electricity_price_scalar : ElectricityPriceScaler
+            Update package naming the techs to scale and the multiplier to apply.
+
+        Notes
+        -----
+        ``supply_price`` is indexed by ``(region, tech, step, year, season)``, so the tech
+        filter is built from the index level rather than a column.  The frame is modified in
+        place, in ``self.param_frames``.
+        """
+        prices = self.param_frames['supply_price']
+        tech_mask = prices.index.get_level_values('tech').isin(electricity_price_scalar.techs)
+        if not tech_mask.any():
+            logger.warning(
+                'No supply_price rows matched techs %s; prices unchanged',
+                electricity_price_scalar.techs,
+            )
+            return
+        prices.loc[tech_mask, :] *= electricity_price_scalar.scalar
+        logger.info(
+            'Scaled supply_price by %s for %d of %d rows (techs %s)',
+            electricity_price_scalar.scalar,
+            tech_mask.sum(),
+            len(prices),
+            electricity_price_scalar.techs,
+        )
 
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:

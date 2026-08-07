@@ -127,6 +127,13 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
+        update_packages = kwargs.pop('update_packages', [])
+        if update_packages:
+            logger.info('Received %s update_packages', len(update_packages))
+            for pkg in update_packages:
+                model_params.apply_update_package(pkg)
+        else:
+            logger.info('Received no update_packages')
 
         logger.info('Building model')
         instance = PowerModel(
@@ -282,14 +289,16 @@ def calculate_tolerance(
     )
 
 
-def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
+def run_elec_model(
+    common_config: CommonConfig, elec_config: ElecConfig, solve: bool = True, **kwargs
+) -> PowerModel:
     """Build the electricity model (and solve + postprocess if ``solve``), returning the model."""
     start_time = datetime.now().astimezone()
     timer = TicTocTimer(logger=logger)
     timer.tic('start')
 
     sequencer = ElectricitySequencer()
-    instance = sequencer.build_model(common_config, elec_config)
+    instance = sequencer.build_model(common_config, elec_config, **kwargs)
     timer.toc('build model finished')
 
     # stop here if no solve requested...

@@ -10,6 +10,7 @@ from warnings import deprecated
 from definitions import PROJECT_ROOT
 from src.common.common_config import parse_config_file
 from src.common.models_modes import ModelType, RunMode
+from src.common.update_package import my_update_package
 from src.common.utilities import get_args, setup_logger
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import run_elec_model
@@ -94,7 +95,7 @@ def main(
     if common_config.mode == RunMode.STANDALONE and common_config.models_to_run == [
         ModelType.ELECTRICITY
     ]:
-        run_elec_model(common_config, elec_config, solve=True)
+        run_elec_model(common_config, elec_config, solve=True, **kwargs)
     else:
         logger.error('No valid run mode selected.  Exiting.')
         raise NotImplementedError('No valid run mode selected')
@@ -115,3 +116,7 @@ if __name__ == '__main__':
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/exchange_elec_config.toml'))
     # reduced string-named input set (input/electricity_light) with regional exchange
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))
+    main(
+        common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'),
+        update_packages=[my_update_package],
+    )

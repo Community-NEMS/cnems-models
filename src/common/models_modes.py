@@ -16,9 +16,11 @@ from enum import Enum, unique
 class ModelType(Enum):
     """The individual models available to a run."""
 
+    ALL = 'all'  # indicator implying all models
     ELECTRICITY = 'electricity'
     NATURAL_GAS = 'natural_gas'
-    INTEGRATOR = 'integrator'
+    # INTEGRATOR = 'integrator'
+    MAGIC = 'magic'  # for testing/dev
 
 
 @unique
@@ -26,3 +28,4 @@ class RunMode(Enum):
     """Defines the different modes that the model can be run in."""
 
     STANDALONE = 'standalone'
+    INTEGRATED = 'integrated'

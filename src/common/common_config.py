@@ -20,6 +20,10 @@ from src.common.models_modes import ModelType, RunMode
 logger = getLogger(__name__)
 
 
+class ModelConfig(BaseModel):
+    """A clear label for Model configurations."""
+
+
 class CommonConfig(BaseModel):
     """Settings from the ``[common]`` TOML section that cut across all sectoral modules."""
 

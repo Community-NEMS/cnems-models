@@ -15,7 +15,6 @@ import pandas as pd
 from pandas import DataFrame
 
 from definitions import PROJECT_ROOT
-from models.electricity.param_utilities import create_subsets
 from src.common.common_config import CommonConfig
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import FilterPackage, load_dataframes, load_param_data
@@ -26,6 +25,7 @@ from src.models.electricity.param_utilities import (
     avg_by_group,
     capacitycredit_df,
     create_hourly_params,
+    create_subsets,
     step_sub_sc_subset,
     time_map,
 )

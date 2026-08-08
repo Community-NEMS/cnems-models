@@ -14,6 +14,7 @@ Dev Notes:
 
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -22,7 +23,7 @@ from src.common.models_modes import ModelType
 
 
 @dataclass(frozen=True, kw_only=True)
-class UpdatePackage:
+class UpdatePackage(ABC):
     """Base class for a serializable payload handed from one model to another.
 
     Subclasses carry the actual update data and declare their own ``receivers``.  Frozen so a
@@ -45,21 +46,10 @@ class UpdatePackage:
     source: ModelType | None = field(default=None)
     version: int = 1
 
-    # receivers: tuple[ModelType]
     @property
+    @abstractmethod
     def receivers(self) -> tuple[ModelType, ...]:
-        """The models this package is intended for.
-
-        Returns
-        -------
-        tuple of ModelType
-            The intended recipients.
-
-        Raises
-        ------
-        NotImplementedError
-            Always, on the base class -- subclasses override this with a field.
-        """
+        """The models this package is intended for."""
         raise NotImplementedError()
 
 
@@ -78,12 +68,27 @@ class ElectricityPriceScaler(UpdatePackage):
     receivers : tuple of ModelType
         Fixed to the electricity model.
     scalar : float
-        The multiplier to apply; 1.0 leaves prices unchanged.
+        The multiplier to apply; 1.0 leaves prices unchanged.  Must be positive -- the model's
+        ``SupplyPrice`` param is declared ``within=NonNegativeReals``.
     """
 
     techs: tuple[str, ...]
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
     scalar: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Reject a scalar that would drive supply prices out of ``NonNegativeReals``.
+
+        Raises
+        ------
+        ValueError
+            If ``scalar`` is not positive.
+        """
+        if self.scalar <= 0:
+            raise ValueError(
+                f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
+                'non-positive multiplier drives SupplyPrice out of its NonNegativeReals domain.'
+            )
 
 
 my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # multiply by 1.5

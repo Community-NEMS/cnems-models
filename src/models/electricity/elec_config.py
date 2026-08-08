@@ -11,9 +11,10 @@ from enum import Enum, unique
 from logging import getLogger
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
+from src.common.common_config import ModelConfig
 
 logger = getLogger(__name__)
 
@@ -50,7 +51,7 @@ class LoadScaleMode(Enum):
     ANNUAL = 'annual'
 
 
-class ElecConfig(BaseModel):
+class ElecConfig(ModelConfig):
     """Settings from the ``[elec_config]`` TOML section, controlling the electricity model."""
 
     input_path: Path

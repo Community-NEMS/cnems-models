@@ -22,6 +22,8 @@ from pyomo.util.infeasible import log_infeasible_constraints
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
+from src.common.models_modes import ModelType
+from src.common.update_package import UpdatePackage
 from src.integrator.utilities import select_solver
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
@@ -158,7 +160,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         """
         raise NotImplementedError('update_model is not implemented for the electricity model.')
 
-    def solve_model(self, **kwargs) -> IterationStatus:
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the electricity model, iterating externally for linear learning.
 
         Ports ``runner.solve_elec_model``. For ``ExpansionLearningType.LINEAR`` this runs the
@@ -227,10 +229,15 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 + ', status: '
                 + str(results.solver.status)
             )
-            return IterationStatus.ERROR
+            return ModelType.ELECTRICITY, IterationStatus.ERROR
 
         logger.info('Solve Successful')
-        return IterationStatus.BEST
+        return ModelType.ELECTRICITY, IterationStatus.BEST
+
+    def get_outbound_updates(self) -> list[UpdatePackage]:
+        """Get the outbound update packages."""
+        logger.warning('get_outbound_updates not implemented yet.')
+        return []
 
     def iteration_postprocess(self, **kwargs):
         """No-op; the electricity model has nothing to do between iterations."""

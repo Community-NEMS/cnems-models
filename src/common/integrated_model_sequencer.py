@@ -14,8 +14,10 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from src.common.common_config import CommonConfig
+from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
+from src.common.models_modes import ModelType
+from src.common.update_package import UpdatePackage
 
 
 class IterationStatus(Enum):
@@ -26,7 +28,7 @@ class IterationStatus(Enum):
     ERROR = 3
 
 
-class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: BaseModel](ABC):
+class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](ABC):
     """A sequencer for a model that may be subject to integrated runs.
 
     Generic in the model and config types so an implementation can name the concrete pair it
@@ -58,7 +60,7 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: BaseModel](ABC)
         ...
 
     @abstractmethod
-    def solve_model(self, **kwargs) -> IterationStatus:
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the model."""
         ...
 
@@ -71,3 +73,17 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: BaseModel](ABC)
     def iteration_postprocess(self, **kwargs):
         """Perform postprocessing of the model results for each iteration."""
         ...
+
+    @abstractmethod
+    def get_outbound_updates(self) -> list[UpdatePackage]:
+        """Get the outbound update packages."""
+        return []
+
+    def full_run(
+        self, common_config: CommonConfig, model_config: BaseModel, **kwargs
+    ) -> tuple[tuple[ModelType, IterationStatus], list[UpdatePackage]]:
+        """All-in-one function for running the model for use in multiprocessing."""
+        self.build_model(common_config, model_config, **kwargs)
+        type_and_status = self.solve_model(**kwargs)
+        update_packages = self.get_outbound_updates()
+        return type_and_status, update_packages

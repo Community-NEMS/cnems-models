@@ -247,7 +247,7 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     # DEBUG level additionally captures the per-key CapCostLearning updates for the verbose table
     capture_level = logging.DEBUG if verbose else logging.INFO
     with caplog.at_level(capture_level, logger='src.models.electricity.sequencer'):
-        status = sequencer.solve_model()
+        _, status = sequencer.solve_model()
     assert status is IterationStatus.BEST, f'solve failed with status {status}'
 
     if verbose:

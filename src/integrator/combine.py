@@ -82,8 +82,8 @@ def route_updates(
     for package in packages:
         receivers = set(package.receivers)
         to_all = ModelType.ALL in receivers
-        # iterate the circuit (not the receivers) to keep order stable and dedupe a package
-        # that names both ALL and a specific model
+        # iterate the circuit (not the receivers) to drop off-circuit destinations and to
+        # dedupe a package that names both ALL and a specific model
         for model in circuit:
             if to_all or model in receivers:
                 routed[model].append(package)
@@ -96,6 +96,24 @@ def route_updates(
                 [m.value for m in circuit],
             )
     return routed
+
+
+def _logger_setup(iter_call: IterationCall):
+    """Setup logging for the process."""
+    # TODO:  This is fragile.  If any import touches logging setup, this is discarded
+    #        As we go forward, need to make this more imperative
+    scenario_name = iter_call.common_config.scenario_name
+    process_name = iter_call.model_type.value
+    logger_name = f'{scenario_name}-{process_name}'
+    output_folder = PROJECT_ROOT / 'output' / scenario_name
+    logging.basicConfig(
+        filename=output_folder / f'{logger_name}.log',
+        encoding='utf-8',
+        filemode='a',
+        format='%(asctime)s | %(name)s | %(levelname)s :: %(message)s',
+        datefmt='%d-%b-%y %H:%M:%S',
+        level=logging.INFO,
+    )
 
 
 def driver(
@@ -120,6 +138,8 @@ def driver(
     TypeError
         If the call's config does not match its model.
     """
+    # start the logging for this process
+    _logger_setup(iter_call)
     match iter_call.model_type:
         case ModelType.ELECTRICITY:
             status, updates = ElectricitySequencer().full_run(

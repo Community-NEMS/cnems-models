@@ -425,7 +425,7 @@ class ParamData:
             return
         prices.loc[tech_mask, :] *= electricity_price_scalar.scalar
         logger.info(
-            'Scaled supply_price by %s for %d of %d rows (techs %s)',
+            'Scaled supply_price by factor %0.3f for %d of %d rows (techs %s)',
             electricity_price_scalar.scalar,
             tech_mask.sum(),
             len(prices),

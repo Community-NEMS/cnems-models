@@ -14,6 +14,9 @@ from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from multiprocessing import Pool
 
+from matplotlib import pyplot as plt
+from pyomo.common.numeric_types import value
+
 from common.common_config import ModelConfig
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
@@ -118,7 +121,7 @@ def _logger_setup(iter_call: IterationCall):
 
 def driver(
     iter_call: IterationCall,
-) -> tuple[tuple[ModelType, IterationStatus], list[UpdatePackage]]:
+) -> tuple[tuple[ModelType, IterationStatus, float], list[UpdatePackage]]:
     """Run one model end to end in a pool worker.
 
     Parameters
@@ -142,13 +145,17 @@ def driver(
     _logger_setup(iter_call)
     match iter_call.model_type:
         case ModelType.ELECTRICITY:
-            status, updates = ElectricitySequencer().full_run(
+            sequencer = ElectricitySequencer()
+            status, updates = sequencer.full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
             )
+            obj_value = value(sequencer.model.total_cost)
+            status = (*status, obj_value)
         case ModelType.MAGIC:
             status, updates = MagicSequencer().full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
             )
+            status = (*status, -1.0)  # NO Obj value for MagicModel
         case _:
             raise NotImplementedError()
     return status, updates
@@ -162,10 +169,13 @@ def main() -> None:
 
     # set up iterative solve
     iteration = 0
-    iter_limit = 4
+    iter_limit = 18
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
+
+    # collect OBJ values for Electricity
+    electricity_obj_vals = []
 
     # one pool for the whole run; spawning workers per iteration re-imports the world each time
     with Pool(processes=6) as worker_pool:
@@ -190,9 +200,10 @@ def main() -> None:
             results = worker_pool.map(driver, iter_calls)
             # log status of the model's solves
             status_list = [type_status for (type_status, update_packages) in results]
-            for model_type, status in status_list:
+            for model_type, status, obj_value in status_list:
                 logger.info(f'iteration {iteration}, model: {model_type.value}, status: {status}')
-
+                if model_type is ModelType.ELECTRICITY:
+                    electricity_obj_vals.append(obj_value)
             # route each model's outbound packages to their receivers for the next iteration
             outbound = [pkg for _status, packages in results for pkg in packages]
             routed_updates = route_updates(outbound, CIRCUIT)
@@ -201,6 +212,9 @@ def main() -> None:
             #        currently always runs the full iter_limit
             logger.info('done with iteration %d, results: %s', iteration, results)
             iteration += 1
+
+    plt.scatter(list(range(iteration)), electricity_obj_vals)
+    plt.show()
 
 
 if __name__ == '__main__':

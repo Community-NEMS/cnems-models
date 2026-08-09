@@ -124,7 +124,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         # centered on 1.0 so the scaler stays positive: SupplyPrice is NonNegativeReals, and a
         # bare cosine goes negative for sequence numbers 3-5, 11-13, ...
         cycle_point = self._sequence_number * math.pi / 4
-        scale = 2 * 2 ** (-self._sequence_number)
+        scale = 2 * 2 ** (-self._sequence_number / 3)
         scalar = 1 + scale * math.cos(cycle_point)
         update = ElectricityPriceScaler(
             receivers=(ModelType.ELECTRICITY,), scalar=scalar, techs=('4', '6')

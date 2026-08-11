@@ -20,7 +20,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
-from src.common.update_package import ElectricityPriceScaler, UpdatePackage
+from src.common.update_package import ElectricityPriceScaler, TransCostUpdate, UpdatePackage
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
@@ -397,7 +397,9 @@ class ParamData:
     @singledispatchmethod
     def apply_update_package(self, update_package: UpdatePackage):
         """Apply the update package using single dispatch method."""
-        raise NotImplementedError('Missing single dispatch method')
+        raise NotImplementedError(
+            f'Missing single dispatch method for type: {type(update_package)}'
+        )
 
     # pyrefly cannot type either form of singledispatchmethod.register against typeshed
     @apply_update_package.register  # type: ignore[no-matching-overload]
@@ -431,6 +433,125 @@ class ParamData:
             len(prices),
             electricity_price_scalar.techs,
         )
+
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_update_package.register  # type: ignore[no-matching-overload]
+    def _(self, trans_cost_update: TransCostUpdate) -> None:
+        """Merge an incoming transmission cost update into the ``tran_cost`` frame.
+
+        Rows carried by the update replace the matching rows of ``tran_cost``; entries the
+        update does not cover keep their loaded values and are reported as warnings.  Entries
+        in the update beyond the held index (regions/years filtered out of this run) are
+        ignored.
+
+        Parameters
+        ----------
+        trans_cost_update : TransCostUpdate
+            Update package holding a frame indexed like ``tran_cost``
+            ``(destination_region, source_region, year)`` with a single ``cost`` column.
+
+        Notes
+        -----
+        Retaining uncovered entries matters:  ``TranCost`` is a dense pyomo Param with no
+        default, so a hole in the frame fails model construction.  Incoming values must be in
+        the same units as the loaded frame, which the price hack in ``__init__`` scales by
+        1000.
+        """
+        old = self.param_frames['tran_cost']
+        new = trans_cost_update.elements
+        if old.empty:
+            logger.warning(
+                'Held tran_cost is empty; taking all %d received rows without a coverage check',
+                len(new),
+            )
+            self.param_frames['tran_cost'] = new
+            return
+        if set(new.columns) != set(old.columns):
+            logger.warning(
+                'Received tran_cost columns %s do not match the held columns %s',
+                list(new.columns),
+                list(old.columns),
+            )
+        missing = self._report_index_gaps(old.index, new.index, name='tran_cost')
+        # align level names so combine_first matches on position, as the gap report does; the
+        # reindex drops the overages that combine_first's index union would otherwise carry in
+        new = new.rename_axis(old.index.names)
+        self.param_frames['tran_cost'] = new.combine_first(old).reindex(old.index)[old.columns]
+        logger.info(
+            'Updated tran_cost:  %d of %d rows replaced, %d retained from the loaded data',
+            len(old) - len(missing),
+            len(old),
+            len(missing),
+        )
+
+    @staticmethod
+    def _report_index_gaps(
+        old: pd.Index, new: pd.Index, name: str, max_report: int = 10
+    ) -> pd.Index:
+        """Report entries of a held index that newly received data fails to cover.
+
+        Parameters
+        ----------
+        old : pd.Index
+            Index of the currently held data.
+        new : pd.Index
+            Index of the newly received data.
+        name : str
+            Frame name, used in the log entries.
+        max_report : int, default 10
+            Maximum number of missing entries to name in the warning.
+
+        Returns
+        -------
+        pd.Index
+            Entries of ``old`` absent from ``new``; empty if coverage is complete.
+
+        Raises
+        ------
+        ValueError
+            If the indexes have a different number of levels, making them un-alignable.
+
+        Notes
+        -----
+        Entries of ``new`` absent from ``old`` are overages and are logged at debug level only.
+        Level *order* is the contract (see ``index_cols`` in ``param_sources.toml``), so
+        differing level names are warned about and then compared by position.
+        """
+        if old.nlevels != new.nlevels:
+            raise ValueError(
+                f'Cannot compare the index of {name}:  held data has {old.nlevels} level(s), '
+                f'received data has {new.nlevels}.'
+            )
+        if tuple(old.names) != tuple(new.names):
+            logger.warning(
+                'Index level names for %s differ:  held %s vs. received %s.  '
+                'Comparing by level position',
+                name,
+                tuple(old.names),
+                tuple(new.names),
+            )
+            new = new.set_names(old.names)
+        missing = old.difference(new)
+        if len(missing) > 0:
+            logger.warning(
+                'Received data for %s does not cover %d of %d held entries.  '
+                'Missing (up to %d shown):  %s',
+                name,
+                len(missing),
+                len(old),
+                max_report,
+                list(missing[:max_report]),
+            )
+        else:
+            logger.info('Received data for %s covers all %d held entries', name, len(old))
+        overage = len(new.difference(old))
+        if overage > 0:
+            logger.debug(
+                'Received data for %s holds %d entries beyond the held index (ignored)',
+                name,
+                overage,
+            )
+        return missing
 
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:

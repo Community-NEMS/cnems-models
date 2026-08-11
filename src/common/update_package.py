@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
 
+import pandas as pd
+
 from src.common.models_modes import ModelType
 
 
@@ -92,3 +94,50 @@ class ElectricityPriceScaler(UpdatePackage):
 
 
 my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # multiply by 1.5
+
+# index/value labels of the electricity model's ``tran_cost`` frame, which a TransCostUpdate
+# must mirror -- see the "tran_cost" entry in src/models/electricity/param_sources.toml
+TRANS_COST_INDEX = ['destination_region', 'source_region', 'year']
+
+
+@dataclass(frozen=True)
+class TransCostUpdate(UpdatePackage):
+    """Collection of updates to transmission costs.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Costs indexed by ``TRANS_COST_INDEX`` with a single ``TRANS_COST_VALUE`` column, matching
+        the recipient's ``tran_cost`` frame.  Entries the recipient does not hold are ignored;
+        held entries this frame omits keep their existing values and are logged as warnings.
+    receivers : tuple of ModelType
+        Fixed to the electricity model.
+    """
+
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+
+
+def make_trans_update(new_cost: float, year: int) -> TransCostUpdate:
+    """Cheap maker for a TransCostUpdate covering all region pairs in a single year.
+
+    Parameters
+    ----------
+    new_cost : float
+        Cost to apply to every ordered pair of distinct regions.
+    year : int
+        The year the costs apply to.
+
+    Returns
+    -------
+    TransCostUpdate
+        Package holding a frame indexed by ``TRANS_COST_INDEX``.
+    """
+    costs = []
+    for region in (str(num) for num in range(1, 24)):
+        for other in (str(num) for num in range(1, 24)):
+            if region != other:
+                costs.append((region, other, year, new_cost))
+    df = pd.DataFrame(costs, columns=[*TRANS_COST_INDEX, 'cost'])
+    df = df.set_index(TRANS_COST_INDEX)
+    return TransCostUpdate(elements=df)

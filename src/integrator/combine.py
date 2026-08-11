@@ -17,9 +17,8 @@ from multiprocessing import Pool
 from matplotlib import pyplot as plt
 from pyomo.common.numeric_types import value
 
-from common.common_config import ModelConfig
 from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, parse_config_file
+from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
 from src.common.integrated_model_sequencer import IterationStatus
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage

@@ -10,13 +10,14 @@ A "Magic" model used for test & development
 
 import logging
 import math
+import random
 from time import sleep
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import ElectricityPriceScaler, UpdatePackage
+from src.common.update_package import ElectricityPriceScaler, UpdatePackage, make_trans_update
 
 logger = logging.getLogger(__name__)
 
@@ -129,4 +130,11 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         update = ElectricityPriceScaler(
             receivers=(ModelType.ELECTRICITY,), scalar=scalar, techs=('4', '6')
         )
-        return [update]
+
+        # make a transmission cost update
+        tcu = make_trans_update(
+            new_cost=2000 - 2000 * random.random() * math.e ** (-self._sequence_number),
+            year=2030,
+        )
+
+        return [update, tcu]

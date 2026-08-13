@@ -1,0 +1,31 @@
+# Interstate natural gas pipeline arcs (directed; each physical pipe = two rows)
+# capacity_bcf: aggregate nameplate capacity [BCF/yr] per direction
+# tariff_per_mmbtu: FERC-approved transportation tariff [$/MMBtu]
+# Source: EIA Compendium of Interstate Natural Gas Pipelines 2022; FERC Form 2
+origin,destination,capacity_bcf,tariff_per_mmbtu
+new_england,middle_atlantic,1400,0.55
+middle_atlantic,new_england,1400,0.55
+middle_atlantic,east_north_central,2200,0.40
+east_north_central,middle_atlantic,2200,0.40
+middle_atlantic,south_atlantic,3000,0.35
+south_atlantic,middle_atlantic,3000,0.35
+middle_atlantic,east_south_central,800,0.45
+east_south_central,middle_atlantic,800,0.45
+east_north_central,west_north_central,1600,0.30
+west_north_central,east_north_central,1600,0.30
+east_north_central,south_atlantic,600,0.40
+south_atlantic,east_north_central,600,0.40
+west_north_central,west_south_central,2100,0.35
+west_south_central,west_north_central,2100,0.35
+west_north_central,mountain,1100,0.30
+mountain,west_north_central,1100,0.30
+south_atlantic,east_south_central,2200,0.25
+east_south_central,south_atlantic,2200,0.25
+east_south_central,west_south_central,3200,0.20
+west_south_central,east_south_central,3200,0.20
+west_south_central,mountain,3800,0.30
+mountain,west_south_central,3800,0.30
+mountain,pacific,4200,0.40
+pacific,mountain,4200,0.40
+west_south_central,south_atlantic,1500,0.40
+south_atlantic,west_south_central,1500,0.40

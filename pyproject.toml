@@ -26,7 +26,18 @@ line-length = 100
 # default excludes rather than replacing them. Needed even though .gitignore lists
 # old_docs: the pre-commit ruff hook passes paths explicitly, which bypasses
 # gitignore-based filtering, and only honors this because its entry uses --force-exclude.
-extend-exclude = ["old_docs", "config_setup.py"]
+# Also excluded: vendored C-NGMM sources, landed unchanged from their source distribution (see
+# src/models/naturalgas/README.md).  They were authored against a laxer ruff config and
+# report 47 findings here, mostly E501.  Excluded so the import is verifiably byte-identical
+# to its origin; revisit once the model is no longer tracking an upstream.
+extend-exclude = [
+  "old_docs",
+  "config_setup.py",
+  "src/models/naturalgas/ng_model.py",
+  "src/models/naturalgas/data.py",
+  "src/integrator/ng_coupling.py",
+  "tests/naturalgas/test_ng_coupling.py",
+]
 
 [tool.ruff.format]
 quote-style = 'single'
@@ -84,6 +95,12 @@ project-includes = ["src"]
 # not worth fixing or suppressing in code that should not be built on.
 project-excludes = [
   "src/models/electricity/electricity_model.py",
+  # Vendored C-NGMM sources, landed unchanged.  Same pyomo dynamic-attribute problem as
+  # electricity_model.py above (78 errors), plus they predate this repo's type-hint
+  # conventions.  Revisit when the model stops tracking an upstream.
+  "src/models/naturalgas/ng_model.py",
+  "src/models/naturalgas/data.py",
+  "src/integrator/ng_coupling.py",
   "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet
   "src/integrator/unified.py",  # not in upgrade scope yet
@@ -154,7 +171,11 @@ platforms = ["linux-aarch64", "osx-arm64", "linux-64", "osx-64", "win-64"]
 
 
 [tool.pixi.dependencies]
-pyomo = '*'
+# 6.10 is the floor for a QP-capable HiGHS interface.  The natural gas model is a convex
+# quadratic program: SolverFactory('highs') (new-generation, >=6.10) builds a Hessian and
+# handles it, while 'appsi_highs' calls generate_standard_repn(quadratic=False) and raises
+# DegreeError on any quadratic objective.  Do not lower this pin.
+pyomo = '>=6.10'
 numpy = '>=2.0'
 highspy = '*'
 ruff = '*'
@@ -192,6 +213,10 @@ test-erase = { cmd = "coverage erase", description = "Wipe previously recorded c
 #], description = "Run all tests and report combined coverage, failing if it's below the configured threshold." }
 test-runner = {cmd="pytest --cov=src --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
+
+# C-NGMM, the natural gas market model.  Standalone; not yet wired into the integrator.
+ng = { cmd = "python -m src.models.naturalgas.ng_model", description = "Solve C-NGMM at full resolution (9 census divisions, 6 years)." }
+ng-smoke = { cmd = "python -m src.models.naturalgas.ng_model --years 2025 2030 --regions west_south_central east_south_central south_atlantic", description = "Solve C-NGMM on a self-sufficient 3-region, 2-year subset." }
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
 # No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`

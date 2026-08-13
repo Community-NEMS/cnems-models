@@ -1,0 +1,8 @@
+# LNG import terminals (coastal regions only) — high-cost backstop supply
+# capacity_bcf: re-gasification capacity [BCF/yr]
+# cost_per_mmbtu: delivered import cost [$/MMBtu]
+# Source: EIA AEO 2023; FERC terminal capacity filings
+region,capacity_bcf,cost_per_mmbtu
+new_england,350,8.00
+south_atlantic,300,7.50
+pacific,200,8.50

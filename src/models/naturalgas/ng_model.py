@@ -63,6 +63,7 @@ from __future__ import annotations
 import argparse
 import logging
 from collections import defaultdict, namedtuple
+from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
@@ -83,6 +84,8 @@ from pyomo.environ import (
     quicksum,             # Fast linear sums in QP construction
     value,
 )
+
+from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -1793,7 +1796,19 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
 # CLI entry point
 ###############################################################################
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse standalone-runner arguments.
+
+    Parameters
+    ----------
+    argv : Sequence[str] | None
+        Argument list to parse. ``None`` reads ``sys.argv[1:]`` as usual.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments.
+    """
     p = argparse.ArgumentParser(
         description='C-NGMM natural gas market model, standalone runner'
     )
@@ -1827,16 +1842,33 @@ def _parse_args() -> argparse.Namespace:
         '--debug', action='store_true',
         help='Enable DEBUG-level logging.',
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main() -> None:
-    args = _parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    """Run the standalone natural gas model.
+
+    Parameters
+    ----------
+    argv : Sequence[str] | None
+        Command-line arguments to use instead of ``sys.argv[1:]``.
+    """
+    args = _parse_args(argv)
+
+    output_dir = Path(args.output) if args.output else None
+
+    # With --output, tee the log into ng_model.log beside the CSVs; the console handler stays
+    # so warnings (unserved demand, region subsetting) remain visible during an interactive run.
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if output_dir is not None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(output_dir / 'ng_model.log', mode='w'))
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
         format='%(asctime)s %(levelname)-8s %(name)s, %(message)s',
         datefmt='%H:%M:%S',
+        handlers=handlers,
     )
 
     # logger.info('Building Natural Gas Market Model for years: %s', args.years)
@@ -1874,7 +1906,6 @@ def main() -> None:
         else:
             logger.info('Unserved demand: none, this subset is self-sufficient.')
 
-    output_dir = Path(args.output) if args.output else None
     report(m, output_dir=output_dir)
 
     # Quick demonstration of integration interface
@@ -1888,4 +1919,6 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main()
+    # Direct runs write CSVs and the log under <project>/output/ng. Passing an explicit list
+    # here replaces the command line entirely; drop it (call main()) to parse sys.argv instead.
+    main(['--output', str(PROJECT_ROOT / 'output' / 'ng')])

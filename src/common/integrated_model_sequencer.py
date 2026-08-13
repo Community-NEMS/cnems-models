@@ -12,8 +12,6 @@ A rough framework for sequencers (runners) that build & solve models to common-i
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from pydantic import BaseModel
-
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.models_modes import ModelType
@@ -80,7 +78,7 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](AB
         return []
 
     def full_run(
-        self, common_config: CommonConfig, model_config: BaseModel, **kwargs
+        self, common_config: CommonConfig, model_config: ConfigT, **kwargs
     ) -> tuple[tuple[ModelType, IterationStatus], list[UpdatePackage]]:
         """All-in-one function for running the model for use in multiprocessing."""
         self.build_model(common_config, model_config, **kwargs)

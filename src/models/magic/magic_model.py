@@ -100,13 +100,14 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         """
         raise NotImplementedError()
 
-    def solve_model(self, **kwargs):
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the magic model.
 
         Returns
         -------
-        IterationStatus
-            Always :attr:`IterationStatus.BEST`.
+        tuple[ModelType, IterationStatus]
+            :attr:`ModelType.MAGIC` paired with the solve status, always
+            :attr:`IterationStatus.BEST`.
         """
         status = self.model.solve()
         return ModelType.MAGIC, status

@@ -312,7 +312,7 @@ def run_elec_model(
     if not solve:
         return instance
 
-    status = sequencer.solve_model()
+    _, status = sequencer.solve_model()
     timer.toc('solve model finished')
     logger.info('Solve complete')
 

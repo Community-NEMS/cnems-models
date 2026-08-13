@@ -14,7 +14,6 @@ import logging
 import pandas as pd
 import pytest
 
-from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
 LOGGER_NAME = 'src.models.electricity.param_data'
@@ -23,14 +22,6 @@ LOGGER_NAME = 'src.models.electricity.param_data'
 def make_index(entries: list[tuple], names: tuple[str, ...] = ('region', 'year')) -> pd.MultiIndex:
     """Build a small MultiIndex for the gap-report tests."""
     return pd.MultiIndex.from_tuples(entries, names=names)
-
-
-@pytest.fixture
-def param_data(config_set) -> ParamData:
-    """Build a ParamData instance from the basic test config."""
-    common_config, elec_config = config_set
-    model_sets = ModelSets(common_config, elec_config)
-    return ParamData(common_config, elec_config, model_sets)
 
 
 @pytest.mark.parametrize(

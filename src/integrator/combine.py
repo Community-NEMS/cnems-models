@@ -108,6 +108,7 @@ def _logger_setup(iter_call: IterationCall):
     process_name = iter_call.model_type.value
     logger_name = f'{scenario_name}-{process_name}'
     output_folder = PROJECT_ROOT / 'output' / scenario_name
+    output_folder.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         filename=output_folder / f'{logger_name}.log',
         encoding='utf-8',
@@ -142,8 +143,15 @@ def driver(
     """
     # start the logging for this process
     _logger_setup(iter_call)
+    # IterationCall carries the config as the ModelConfig base, so each arm has to confirm it
+    # got the config its sequencer expects -- this is the TypeError the docstring promises.
     match iter_call.model_type:
         case ModelType.ELECTRICITY:
+            if not isinstance(iter_call.model_config, ElecConfig):
+                raise TypeError(
+                    f'ModelType.ELECTRICITY needs an ElecConfig, '
+                    f'got {type(iter_call.model_config).__name__}'
+                )
             sequencer = ElectricitySequencer()
             status, updates = sequencer.full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
@@ -151,6 +159,11 @@ def driver(
             obj_value = value(sequencer.model.total_cost)
             status = (*status, obj_value)
         case ModelType.MAGIC:
+            if not isinstance(iter_call.model_config, MagicConfig):
+                raise TypeError(
+                    f'ModelType.MAGIC needs a MagicConfig, '
+                    f'got {type(iter_call.model_config).__name__}'
+                )
             status, updates = MagicSequencer().full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
             )

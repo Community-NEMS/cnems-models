@@ -26,9 +26,9 @@ pixi run test # coupling tests
 Or call the module directly inside the environment:
 
 ```bash
-pixi run python -m src.models.naturalgas.ng_model --years 2025 2030
+pixi run python -m src.models.natural_gas.ng_model --years 2025 2030
 
-pixi run python -m src.models.naturalgas.ng_model \
+pixi run python -m src.models.natural_gas.ng_model \
     --years 2025 2030 \
     --regions west_south_central east_south_central south_atlantic
 ```
@@ -302,7 +302,7 @@ exactly when an arc is unconstrained, which is the standard test that the networ
 
 # Data files
 
-All inputs are UTF-8 CSV in `input/naturalgas/`, with `#` comment lines carrying provenance. The
+All inputs are UTF-8 CSV in `../../../input/natural_gas/`, with `#` comment lines carrying provenance. The
 loader (`data.py`) is deliberately forgiving. A missing file logs a warning and falls back to a
 built-in constant rather than failing, so an incomplete input set degrades visibly instead of
 silently.

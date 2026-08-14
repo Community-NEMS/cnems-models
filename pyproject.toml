@@ -27,16 +27,16 @@ line-length = 100
 # old_docs: the pre-commit ruff hook passes paths explicitly, which bypasses
 # gitignore-based filtering, and only honors this because its entry uses --force-exclude.
 # Also excluded: vendored C-NGMM sources, landed unchanged from their source distribution (see
-# src/models/naturalgas/README.md).  They were authored against a laxer ruff config and
+# src/models/natural_gas/README.md).  They were authored against a laxer ruff config and
 # report 47 findings here, mostly E501.  Excluded so the import is verifiably byte-identical
 # to its origin; revisit once the model is no longer tracking an upstream.
 extend-exclude = [
   "old_docs",
   "config_setup.py",
-  "src/models/naturalgas/ng_model.py",
-  "src/models/naturalgas/data.py",
+  "src/models/natural_gas/ng_model.py",
+  "src/models/natural_gas/data.py",
   "src/integrator/ng_coupling.py",
-  "tests/naturalgas/test_ng_coupling.py",
+  "tests/natural_gas/test_ng_coupling.py",
 ]
 
 [tool.ruff.format]

@@ -66,7 +66,7 @@ _ROLE_SET_NAMES: dict[str, tuple[str, ...]] = {
     'hour':   ('hour', 'hours', 'hr'),
 }
 
-_DEFAULT_REGION_MAP = Path(__file__).resolve().parents[2] / 'input' / 'naturalgas' / 'elec_to_ng_region_map.csv'
+_DEFAULT_REGION_MAP = Path(__file__).resolve().parents[2] / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +281,7 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict, index_pos: dict[str, int] |
     dict
         {GI(region, year): gas demand in Bcf/yr}
     """
-    from src.models.naturalgas.ng_model import GI
+    from src.models.natural_gas.ng_model import GI
 
     pos = index_pos or resolve_generation_index(elec_model)
     i_r, i_t, i_y, i_h = pos['region'], pos['tech'], pos['year'], pos['hour']
@@ -346,7 +346,7 @@ def update_ng_fuel_adj(elec_model, ng_prices: dict, elec_to_ng: dict,
     int
         Number of parameter entries updated.
     """
-    from src.models.naturalgas.ng_model import GI
+    from src.models.natural_gas.ng_model import GI
 
     pos = _resolve_fuel_adj_index(elec_model)
     i_r, i_t = pos['region'], pos['tech']

@@ -41,9 +41,9 @@ After solving, shadow prices on the regional demand-balance constraints
 extracts them via poll_gas_price().
 
 Usage (standalone):
-    python -m src.models.naturalgas.ng_model
-    python -m src.models.naturalgas.ng_model --solver gurobi
-    python -m src.models.naturalgas.ng_model --years 2025 2030 2035 2040 2045 2050
+    python -m src.models.natural_gas.ng_model
+    python -m src.models.natural_gas.ng_model --solver gurobi
+    python -m src.models.natural_gas.ng_model --years 2025 2030 2035 2040 2045 2050
 
 References:
     EIA Natural Gas Market Module of NEMS: Model Documentation 2025
@@ -95,7 +95,7 @@ GI = namedtuple('GI', ['region', 'year'])
 # Load numerical parameters from CSV files
 # via the data.py loader instead of hardcoded module-level dicts.
 # Fallback constants are preserved inside data.py for offline / test use.
-from src.models.naturalgas.data import load_all as _load_ng_data
+from src.models.natural_gas.data import load_all as _load_ng_data
 _NG_DATA = _load_ng_data()
 
 ###############################################################################
@@ -141,7 +141,7 @@ REGION_LABELS = {
 }
 
 # ── Supply Curves ────────────────────────────────────────────────────────────
-# Loaded from input/naturalgas/ng_supply_cost_tiers.csv
+# Loaded from input/natural_gas/ng_supply_cost_tiers.csv
 # via data.py.  Hardcoded values are preserved as fallbacks inside data.py.
 # Hardcoded dict:
 # SUPPLY_COST_TIERS = {
@@ -164,7 +164,7 @@ SUPPLY_ANCHORS = _NG_DATA.get('supply_anchors', {})
 COST_TIER_LABELS = ['low_cost', 'medium_cost', 'high_cost']
 
 # LNG import availability (coastal regions only), high-cost backstop supply
-# Loaded from input/naturalgas/ng_lng_import.csv
+# Loaded from input/natural_gas/ng_lng_import.csv
 # Hardcoded dict:
 # LNG_IMPORT = {
 #     'new_england':     (350, 8.00),
@@ -187,7 +187,7 @@ LNG_IMPORT = _NG_DATA['lng_import']
 #                       assumed to partially materialise after 2030.
 #
 # Units: BCF/yr.  Linearly interpolated for years between listed values.
-# Loaded from input/naturalgas/ng_lng_export.csv
+# Loaded from input/natural_gas/ng_lng_export.csv
 # Hardcoded dict:
 # LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = {
 #     'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},
@@ -223,7 +223,7 @@ def _interp_lng_export(region: str, year: int) -> float:
 #
 # Sources: EIA NEMS NGMM documentation; EIA Short-Term Energy Outlook
 #          econometric estimates; literature review (Brown & Yucel 2008).
-# Loaded from input/naturalgas/ng_demand_elasticity.csv
+# Loaded from input/natural_gas/ng_demand_elasticity.csv
 # Hardcoded dict:
 # DEMAND_PRICE_ELASTICITY: dict[str, float] = {
 #     'electric_power':  -0.15,
@@ -243,7 +243,7 @@ DEMAND_PRICE_ELASTICITY: dict[str, float] = _NG_DATA['demand_elasticity']
 #
 DEMAND_SECTORS = ['electric_power', 'industrial', 'residential', 'commercial', 'transportation']
 
-# Loaded from input/naturalgas/ng_base_demand.csv
+# Loaded from input/natural_gas/ng_base_demand.csv
 # Hardcoded dict (45 region-sector pairs):
 # BASE_DEMAND_2025: dict[str, dict[str, float]] = {
 #     'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},
@@ -258,7 +258,7 @@ DEMAND_SECTORS = ['electric_power', 'industrial', 'residential', 'commercial', '
 # }
 BASE_DEMAND_2025: dict[str, dict[str, float]] = _NG_DATA['base_demand']
 
-# Loaded from input/naturalgas/ng_demand_growth.csv
+# Loaded from input/natural_gas/ng_demand_growth.csv
 # Hardcoded dict:
 # DEMAND_GROWTH_RATES: dict[str, float] = {
 #     'electric_power':  0.004,
@@ -278,7 +278,7 @@ DEMAND_GROWTH_RATES: dict[str, float] = _NG_DATA['demand_growth']
 #         FERC Form 2 tariff filings; capacity = aggregate nameplate × 365 d
 #
 # Each tuple: (origin, destination, capacity_bcf, tariff_$/MMBtu)
-# Loaded from input/naturalgas/ng_pipeline_arcs.csv
+# Loaded from input/natural_gas/ng_pipeline_arcs.csv
 # Hardcoded list of 26 directed arcs (see ng_pipeline_arcs.csv for full values):
 # PIPELINE_ARCS_RAW = [
 #     ('new_england', 'middle_atlantic', 1400, 0.55),
@@ -292,7 +292,7 @@ PIPELINE_ARCS_RAW = _NG_DATA['pipeline_arcs']
 # For an annual model the net storage change is constrained to ≈ 0 (cyclical).
 # Model doesn't currently use storage, just a placeholder for future work.
 # Source: EIA Form EIA-191M, aggregate by census division (2022)
-# Loaded from input/naturalgas/ng_storage.csv
+# Loaded from input/natural_gas/ng_storage.csv
 # Hardcoded dict:
 # STORAGE = {
 #     'new_england':        {'working': 180,  'inject':  60,  'withdraw':  90},
@@ -307,7 +307,7 @@ PIPELINE_ARCS_RAW = _NG_DATA['pipeline_arcs']
 # }
 STORAGE = _NG_DATA['storage']
 
-# Loaded from input/naturalgas/ng_scalars.csv
+# Loaded from input/natural_gas/ng_scalars.csv
 # Hardcoded value: STORAGE_OPEX = 0.18
 STORAGE_OPEX = _NG_DATA['storage_opex']
 

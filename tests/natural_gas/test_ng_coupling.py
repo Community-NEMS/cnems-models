@@ -21,7 +21,7 @@ from src.integrator.ng_coupling import (
     resolve_generation_index,
     update_ng_fuel_adj,
 )
-from src.models.naturalgas.ng_model import GI
+from src.models.natural_gas.ng_model import GI
 
 
 def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):

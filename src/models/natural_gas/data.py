@@ -1,6 +1,6 @@
 """CSV-backed parameter loader for the C-NGMM.
 
-Reads all numerical parameters from ``input/naturalgas/`` CSV files.
+Reads all numerical parameters from ``input/natural_gas/`` CSV files.
 If a file is missing or malformed, a warning is logged and the hardcoded
 fallback constants defined here are used transparently.
 
@@ -8,7 +8,7 @@ Extracted from ng_model.py module-level
 constants so that supply curves, demand tables, pipelines, storage, and LNG
 assumptions are traceable to versioned data files rather than embedded code.
 
-CSV files (all in ``input/naturalgas/``):
+CSV files (all in ``input/natural_gas/``):
     ng_supply_cost_tiers.csv → SUPPLY_COST_TIERS
     ng_lng_import.csv        → LNG_IMPORT
     ng_lng_export.csv        → LNG_EXPORT_DEMAND_BCF
@@ -53,14 +53,14 @@ logger = logging.getLogger(__name__)
 # Default data directory
 # ---------------------------------------------------------------------------
 
-# DEPTH-SENSITIVE. This file sits at src/models/naturalgas/data.py, so parents[3] walks up
-# naturalgas -> models -> src -> <repo root>, giving <repo root>/input/naturalgas.
+# DEPTH-SENSITIVE. This file sits at src/models/natural_gas/data.py, so parents[3] walks up
+# natural_gas -> models -> src -> <repo root>, giving <repo root>/input/natural_gas.
 #
 # Move this file to a different directory depth and the path still resolves, to somewhere
 # that does not exist. Every load then falls back, no exception is raised, and the model
 # solves on fallback constants throughout: plausible numbers, silently wrong provenance. If
 # you relocate the module, this line must be updated in the same commit.
-_DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'naturalgas'
+_DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'natural_gas'
 
 # ---------------------------------------------------------------------------
 # Hardcoded fallback constants (original values from ng_model.py)
@@ -734,7 +734,7 @@ def load_all(data_dir: str | Path | None = None) -> dict:
     ----------
     data_dir : str or Path, optional
         Directory containing the NG input CSV files.
-        Defaults to ``input/naturalgas/`` relative to the repository root.
+        Defaults to ``input/natural_gas/`` relative to the repository root.
 
     Returns
     -------

@@ -164,13 +164,9 @@ class NGSequencer(IntegratedModelSequencer):
         # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path;
         # duals requested.
         if chosen == 'appsi_gurobi':
-            # TODO:  Verify .gurobi_options vs. .options
-            # pyrefly: ignore[missing-attribute] - under investigation
-            opt.gurobi_options['Method'] = 2
-            # pyrefly: ignore[missing-attribute] - under investigation
-            opt.gurobi_options['QCPDual'] = 1
-            # pyrefly: ignore[missing-attribute] - under investigation
-            opt.gurobi_options['BarConvTol'] = 1e-6
+            opt.options['Method'] = 2
+            opt.options['QCPDual'] = 1
+            opt.options['BarConvTol'] = 1e-6
         elif chosen in ('gurobi', 'gurobi_direct'):
             opt.options['Method'] = 2  # barrier (default for QP, explicit for safety)
             opt.options['QCPDual'] = 1  # request meaningful duals on the QCP

@@ -315,6 +315,7 @@ def poll_ng_gas_demand(
         # hour belongs to stands for. Omitting this weight understates annual gas burn by
         # roughly two orders of magnitude while leaving the regional shares looking right.
         hr = idx[i_h]
+        # pyrefly: ignore[unsupported-operation]  - pyomo's value() will not be None in solved mdl
         gen_gwh = value(elec_model.generation_total[idx]) * value(
             elec_model.WeightDay[elec_model.MapHourDay[hr]]
         )
@@ -398,6 +399,7 @@ def update_ng_fuel_adj(
         # gas-fired dispatch drive each other hard, so alpha=1.0 tends to oscillate; the loop
         # should damp here as well as on both gas-side demand updates.
         if alpha < 1.0:
+            # pyrefly: ignore[unsupported-operation]  - pyomo's value() will not be None in solved mdl
             adj = alpha * adj_full + (1.0 - alpha) * value(elec_model.NGFuelAdj[key])
         else:
             adj = adj_full

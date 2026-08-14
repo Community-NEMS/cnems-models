@@ -58,6 +58,7 @@ class NGSequencer(IntegratedModelSequencer):
 
     def update_model(self, **kwargs) -> NGModel:
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
+        raise NotImplementedError
 
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the built model, a convex QP, and report how the solve terminated.

@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TypedDict
 
 import pandas as pd
 
@@ -83,7 +84,7 @@ _REGIONS_FALLBACK = [
     'south_atlantic', 'east_south_central', 'west_south_central', 'mountain', 'pacific',
 ]
 
-_SUPPLY_COST_TIERS_FALLBACK = {
+_SUPPLY_COST_TIERS_FALLBACK: dict[str, list[tuple[float, float]]] = {
     'new_england':        [(  60,  3.50), (  30,  5.00), (  10,  7.50)],
     'middle_atlantic':    [(5000,  1.80), (5500,  2.30), (3000,  3.20)],
     'east_north_central': [( 500,  2.40), ( 400,  3.50), ( 150,  5.00)],
@@ -95,7 +96,7 @@ _SUPPLY_COST_TIERS_FALLBACK = {
     'pacific':            [( 600,  2.80), ( 450,  3.80), ( 200,  5.80)],
 }
 
-_LNG_IMPORT_FALLBACK = {
+_LNG_IMPORT_FALLBACK: dict[str, tuple[float, float]] = {
     'new_england':    (350, 8.00),
     'south_atlantic': (300, 7.50),
     'pacific':        (200, 8.50),
@@ -137,7 +138,7 @@ _DEMAND_GROWTH_RATES_FALLBACK = {
     'transportation':  0.025,
 }
 
-_PIPELINE_ARCS_RAW_FALLBACK = [
+_PIPELINE_ARCS_RAW_FALLBACK: list[tuple[str, str, float, float]] = [
     ('new_england',        'middle_atlantic',    1400, 0.55),
     ('middle_atlantic',    'new_england',        1400, 0.55),
     ('middle_atlantic',    'east_north_central', 2200, 0.40),
@@ -166,7 +167,7 @@ _PIPELINE_ARCS_RAW_FALLBACK = [
     ('south_atlantic',     'west_south_central', 1500, 0.40),
 ]
 
-_STORAGE_FALLBACK = {
+_STORAGE_FALLBACK: dict[str, dict[str, float]] = {
     'new_england':        {'working': 180,  'inject':  60,  'withdraw':  90},
     'middle_atlantic':    {'working': 420,  'inject': 140,  'withdraw': 210},
     'east_north_central': {'working': 620,  'inject': 210,  'withdraw': 310},
@@ -197,7 +198,7 @@ _STORAGE_OPEX_FALLBACK: float = 0.18  # $/MMBtu
 #   QBASE_5 = Q0 * (1 + crv_above[1]) * (1 + crv_above[2])
 #   QBASE_6 = Q0 * (1 + crv_above[1]) * (1 + crv_above[2]) * (1 + crv_above[3])
 # PBASE breakpoints use the same products of (1 +/- crv)/elas (NGMM Eq 3, 5).
-_SUPPLY_CURVE_SHAPE_FALLBACK: dict = {
+_SUPPLY_CURVE_SHAPE_FALLBACK: dict[str, list[float]] = {
     'crv_below': [0.30, 0.15, 0.05],   # steps 1, 2, 3 below Q0
     'crv_above': [0.05, 0.15, 0.30],   # steps 4, 5, 6 above Q0
     'elas':      [0.8, 0.7, 0.5, 0.3, 0.2],  # 5 segment elasticities (AEO 2022)
@@ -208,7 +209,7 @@ _SUPPLY_CURVE_SHAPE_FALLBACK: dict = {
 # The tariff rises slowly up to ~80 % utilisation, then sharply approaching 100 %
 # (hurdle-rate behavior), and the >100 % step represents capacity that could be
 # built in a capacity-expansion run.
-_TARIFF_CURVE_SHAPE_FALLBACK: dict = {
+_TARIFF_CURVE_SHAPE_FALLBACK: dict[str, list[float]] = {
     'util_break':     [0.00, 0.20, 0.60, 0.80, 0.95, 1.00, 1.40],  # 7 breakpoints, 6 segments
     'tariff_mult':    [0.40, 0.55, 0.75, 0.95, 1.50, 3.00, 3.50],  # multiplier on base tariff
 }
@@ -216,7 +217,7 @@ _TARIFF_CURVE_SHAPE_FALLBACK: dict = {
 # LNG export demand curve (NGMM Fig 3.6). A linear demand curve in (Q, P) space:
 # at Q=Q_capacity, P = world LNG price; at Q=0, P = lng_max_price_factor × world price.
 # Three steps give a coarse PL approximation of the linear curve.
-_LNG_DEMAND_CURVE_SHAPE_FALLBACK: dict = {
+_LNG_DEMAND_CURVE_SHAPE_FALLBACK: dict[str, list[float] | float] = {
     'q_frac':         [0.00, 0.50, 0.85, 1.00],  # fraction of capacity at each breakpoint
     'p_factor':       [2.00, 1.50, 1.10, 1.00],  # factor on world LNG price
     'world_price':    7.00,                       # $/MMBtu, AEO 2025 reference
@@ -336,14 +337,17 @@ def load_supply_cost_tiers(
     # Fixed order, not the CSV's row order: the anchor is a weighted mean, so ordering does not
     # affect Q0/P0, but a stable order keeps the loaded structure comparable run to run.
     cost_tier_order = ['low_cost', 'medium_cost', 'high_cost']
-    result: dict[str, list] = {}
+    result: dict[str, list[tuple[float, float]]] = {}
     for region, grp in df.groupby('region'):
         grp = grp.set_index('cost_tier')
-        row = []
+        row: list[tuple[float, float]] = []
         for t in cost_tier_order:
             if t in grp.index:
                 # .at, not .loc: both are scalar lookups on a unique index, .at is cheaper.
+                # TODO:  Investigate the source df and determine if/why column is not typed
+                # pyrefly: ignore[bad-argument-type]  - these pulled values will be floats
                 cap = float(grp.at[t, 'capacity_bcf'])  # noqa: PD008
+                # pyrefly: ignore[bad-argument-type]  - these pulled values will be floats
                 cost = float(grp.at[t, 'cost_per_mmbtu'])  # noqa: PD008
                 row.append((cap, cost))
         if row:
@@ -532,7 +536,7 @@ def load_storage_opex(
 
 def load_supply_curve_shape(
     data_dir: Path = _DEFAULT_DATA_DIR,
-) -> dict:
+) -> dict[str, list[float]]:
     """Load NGMM-style supply-curve shape (ELAS per segment, CRV per breakpoint).
 
     CSV format (ng_supply_curve_shape.csv), one row per step:
@@ -542,10 +546,7 @@ def load_supply_curve_shape(
     """
     df = _csv('ng_supply_curve_shape.csv', data_dir)
     if df is None:
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()
-        }
+        return {k: list(v) for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
     try:
         crv_below = sorted(
             [(int(r['step']), float(r['crv'])) for _, r in df.iterrows() if r['side'] == 'below'],
@@ -578,22 +579,16 @@ def load_supply_curve_shape(
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_supply_curve_shape.csv (%s), using fallback', exc)
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()
-        }
+        return {k: list(v) for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
 
 
 def load_tariff_curve_shape(
     data_dir: Path = _DEFAULT_DATA_DIR,
-) -> dict:
+) -> dict[str, list[float]]:
     """Load NGMM pipeline-tariff curve shape (NGMM Fig 3.5)."""
     df = _csv('ng_tariff_curve_shape.csv', data_dir)
     if df is None:
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()
-        }
+        return {k: list(v) for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
     try:
         rows = sorted(
             [(float(r['util_break']), float(r['tariff_mult'])) for _, r in df.iterrows()],
@@ -609,15 +604,12 @@ def load_tariff_curve_shape(
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_tariff_curve_shape.csv (%s), using fallback', exc)
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()
-        }
+        return {k: list(v) for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
 
 
 def load_lng_demand_curve(
     data_dir: Path = _DEFAULT_DATA_DIR,
-) -> dict:
+) -> dict[str, list[float] | float]:
     """Load NGMM LNG export demand curve shape (NGMM Fig 3.6).
 
     CSV format (ng_lng_demand_curve.csv), one breakpoint per row:
@@ -642,9 +634,15 @@ def load_lng_demand_curve(
             key=lambda t: t[0],
         )
         scalars = load_qp_scalars(data_dir)
-        result = {
-            'q_frac': [q for q, _ in rows],
-            'p_factor': [p for _, p in rows],
+        # Bound to locals rather than checked through result[...]: this dict is heterogeneous
+        # (list values and scalar values), so len() on a looked-up value is not well typed.
+        q_frac = [q for q, _ in rows]
+        p_factor = [p for _, p in rows]
+        if len(q_frac) < 2:
+            raise ValueError('need at least 2 breakpoints in LNG demand curve')
+        result: dict[str, list[float] | float] = {
+            'q_frac': q_frac,
+            'p_factor': p_factor,
             'world_price': scalars.get(
                 'lng_world_price_per_mmbtu', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price']
             ),
@@ -652,8 +650,6 @@ def load_lng_demand_curve(
                 'lng_max_price_factor', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor']
             ),
         }
-        if len(result['q_frac']) < 2:
-            raise ValueError('need at least 2 breakpoints in LNG demand curve')
         logger.info('LNG_DEMAND_CURVE_SHAPE loaded from CSV (%d breakpoints)', len(rows))
         return result
     except (KeyError, ValueError) as exc:
@@ -770,7 +766,34 @@ def load_qp_scalars(
 # ---------------------------------------------------------------------------
 
 
-def load_all(data_dir: str | Path | None = None) -> dict:
+class NGData(TypedDict):
+    """Return shape of :func:`load_all`: one key per loader, in the same order.
+
+    A TypedDict rather than ``dict[str, Any]`` so that a consumer indexing
+    ``_NG_DATA['supply_curve_shape']`` gets the loader's own return type instead of ``Any``,
+    and so a typo'd key is a type error rather than a runtime KeyError.
+    """
+
+    supply_cost_tiers: dict[str, list[tuple[float, float]]]
+    supply_anchors: dict[tuple[str, int], tuple[float, float]]
+    lng_import: dict[str, tuple[float, float]]
+    lng_export: dict[str, dict[int, float]]
+    demand_elasticity: dict[str, float]
+    base_demand: dict[str, dict[str, float]]
+    demand_growth: dict[str, float]
+    pipeline_arcs: list[tuple[str, str, float, float]]
+    storage: dict[str, dict[str, float]]
+    storage_opex: float
+    supply_curve_shape: dict[str, list[float]]
+    tariff_curve_shape: dict[str, list[float]]
+    lng_demand_curve: dict[str, list[float] | float]
+    losses: dict[str, dict[str, float]]
+    gathering: dict[str, float]
+    pipe_loss: dict[tuple[str, str], float]
+    qp_scalars: dict[str, float]
+
+
+def load_all(data_dir: str | Path | None = None) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
@@ -781,9 +804,8 @@ def load_all(data_dir: str | Path | None = None) -> dict:
 
     Returns
     -------
-    dict with keys:
-        supply_cost_tiers, lng_import, lng_export, demand_elasticity,
-        base_demand, demand_growth, pipeline_arcs, storage, storage_opex
+    NGData
+        One entry per loader; see the `NGData` field list for keys and value types.
     """
     d = Path(data_dir) if data_dir is not None else _DEFAULT_DATA_DIR
     # fmt: off

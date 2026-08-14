@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
+from src.models.natural_gas.data import REGIONS
 
 logger = getLogger(__name__)
 
@@ -29,6 +30,18 @@ class NGConfig(BaseModel):
         self.input_path = PROJECT_ROOT / self.input_path
         if not self.input_path.is_dir():
             raise ValueError(f'Input path {self.input_path} is not a directory')
+        return self
+
+    @model_validator(mode='after')
+    def check_region_filter(self):
+        if self.region_filter is not None and len(self.region_filter) < len(REGIONS):
+            logger.warning(
+                'REGION SUBSET (%d of %d): results are NOT comparable to a full run, dropped '
+                'regions take their production, demand, and trade with them. For mechanics and '
+                'timing tests only.',
+                len(self.region_filter),
+                len(REGIONS),
+            )
         return self
 
     @classmethod

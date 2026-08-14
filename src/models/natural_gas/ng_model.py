@@ -79,14 +79,17 @@ from pyomo.environ import (
     Suffix,
     Var,
     check_optimal_termination,
-    maximize,             # Surplus is maximized (NGMM Eq 7)
+    # Surplus is maximized (NGMM Eq 7)
     minimize,
     quicksum,             # Fast linear sums in QP construction
     value,
 )
 
+from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
 from definitions import PROJECT_ROOT
+from src.common.models_modes import RunMode
+from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +99,8 @@ GI = namedtuple('GI', ['region', 'year'])
 # Load numerical parameters from CSV files
 # via the data.py loader instead of hardcoded module-level dicts.
 # Fallback constants are preserved inside data.py for offline / test use.
-from src.models.natural_gas.data import load_all as _load_ng_data
+from src.models.natural_gas.data import load_all as _load_ng_data, REGIONS, REGION_LABELS
+
 _NG_DATA = _load_ng_data()
 
 ###############################################################################
@@ -114,32 +118,6 @@ _NG_DATA = _load_ng_data()
 #   Storage: EIA Underground Natural Gas Storage (Form EIA-191)
 ###############################################################################
 
-# ── Regions ─────────────────────────────────────────────────────────────────
-# 9 EIA Census Divisions used throughout the NGMM
-# Kept as code constants (definitional, not parameterizable)
-REGIONS = [
-    'new_england',        # CT, ME, MA, NH, RI, VT
-    'middle_atlantic',    # NJ, NY, PA
-    'east_north_central', # IL, IN, MI, OH, WI
-    'west_north_central', # IA, KS, MN, MO, NE, ND, SD
-    'south_atlantic',     # DC, DE, FL, GA, MD, NC, SC, VA, WV
-    'east_south_central', # AL, KY, MS, TN
-    'west_south_central', # AR, LA, OK, TX  ← Gulf Coast + Haynesville
-    'mountain',           # AZ, CO, ID, MT, NV, NM, UT, WY ← Rockies + Permian
-    'pacific',            # AK, CA, HI, OR, WA
-]
-
-REGION_LABELS = {
-    'new_england':        'New England',
-    'middle_atlantic':    'Middle Atlantic',
-    'east_north_central': 'East North Central',
-    'west_north_central': 'West North Central',
-    'south_atlantic':     'South Atlantic',
-    'east_south_central': 'East South Central',
-    'west_south_central': 'West South Central (Gulf Coast)',
-    'mountain':           'Mountain (Rockies / Permian)',
-    'pacific':            'Pacific',
-}
 
 # ── Supply Curves ────────────────────────────────────────────────────────────
 # Loaded from input/natural_gas/ng_supply_cost_tiers.csv
@@ -547,33 +525,37 @@ class NGModel(ConcreteModel, IntegratedModel):
     # Added `regions` (default None = all nine, so every
     def __init__(
         self,
-        years: list[int] | None = None,
-        regions: list[str] | None = None,
-        mode: str = 'standard',
+        common_config: CommonConfig,
+        ng_config: NGConfig,
+        # years: list[int] | None = None,
+        # regions: list[str] | None = None,
+        # mode: str = 'standard',
         demand_override: dict | None = None,
         elec_demand_override: dict | None = None,
+        *args,
+            **kwargs,
     ):
         """Full QP rewrite aligned with the
         NGMM AEO 2025 mathematical formulation. See module docstring for the list
         of NGMM features implemented (Tier 1) and the ones intentionally skipped
         (Tier 2/3). Equation numbers below cite NGMM_AEO2025.pdf §3.
         """
-        ConcreteModel().__init__()
+        ConcreteModel.__init__(self, *args, **kwargs)
 
         # Region subsetting. `region_list` is the single
         # source of truth from here down; `is_region_subset` gates the unserved-demand backstop
         # so the full nine-region model is untouched (see the backstop block below).
-        region_list = resolve_regions(regions)
+        region_list = resolve_regions(ng_config.region_filter)
         self.region_list = region_list
         self.is_region_subset = len(region_list) < len(REGIONS)
 
-        if mode not in {'standard', 'integrated'}:
-            raise ValueError("mode must be 'standard' or 'integrated'")
-        self.ng_mode = mode
+        if common_config.mode not in {RunMode.STANDALONE}:
+            raise NotImplementedError("Only standalone mode is implemented.")
 
-        if years is None:
-            years = [2025, 2030, 2035, 2040, 2045, 2050]
-        year_list = sorted(years)
+        # if years is None:
+        #     years = [2025, 2030, 2035, 2040, 2045, 2050]
+        # year_list = sorted(years)
+        year_list = sorted(common_config.summary_years)
 
         # ── build projected demand ────────────────────────────────────────────
         # Project only the active regions.
@@ -607,6 +589,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Region subsetting. Every region-keyed Param below
         # is built from a rule function indexed off this Set, so subsetting here propagates
         # automatically; only arcs, LNG regions, and _base_demand needed explicit filtering.
+        self.S = Set(initialize=[1,2,3])
         self.regions  = Set(initialize=region_list)
         # NGMM vocabulary, used consistently throughout this model:
         # STEP, an elastic piece of the supply curve that carries volume. NGMM's SSTEP
@@ -1473,7 +1456,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 # Solve & Report
 ###############################################################################
 
-def solve(m: NGModel, solver_name: str | None = None) -> None:
+def zz_solve(m: NGModel, solver_name: str | None = None) -> None:
     """Solve the Natural Gas Market Model.
 
     Switched to a Gurobi-first / HiGHS-fallback

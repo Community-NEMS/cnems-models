@@ -35,6 +35,8 @@ extend-exclude = [
   "config_setup.py",
   "src/models/natural_gas/ng_model.py",
   "src/models/natural_gas/data.py",
+  "src/models/natural_gas/sequencer.py",
+  "src/models/natural_gas/ng_config.py",
   "src/integrator/ng_coupling.py",
   "tests/natural_gas/test_ng_coupling.py",
 ]
@@ -98,8 +100,9 @@ project-excludes = [
   # Vendored C-NGMM sources, landed unchanged.  Same pyomo dynamic-attribute problem as
   # electricity_model.py above (78 errors), plus they predate this repo's type-hint
   # conventions.  Revisit when the model stops tracking an upstream.
-  "src/models/naturalgas/ng_model.py",
-  "src/models/naturalgas/data.py",
+  "src/models/natural_gas/ng_model.py",
+  "src/models/natural_gas/data.py",
+  "src/models/natural_gas/sequencer.py",
   "src/integrator/ng_coupling.py",
   "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet

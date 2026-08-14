@@ -36,9 +36,24 @@ class NGSequencer(IntegratedModelSequencer):
         return self._model
 
     def build_model(self, common_config: CommonConfig, model_config: NGConfig, **kwargs) -> NGModel:
+        """Build the Natural Gas Market Model.
+
+        Parameters
+        ----------
+        common_config : CommonConfig
+            The ``[common]`` settings.  Only ``mode`` and ``summary_years`` are read.
+        model_config : NGConfig
+            The ``[natural_gas]`` settings.
+
+        Returns
+        -------
+        NGModel
+            The built (unsolved) model, also retained on the sequencer.
+        """
         self._common_config = common_config
-        self._model_config = model_config
+        self._ng_config = model_config
         self._model = NGModel(common_config, model_config)
+        return self._model
 
     def update_model(self, **kwargs) -> NGModel:
         pass

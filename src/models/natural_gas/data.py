@@ -764,3 +764,32 @@ def load_all(data_dir: str | Path | None = None) -> dict:
         'pipe_loss':          load_pipe_loss(d),
         'qp_scalars':         load_qp_scalars(d),
     }
+
+# ── Regions ─────────────────────────────────────────────────────────────────
+# 9 EIA Census Divisions used throughout the NGMM
+# Kept as code constants (definitional, not parameterizable)
+# TODO:  Needed to move here temporarily to prevent circular import issue with config/model
+#        Future home.....TBD!
+
+REGIONS = [
+    'new_england',        # CT, ME, MA, NH, RI, VT
+    'middle_atlantic',    # NJ, NY, PA
+    'east_north_central', # IL, IN, MI, OH, WI
+    'west_north_central', # IA, KS, MN, MO, NE, ND, SD
+    'south_atlantic',     # DC, DE, FL, GA, MD, NC, SC, VA, WV
+    'east_south_central', # AL, KY, MS, TN
+    'west_south_central', # AR, LA, OK, TX  ← Gulf Coast + Haynesville
+    'mountain',           # AZ, CO, ID, MT, NV, NM, UT, WY ← Rockies + Permian
+    'pacific',            # AK, CA, HI, OR, WA
+]
+REGION_LABELS = {
+    'new_england':        'New England',
+    'middle_atlantic':    'Middle Atlantic',
+    'east_north_central': 'East North Central',
+    'west_north_central': 'West North Central',
+    'south_atlantic':     'South Atlantic',
+    'east_south_central': 'East South Central',
+    'west_south_central': 'West South Central (Gulf Coast)',
+    'mountain':           'Mountain (Rockies / Permian)',
+    'pacific':            'Pacific',
+}

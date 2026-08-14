@@ -1456,105 +1456,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 # Solve & Report
 ###############################################################################
 
-def zz_solve(m: NGModel, solver_name: str | None = None) -> None:
-    """Solve the Natural Gas Market Model.
-
-    Switched to a Gurobi-first / HiGHS-fallback
-    policy because the NGMM-aligned QP rewrite needs a convex-QP-capable solver,
-    and Gurobi is already the standalone-via-meta default (see select_solver()
-    in src/integrator/utilities.py).  HiGHS 1.5+ also handles convex QPs.
-
-    Parameters
-    ----------
-    m : NGModel
-        The instantiated (not yet solved) model.
-    solver_name : str | None
-        If supplied, force this specific Pyomo SolverFactory name.  If None
-        (the default), tries 'appsi_gurobi' first and falls back to
-        'appsi_highs' if Gurobi is unavailable.
-    """
-    if solver_name is None:
-        # Note ordering:
-        #   1. appsi_gurobi: Pyomo's APPSI interface to Gurobi (used by unified.py
-        #      already; supports QP and warm starts).
-        #   2. gurobi_direct: direct Pyomo→Gurobi interface, fall-through if
-        #      APPSI is unavailable.
-        # 3. highs: the standalone HiGHS interface, supports convex QP since
-        #      HiGHS 1.5.  We use this NOT appsi_highs because Pyomo's APPSI
-        #      HiGHS wrapper rejects degree-2 expressions (Pyomo bug, fix not
-        #      backported as of v6.10).
-        # The original list is all-unavailable
-        # in the current `bsky` env (appsi_gurobi/gurobi_direct bindings absent; the ASL
-        # 'highs' executable is not installed). Added the classic 'gurobi' interface first
-        # (QP-capable and the only working Gurobi binding here) and 'appsi_highs' as a
-        # Gurobipy 12.0.1 now installed; prefer in-memory
-        # appsi_gurobi for the QP (no LP-file I/O, fast). Old gurobi-first order preserved:
-        # candidates = ['gurobi', 'appsi_gurobi', 'gurobi_direct', 'highs', 'appsi_highs']
-        # ORDERING MATTERS, do not reorder. The two Gurobi entries lead purely for
-        # speed. The critical pair is the last two: 'highs' MUST precede 'appsi_highs'.
-#
-        # 'appsi_highs' calls generate_standard_repn(quadratic=False) internally, so it raises
-        # DegreeError on any quadratic objective, still true in pyomo 6.10.1. 'highs' is the
-        # new-generation interface (pyomo >= 6.10) that builds a Hessian and handles a convex
-        # QP properly. With this ordering a Gurobi-free environment lands on the interface
-        # that works rather than the one that raises, which is why 'appsi_highs' is kept at
-        # the end as a last resort rather than removed outright.
-#
-        # Confirm which was chosen from the log line below, or from HiGHS's own output under
-        # tee, which reports "1476 Hessian nonzeros" for the full model.
-        candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs', 'appsi_highs']
-    else:
-        candidates = [solver_name]
-
-    opt = None
-    chosen = None
-    for cand in candidates:
-        try:
-            trial = SolverFactory(cand)
-            if trial.available(exception_flag=False):
-                opt = trial
-                chosen = cand
-                break
-        except Exception as exc:
-            logger.debug('C-NGMM: solver %s unavailable (%s)', cand, exc)
-
-    if opt is None:
-        raise RuntimeError(
-            f'C-NGMM: none of the candidate solvers are available: {candidates}'
-        )
-
-    # Tighten solver options for the convex QP rewrite, Gurobi's barrier method
-    # is the standard QP path; HiGHS auto-detects QP and uses an interior-point.
-    # Apply the Gurobi QP options for the classic
-    # 'gurobi' interface too (the available one here), not just appsi_gurobi.
-    # Set QP options via the interface-appropriate API
-    # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path; duals requested.
-    if chosen == 'appsi_gurobi':
-        opt.gurobi_options['Method'] = 2
-        opt.gurobi_options['QCPDual'] = 1
-        opt.gurobi_options['BarConvTol'] = 1e-6
-    elif chosen in ('gurobi', 'gurobi_direct'):
-        opt.options['Method'] = 2          # barrier (default for QP, explicit for safety)
-        opt.options['QCPDual'] = 1          # request meaningful duals on the QCP
-        opt.options['BarConvTol'] = 1e-6
-
-    logger.info('C-NGMM: solving with %s (QP) …', chosen)
-    # No tee= here, so the solver's own output is not shown, and `results` is used for the
-    # termination check below and then discarded rather than returned.
-    results = opt.solve(m)
-
-    if not check_optimal_termination(results):
-        logger.error('C-NGMM: non-optimal solve! Results:\n%s', results)
-        raise RuntimeError('NGModel solve did not reach an optimal solution.')
-
-    logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
-
-    # ── attach result tables to the model for reporting ──────────────────────
-    m.results_production = _extract_production(m)
-    m.results_flows      = _extract_flows(m)
-    m.results_prices     = _extract_prices(m)
-    m.results_storage    = _extract_storage(m)
-    m.results_balance    = _extract_balance(m)
+# dev note:  solve procedure is now resident in the NGSequencer
 
 
 def _extract_production(m: NGModel) -> pd.DataFrame:
@@ -1829,80 +1731,80 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> None:
-    """Run the standalone natural gas model.
-
-    Parameters
-    ----------
-    argv : Sequence[str] | None
-        Command-line arguments to use instead of ``sys.argv[1:]``.
-    """
-    args = _parse_args(argv)
-
-    output_dir = Path(args.output) if args.output else None
-
-    # With --output, tee the log into ng_model.log beside the CSVs; the console handler stays
-    # so warnings (unserved demand, region subsetting) remain visible during an interactive run.
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    if output_dir is not None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(output_dir / 'ng_model.log', mode='w'))
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format='%(asctime)s %(levelname)-8s %(name)s, %(message)s',
-        datefmt='%H:%M:%S',
-        handlers=handlers,
-    )
-
-    # logger.info('Building Natural Gas Market Model for years: %s', args.years)
-    # m = NGModel(years=args.years, mode='standard')
-    logger.info('Building Natural Gas Market Model for years: %s | regions: %s',
-                args.years, args.regions or 'all 9')
-    m = NGModel(years=args.years, regions=args.regions, mode='standard')
-
-    logger.info('Model constructed, %d regions, %d arcs, %d variables, %d constraints',
-                len(m.regions), len(m.arcs),
-                sum(1 for _ in m.component_data_objects(Var)),
-                sum(1 for _ in m.component_data_objects(Constraint)))
-    if m.is_region_subset:
-        logger.warning(
-            'REGION SUBSET (%d of %d): results are NOT comparable to a full run, dropped '
-            'regions take their production, demand, and trade with them. For mechanics and '
-            'timing tests only.', len(m.regions), len(REGIONS))
-
-    solve(m, solver_name=args.solver)
-
-    # Surface any unserved demand loudly. A subset that
-    # cannot source its own gas still solves (via the backstop), so without this the shortfall
-    # would sit silently inside the objective and quietly distort the reported prices.
-    if m.is_region_subset:
-        tot_uns = sum(value(m.unserved[r, y]) for r in m.regions for y in m.year)
-        if tot_uns > 1e-6:
-            logger.warning('UNSERVED DEMAND: %.1f BCF total, this subset cannot source its own '
-                           'gas; regional prices are set by the backstop penalty, not by the '
-                           'market. Add the supplying region(s) for meaningful prices.', tot_uns)
-            for r in m.regions:
-                for y in m.year:
-                    u = value(m.unserved[r, y])
-                    if u > 1e-6:
-                        logger.warning('    unserved %-20s %d: %10.1f BCF', r, y, u)
-        else:
-            logger.info('Unserved demand: none, this subset is self-sufficient.')
-
-    report(m, output_dir=output_dir)
-
-    # Quick demonstration of integration interface
-    prices = m.poll_gas_price()
-    logger.info(
-        'Sample gas prices (2025): WSC=%.2f, MTN=%.2f, NE=%.2f $/MMBtu',
-        prices.get(GI('west_south_central', 2025), float('nan')),
-        prices.get(GI('mountain', 2025), float('nan')),
-        prices.get(GI('new_england', 2025), float('nan')),
-    )
-
-
-if __name__ == '__main__':
-    # Direct runs write CSVs and the log under <project>/output/ng. Passing an explicit list
-    # here replaces the command line entirely; drop it (call main()) to parse sys.argv instead.
-    main(['--output', str(PROJECT_ROOT / 'output' / 'ng')])
+# def main(argv: Sequence[str] | None = None) -> None:
+#     """Run the standalone natural gas model.
+#
+#     Parameters
+#     ----------
+#     argv : Sequence[str] | None
+#         Command-line arguments to use instead of ``sys.argv[1:]``.
+#     """
+#     args = _parse_args(argv)
+#
+#     output_dir = Path(args.output) if args.output else None
+#
+#     # With --output, tee the log into ng_model.log beside the CSVs; the console handler stays
+#     # so warnings (unserved demand, region subsetting) remain visible during an interactive run.
+#     handlers: list[logging.Handler] = [logging.StreamHandler()]
+#     if output_dir is not None:
+#         output_dir.mkdir(parents=True, exist_ok=True)
+#         handlers.append(logging.FileHandler(output_dir / 'ng_model.log', mode='w'))
+#
+#     logging.basicConfig(
+#         level=logging.DEBUG if args.debug else logging.INFO,
+#         format='%(asctime)s %(levelname)-8s %(name)s, %(message)s',
+#         datefmt='%H:%M:%S',
+#         handlers=handlers,
+#     )
+#
+#     # logger.info('Building Natural Gas Market Model for years: %s', args.years)
+#     # m = NGModel(years=args.years, mode='standard')
+#     logger.info('Building Natural Gas Market Model for years: %s | regions: %s',
+#                 args.years, args.regions or 'all 9')
+#     m = NGModel(years=args.years, regions=args.regions, mode='standard')
+#
+#     logger.info('Model constructed, %d regions, %d arcs, %d variables, %d constraints',
+#                 len(m.regions), len(m.arcs),
+#                 sum(1 for _ in m.component_data_objects(Var)),
+#                 sum(1 for _ in m.component_data_objects(Constraint)))
+#     if m.is_region_subset:
+#         logger.warning(
+#             'REGION SUBSET (%d of %d): results are NOT comparable to a full run, dropped '
+#             'regions take their production, demand, and trade with them. For mechanics and '
+#             'timing tests only.', len(m.regions), len(REGIONS))
+#
+#     solve(m, solver_name=args.solver)
+#
+#     # Surface any unserved demand loudly. A subset that
+#     # cannot source its own gas still solves (via the backstop), so without this the shortfall
+#     # would sit silently inside the objective and quietly distort the reported prices.
+#     if m.is_region_subset:
+#         tot_uns = sum(value(m.unserved[r, y]) for r in m.regions for y in m.year)
+#         if tot_uns > 1e-6:
+#             logger.warning('UNSERVED DEMAND: %.1f BCF total, this subset cannot source its own '
+#                            'gas; regional prices are set by the backstop penalty, not by the '
+#                            'market. Add the supplying region(s) for meaningful prices.', tot_uns)
+#             for r in m.regions:
+#                 for y in m.year:
+#                     u = value(m.unserved[r, y])
+#                     if u > 1e-6:
+#                         logger.warning('    unserved %-20s %d: %10.1f BCF', r, y, u)
+#         else:
+#             logger.info('Unserved demand: none, this subset is self-sufficient.')
+#
+#     report(m, output_dir=output_dir)
+#
+#     # Quick demonstration of integration interface
+#     prices = m.poll_gas_price()
+#     logger.info(
+#         'Sample gas prices (2025): WSC=%.2f, MTN=%.2f, NE=%.2f $/MMBtu',
+#         prices.get(GI('west_south_central', 2025), float('nan')),
+#         prices.get(GI('mountain', 2025), float('nan')),
+#         prices.get(GI('new_england', 2025), float('nan')),
+#     )
+#
+#
+# if __name__ == '__main__':
+#     # Direct runs write CSVs and the log under <project>/output/ng. Passing an explicit list
+#     # here replaces the command line entirely; drop it (call main()) to parse sys.argv instead.
+#     main(['--output', str(PROJECT_ROOT / 'output' / 'ng')])

@@ -59,21 +59,51 @@ class NGSequencer(IntegratedModelSequencer):
         pass
 
     def solve_model(self, **kwargs) -> IterationStatus:
-        """Solve the Natural Gas Market Model.
+        """Solve the built model, a convex QP, and report how the solve terminated.
 
-        Switched to a Gurobi-first / HiGHS-fallback
-        policy because the NGMM-aligned QP rewrite needs a convex-QP-capable solver,
-        and Gurobi is already the standalone-via-meta default (see select_solver()
-        in src/integrator/utilities.py).  HiGHS 1.5+ also handles convex QPs.
+        Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
+        QP rewrite needs a convex-QP-capable solver, which rules out the ``select_solver()`` default
+        in src/integrator/utilities.py that the electricity path uses; this method probes for one
+        instead.
 
         Parameters
         ----------
-        m : NGModel
-            The instantiated (not yet solved) model.
-        solver_name : str | None
-            If supplied, force this specific Pyomo SolverFactory name.  If None
-            (the default), tries 'appsi_gurobi' first and falls back to
-            'appsi_highs' if Gurobi is unavailable.
+        **kwargs
+            ``solver_name`` : str, optional
+                Force this specific Pyomo ``SolverFactory`` name instead of probing.  No fallback
+                is attempted, so an unavailable name raises rather than quietly landing on
+                something else -- which is the point when a run has to be reproducible, or when
+                comparing solvers.  Any other keyword is ignored.
+
+        Returns
+        -------
+        IterationStatus
+            ``USABLE`` if the solver reached optimality, ``ERROR`` otherwise.  A non-optimal
+            solve is reported by return value, not raised, so callers must check: the model is
+            left holding whatever values the failed solve produced.
+
+        Raises
+        ------
+        RuntimeError
+            If no candidate solver is available.
+
+        Notes
+        -----
+        Left to itself, the method takes the first available of, in order::
+
+            appsi_gurobi, gurobi_direct, gurobi, highs, appsi_highs
+
+        The ordering is load-bearing and is explained in full in the comments below.  In short:
+        the three Gurobi entries lead purely for speed (in-memory, no LP-file round trip), while
+        the last two are the correctness-critical pair.  ``appsi_highs`` calls
+        ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on
+        this model's quadratic objective (still true in pyomo 6.10.1); ``highs`` is the
+        newer interface (pyomo >= 6.10) that builds a Hessian and handles a convex QP properly.
+        ``highs`` therefore must precede it, and ``solver_name='appsi_highs'`` will not work.
+
+        Gurobi is additionally pinned to the barrier method with duals requested and
+        ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
+        The solver actually chosen is logged at INFO.
         """
         solver_name = kwargs.pop('solver_name', None)
         if solver_name is None:

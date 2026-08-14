@@ -31,13 +31,13 @@ copy its declaration and change the technology set:
 ```python
 self.NGFuelAdj = pyo.Param(
     self.region_analyze,
-    self.tech,          # or a gas-tech subset, mirroring how H2Price uses tech_h2
+    self.tech,  # or a gas-tech subset, mirroring how H2Price uses tech_h2
     self.step,
     self.year,
     self.season,
-    initialize=0.0, # zero until the first gas solve, see the note below
-    within=pyo.Reals,   # NOT NonNegativeReals: this is a delta and may be negative
-    mutable=True,       # required; it is written between solves
+    initialize=0.0,  # zero until the first gas solve, see the note below
+    within=pyo.Reals,  # NOT NonNegativeReals: this is a delta and may be negative
+    mutable=True,  # required; it is written between solves
 )
 ```
 
@@ -55,7 +55,7 @@ Two details that matter:
 Add it to the dispatch cost alongside the existing fuel cost, mirroring the hydrogen term:
 
 ```python
-+ sum(
++sum(
     self.WeightYear[y]
     * self.NGFuelAdj[r, tech, step, y, season]
     * self.generation_total[r, tech, step, y, hr]
@@ -83,17 +83,19 @@ The gas model is constructed in `integrated` mode so its coupling parameters are
 ```python
 from src.models.naturalgas.ng_model import NGModel, solve as ng_solve
 from src.integrator.ng_coupling import (
-    check_coupling_contract, load_ng_region_map,
-    poll_ng_gas_demand, update_ng_fuel_adj,
+    check_coupling_contract,
+    load_ng_region_map,
+    poll_ng_gas_demand,
+    update_ng_fuel_adj,
 )
 
 # --- setup, once ---
-ng_model   = NGModel(years=settings.years, mode='integrated')
+ng_model = NGModel(years=settings.years, mode='integrated')
 elec_to_ng = load_ng_region_map()
-gen_pos    = check_coupling_contract(elec_model)   # raises early if anything is missing
+gen_pos = check_coupling_contract(elec_model)  # raises early if anything is missing
 
 ng_solve(ng_model)
-base_ng_prices = ng_model.poll_gas_price()          # the reference NGFuelAdj measures against
+base_ng_prices = ng_model.poll_gas_price()  # the reference NGFuelAdj measures against
 ng_model.set_reference_prices(base_ng_prices)
 ```
 

@@ -14,8 +14,9 @@ from pyomo.opt import SolverFactory, check_optimal_termination
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
+from src.common.utilities import setup_logger
 from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import NGModel
+from src.models.natural_gas.ng_model import NGModel, report
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,19 @@ class NGSequencer(IntegratedModelSequencer):
         if self._model is None:
             raise RuntimeError('Model has not been built yet; call build_model() first.')
         return self._model
+
+    @property
+    def common_config(self) -> CommonConfig:
+        """The common config the model was built from.
+
+        Raises
+        ------
+        RuntimeError
+            If accessed before :meth:`build_model`.
+        """
+        if self._common_config is None:
+            raise RuntimeError('Config is not available; call build_model() first.')
+        return self._common_config
 
     def build_model(self, common_config: CommonConfig, model_config: NGConfig, **kwargs) -> NGModel:
         """Build the Natural Gas Market Model.
@@ -108,6 +122,7 @@ class NGSequencer(IntegratedModelSequencer):
         The solver actually chosen is logged at INFO.
         """
         solver_name = kwargs.pop('solver_name', None)
+        logger.debug('Requested solver: %s', solver_name)
         if solver_name is None:
             # Note ordering:
             #   1. appsi_gurobi: Pyomo's APPSI interface to Gurobi (used by unified.py
@@ -149,6 +164,7 @@ class NGSequencer(IntegratedModelSequencer):
                 if trial.available(exception_flag=False):
                     opt = trial
                     chosen = cand
+                    logger.info('Selected %s solver', cand)
                     break
             except Exception as exc:  # noqa: BLE001 - probing, any failure means 'try the next'
                 logger.debug('C-NGMM: solver %s unavailable (%s)', cand, exc)
@@ -163,11 +179,8 @@ class NGSequencer(IntegratedModelSequencer):
         # Set QP options via the interface-appropriate API
         # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path;
         # duals requested.
-        if chosen == 'appsi_gurobi':
-            opt.options['Method'] = 2
-            opt.options['QCPDual'] = 1
-            opt.options['BarConvTol'] = 1e-6
-        elif chosen in ('gurobi', 'gurobi_direct'):
+
+        elif chosen in {'gurobi', 'gurobi_direct', 'appsi_gurobi'}:
             opt.options['Method'] = 2  # barrier (default for QP, explicit for safety)
             opt.options['QCPDual'] = 1  # request meaningful duals on the QCP
             opt.options['BarConvTol'] = 1e-6
@@ -196,6 +209,10 @@ class NGSequencer(IntegratedModelSequencer):
 
     def full_postprocess(self, **kwargs):
         """Not implemented; result extraction is still on hold (see ``solve_model``)."""
+        scenario_dir = (
+            self.common_config.output_path / self.common_config.scenario_name / 'natural_gas'
+        )
+        report(m=self.model, output_dir=scenario_dir)
 
     def iteration_postprocess(self, **kwargs):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
@@ -205,10 +222,12 @@ if __name__ == '__main__':
     logger.info('Trial run from sequencer')
     config_path = PROJECT_ROOT / 'run_configs/basic_ng_config.toml'
     common_config, remainder = parse_config_file(config_path)
+    setup_logger(common_config)
     ng_config = NGConfig(**remainder.pop('natural_gas'))
     sequencer = NGSequencer()
     sequencer.build_model(common_config, ng_config)
     sequencer.solve_model()
     obj_value = value(sequencer.model.total_cost)
     logger.info('Objective value: %0.2f', obj_value)
+    sequencer.full_postprocess()
     print(f'Objective value: {obj_value}')

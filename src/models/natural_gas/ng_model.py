@@ -65,6 +65,7 @@ import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Sequence
 from pathlib import Path
+from warnings import deprecated
 
 import pandas as pd
 from pyomo.environ import (
@@ -1505,6 +1506,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                     result[GI(region=r, year=y)] += value(self.demand[r, s, y])
         return dict(result)
 
+    @deprecated('reporting now does this w/o attaching to model')
     def attach_results(self) -> None:
         """Populate result DataFrames after an iterative solve.
 
@@ -1717,6 +1719,13 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     output_dir : Path | None
         If provided, write CSV files here.
     """
+    # gather results objects
+    results_production = _extract_production(m)
+    results_flows = _extract_flows(m)
+    results_prices = _extract_prices(m)
+    results_storage = _extract_storage(m)
+    results_balance = _extract_balance(m)
+
     sep = '-' * 70
 
     print(f'\n{sep}')
@@ -1724,27 +1733,27 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     print(sep)
 
     # Aggregate production by year
-    prod_yr = m.results_production.groupby('year')['production_bcf'].sum().reset_index()
+    prod_yr = results_production.groupby('year')['production_bcf'].sum().reset_index()
     print('\n  Total US Production + LNG Imports [BCF/year]:')
     for _, row in prod_yr.iterrows():
         print(f'    {int(row["year"])}: {row["production_bcf"]:,.0f} BCF')
 
     # Prices by region and year
     print('\n  Regional Wellhead/Citygate Gas Price [$/MMBtu]:')
-    pivot = m.results_prices.pivot(index='region', columns='year', values='gas_price_per_mmbtu')
+    pivot = results_prices.pivot(index='region', columns='year', values='gas_price_per_mmbtu')
     pivot.index = [REGION_LABELS.get(r, r) for r in pivot.index]
     print(pivot.round(2).to_string())
 
     # LNG export demand by year (new)
-    if 'lng_export_bcf' in m.results_balance.columns:
-        lng_exp_yr = m.results_balance.groupby('year')['lng_export_bcf'].sum()
+    if 'lng_export_bcf' in results_balance.columns:
+        lng_exp_yr = results_balance.groupby('year')['lng_export_bcf'].sum()
         print('\n  US LNG Export Demand [BCF/year]:')
         for yr, bcf in lng_exp_yr.items():
             print(f'    {int(yr)}: {bcf:,.0f} BCF  ({bcf / 365:.1f} BCF/day)')
 
     # Most congested pipelines
-    if not m.results_flows.empty:
-        top_pipes = m.results_flows.sort_values('utilization', ascending=False).head(5)[
+    if not results_flows.empty:
+        top_pipes = results_flows.sort_values('utilization', ascending=False).head(5)[
             ['origin', 'destination', 'year', 'flow_bcf', 'utilization']
         ]
         print('\n  Top-5 Most Congested Pipeline Corridors:')
@@ -1755,11 +1764,11 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     if output_dir is not None:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        m.results_production.to_csv(output_dir / 'ng_production.csv', index=False)
-        m.results_flows.to_csv(output_dir / 'ng_pipeline_flows.csv', index=False)
-        m.results_prices.to_csv(output_dir / 'ng_prices.csv', index=False)
-        m.results_storage.to_csv(output_dir / 'ng_storage.csv', index=False)
-        m.results_balance.to_csv(output_dir / 'ng_regional_balance.csv', index=False)
+        results_production.to_csv(output_dir / 'ng_production.csv', index=False)
+        results_flows.to_csv(output_dir / 'ng_pipeline_flows.csv', index=False)
+        results_prices.to_csv(output_dir / 'ng_prices.csv', index=False)
+        results_storage.to_csv(output_dir / 'ng_storage.csv', index=False)
+        results_balance.to_csv(output_dir / 'ng_regional_balance.csv', index=False)
         print(f'  Output CSVs written to: {output_dir}')
 
 

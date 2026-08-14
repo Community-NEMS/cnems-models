@@ -42,7 +42,6 @@ the QP rewrite of ng_model.py:
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -78,6 +77,7 @@ _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'natural_gas
 # should appear on a healthy run.
 # ---------------------------------------------------------------------------
 
+# fmt: off
 _REGIONS_FALLBACK = [
     'new_england', 'middle_atlantic', 'east_north_central', 'west_north_central',
     'south_atlantic', 'east_south_central', 'west_south_central', 'mountain', 'pacific',
@@ -115,16 +115,18 @@ _DEMAND_PRICE_ELASTICITY_FALLBACK = {
     'transportation': -0.05,
 }
 
+# Rows are noqa'd for E501: the one-row-per-region alignment is what makes a 45-value table
+# readable, and reflowing it under 100 columns would cost that for no gain.
 _BASE_DEMAND_2025_FALLBACK: dict[str, dict[str, float]] = {
-    'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},
-    'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},
-    'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},
-    'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},
-    'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},
-    'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},
-    'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},
-    'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},
-    'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},
+    'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},  # noqa: E501
+    'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},  # noqa: E501
+    'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},  # noqa: E501
+    'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
+    'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},  # noqa: E501
+    'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},  # noqa: E501
+    'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},  # noqa: E501
+    'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
+    'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},  # noqa: E501
 }
 
 _DEMAND_GROWTH_RATES_FALLBACK = {
@@ -271,12 +273,16 @@ _QP_SCALARS_FALLBACK: dict[str, float] = {
     'supply_curve_qmin_fraction': 0.20,   # QMIN = qmin_fraction × Q0 (committed wells)
 }
 
+# fmt: on
+
 # ---------------------------------------------------------------------------
 # Loader functions
 # ---------------------------------------------------------------------------
 
+
 def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
     """Read a CSV from data_dir, skipping comment lines starting with '#'.
+
     Returns None and logs a warning on any failure.
 
     The single I/O primitive every loader below goes through, so the missing-file policy is
@@ -291,7 +297,7 @@ def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
 
     Note the asymmetry that follows from that: this returns None for BOTH "no such file" and
     "file exists but is broken". The log message distinguishes them; the return value does not.
-"""
+    """
     path = data_dir / filename
     try:
         df = pd.read_csv(path, comment='#')
@@ -301,7 +307,7 @@ def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
     except FileNotFoundError:
         logger.warning('NG data file not found: %s, using fallback', path)
         return None
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - broad on purpose, see docstring
         logger.warning('Could not read %s (%s), using fallback', path, exc)
         return None
 
@@ -323,7 +329,7 @@ def load_supply_cost_tiers(
 
     and then builds five NGMM *steps* around that anchor. So ``sstep[r, 'step3', y]`` has no
     relationship to ``high_cost``; the tiers survive only as a way of expressing the anchor.
-"""
+    """
     df = _csv('ng_supply_cost_tiers.csv', data_dir)
     if df is None:
         return dict(_SUPPLY_COST_TIERS_FALLBACK)
@@ -336,7 +342,10 @@ def load_supply_cost_tiers(
         row = []
         for t in cost_tier_order:
             if t in grp.index:
-                row.append((float(grp.at[t, 'capacity_bcf']), float(grp.at[t, 'cost_per_mmbtu'])))
+                # .at, not .loc: both are scalar lookups on a unique index, .at is cheaper.
+                cap = float(grp.at[t, 'capacity_bcf'])  # noqa: PD008
+                cost = float(grp.at[t, 'cost_per_mmbtu'])  # noqa: PD008
+                row.append((cap, cost))
         if row:
             result[str(region)] = row
     if not result:
@@ -349,20 +358,24 @@ def load_supply_cost_tiers(
 def load_supply_anchors(
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[tuple[str, int], tuple[float, float]]:
-    """Optional year-varying supply-curve anchor
-    path from ng_supply_anchors.csv: {(region, year): (q0_mult, p0_mult)}, multipliers on the static
+    """Optional year-varying supply-curve anchor path.
+
+    Read from ng_supply_anchors.csv: {(region, year): (q0_mult, p0_mult)}, multipliers on the static
     cost-tier-derived (Q0, P0) anchors (harness/build_ng_anchor_path.py; AEO Table 59 production +
     regional supply-price paths, normalized to 2025). Missing file or row -> {} / no entry, and the
-    model falls back to multiplier 1.0 = the previous static-curve behaviour."""
+    model falls back to multiplier 1.0 = the previous static-curve behaviour.
+    """
     df = _csv('ng_supply_anchors.csv', data_dir)
     if df is None:
         return {}
     try:
-        out = {(str(r.region), int(r.year)): (float(r.q0_mult), float(r.p0_mult))
-               for r in df.itertuples()}
+        out = {
+            (str(r.region), int(r.year)): (float(r.q0_mult), float(r.p0_mult))
+            for r in df.itertuples()
+        }
         logger.info('SUPPLY_ANCHORS loaded from CSV (%d region-years)', len(out))
         return out
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001 - see docstring
         logger.warning('ng_supply_anchors.csv malformed (%s), ignoring (static anchors)', exc)
         return {}
 
@@ -397,8 +410,10 @@ def load_lng_export(
         result.setdefault(region, {})[int(row['year'])] = float(row['demand_bcf'])
     if not result:
         return {k: dict(v) for k, v in _LNG_EXPORT_DEMAND_BCF_FALLBACK.items()}
-    logger.info('LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
-                sum(len(v) for v in result.values()))
+    logger.info(
+        'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
+        sum(len(v) for v in result.values()),
+    )
     return result
 
 
@@ -429,8 +444,10 @@ def load_base_demand(
         result.setdefault(region, {})[str(row['sector'])] = float(row['demand_bcf_2025'])
     if not result:
         return {k: dict(v) for k, v in _BASE_DEMAND_2025_FALLBACK.items()}
-    logger.info('BASE_DEMAND_2025 loaded from CSV (%d region-sector pairs)',
-                sum(len(v) for v in result.values()))
+    logger.info(
+        'BASE_DEMAND_2025 loaded from CSV (%d region-sector pairs)',
+        sum(len(v) for v in result.values()),
+    )
     return result
 
 
@@ -456,8 +473,12 @@ def load_pipeline_arcs(
     if df is None:
         return list(_PIPELINE_ARCS_RAW_FALLBACK)
     result = [
-        (str(row['origin']), str(row['destination']),
-         float(row['capacity_bcf']), float(row['tariff_per_mmbtu']))
+        (
+            str(row['origin']),
+            str(row['destination']),
+            float(row['capacity_bcf']),
+            float(row['tariff_per_mmbtu']),
+        )
         for _, row in df.iterrows()
     ]
     if not result:
@@ -475,8 +496,8 @@ def load_storage(
         return {k: dict(v) for k, v in _STORAGE_FALLBACK.items()}
     result = {
         str(row['region']): {
-            'working':  float(row['working_cap_bcf']),
-            'inject':   float(row['inject_cap_bcf_yr']),
+            'working': float(row['working_cap_bcf']),
+            'inject': float(row['inject_cap_bcf_yr']),
             'withdraw': float(row['withdraw_cap_bcf_yr']),
         }
         for _, row in df.iterrows()
@@ -496,7 +517,7 @@ def load_storage_opex(
         return _STORAGE_OPEX_FALLBACK
     try:
         df = df.set_index('parameter')
-        val = float(df.at['storage_opex', 'value'])
+        val = float(df.at['storage_opex', 'value'])  # noqa: PD008 - scalar lookup
         logger.info('STORAGE_OPEX loaded from CSV: %.4f', val)
         return val
     except (KeyError, ValueError, TypeError) as exc:
@@ -507,6 +528,7 @@ def load_storage_opex(
 # ---------------------------------------------------------------------------
 # NGMM AEO2025 parameter loaders
 # ---------------------------------------------------------------------------
+
 
 def load_supply_curve_shape(
     data_dir: Path = _DEFAULT_DATA_DIR,
@@ -520,8 +542,10 @@ def load_supply_curve_shape(
     """
     df = _csv('ng_supply_curve_shape.csv', data_dir)
     if df is None:
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()
+        }
     try:
         crv_below = sorted(
             [(int(r['step']), float(r['crv'])) for _, r in df.iterrows() if r['side'] == 'below'],
@@ -532,23 +556,32 @@ def load_supply_curve_shape(
             key=lambda t: t[0],
         )
         elas_rows = sorted(
-            [(int(r['step']), float(r['elas'])) for _, r in df.iterrows()
-             if pd.notna(r.get('elas', None))],
+            [
+                (int(r['step']), float(r['elas']))
+                for _, r in df.iterrows()
+                if pd.notna(r.get('elas', None))
+            ],
             key=lambda t: t[0],
         )
         result = {
             'crv_below': [v for _, v in crv_below[:3]],
             'crv_above': [v for _, v in crv_above[:3]],
-            'elas':      [v for _, v in elas_rows[:5]],
+            'elas': [v for _, v in elas_rows[:5]],
         }
-        if len(result['crv_below']) != 3 or len(result['crv_above']) != 3 or len(result['elas']) != 5:
+        if (
+            len(result['crv_below']) != 3
+            or len(result['crv_above']) != 3
+            or len(result['elas']) != 5
+        ):
             raise ValueError('supply-curve shape CSV did not yield 3/3/5 entries')
         logger.info('SUPPLY_CURVE_SHAPE loaded from CSV')
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_supply_curve_shape.csv (%s), using fallback', exc)
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()
+        }
 
 
 def load_tariff_curve_shape(
@@ -557,15 +590,17 @@ def load_tariff_curve_shape(
     """Load NGMM pipeline-tariff curve shape (NGMM Fig 3.5)."""
     df = _csv('ng_tariff_curve_shape.csv', data_dir)
     if df is None:
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()
+        }
     try:
         rows = sorted(
             [(float(r['util_break']), float(r['tariff_mult'])) for _, r in df.iterrows()],
             key=lambda t: t[0],
         )
         result = {
-            'util_break':  [u for u, _ in rows],
+            'util_break': [u for u, _ in rows],
             'tariff_mult': [m for _, m in rows],
         }
         if len(result['util_break']) < 3:
@@ -574,8 +609,10 @@ def load_tariff_curve_shape(
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_tariff_curve_shape.csv (%s), using fallback', exc)
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()
+        }
 
 
 def load_lng_demand_curve(
@@ -595,8 +632,10 @@ def load_lng_demand_curve(
     if df is None:
         # <-- the early return. Returns before load_qp_scalars() is ever called, so
         # 'world_price' comes from the fallback dict (7.00), not ng_scalars.csv (5.30).
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()
+        }
     try:
         rows = sorted(
             [(float(r['q_frac']), float(r['p_factor'])) for _, r in df.iterrows()],
@@ -604,12 +643,14 @@ def load_lng_demand_curve(
         )
         scalars = load_qp_scalars(data_dir)
         result = {
-            'q_frac':       [q for q, _ in rows],
-            'p_factor':     [p for _, p in rows],
-            'world_price':  scalars.get('lng_world_price_per_mmbtu',
-                                        _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price']),
-            'max_factor':   scalars.get('lng_max_price_factor',
-                                        _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor']),
+            'q_frac': [q for q, _ in rows],
+            'p_factor': [p for _, p in rows],
+            'world_price': scalars.get(
+                'lng_world_price_per_mmbtu', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price']
+            ),
+            'max_factor': scalars.get(
+                'lng_max_price_factor', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor']
+            ),
         }
         if len(result['q_frac']) < 2:
             raise ValueError('need at least 2 breakpoints in LNG demand curve')
@@ -617,8 +658,10 @@ def load_lng_demand_curve(
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_lng_demand_curve.csv (%s), using fallback', exc)
-        return {k: list(v) if isinstance(v, list) else v
-                for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()}
+        return {
+            k: list(v) if isinstance(v, list) else v
+            for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()
+        }
 
 
 def load_losses(
@@ -637,9 +680,9 @@ def load_losses(
         for _, row in df.iterrows():
             result[str(row['region'])] = {
                 'distribution_loss': float(row.get('distribution_loss', 0.008)),
-                'intrastate_loss':   float(row.get('intrastate_loss',   0.003)),
-                'storage_loss':      float(row.get('storage_loss',      0.005)),
-                'plant_fuel_frac':   float(row.get('plant_fuel_frac',   0.030)),
+                'intrastate_loss': float(row.get('intrastate_loss', 0.003)),
+                'storage_loss': float(row.get('storage_loss', 0.005)),
+                'plant_fuel_frac': float(row.get('plant_fuel_frac', 0.030)),
             }
         if not result:
             return {k: dict(v) for k, v in _LOSSES_FALLBACK.items()}
@@ -663,8 +706,7 @@ def load_gathering_charges(
         return dict(_GATHERING_CHARGES_FALLBACK)
     try:
         result = {
-            str(row['region']): float(row['gathering_charge_per_mmbtu'])
-            for _, row in df.iterrows()
+            str(row['region']): float(row['gathering_charge_per_mmbtu']) for _, row in df.iterrows()
         }
         if not result:
             return dict(_GATHERING_CHARGES_FALLBACK)
@@ -716,7 +758,7 @@ def load_qp_scalars(
         df = df.set_index('parameter')
         for key in _QP_SCALARS_FALLBACK:
             if key in df.index:
-                result[key] = float(df.at[key, 'value'])
+                result[key] = float(df.at[key, 'value'])  # noqa: PD008 - scalar lookup
         return result
     except (KeyError, ValueError, TypeError) as exc:
         logger.warning('Could not parse ng_scalars.csv QP keys (%s), using fallbacks', exc)
@@ -726,6 +768,7 @@ def load_qp_scalars(
 # ---------------------------------------------------------------------------
 # Convenience: load everything at once
 # ---------------------------------------------------------------------------
+
 
 def load_all(data_dir: str | Path | None = None) -> dict:
     """Load all NG model parameters from CSV files.
@@ -743,6 +786,7 @@ def load_all(data_dir: str | Path | None = None) -> dict:
         base_demand, demand_growth, pipeline_arcs, storage, storage_opex
     """
     d = Path(data_dir) if data_dir is not None else _DEFAULT_DATA_DIR
+    # fmt: off
     return {
         'supply_cost_tiers': load_supply_cost_tiers(d),
         # Optional year-varying anchor path
@@ -764,6 +808,8 @@ def load_all(data_dir: str | Path | None = None) -> dict:
         'pipe_loss':          load_pipe_loss(d),
         'qp_scalars':         load_qp_scalars(d),
     }
+    # fmt: on
+
 
 # ── Regions ─────────────────────────────────────────────────────────────────
 # 9 EIA Census Divisions used throughout the NGMM
@@ -771,6 +817,7 @@ def load_all(data_dir: str | Path | None = None) -> dict:
 # TODO:  Needed to move here temporarily to prevent circular import issue with config/model
 #        Future home.....TBD!
 
+# fmt: off
 REGIONS = [
     'new_england',        # CT, ME, MA, NH, RI, VT
     'middle_atlantic',    # NJ, NY, PA
@@ -793,3 +840,5 @@ REGION_LABELS = {
     'mountain':           'Mountain (Rockies / Permian)',
     'pacific':            'Pacific',
 }
+
+# fmt: on

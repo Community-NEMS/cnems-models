@@ -1,6 +1,5 @@
-"""
-C-NGMM: natural gas market model for the C-NEMS project
-=======================================================
+"""C-NGMM: natural gas market model for the C-NEMS project.
+
 Natural gas market model aligned with EIA's Natural Gas Market Module (NGMM) for the
 National Energy Modeling System (NEMS), AEO 2025 documentation.
 
@@ -45,7 +44,8 @@ Usage (standalone):
     python -m src.models.natural_gas.ng_model --solver gurobi
     python -m src.models.natural_gas.ng_model --years 2025 2030 2035 2040 2045 2050
 
-References:
+References
+----------
     EIA Natural Gas Market Module of NEMS: Model Documentation 2025
         (NGMM_AEO2025.pdf alongside this file). Equation references in
         the code below cite this document.
@@ -70,25 +70,23 @@ import pandas as pd
 from pyomo.environ import (
     ConcreteModel,
     Constraint,
-    Expression,           # QP uses Expressions for derived production
+    Expression,  # QP uses Expressions for derived production
     NonNegativeReals,
     Objective,
     Param,
     Set,
-    SolverFactory,
     Suffix,
     Var,
-    check_optimal_termination,
-    # Surplus is maximized (NGMM Eq 7)
     minimize,
-    quicksum,             # Fast linear sums in QP construction
+    quicksum,  # Fast linear sums in QP construction
     value,
 )
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
-from definitions import PROJECT_ROOT
 from src.common.models_modes import RunMode
+from src.models.natural_gas.data import REGION_LABELS, REGIONS
+from src.models.natural_gas.data import load_all as _load_ng_data
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
@@ -96,11 +94,8 @@ logger = logging.getLogger(__name__)
 # Named index used when exchanging prices/quantities with other BlueSky models
 GI = namedtuple('GI', ['region', 'year'])
 
-# Load numerical parameters from CSV files
-# via the data.py loader instead of hardcoded module-level dicts.
-# Fallback constants are preserved inside data.py for offline / test use.
-from src.models.natural_gas.data import load_all as _load_ng_data, REGIONS, REGION_LABELS
-
+# Numerical parameters come from CSV files via the data.py loader rather than hardcoded
+# module-level dicts.  Fallback constants are preserved inside data.py for offline / test use.
 _NG_DATA = _load_ng_data()
 
 ###############################################################################
@@ -169,11 +164,12 @@ LNG_IMPORT = _NG_DATA['lng_import']
 # Loaded from input/natural_gas/ng_lng_export.csv
 # Hardcoded dict:
 # LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = {
-#     'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},
-#     'south_atlantic':     {2025:  480, 2030:  560, 2035:  620, 2040:  650, 2045:  700, 2050:  730},
-#     'pacific':            {2025:    0, 2030:   80, 2035:  200, 2040:  350, 2045:  500, 2050:  650},
+#     'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},  # noqa: E501
+#     'south_atlantic':     {2025:  480, 2030:  560, 2035:  620, 2040:  650, 2045:  700, 2050:  730},  # noqa: E501
+#     'pacific':            {2025:    0, 2030:   80, 2035:  200, 2040:  350, 2045:  500, 2050:  650},  # noqa: E501
 # }
 LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = _NG_DATA['lng_export']
+
 
 def _interp_lng_export(region: str, year: int) -> float:
     """Linearly interpolate LNG export demand for any year from table breakpoints."""
@@ -191,6 +187,7 @@ def _interp_lng_export(region: str, year: int) -> float:
             t = (year - y0) / (y1 - y0)
             return table[y0] + t * (table[y1] - table[y0])
     return 0.0
+
 
 # ── Demand Price Elasticities ─────────────────────────────────────────────────
 # Own-price short-run elasticities for each end-use sector.
@@ -225,15 +222,15 @@ DEMAND_SECTORS = ['electric_power', 'industrial', 'residential', 'commercial', '
 # Loaded from input/natural_gas/ng_base_demand.csv
 # Hardcoded dict (45 region-sector pairs):
 # BASE_DEMAND_2025: dict[str, dict[str, float]] = {
-#     'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},
-#     'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},
-#     'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},
-#     'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},
-#     'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},
-#     'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},
-#     'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},
-#     'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},
-#     'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},
+#     'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},  # noqa: E501
+#     'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},  # noqa: E501
+#     'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},  # noqa: E501
+#     'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
+#     'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},  # noqa: E501
+#     'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},  # noqa: E501
+#     'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},  # noqa: E501
+#     'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
+#     'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},  # noqa: E501
 # }
 BASE_DEMAND_2025: dict[str, dict[str, float]] = _NG_DATA['base_demand']
 
@@ -331,7 +328,7 @@ QP_SCALARS = _NG_DATA['qp_scalars']
 UNSERVED_PENALTY = 1000.0
 
 SUPPLY_BREAK_IDS = [1, 2, 3, 4, 5, 6]
-SUPPLY_STEP_IDS = [1, 2, 3, 4, 5] # 5 segments between 6 breakpoints
+SUPPLY_STEP_IDS = [1, 2, 3, 4, 5]  # 5 segments between 6 breakpoints
 
 # Tariff-curve segments (one fewer than the number of breakpoints in TARIFF_CURVE_SHAPE).
 TARIFF_SEGMENTS = list(range(1, len(TARIFF_CURVE_SHAPE['util_break'])))
@@ -342,6 +339,7 @@ LNG_SEGMENTS = list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac'])))
 ###############################################################################
 # Helper: build demand projection
 ###############################################################################
+
 
 # Region subsetting for standalone runs. The model
 # only ever had a `years` knob; regions were the module constant REGIONS, so a "smoke" NG run was
@@ -362,15 +360,14 @@ def resolve_regions(regions: list[str] | None) -> list[str]:
         raise ValueError('regions was empty, pass None for all nine, or at least one name.')
     unknown = [r for r in requested if r not in REGIONS]
     if unknown:
-        raise ValueError(
-            f'unknown NG region(s): {unknown}\nvalid regions are: {list(REGIONS)}'
-        )
+        raise ValueError(f'unknown NG region(s): {unknown}\nvalid regions are: {list(REGIONS)}')
     return [r for r in REGIONS if r in set(requested)]
 
 
 # Added the `regions` argument (default None = all nine, so
-def project_demand(years: list[int],
-                   regions: list[str] | None = None) -> dict[tuple[str, str, int], float]:
+def project_demand(
+    years: list[int], regions: list[str] | None = None
+) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
     Parameters
@@ -403,6 +400,7 @@ def project_demand(years: list[int],
 # elastic piecewise-linear supply curve around an expected (Q0, P0) anchor.
 ###############################################################################
 
+
 def _supply_qbase(q0: float, k: int, crv_below: list, crv_above: list) -> float:
     """Compute QBASE_k for the NGMM supply curve (NGMM Eq 2 and 4).
 
@@ -432,17 +430,16 @@ def _supply_qbase(q0: float, k: int, crv_below: list, crv_above: list) -> float:
     if k <= 3:
         f = 1.0
         for i in range(k - 1, 3):
-            f *= (1.0 - crv_below[i])
+            f *= 1.0 - crv_below[i]
         return q0 * f
     else:
         f = 1.0
-        for i in range(0, k - 3):
-            f *= (1.0 + crv_above[i])
+        for i in range(k - 3):
+            f *= 1.0 + crv_above[i]
         return q0 * f
 
 
-def _supply_pbase(p0: float, k: int, crv_below: list, crv_above: list,
-                  elas: list) -> float:
+def _supply_pbase(p0: float, k: int, crv_below: list, crv_above: list, elas: list) -> float:
     """Compute PBASE_k for the NGMM supply curve.
 
     NGMM AEO2025 Eq 3 and Eq 5, as written
@@ -483,18 +480,19 @@ def _supply_pbase(p0: float, k: int, crv_below: list, crv_above: list,
     if k <= 3:
         f = 1.0
         for i in range(k - 1, 3):
-            f *= (1.0 - crv_below[i] / elas[i])
+            f *= 1.0 - crv_below[i] / elas[i]
         return p0 * f
     else:
         f = 1.0
-        for i in range(0, k - 3):
-            f *= (1.0 + crv_above[i] / elas[2 + i])
+        for i in range(k - 3):
+            f *= 1.0 + crv_above[i] / elas[2 + i]
         return p0 * f
 
 
 ###############################################################################
 # Natural Gas Market Model
 ###############################################################################
+
 
 class NGModel(ConcreteModel, IntegratedModel):
     """Pyomo model for the EIA-style Natural Gas Market Module.
@@ -533,10 +531,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         demand_override: dict | None = None,
         elec_demand_override: dict | None = None,
         *args,
-            **kwargs,
+        **kwargs,
     ):
-        """Full QP rewrite aligned with the
-        NGMM AEO 2025 mathematical formulation. See module docstring for the list
+        """Build the QP, aligned with the NGMM AEO 2025 mathematical formulation.
+
+        See module docstring for the list
         of NGMM features implemented (Tier 1) and the ones intentionally skipped
         (Tier 2/3). Equation numbers below cite NGMM_AEO2025.pdf §3.
         """
@@ -550,7 +549,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.is_region_subset = len(region_list) < len(REGIONS)
 
         if common_config.mode not in {RunMode.STANDALONE}:
-            raise NotImplementedError("Only standalone mode is implemented.")
+            raise NotImplementedError('Only standalone mode is implemented.')
 
         # if years is None:
         #     years = [2025, 2030, 2035, 2040, 2045, 2050]
@@ -573,11 +572,14 @@ class NGModel(ConcreteModel, IntegratedModel):
         # An arc with one endpoint outside the subset has no counterparty balance constraint, so
         # leaving it in would let gas appear from or vanish into a region the model no longer
         _active = set(region_list)
-        _arcs_raw = [(o, d, cap, tar) for o, d, cap, tar in PIPELINE_ARCS_RAW
-                     if o in _active and d in _active]
-        arc_list   = [(o, d) for o, d, _, _ in _arcs_raw]
-        arc_cap    = {(o, d): cap  for o, d, cap, _    in _arcs_raw}
-        arc_tariff = {(o, d): tar  for o, d, _, tar    in _arcs_raw}
+        _arcs_raw = [
+            (o, d, cap, tar)
+            for o, d, cap, tar in PIPELINE_ARCS_RAW
+            if o in _active and d in _active
+        ]
+        arc_list = [(o, d) for o, d, _, _ in _arcs_raw]
+        arc_cap = {(o, d): cap for o, d, cap, _ in _arcs_raw}
+        arc_tariff = {(o, d): tar for o, d, _, tar in _arcs_raw}
 
         # LNG export regions: only those listed in LNG_EXPORT_DEMAND_BCF carry an
         # endogenous LNG demand curve (NGMM Fig 3.6).  All other regions still
@@ -589,30 +591,32 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Region subsetting. Every region-keyed Param below
         # is built from a rule function indexed off this Set, so subsetting here propagates
         # automatically; only arcs, LNG regions, and _base_demand needed explicit filtering.
-        self.S = Set(initialize=[1,2,3])
-        self.regions  = Set(initialize=region_list)
+        self.S = Set(initialize=[1, 2, 3])
+        self.regions = Set(initialize=region_list)
         # NGMM vocabulary, used consistently throughout this model:
         # STEP, an elastic piece of the supply curve that carries volume. NGMM's SSTEP
         # (Eq 7, Eq 8: PROD = sum_step SSTEP + QMIN). There are five.
         # BREAK, an endpoint bounding those steps; the index of NGMM's QBASE/PBASE. Six.
         # Six breaks bound five steps, so every loop over steps reads break k and break k+1.
-#
+        #
         # These are NOT the three low/medium/high cost tiers in the input file. Those have no
         # NGMM counterpart at all (NGMM's supply dimension is (suptype, qps)) and are collapsed
         # into a single (Q0, P0) anchor below. update_supply_capacity() still accepts the legacy
         # three-key form from the HSM integrator and aggregates it into Q0.
-        self.steps = Set(initialize=[f'step{k}' for k in SUPPLY_STEP_IDS]) # 5 NGMM steps
-        self.supply_breaks = Set(initialize=SUPPLY_BREAK_IDS, ordered=True) # 6 breakpoints
-        self.tariff_segs   = Set(initialize=TARIFF_SEGMENTS, ordered=True)
-        self.tariff_breaks = Set(initialize=list(range(1, len(TARIFF_CURVE_SHAPE['util_break']) + 1)),
-                                  ordered=True)
+        self.steps = Set(initialize=[f'step{k}' for k in SUPPLY_STEP_IDS])  # 5 NGMM steps
+        self.supply_breaks = Set(initialize=SUPPLY_BREAK_IDS, ordered=True)  # 6 breakpoints
+        self.tariff_segs = Set(initialize=TARIFF_SEGMENTS, ordered=True)
+        self.tariff_breaks = Set(
+            initialize=list(range(1, len(TARIFF_CURVE_SHAPE['util_break']) + 1)), ordered=True
+        )
         self.lng_regions = Set(initialize=lng_regions_list)
-        self.lng_segs    = Set(initialize=LNG_SEGMENTS, ordered=True)
-        self.lng_breaks  = Set(initialize=list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac']) + 1)),
-                                ordered=True)
-        self.sectors  = Set(initialize=DEMAND_SECTORS)
-        self.arcs     = Set(initialize=arc_list, dimen=2)
-        self.year     = Set(initialize=year_list, ordered=True)
+        self.lng_segs = Set(initialize=LNG_SEGMENTS, ordered=True)
+        self.lng_breaks = Set(
+            initialize=list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac']) + 1)), ordered=True
+        )
+        self.sectors = Set(initialize=DEMAND_SECTORS)
+        self.arcs = Set(initialize=arc_list, dimen=2)
+        self.year = Set(initialize=year_list, ordered=True)
 
         # Suffix for dual (shadow price) extraction
         self.dual = Suffix(direction=Suffix.IMPORT)
@@ -628,13 +632,16 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Initial Q0 from the aggregated input cost tiers (sum of capacities)
         # The (Q0, P0) anchors now follow the
-        # optional YEAR-VARYING path in SUPPLY_ANCHORS (AEO production/supply-price paths, normalized
-        # to 2025). The params were already (region, year)-indexed; only the initialization ignored y,
-        # which froze the curve and made Henry Hub rise monotonically (+20% by 2050 vs AEO's hump
-        # peaking ~2040). Missing entries multiply by 1.0 = the original static behaviour.
+        # optional YEAR-VARYING path in SUPPLY_ANCHORS (AEO production/supply-price paths,
+        # normalized to 2025). The params were already (region, year)-indexed; only the
+        # initialization ignored y, which froze the curve and made Henry Hub rise monotonically
+        # (+20% by 2050 vs AEO's hump peaking ~2040). Missing entries multiply by 1.0 = the
+        # original static behaviour.
         def _q0_init(m, r, y):
-            return (sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
-                    * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[0])
+            return (
+                sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
+                * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[0]
+            )
 
         # Initial P0 from the quantity-weighted average of the input cost-tier costs. This is
         # where the three tiers stop existing: they become one price, and the five NGMM steps
@@ -644,8 +651,11 @@ class NGModel(ConcreteModel, IntegratedModel):
             tot_q = sum(c for c, _ in cost_tiers)
             if tot_q <= 0:
                 return 3.0
-            return (sum(c * p for c, p in cost_tiers) / tot_q
-                    * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[1])
+            return (
+                sum(c * p for c, p in cost_tiers)
+                / tot_q
+                * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[1]
+            )
 
         self.Q0 = Param(self.regions, self.year, initialize=_q0_init, mutable=True)
         self.P0 = Param(self.regions, self.year, initialize=_p0_init, mutable=True)
@@ -655,13 +665,16 @@ class NGModel(ConcreteModel, IntegratedModel):
         # constants here; update_supply_capacity() refreshes them whenever Q0 changes.
         crv_below = SUPPLY_CURVE_SHAPE['crv_below']  # [c1, c2, c3] for steps 1, 2, 3 below
         crv_above = SUPPLY_CURVE_SHAPE['crv_above']  # [c1, c2, c3] for steps 4, 5, 6 above
-        elas      = SUPPLY_CURVE_SHAPE['elas']        # [e1..e5] for segments 1-5
+        elas = SUPPLY_CURVE_SHAPE['elas']  # [e1..e5] for segments 1-5
 
         # Same year-varying anchor multipliers as
-        # _q0_init/_p0_init above (these recompute q0/p0 inline). Originals had no SUPPLY_ANCHORS term.
+        # _q0_init/_p0_init above (these recompute q0/p0 inline). Originals had no
+        # SUPPLY_ANCHORS term.
         def _qbase_init(m, r, k, y):
-            q0 = (sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
-                  * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[0])
+            q0 = (
+                sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
+                * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[0]
+            )
             return _supply_qbase(q0, k, crv_below, crv_above)
 
         def _pbase_init(m, r, k, y):
@@ -671,18 +684,23 @@ class NGModel(ConcreteModel, IntegratedModel):
             p0 *= SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[1]
             return _supply_pbase(p0, k, crv_below, crv_above, elas)
 
-        self.QBASE = Param(self.regions, self.supply_breaks, self.year,
-                           initialize=_qbase_init, mutable=True)
-        self.PBASE = Param(self.regions, self.supply_breaks, self.year,
-                           initialize=_pbase_init, mutable=True)
+        self.QBASE = Param(
+            self.regions, self.supply_breaks, self.year, initialize=_qbase_init, mutable=True
+        )
+        self.PBASE = Param(
+            self.regions, self.supply_breaks, self.year, initialize=_pbase_init, mutable=True
+        )
 
         # QMIN: committed production (NGMM Eq 8): the "wells already drilled"
         # floor.  Treated as a fraction of Q0 (NGMM uses an exogenous PEMEX /
         # historical-floor input; we use qmin_fraction × Q0 as a proxy).
         qmin_frac = QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
-        self.QMIN = Param(self.regions, self.year,
-                          initialize=lambda m, r, y: qmin_frac * value(m.Q0[r, y]),
-                          mutable=True)
+        self.QMIN = Param(
+            self.regions,
+            self.year,
+            initialize=lambda m, r, y: qmin_frac * value(m.Q0[r, y]),
+            mutable=True,
+        )
 
         # Gathering charge (NGMM Eq 7 P^gath term, $/MMBtu)
         self.gathering_charge = Param(
@@ -704,7 +722,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # are 7 breakpoint pairs per directed arc, computed from the base tariff
         # and capacity using TARIFF_CURVE_SHAPE multipliers.  Quadratic on each
         # segment between consecutive breakpoints (NGMM Fig 3.5 hurdle behaviour).
-        util_breaks  = TARIFF_CURVE_SHAPE['util_break']
+        util_breaks = TARIFF_CURVE_SHAPE['util_break']
         tariff_mults = TARIFF_CURVE_SHAPE['tariff_mult']
 
         def _qtar_init(m, o, d, k, y):
@@ -713,10 +731,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         def _ptar_init(m, o, d, k, y):
             return arc_tariff[(o, d)] * tariff_mults[k - 1]
 
-        self.QTAR = Param(self.arcs, self.tariff_breaks, self.year,
-                          initialize=_qtar_init, mutable=False)
-        self.PTAR = Param(self.arcs, self.tariff_breaks, self.year,
-                          initialize=_ptar_init, mutable=False)
+        self.QTAR = Param(
+            self.arcs, self.tariff_breaks, self.year, initialize=_qtar_init, mutable=False
+        )
+        self.PTAR = Param(
+            self.arcs, self.tariff_breaks, self.year, initialize=_ptar_init, mutable=False
+        )
 
         # Pipeline fuel-loss fraction per directed arc (NGMM Eq 11 f^pip)
         pipe_loss_default = QP_SCALARS.get('pipe_fuel_loss_default', 0.005)
@@ -727,15 +747,15 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Pipeline network base info (kept for reporting and capacity bounds)
         self.pipe_capacity = Param(self.arcs, initialize=lambda m, o, d: arc_cap[(o, d)])
-        self.pipe_tariff   = Param(self.arcs, initialize=lambda m, o, d: arc_tariff[(o, d)])
+        self.pipe_tariff = Param(self.arcs, initialize=lambda m, o, d: arc_tariff[(o, d)])
 
         # LNG export demand curve (NGMM Fig 3.6).  Per LNG export region and year,
         # PLNG / QLNG breakpoints span a linear demand curve from world price up
         # to max_factor × world price at zero export volume.  The QLNG anchor is
         # the legacy LNG_EXPORT_DEMAND_BCF capacity for that (region, year).
-        lng_q_frac   = LNG_DEMAND_CURVE_SHAPE['q_frac']
+        lng_q_frac = LNG_DEMAND_CURVE_SHAPE['q_frac']
         lng_p_factor = LNG_DEMAND_CURVE_SHAPE['p_factor']
-        lng_world_p  = LNG_DEMAND_CURVE_SHAPE['world_price']
+        lng_world_p = LNG_DEMAND_CURVE_SHAPE['world_price']
 
         def _qlng_init(m, r, k, y):
             cap = _interp_lng_export(r, y)
@@ -744,10 +764,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         def _plng_init(m, r, k, y):
             return lng_world_p * lng_p_factor[k - 1]
 
-        self.QLNG = Param(self.lng_regions, self.lng_breaks, self.year,
-                          initialize=_qlng_init, mutable=True)
-        self.PLNG = Param(self.lng_regions, self.lng_breaks, self.year,
-                          initialize=_plng_init, mutable=True)
+        self.QLNG = Param(
+            self.lng_regions, self.lng_breaks, self.year, initialize=_qlng_init, mutable=True
+        )
+        self.PLNG = Param(
+            self.lng_regions, self.lng_breaks, self.year, initialize=_plng_init, mutable=True
+        )
 
         # Storage
         def _stor_working(m, r):
@@ -759,36 +781,42 @@ class NGModel(ConcreteModel, IntegratedModel):
         def _stor_withdraw(m, r):
             return STORAGE[r]['withdraw']
 
-        self.storage_working_cap  = Param(self.regions, initialize=_stor_working)
-        self.storage_inject_cap   = Param(self.regions, initialize=_stor_inject)
+        self.storage_working_cap = Param(self.regions, initialize=_stor_working)
+        self.storage_inject_cap = Param(self.regions, initialize=_stor_inject)
         self.storage_withdraw_cap = Param(self.regions, initialize=_stor_withdraw)
-        self.storage_opex         = Param(initialize=STORAGE_OPEX)
+        self.storage_opex = Param(initialize=STORAGE_OPEX)
 
         # NGMM losses (Eq 10, 11): distribution, intrastate, storage, plant fuel
         self.distribution_loss = Param(
             self.regions,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'distribution_loss', QP_SCALARS['distribution_loss_default']),
+                'distribution_loss', QP_SCALARS['distribution_loss_default']
+            ),
         )
         self.intrastate_loss = Param(
             self.regions,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'intrastate_loss', QP_SCALARS['intrastate_loss_default']),
+                'intrastate_loss', QP_SCALARS['intrastate_loss_default']
+            ),
         )
         self.storage_loss = Param(
             self.regions,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'storage_loss', QP_SCALARS['storage_loss_default']),
+                'storage_loss', QP_SCALARS['storage_loss_default']
+            ),
         )
         self.plant_fuel_frac = Param(
             self.regions,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'plant_fuel_frac', QP_SCALARS['plant_fuel_fraction_default']),
+                'plant_fuel_frac', QP_SCALARS['plant_fuel_fraction_default']
+            ),
         )
 
         # Demand, mutable so the integrator can update it each iteration
         self.demand = Param(
-            self.regions, self.sectors, self.year,
+            self.regions,
+            self.sectors,
+            self.year,
             initialize=lambda m, r, s, y: projected.get((r, s, y), 0.0),
             mutable=True,
         )
@@ -800,7 +828,8 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Canadian gas imports, mutable so the HSM integrator can update each iteration
         self.canada_supply = Param(
-            self.regions, self.year,
+            self.regions,
+            self.year,
             initialize=0.0,
             mutable=True,
         )
@@ -812,7 +841,9 @@ class NGModel(ConcreteModel, IntegratedModel):
             (r, s, y): projected.get((r, s, y), 0.0)
             # Active regions only, so the elasticity update
             # cannot reference a region this model does not carry.
-            for r in region_list for s in DEMAND_SECTORS for y in year_list
+            for r in region_list
+            for s in DEMAND_SECTORS
+            for y in year_list
         }
         # Reference gas prices, set after first GS solve via set_reference_prices().
         # Before being set, price-responsive demand has no effect (prices=reference).
@@ -838,12 +869,16 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Equals QMIN (committed floor) + Σ_k sstep[r, k, y]  (NGMM Eq 8).
         def _prod_total_rule(m, r, y):
             return m.QMIN[r, y] + quicksum(m.sstep[r, t, y] for t in m.steps)
+
         self.production_total = Expression(self.regions, self.year, rule=_prod_total_rule)
 
         # LNG export per-step volume (NGMM Eq 14): price-responsive variable on
         # the LNG demand curve.  Indexed by LNG region × segment × year.
         self.lng_export_step = Var(
-            self.lng_regions, self.lng_segs, self.year, within=NonNegativeReals,
+            self.lng_regions,
+            self.lng_segs,
+            self.year,
+            within=NonNegativeReals,
         )
 
         # Total LNG export per (region, year), derived from segments.
@@ -851,6 +886,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             if r in m.lng_regions:
                 return quicksum(m.lng_export_step[r, k, y] for k in m.lng_segs)
             return 0.0
+
         self.lng_export_demand = Expression(self.regions, self.year, rule=_lng_export_total_rule)
 
         # Pipeline tariff-curve per-step volume (NGMM Eq 15)
@@ -860,13 +896,14 @@ class NGModel(ConcreteModel, IntegratedModel):
         # (NGMM Eq 15: FLOWH2H = Σ_step TAR_step).
         def _pipe_flow_rule(m, o, d, y):
             return quicksum(m.tar_step[o, d, k, y] for k in m.tariff_segs)
+
         self.pipe_flow = Expression(self.arcs, self.year, rule=_pipe_flow_rule)
 
         # LNG backstop import (non-negative; zero for landlocked regions via capacity=0)
         self.lng_import = Var(self.regions, self.year, within=NonNegativeReals)
 
         # Storage injection / withdrawal [BCF/yr seasonal cycle]
-        self.stor_inject   = Var(self.regions, self.year, within=NonNegativeReals)
+        self.stor_inject = Var(self.regions, self.year, within=NonNegativeReals)
         self.stor_withdraw = Var(self.regions, self.year, within=NonNegativeReals)
 
         # Slack demand variable (for integration: allows other models to add load)
@@ -892,11 +929,15 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # (NGMM Eq 18) Supply-curve segment range: 0 ≤ SSTEP_k ≤ QBASE_{k+1} − QBASE_k
         def supply_step_cap_rule(m, r, t, y):
-            k = int(t.replace('step', '')) # segment index 1..5
+            k = int(t.replace('step', ''))  # segment index 1..5
             seg_width = m.QBASE[r, k + 1, y] - m.QBASE[r, k, y]
             return m.sstep[r, t, y] <= seg_width
+
         self.supply_step_cap_con = Constraint(
-            self.regions, self.steps, self.year, rule=supply_step_cap_rule,
+            self.regions,
+            self.steps,
+            self.year,
+            rule=supply_step_cap_rule,
         )
 
         # Backward-compat: total production must not exceed Σ_k segment widths
@@ -904,18 +945,25 @@ class NGModel(ConcreteModel, IntegratedModel):
         # for explicit integrator-side capacity reads.  Implemented as a Param
         # rather than a constraint to avoid double-counting.
         self.supply_capacity = Param(
-            self.regions, self.steps, self.year,
-            initialize=lambda m, r, t, y:
-                value(m.QBASE[r, int(t.replace('step', '')) + 1, y]
-                      - m.QBASE[r, int(t.replace('step', '')), y]),
+            self.regions,
+            self.steps,
+            self.year,
+            initialize=lambda m, r, t, y: value(
+                m.QBASE[r, int(t.replace('step', '')) + 1, y]
+                - m.QBASE[r, int(t.replace('step', '')), y]
+            ),
             mutable=True,
         )
 
         # (NGMM Eq 19) Tariff-curve segment range: 0 ≤ TAR_k ≤ QTAR_{k+1} − QTAR_k
         def tariff_step_cap_rule(m, o, d, k, y):
             return m.tar_step[o, d, k, y] <= m.QTAR[o, d, k + 1, y] - m.QTAR[o, d, k, y]
+
         self.tariff_step_cap_con = Constraint(
-            self.arcs, self.tariff_segs, self.year, rule=tariff_step_cap_rule,
+            self.arcs,
+            self.tariff_segs,
+            self.year,
+            rule=tariff_step_cap_rule,
         )
 
         # (NGMM Eq 21) Total pipeline flow ≤ arc capacity.  Implied by tariff
@@ -930,33 +978,41 @@ class NGModel(ConcreteModel, IntegratedModel):
         # (NGMM Eq 20) LNG demand-curve segment range
         def lng_step_cap_rule(m, r, k, y):
             return m.lng_export_step[r, k, y] <= m.QLNG[r, k + 1, y] - m.QLNG[r, k, y]
+
         self.lng_step_cap_con = Constraint(
-            self.lng_regions, self.lng_segs, self.year, rule=lng_step_cap_rule,
+            self.lng_regions,
+            self.lng_segs,
+            self.year,
+            rule=lng_step_cap_rule,
         )
 
         # (legacy) LNG backstop capacity
         def lng_cap_rule(m, region, year):
             return m.lng_import[region, year] <= m.lng_capacity[region]
+
         self.lng_cap_con = Constraint(self.regions, self.year, rule=lng_cap_rule)
 
         # Storage injection / withdrawal capacities
         def inject_cap_rule(m, r, y):
             return m.stor_inject[r, y] <= m.storage_inject_cap[r]
+
         self.inject_cap_con = Constraint(self.regions, self.year, rule=inject_cap_rule)
 
         def withdraw_cap_rule(m, r, y):
             return m.stor_withdraw[r, y] <= m.storage_withdraw_cap[r]
+
         self.withdraw_cap_con = Constraint(self.regions, self.year, rule=withdraw_cap_rule)
 
         # Annual storage balance, net seasonal cycle closes within each year.
         def storage_balance_rule(m, r, y):
             return m.stor_inject[r, y] == m.stor_withdraw[r, y]
+
         self.storage_balance_con = Constraint(self.regions, self.year, rule=storage_balance_rule)
 
         # Precompute arc adjacency for the demand-balance closure (NGMM Eq 10, 11).
         _inc: dict = defaultdict(list)
         _out: dict = defaultdict(list)
-        for (o, d) in arc_list:
+        for o, d in arc_list:
             _inc[d].append((o, d))
             _out[o].append((o, d))
 
@@ -981,7 +1037,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         #   + var_demand                                 ← integration slack (kept)
         # THE PRICE-FORMING CONSTRAINT. Everything else in the model exists to give this one
         # equality something to balance. Three things to hold in mind reading it:
-#
+        #
         # 1. It is an EQUALITY, and its dual is the regional gas price, the marginal cost of
         # one more unit delivered into region r in year y. poll_gas_price() reads exactly
         # these duals, and they are what crosses into the electricity model. Relaxing this
@@ -997,14 +1053,14 @@ class NGModel(ConcreteModel, IntegratedModel):
         # that there is no separate hub price: this dual does the job NGMM's hub-balance
         # dual does for Henry Hub.
         def demand_balance_rule(m, r, y):
-            prod  = m.production_total[r, y]
+            prod = m.production_total[r, y]
             lng_b = m.lng_import[r, y]
             pipe_in_eff = quicksum(
                 m.pipe_flow[o, d, y] * (1.0 - m.pipe_loss[o, d]) for (o, d) in _inc[r]
             )
             pipe_out = quicksum(m.pipe_flow[o, d, y] for (o, d) in _out[r])
             wd_eff = m.stor_withdraw[r, y] * (1.0 - m.storage_loss[r])
-            inj    = m.stor_inject[r, y]
+            inj = m.stor_inject[r, y]
 
             sector_demand = quicksum(m.demand[r, s, y] for s in m.sectors)
             res_comm = m.demand[r, 'residential', y] + m.demand[r, 'commercial', y]
@@ -1023,8 +1079,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 + pipe_in_eff
                 + wd_eff
                 + unserved
-                ==
-                sector_demand
+                == sector_demand
                 + dist_loss_term
                 + plant_fuel
                 + pipe_out
@@ -1032,6 +1087,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 + lng_export
                 + m.var_demand[r, y]
             )
+
         self.demand_balance = Constraint(self.regions, self.year, rule=demand_balance_rule)
 
         # ── OBJECTIVE (NGMM Eq 7) ────────────────────────────────────────────
@@ -1062,15 +1118,15 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Each segment contributes the trapezoid area under the supply curve between
         # (QBASE_k, PBASE_k) and (QBASE_k+1, PBASE_k+1), which integrates to
         # PBASE_k * q + 0.5 * slope * q^2
-        #, linear plus quadratic in the segment volume q. That q^2 is the entire source of
+        # , linear plus quadratic in the segment volume q. That q^2 is the entire source of
         # the model's non-linearity, and it is why appsi_highs cannot carry this model.
-#
+        #
         # Note value() on the breakpoints: the widths and slopes are evaluated NUMERICALLY at
         # construction, so they enter the expression as constants and only q stays symbolic.
         # That keeps the Hessian constant and the problem a genuine convex QP rather than a
         # general nonlinear program. Rewriting these to read the Params symbolically would
         # still "work" but would hand the solver a harder problem.
-#
+        #
         # Note also the k and k+1 reads: SIX breakpoints bound FIVE segments, so every loop
         # here spans a pair. Mixing up breakpoint and segment indexing is the classic
         # off-by-one in this formulation.
@@ -1079,7 +1135,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             for y in self.year:
                 for k_seg in range(1, len(SUPPLY_STEP_IDS) + 1):
                     tname = f'step{k_seg}'
-                    qb_k_v  = value(self.QBASE[r, k_seg,     y])
+                    qb_k_v = value(self.QBASE[r, k_seg, y])
                     qb_k1_v = value(self.QBASE[r, k_seg + 1, y])
                     width_v = qb_k1_v - qb_k_v
                     # Zero-width segments are skipped, not divided by. They arise wherever a
@@ -1087,7 +1143,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                     # the same value), and without this guard the slope below is a 0/0.
                     if width_v <= 1e-9:
                         continue
-                    pb_k_v  = value(self.PBASE[r, k_seg,     y])
+                    pb_k_v = value(self.PBASE[r, k_seg, y])
                     pb_k1_v = value(self.PBASE[r, k_seg + 1, y])
                     slope_v = (pb_k1_v - pb_k_v) / width_v
                     q = self.sstep[r, tname, y]
@@ -1096,26 +1152,26 @@ class NGModel(ConcreteModel, IntegratedModel):
         # 2) Gathering charge (NGMM Eq 7, P^gath term)
         gathering_cost = quicksum(
             self.gathering_charge[r] * self.production_total[r, y] * bcf
-            for r in self.regions for y in self.year
+            for r in self.regions
+            for y in self.year
         )
 
         # 3) LNG backstop import cost (legacy exogenous import term)
         lng_backstop_cost = quicksum(
-            self.lng_import[r, y] * self.lng_cost[r] * bcf
-            for r in self.regions for y in self.year
+            self.lng_import[r, y] * self.lng_cost[r] * bcf for r in self.regions for y in self.year
         )
 
         # 4) Transport cost, area under the pipeline tariff curve (NGMM Eq 7)
         transport_cost = 0
-        for (o, d) in arc_list:
+        for o, d in arc_list:
             for y in self.year:
                 for k_seg in self.tariff_segs:
-                    qt_k_v  = value(self.QTAR[o, d, k_seg,     y])
+                    qt_k_v = value(self.QTAR[o, d, k_seg, y])
                     qt_k1_v = value(self.QTAR[o, d, k_seg + 1, y])
                     width_v = qt_k1_v - qt_k_v
                     if width_v <= 1e-9:
                         continue
-                    pt_k_v  = value(self.PTAR[o, d, k_seg,     y])
+                    pt_k_v = value(self.PTAR[o, d, k_seg, y])
                     pt_k1_v = value(self.PTAR[o, d, k_seg + 1, y])
                     slope_v = (pt_k1_v - pt_k_v) / width_v
                     q = self.tar_step[o, d, k_seg, y]
@@ -1124,7 +1180,8 @@ class NGModel(ConcreteModel, IntegratedModel):
         # 5) Storage opex (linear)
         storage_cost = quicksum(
             self.stor_inject[r, y] * self.storage_opex * bcf
-            for r in self.regions for y in self.year
+            for r in self.regions
+            for y in self.year
         )
 
         # 6) LNG consumer surplus, area under the LNG export demand curve
@@ -1140,16 +1197,18 @@ class NGModel(ConcreteModel, IntegratedModel):
         for r in self.lng_regions:
             for y in self.year:
                 for k_seg in self.lng_segs:
-                    ql_k_v  = value(self.QLNG[r, k_seg,     y])
+                    ql_k_v = value(self.QLNG[r, k_seg, y])
                     ql_k1_v = value(self.QLNG[r, k_seg + 1, y])
                     width_v = ql_k1_v - ql_k_v
                     if width_v <= 1e-9:
                         continue
-                    pl_k_v  = value(self.PLNG[r, k_seg,     y])
+                    pl_k_v = value(self.PLNG[r, k_seg, y])
                     pl_k1_v = value(self.PLNG[r, k_seg + 1, y])
                     slope_v = (pl_k1_v - pl_k_v) / width_v
                     q = self.lng_export_step[r, k_seg, y]
-                    lng_consumer_surplus = lng_consumer_surplus + (pl_k_v * q + 0.5 * slope_v * q * q) * bcf
+                    lng_consumer_surplus = (
+                        lng_consumer_surplus + (pl_k_v * q + 0.5 * slope_v * q * q) * bcf
+                    )
 
         # Price the unserved-demand backstop for subset
         # runs. UNSERVED_PENALTY is ~100x any plausible gas price, so the solver uses it only
@@ -1160,7 +1219,8 @@ class NGModel(ConcreteModel, IntegratedModel):
         if self.is_region_subset:
             unserved_cost = quicksum(
                 self.unserved[r, y] * UNSERVED_PENALTY * bcf
-                for r in self.regions for y in self.year
+                for r in self.regions
+                for y in self.year
             )
 
         # Original objective preserved (unserved_cost is identically 0 for the full model):
@@ -1173,31 +1233,37 @@ class NGModel(ConcreteModel, IntegratedModel):
         # not a sign error: NGMM maximises surplus, and minimising the negative of it is the
         # same optimisation, chosen so an integrator that expects a scalar to minimise, and
         # code that writes `meta.obj = ... + ng_model.total_cost`, both keep working.
-#
+        #
         # Only prod_cost, transport_cost and lng_consumer_surplus carry quadratic terms; the
         # other three blocks are linear.
         self.total_cost = Objective(
-            expr=(prod_cost + gathering_cost + lng_backstop_cost
-                  + transport_cost + storage_cost - lng_consumer_surplus
-                  + unserved_cost),
+            expr=(
+                prod_cost
+                + gathering_cost
+                + lng_backstop_cost
+                + transport_cost
+                + storage_cost
+                - lng_consumer_surplus
+                + unserved_cost
+            ),
             sense=minimize,
         )
 
     # ── Integration interface ─────────────────────────────────────────────────
-#
+    #
     # The eight methods below are the ENTIRE surface a Gauss-Seidel loop drives. They work
     # because a handful of Params were declared mutable=True during construction, Q0, P0,
     # demand, and canada_supply. Everything else is fixed once the model is built.
-#
+    #
     # Inbound: update_demand, update_demand_from_price, update_canada_supply,
     # update_supply_capacity, set_reference_prices
     # Outbound: poll_gas_price (the duals), poll_total_gas_demand
-#
+    #
     # No method here re-solves. The caller owns the loop and decides when to solve, which is
     # what makes the ordering in docs/COUPLING.md the caller's responsibility rather than
     # something enforced here.
 
-    def set_reference_prices(self, prices: 'dict[GI, float]') -> None:
+    def set_reference_prices(self, prices: dict[GI, float]) -> None:
         """Store solved gas prices as the reference baseline for demand elasticities.
 
         Call once after the first Gauss-Seidel solve so that subsequent calls
@@ -1215,7 +1281,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 
     def update_demand_from_price(
         self,
-        solved_prices: 'dict[GI, float]',
+        solved_prices: dict[GI, float],
         alpha: float = 1.0,
     ) -> None:
         """Adjust sector demands using own-price elasticities (NEMS NGMM demand blocks).
@@ -1262,15 +1328,18 @@ class NGModel(ConcreteModel, IntegratedModel):
                     if abs(elas) < 1e-9:
                         continue
                     base_d = self._base_demand.get((r, sector, y), 0.0)
-                    new_d = base_d * (price_ratio ** elas)
+                    new_d = base_d * (price_ratio**elas)
                     if alpha < 1.0:
                         current = value(self.demand[r, sector, y])
                         new_d = alpha * new_d + (1.0 - alpha) * current
                     self.demand[r, sector, y].set_value(max(new_d, 0.0))
                     n_updated += 1
 
-        logger.debug('C-NGMM.update_demand_from_price: updated %d demand entries (alpha=%.2f)',
-                     n_updated, alpha)
+        logger.debug(
+            'C-NGMM.update_demand_from_price: updated %d demand entries (alpha=%.2f)',
+            n_updated,
+            alpha,
+        )
 
     def update_demand(
         self,
@@ -1303,7 +1372,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 qty = alpha * qty + (1.0 - alpha) * current
             self.demand[gi.region, sector, gi.year].set_value(qty)
 
-    def update_canada_supply(self, supply: 'dict[GI, float]') -> None:
+    def update_canada_supply(self, supply: dict[GI, float]) -> None:
         """Update Canadian gas imports by region and year.
 
         Parameters
@@ -1314,15 +1383,13 @@ class NGModel(ConcreteModel, IntegratedModel):
         valid_regions = set(self.regions)
         for gi, qty in supply.items():
             if gi.region not in valid_regions:
-                logger.debug(
-                    'C-NGMM.update_canada_supply: unknown region %s, skipped', gi.region
-                )
+                logger.debug('C-NGMM.update_canada_supply: unknown region %s, skipped', gi.region)
                 continue
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
     def update_supply_capacity(
         self,
-        capacity_updates: dict, # {(region_str, cost_tier_str, year_int): bcf_float}
+        capacity_updates: dict,  # {(region_str, cost_tier_str, year_int): bcf_float}
         alpha: float = 1.0,
     ) -> None:
         """Rebuild the NGMM supply curve from externally supplied capacity.
@@ -1366,7 +1433,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # the breakpoints for that (region, year) pair.
         crv_below = SUPPLY_CURVE_SHAPE['crv_below']
         crv_above = SUPPLY_CURVE_SHAPE['crv_above']
-        elas      = SUPPLY_CURVE_SHAPE['elas']
+        elas = SUPPLY_CURVE_SHAPE['elas']
         qmin_frac = QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
         rebuilt = 0
         for (region, year), new_q0 in agg.items():
@@ -1378,7 +1445,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.QMIN[region, year].set_value(qmin_frac * new_q0)
 
             p0 = value(self.P0[region, year])
-            for k in SUPPLY_BREAK_IDS: # 1..6
+            for k in SUPPLY_BREAK_IDS:  # 1..6
                 self.QBASE[region, k, year].set_value(
                     _supply_qbase(new_q0, k, crv_below, crv_above)
                 )
@@ -1386,16 +1453,16 @@ class NGModel(ConcreteModel, IntegratedModel):
                     _supply_pbase(p0, k, crv_below, crv_above, elas)
                 )
             # Refresh the legacy-shape ``supply_capacity`` Param (segment widths)
-            for k_seg in SUPPLY_STEP_IDS: # 1..5
+            for k_seg in SUPPLY_STEP_IDS:  # 1..5
                 tname = f'step{k_seg}'
-                width = value(self.QBASE[region, k_seg + 1, year]
-                              - self.QBASE[region, k_seg, year])
+                width = value(self.QBASE[region, k_seg + 1, year] - self.QBASE[region, k_seg, year])
                 self.supply_capacity[region, tname, year].set_value(max(width, 0.0))
             rebuilt += 1
 
         logger.debug(
-            'C-NGMM.update_supply_capacity: rebuilt curve for %d (region, year) pairs '
-            '(alpha=%.2f)', rebuilt, alpha,
+            'C-NGMM.update_supply_capacity: rebuilt curve for %d (region, year) pairs (alpha=%.2f)',
+            rebuilt,
+            alpha,
         )
 
     def poll_gas_price(self) -> dict[GI, float]:
@@ -1446,10 +1513,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         table-attachment step inside the standalone ``solve()`` function.
         """
         self.results_production = _extract_production(self)
-        self.results_flows      = _extract_flows(self)
-        self.results_prices     = _extract_prices(self)
-        self.results_storage    = _extract_storage(self)
-        self.results_balance    = _extract_balance(self)
+        self.results_flows = _extract_flows(self)
+        self.results_prices = _extract_prices(self)
+        self.results_storage = _extract_storage(self)
+        self.results_balance = _extract_balance(self)
 
 
 ###############################################################################
@@ -1468,52 +1535,61 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
     The ``supply_source`` column is not purely a step label: alongside ``step1``..``step5``
     it carries ``lng_import`` (backstop imports) and ``qmin_committed`` (the QMIN production
     floor, NGMM Eq 8). Those two are supply reaching the region without coming off an elastic
-    step, which is why the column is named for the source rather than for the step."""
+    step, which is why the column is named for the source rather than for the step.
+    """
     rows = []
     for r in m.regions:
         for t in m.steps:
             k_seg = int(t.replace('step', ''))
             for y in m.year:
-                pb_k  = value(m.PBASE[r, k_seg,     y])
+                pb_k = value(m.PBASE[r, k_seg, y])
                 pb_k1 = value(m.PBASE[r, k_seg + 1, y])
-                rows.append({
-                    'region':  r,
-                    'supply_source':t,
-                    'year':    y,
-                    'production_bcf': value(m.sstep[r, t, y]),
-                    'cost_per_mmbtu': 0.5 * (pb_k + pb_k1),
-                })
+                rows.append(
+                    {
+                        'region': r,
+                        'supply_source': t,
+                        'year': y,
+                        'production_bcf': value(m.sstep[r, t, y]),
+                        'cost_per_mmbtu': 0.5 * (pb_k + pb_k1),
+                    }
+                )
         for y in m.year:
             lng = value(m.lng_import[r, y])
             if lng > 0.01:
-                rows.append({
-                    'region':  r,
-                    'supply_source':'lng_import',
-                    'year':    y,
-                    'production_bcf': lng,
-                    'cost_per_mmbtu': value(m.lng_cost[r]),
-                })
+                rows.append(
+                    {
+                        'region': r,
+                        'supply_source': 'lng_import',
+                        'year': y,
+                        'production_bcf': lng,
+                        'cost_per_mmbtu': value(m.lng_cost[r]),
+                    }
+                )
         # QMIN floor (committed production, NGMM Eq 8)
         for y in m.year:
             qmin = value(m.QMIN[r, y])
             if qmin > 0.01:
-                rows.append({
-                    'region':  r,
-                    'supply_source':'qmin_committed',
-                    'year':    y,
-                    'production_bcf': qmin,
-                    'cost_per_mmbtu': value(m.PBASE[r, 1, y]),
-                })
+                rows.append(
+                    {
+                        'region': r,
+                        'supply_source': 'qmin_committed',
+                        'year': y,
+                        'production_bcf': qmin,
+                        'cost_per_mmbtu': value(m.PBASE[r, 1, y]),
+                    }
+                )
     return pd.DataFrame(rows)
 
 
 def _extract_flows(m: NGModel) -> pd.DataFrame:
-    """Pipe_flow is now an Expression
-    (sum of tariff-curve segments).  We also report the effective average
+    """Extract per-arc pipeline flows and effective tariffs.
+
+    Pipe_flow is an Expression (sum of tariff-curve segments).  We also report the effective average
     tariff = transport cost on this arc / volume, which captures the
-    hurdle-rate behaviour of the QP tariff curve (NGMM Eq 6)."""
+    hurdle-rate behaviour of the QP tariff curve (NGMM Eq 6).
+    """
     rows = []
-    for (o, d) in m.arcs:
+    for o, d in m.arcs:
         for y in m.year:
             flow = value(m.pipe_flow[o, d, y])
             if flow > 0.1:
@@ -1524,9 +1600,9 @@ def _extract_flows(m: NGModel) -> pd.DataFrame:
                     q = value(m.tar_step[o, d, k_seg, y])
                     if q < 1e-9:
                         continue
-                    pt_k  = value(m.PTAR[o, d, k_seg,     y])
+                    pt_k = value(m.PTAR[o, d, k_seg, y])
                     pt_k1 = value(m.PTAR[o, d, k_seg + 1, y])
-                    qt_k  = value(m.QTAR[o, d, k_seg,     y])
+                    qt_k = value(m.QTAR[o, d, k_seg, y])
                     qt_k1 = value(m.QTAR[o, d, k_seg + 1, y])
                     width = qt_k1 - qt_k
                     if width < 1e-9:
@@ -1534,16 +1610,18 @@ def _extract_flows(m: NGModel) -> pd.DataFrame:
                     slope = (pt_k1 - pt_k) / width
                     num += pt_k * q + 0.5 * q * q * slope
                 eff_tariff = num / flow if flow > 1e-6 else value(m.pipe_tariff[o, d])
-                rows.append({
-                    'origin':       o,
-                    'destination':  d,
-                    'year':         y,
-                    'flow_bcf':     flow,
-                    'capacity_bcf': value(m.pipe_capacity[o, d]),
-                    'utilization':  flow / value(m.pipe_capacity[o, d]),
-                    'tariff_per_mmbtu':           value(m.pipe_tariff[o, d]),
-                    'effective_tariff_per_mmbtu': eff_tariff,
-                })
+                rows.append(
+                    {
+                        'origin': o,
+                        'destination': d,
+                        'year': y,
+                        'flow_bcf': flow,
+                        'capacity_bcf': value(m.pipe_capacity[o, d]),
+                        'utilization': flow / value(m.pipe_capacity[o, d]),
+                        'tariff_per_mmbtu': value(m.pipe_tariff[o, d]),
+                        'effective_tariff_per_mmbtu': eff_tariff,
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -1553,7 +1631,7 @@ def _extract_prices(m: NGModel) -> pd.DataFrame:
         for y in m.year:
             try:
                 dual_val = m.dual[m.demand_balance[r, y]]
-                price    = abs(dual_val) / value(m.bcf_to_mmbtu)
+                price = abs(dual_val) / value(m.bcf_to_mmbtu)
             except KeyError:
                 price = float('nan')
             rows.append({'region': r, 'year': y, 'gas_price_per_mmbtu': price})
@@ -1564,13 +1642,15 @@ def _extract_storage(m: NGModel) -> pd.DataFrame:
     rows = []
     for r in m.regions:
         for y in m.year:
-            rows.append({
-                'region':           r,
-                'year':             y,
-                'injection_bcf':    value(m.stor_inject[r, y]),
-                'withdrawal_bcf':   value(m.stor_withdraw[r, y]),
-                'working_cap_bcf':  value(m.storage_working_cap[r]),
-            })
+            rows.append(
+                {
+                    'region': r,
+                    'year': y,
+                    'injection_bcf': value(m.stor_inject[r, y]),
+                    'withdrawal_bcf': value(m.stor_withdraw[r, y]),
+                    'working_cap_bcf': value(m.storage_working_cap[r]),
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -1580,9 +1660,10 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
     # scan inside the inner loop.  Each region scan was iterating all 26 arcs twice.
     # Original in-loop scan kept as comments inside the loop below.
     from collections import defaultdict as _dd
-    _inc: dict = _dd(list)   # region → [(origin, dest), ...]  arcs arriving at region
-    _out: dict = _dd(list)   # region → [(origin, dest), ...]  arcs leaving region
-    for (o, d) in m.arcs:
+
+    _inc: dict = _dd(list)  # region → [(origin, dest), ...]  arcs arriving at region
+    _out: dict = _dd(list)  # region → [(origin, dest), ...]  arcs leaving region
+    for o, d in m.arcs:
         _inc[d].append((o, d))
         _out[o].append((o, d))
 
@@ -1591,31 +1672,38 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
         for y in m.year:
             # Use the production_total Expression (QMIN floor + step sum, NGMM Eq 8) rather
             # than summing the input cost tiers, which are not a model quantity.
-            prod_total  = value(m.production_total[r, y])
-            lng_imp     = value(m.lng_import[r, y])
+            prod_total = value(m.production_total[r, y])
+            lng_imp = value(m.lng_import[r, y])
             # Use precomputed adjacency instead of full arc scan
-            pipe_in     = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _inc[r])
-            pipe_out    = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _out[r])
-            stor_wd     = value(m.stor_withdraw[r, y])
-            stor_inj    = value(m.stor_inject[r, y])
-            total_dem   = sum(value(m.demand[r, s, y]) for s in m.sectors)
-            lng_exp     = value(m.lng_export_demand[r, y])
-            canada_sup  = value(m.canada_supply[r, y])
-            rows.append({
-                'region':             r,
-                'year':               y,
-                'production_bcf':     prod_total,
-                'canada_import_bcf':  canada_sup,
-                'lng_import_bcf':     lng_imp,
-                'pipe_inflow_bcf':    pipe_in,
-                'pipe_outflow_bcf':   pipe_out,
-                'stor_withdrawal':    stor_wd,
-                'stor_injection':     stor_inj,
-                'total_sector_demand_bcf': total_dem,
-                'lng_export_bcf':     lng_exp,
-                'net_supply_bcf':     prod_total + canada_sup + lng_imp + pipe_in
-                                      - pipe_out + stor_wd - stor_inj,
-            })
+            pipe_in = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _inc[r])
+            pipe_out = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _out[r])
+            stor_wd = value(m.stor_withdraw[r, y])
+            stor_inj = value(m.stor_inject[r, y])
+            total_dem = sum(value(m.demand[r, s, y]) for s in m.sectors)
+            lng_exp = value(m.lng_export_demand[r, y])
+            canada_sup = value(m.canada_supply[r, y])
+            rows.append(
+                {
+                    'region': r,
+                    'year': y,
+                    'production_bcf': prod_total,
+                    'canada_import_bcf': canada_sup,
+                    'lng_import_bcf': lng_imp,
+                    'pipe_inflow_bcf': pipe_in,
+                    'pipe_outflow_bcf': pipe_out,
+                    'stor_withdrawal': stor_wd,
+                    'stor_injection': stor_inj,
+                    'total_sector_demand_bcf': total_dem,
+                    'lng_export_bcf': lng_exp,
+                    'net_supply_bcf': prod_total
+                    + canada_sup
+                    + lng_imp
+                    + pipe_in
+                    - pipe_out
+                    + stor_wd
+                    - stor_inj,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -1636,12 +1724,10 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     print(sep)
 
     # Aggregate production by year
-    prod_yr = (
-        m.results_production.groupby('year')['production_bcf'].sum().reset_index()
-    )
+    prod_yr = m.results_production.groupby('year')['production_bcf'].sum().reset_index()
     print('\n  Total US Production + LNG Imports [BCF/year]:')
     for _, row in prod_yr.iterrows():
-        print(f"    {int(row['year'])}: {row['production_bcf']:,.0f} BCF")
+        print(f'    {int(row["year"])}: {row["production_bcf"]:,.0f} BCF')
 
     # Prices by region and year
     print('\n  Regional Wellhead/Citygate Gas Price [$/MMBtu]:')
@@ -1654,14 +1740,13 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
         lng_exp_yr = m.results_balance.groupby('year')['lng_export_bcf'].sum()
         print('\n  US LNG Export Demand [BCF/year]:')
         for yr, bcf in lng_exp_yr.items():
-            print(f'    {int(yr)}: {bcf:,.0f} BCF  ({bcf/365:.1f} BCF/day)')
+            print(f'    {int(yr)}: {bcf:,.0f} BCF  ({bcf / 365:.1f} BCF/day)')
 
     # Most congested pipelines
     if not m.results_flows.empty:
-        top_pipes = (
-            m.results_flows.sort_values('utilization', ascending=False)
-            .head(5)[['origin', 'destination', 'year', 'flow_bcf', 'utilization']]
-        )
+        top_pipes = m.results_flows.sort_values('utilization', ascending=False).head(5)[
+            ['origin', 'destination', 'year', 'flow_bcf', 'utilization']
+        ]
         print('\n  Top-5 Most Congested Pipeline Corridors:')
         print(top_pipes.to_string(index=False))
 
@@ -1682,6 +1767,7 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
 # CLI entry point
 ###############################################################################
 
+
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse standalone-runner arguments.
 
@@ -1695,37 +1781,48 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     argparse.Namespace
         Parsed arguments.
     """
-    p = argparse.ArgumentParser(
-        description='C-NGMM natural gas market model, standalone runner'
-    )
+    p = argparse.ArgumentParser(description='C-NGMM natural gas market model, standalone runner')
     p.add_argument(
-        '--years', nargs='+', type=int,
+        '--years',
+        nargs='+',
+        type=int,
         default=[2025, 2030, 2035, 2040, 2045, 2050],
         help='Planning years to include in the optimisation.',
     )
     # Region subsetting for standalone runs, the
     # regional counterpart to --years. Default None = all nine census divisions (unchanged).
     p.add_argument(
-        '--regions', nargs='+', type=str, default=None,
+        '--regions',
+        nargs='+',
+        type=str,
+        default=None,
         metavar='REGION',
-        help=('Census divisions to include (default: all nine). Valid: '
-              + ', '.join(REGIONS) + '. Subsets keep only arcs internal to the selection and '
-              'enable a penalized unserved-demand backstop, so a net-importing subset stays '
-              'feasible; any unserved volume is reported.'),
+        help=(
+            'Census divisions to include (default: all nine). Valid: '
+            + ', '.join(REGIONS)
+            + '. Subsets keep only arcs internal to the selection and '
+            'enable a penalized unserved-demand backstop, so a net-importing subset stays '
+            'feasible; any unserved volume is reported.'
+        ),
     )
     p.add_argument(
         # None default lets solve() try Gurobi
         # first and fall back to HiGHS for the QP rewrite.
-        '--solver', type=str, default=None,
+        '--solver',
+        type=str,
+        default=None,
         choices=['appsi_highs', 'appsi_gurobi', 'gurobi', 'highs'],
         help='Pyomo solver to use (default: auto, Gurobi first, fall back to HiGHS).',
     )
     p.add_argument(
-        '--output', type=str, default=None,
+        '--output',
+        type=str,
+        default=None,
         help='Directory for CSV output files (default: print only).',
     )
     p.add_argument(
-        '--debug', action='store_true',
+        '--debug',
+        action='store_true',
         help='Enable DEBUG-level logging.',
     )
     return p.parse_args(argv)

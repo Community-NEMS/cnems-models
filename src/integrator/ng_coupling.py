@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # derived from this repo's data. CT is the less efficient of the two, hence the higher figure.
 # They set the scale of everything crossing the boundary, so a run whose polled demand is
 # consistently biased (rather than wrong by orders of magnitude) should suspect these first.
-NG_GAS_TECHS: set[int] = {3, 4}                                  # 3 = gas CT, 4 = gas CC
+NG_GAS_TECHS: set[int] = {3, 4}  # 3 = gas CT, 4 = gas CC
 NG_HEAT_RATE_MMBTUPERMWH: dict[int, float] = {3: 9.51, 4: 7.12}
 
 # Role -> the attribute names an electricity model might use for that set.
@@ -60,18 +60,21 @@ NG_HEAT_RATE_MMBTUPERMWH: dict[int, float] = {3: 9.51, 4: 7.12}
 # touching any of the logic below.
 _ROLE_SET_NAMES: dict[str, tuple[str, ...]] = {
     'region': ('region', 'regions', 'region_analyze', 'r'),
-    'tech':   ('tech', 'techs', 'technology'),
-    'step':   ('step', 'steps'),
-    'year':   ('year', 'years'),
-    'hour':   ('hour', 'hours', 'hr'),
+    'tech': ('tech', 'techs', 'technology'),
+    'step': ('step', 'steps'),
+    'year': ('year', 'years'),
+    'hour': ('hour', 'hours', 'hr'),
 }
 
-_DEFAULT_REGION_MAP = Path(__file__).resolve().parents[2] / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
+_DEFAULT_REGION_MAP = (
+    Path(__file__).resolve().parents[2] / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
+)
 
 
 # ---------------------------------------------------------------------------
 # Region crosswalk
 # ---------------------------------------------------------------------------
+
 
 def load_ng_region_map(path: str | Path | None = None) -> dict:
     """Load the electricity-region -> gas-region crosswalk.
@@ -103,7 +106,7 @@ def load_ng_region_map(path: str | Path | None = None) -> dict:
         out[raw] = ng
         try:
             out[int(float(raw))] = ng
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass
     logger.info('Loaded electricity->gas region map: %d electricity regions', len(df))
     return out
@@ -112,6 +115,7 @@ def load_ng_region_map(path: str | Path | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Index-order discovery
 # ---------------------------------------------------------------------------
+
 
 def _model_role_sets(elec_model) -> dict[str, set]:
     """Collect the electricity model's sets, keyed by the role each plays."""
@@ -167,7 +171,7 @@ def resolve_generation_index(elec_model, sample: int = 400) -> dict[str, int]:
             if set(pos) == set(_ROLE_SET_NAMES):
                 logger.info('generation_total index order from declared sets: %s', pos)
                 return pos
-    except (AttributeError, TypeError):
+    except AttributeError, TypeError:
         pass
 
     # Strategy 2: value membership.
@@ -245,18 +249,24 @@ def check_coupling_contract(elec_model) -> dict[str, int]:
         ('generation_total', 'generation by region/tech/step/year/hour, read to compute gas burn'),
         ('WeightDay', 'representative-day weights, converts hourly generation to annual'),
         ('MapHourDay', 'hour -> representative day'),
-        ('NGFuelAdj', 'mutable gas fuel-cost adjustment, WRITTEN each iteration; see docs/COUPLING.md'),
+        (
+            'NGFuelAdj',
+            'mutable gas fuel-cost adjustment, WRITTEN each iteration; see docs/COUPLING.md',
+        ),
     ):
         if not hasattr(elec_model, attr):
             problems.append(f'  missing {attr}: {why}')
 
     adj = getattr(elec_model, 'NGFuelAdj', None)
     if adj is not None and not adj.mutable:
-        problems.append('  NGFuelAdj exists but is not mutable=True; it cannot be updated between solves')
+        problems.append(
+            '  NGFuelAdj exists but is not mutable=True; it cannot be updated between solves'
+        )
 
     if problems:
-        raise RuntimeError('Electricity model does not satisfy the gas coupling contract:\n'
-                           + '\n'.join(problems))
+        raise RuntimeError(
+            'Electricity model does not satisfy the gas coupling contract:\n' + '\n'.join(problems)
+        )
 
     pos = resolve_generation_index(elec_model)
     logger.info('Coupling contract satisfied.')
@@ -267,7 +277,10 @@ def check_coupling_contract(elec_model) -> dict[str, int]:
 # electricity -> gas
 # ---------------------------------------------------------------------------
 
-def poll_ng_gas_demand(elec_model, elec_to_ng: dict, index_pos: dict[str, int] | None = None) -> dict:
+
+def poll_ng_gas_demand(
+    elec_model, elec_to_ng: dict, index_pos: dict[str, int] | None = None
+) -> dict:
     """Compute annual gas demand [Bcf] by gas region from an electricity solution.
 
     Sums day-weighted generation for gas technologies, converts to Bcf with representative heat
@@ -313,8 +326,11 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict, index_pos: dict[str, int] |
         )
 
     if skipped_regions:
-        logger.warning('No gas region mapped for electricity regions %s, their gas burn is '
-                       'excluded from gas demand.', sorted(map(str, skipped_regions)))
+        logger.warning(
+            'No gas region mapped for electricity regions %s, their gas burn is '
+            'excluded from gas demand.',
+            sorted(map(str, skipped_regions)),
+        )
     logger.debug('Polled gas demand for %d region-years', len(res))
     return dict(res)
 
@@ -323,8 +339,10 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict, index_pos: dict[str, int] |
 # gas -> electricity
 # ---------------------------------------------------------------------------
 
-def update_ng_fuel_adj(elec_model, ng_prices: dict, elec_to_ng: dict,
-                       base_ng_prices: dict, alpha: float = 1.0) -> int:
+
+def update_ng_fuel_adj(
+    elec_model, ng_prices: dict, elec_to_ng: dict, base_ng_prices: dict, alpha: float = 1.0
+) -> int:
     """Write the gas-price signal into the electricity model's NGFuelAdj parameter.
 
     The value written is a DELTA against a reference price captured at the first gas solve, not
@@ -373,7 +391,9 @@ def update_ng_fuel_adj(elec_model, ng_prices: dict, elec_to_ng: dict,
         # base_ng_prices must come from the FIRST gas solve and never be reassigned. Recapture
         # it each iteration and this difference is identically zero every time, the coupling
         # transmits nothing, converges immediately, and looks healthy.
-        adj_full = (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[int(tech)] * 1000.0
+        adj_full = (
+            (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[int(tech)] * 1000.0
+        )
         # Under-relaxation blends toward the value already in the parameter. Gas price and
         # gas-fired dispatch drive each other hard, so alpha=1.0 tends to oscillate; the loop
         # should damp here as well as on both gas-side demand updates.
@@ -395,7 +415,7 @@ def _resolve_fuel_adj_index(elec_model) -> dict[str, int]:
     hour, and only three roles matter here: region, tech, and year. Requiring all five would
     fail on a valid parameter. Like its sibling it raises rather than guessing, an
     ambiguous resolution would write the price signal onto the wrong technologies.
-"""
+    """
     idx_set = elec_model.NGFuelAdj.index_set()
     name_to_role = {nm: role for role, names in _ROLE_SET_NAMES.items() for nm in names}
     name_to_role['season'] = 'season'
@@ -408,7 +428,7 @@ def _resolve_fuel_adj_index(elec_model) -> dict[str, int]:
                 pos[role] = i
         if {'region', 'tech', 'year'} <= set(pos):
             return pos
-    except (AttributeError, TypeError):
+    except AttributeError, TypeError:
         pass
 
     role_sets = _model_role_sets(elec_model)

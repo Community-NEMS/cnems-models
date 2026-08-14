@@ -9,8 +9,8 @@ Run: pytest tests/test_ng_coupling.py -v
 
 from __future__ import annotations
 
-import pytest
 import pyomo.environ as pyo
+import pytest
 
 from src.integrator.ng_coupling import (
     NG_GAS_TECHS,
@@ -45,7 +45,7 @@ def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):
     # Regions are ints here on purpose: real models use int or str region ids, and the
     # crosswalk must cope with both (see test_region_map_accepts_both_key_types).
     m.region = pyo.Set(initialize=[7, 8])
-    m.tech = pyo.Set(initialize=[3, 4, 6]) # 6 is non-gas, must be ignored
+    m.tech = pyo.Set(initialize=[3, 4, 6])  # 6 is non-gas, must be ignored
     m.step = pyo.Set(initialize=[1])
     m.year = pyo.Set(initialize=[2025, 2030])
     m.hour = pyo.Set(initialize=[1, 2])
@@ -55,13 +55,29 @@ def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):
     # The two index orderings. Both are 5-tuples of the same types, which is precisely why
     # unpacking positionally against the wrong one raises nothing and returns wrong numbers.
     if order == 'r_tech_step_year_hour':
-        m.gen_index = pyo.Set(dimen=5, initialize=[
-            (r, t, s, y, h) for r in m.region for t in m.tech
-            for s in m.step for y in m.year for h in m.hour])
-    else: # tech, year, region, step, hour
-        m.gen_index = pyo.Set(dimen=5, initialize=[
-            (t, y, r, s, h) for r in m.region for t in m.tech
-            for s in m.step for y in m.year for h in m.hour])
+        m.gen_index = pyo.Set(
+            dimen=5,
+            initialize=[
+                (r, t, s, y, h)
+                for r in m.region
+                for t in m.tech
+                for s in m.step
+                for y in m.year
+                for h in m.hour
+            ],
+        )
+    else:  # tech, year, region, step, hour
+        m.gen_index = pyo.Set(
+            dimen=5,
+            initialize=[
+                (t, y, r, s, h)
+                for r in m.region
+                for t in m.tech
+                for s in m.step
+                for y in m.year
+                for h in m.hour
+            ],
+        )
 
     # A Var, not a Param: the coupling reads solved generation, and initialize= stands in for
     # a solution so no solver is needed.
@@ -75,8 +91,14 @@ def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):
     # by the contract tests below: Reals because the adjustment is a delta that goes negative,
     # mutable because it is rewritten between solves.
     m.NGFuelAdj = pyo.Param(
-        m.region, m.tech, m.step, m.year, m.season,
-        initialize=0.0, within=pyo.Reals, mutable=True,
+        m.region,
+        m.tech,
+        m.step,
+        m.year,
+        m.season,
+        initialize=0.0,
+        within=pyo.Reals,
+        mutable=True,
     )
     return m
 
@@ -85,10 +107,14 @@ def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):
 # index-order discovery, the silent-failure case
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('order,expected', [
-    ('r_tech_step_year_hour', {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}),
-    ('tech_year_r_step_hour', {'tech': 0, 'year': 1, 'region': 2, 'step': 3, 'hour': 4}),
-])
+
+@pytest.mark.parametrize(
+    'order,expected',
+    [
+        ('r_tech_step_year_hour', {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}),
+        ('tech_year_r_step_hour', {'tech': 0, 'year': 1, 'region': 2, 'step': 3, 'hour': 4}),
+    ],
+)
 def test_index_order_is_discovered_not_assumed(order, expected):
     """Both orderings must resolve correctly. This is the bug that produces no traceback."""
     m = _mock_elec(order)
@@ -108,6 +134,7 @@ def test_gas_demand_identical_under_both_index_orders():
 # quantity conversion
 # ---------------------------------------------------------------------------
 
+
 def test_gas_demand_matches_hand_calculation():
     """Bcf = GWh x WeightDay x heat rate / 1000, summed over gas techs and hours.
 
@@ -122,8 +149,7 @@ def test_gas_demand_matches_hand_calculation():
     # per region-year: 2 hours x 1 step, techs 3 and 4. 100 GWh x 182.5 day-weight x the
     # tech's MMBtu/MWh, divided by 1e3 to land in Bcf. Tech 6 must not appear.
     expect = sum(
-        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3
-        for t in (3, 4) for _ in range(2)
+        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in (3, 4) for _ in range(2)
     )
     assert got[GI('west_south_central', 2025)] == pytest.approx(expect)
 
@@ -138,8 +164,7 @@ def test_non_gas_techs_are_excluded():
     m = _mock_elec()
     got = poll_ng_gas_demand(m, {7: 'west_south_central', 8: 'south_atlantic'})
     only_gas = sum(
-        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3
-        for t in NG_GAS_TECHS for _ in range(2)
+        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in NG_GAS_TECHS for _ in range(2)
     )
     assert got[GI('west_south_central', 2025)] == pytest.approx(only_gas)
 
@@ -151,13 +176,14 @@ def test_unmapped_regions_are_skipped_not_silently_counted():
     region instead, which keeps the national total plausible while regional detail is wrong.
     """
     m = _mock_elec()
-    got = poll_ng_gas_demand(m, {7: 'west_south_central'}) # region 8 unmapped
-    assert set(k.region for k in got) == {'west_south_central'}
+    got = poll_ng_gas_demand(m, {7: 'west_south_central'})  # region 8 unmapped
+    assert {k.region for k in got} == {'west_south_central'}
 
 
 # ---------------------------------------------------------------------------
 # price transfer
 # ---------------------------------------------------------------------------
+
 
 def test_fuel_adj_is_zero_when_price_equals_reference():
     """At the reference, the adjustment must vanish, this is what preserves calibration."""
@@ -185,7 +211,8 @@ def test_fuel_adj_sign_and_magnitude():
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=1.0)
     assert pyo.value(m.NGFuelAdj[7, 4, 1, 2025, 'spring']) == pytest.approx(
-        1.0 * NG_HEAT_RATE_MMBTUPERMWH[4] * 1000.0)
+        1.0 * NG_HEAT_RATE_MMBTUPERMWH[4] * 1000.0
+    )
 
 
 def test_fuel_adj_can_go_negative():
@@ -205,7 +232,7 @@ def test_fuel_adj_can_go_negative():
 
 
 def test_under_relaxation_blends():
-    """alpha damps the update toward the current value: new = alpha*full + (1-alpha)*current.
+    """Alpha damps the update toward the current value: new = alpha*full + (1-alpha)*current.
 
     Starting from 0, one damped step must land at exactly alpha x the full adjustment. Gas
     price and gas-fired dispatch feed back on each other strongly, so an alpha that is
@@ -216,7 +243,7 @@ def test_under_relaxation_blends():
     ref = {GI(r, y): 3.0 for r in ('west_south_central', 'south_atlantic') for y in (2025, 2030)}
     now = {k: v + 1.0 for k, v in ref.items()}
 
-    update_ng_fuel_adj(m, now, xw, ref, alpha=0.25) # from 0 -> 25% of full
+    update_ng_fuel_adj(m, now, xw, ref, alpha=0.25)  # from 0 -> 25% of full
     full = 1.0 * NG_HEAT_RATE_MMBTUPERMWH[4] * 1000.0
     assert pyo.value(m.NGFuelAdj[7, 4, 1, 2025, 'spring']) == pytest.approx(0.25 * full)
 
@@ -224,6 +251,7 @@ def test_under_relaxation_blends():
 # ---------------------------------------------------------------------------
 # contract
 # ---------------------------------------------------------------------------
+
 
 def test_contract_passes_on_a_complete_model():
     """A model with all four required attributes passes and returns the resolved index order."""
@@ -250,8 +278,9 @@ def test_contract_fails_on_immutable_ng_fuel_adj():
     """
     m = _mock_elec()
     m.del_component(m.NGFuelAdj)
-    m.NGFuelAdj = pyo.Param(m.region, m.tech, m.step, m.year, m.season,
-                            initialize=0.0, within=pyo.Reals) # not mutable
+    m.NGFuelAdj = pyo.Param(
+        m.region, m.tech, m.step, m.year, m.season, initialize=0.0, within=pyo.Reals
+    )  # not mutable
     with pytest.raises(RuntimeError, match='mutable'):
         check_coupling_contract(m)
 

@@ -374,6 +374,11 @@ def load_supply_anchors(
         return {}
     try:
         out = {
+            # itertuples() attributes are typed as the union of every pandas scalar type, so
+            # int()/float() on them do not check. The CSV columns are numeric; a non-numeric
+            # value raises and is caught below.
+            # TODO:  Investigate the source df and determine if/why columns are not typed
+            # pyrefly: ignore[bad-argument-type]  - these pulled values will be numeric
             (str(r.region), int(r.year)): (float(r.q0_mult), float(r.p0_mult))
             for r in df.itertuples()
         }
@@ -521,6 +526,8 @@ def load_storage_opex(
         return _STORAGE_OPEX_FALLBACK
     try:
         df = df.set_index('parameter')
+        # TODO:  Investigate the source df and determine if/why column is not typed
+        # pyrefly: ignore[bad-argument-type]  - this pulled value will be a float
         val = float(df.at['storage_opex', 'value'])  # noqa: PD008 - scalar lookup
         logger.info('STORAGE_OPEX loaded from CSV: %.4f', val)
         return val
@@ -754,6 +761,8 @@ def load_qp_scalars(
         df = df.set_index('parameter')
         for key in _QP_SCALARS_FALLBACK:
             if key in df.index:
+                # TODO:  Investigate the source df and determine if/why column is not typed
+                # pyrefly: ignore[bad-argument-type]  - this pulled value will be a float
                 result[key] = float(df.at[key, 'value'])  # noqa: PD008 - scalar lookup
         return result
     except (KeyError, ValueError, TypeError) as exc:

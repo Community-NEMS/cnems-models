@@ -31,6 +31,7 @@ class NGSequencer(IntegratedModelSequencer):
 
     @property
     def model(self) -> NGModel:
+        """The built model.  Raises ``RuntimeError`` if ``build_model()`` has not run yet."""
         if self._model is None:
             raise RuntimeError('Model has not been built yet; call build_model() first.')
         return self._model
@@ -56,7 +57,7 @@ class NGSequencer(IntegratedModelSequencer):
         return self._model
 
     def update_model(self, **kwargs) -> NGModel:
-        pass
+        """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
     def solve_model(self, **kwargs) -> IterationStatus:
         """Solve the built model, a convex QP, and report how the solve terminated.
@@ -148,7 +149,7 @@ class NGSequencer(IntegratedModelSequencer):
                     opt = trial
                     chosen = cand
                     break
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - probing, any failure means 'try the next'
                 logger.debug('C-NGMM: solver %s unavailable (%s)', cand, exc)
 
         if opt is None:
@@ -159,7 +160,8 @@ class NGSequencer(IntegratedModelSequencer):
         # Apply the Gurobi QP options for the classic
         # 'gurobi' interface too (the available one here), not just appsi_gurobi.
         # Set QP options via the interface-appropriate API
-        # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path; duals requested.
+        # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path;
+        # duals requested.
         if chosen == 'appsi_gurobi':
             opt.gurobi_options['Method'] = 2
             opt.gurobi_options['QCPDual'] = 1
@@ -192,10 +194,10 @@ class NGSequencer(IntegratedModelSequencer):
         return IterationStatus.USABLE
 
     def full_postprocess(self, **kwargs):
-        pass
+        """Not implemented; result extraction is still on hold (see ``solve_model``)."""
 
     def iteration_postprocess(self, **kwargs):
-        pass
+        """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
 
 if __name__ == '__main__':

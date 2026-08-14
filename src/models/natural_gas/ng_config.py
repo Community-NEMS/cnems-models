@@ -34,6 +34,7 @@ class NGConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_region_filter(self):
+        """Warn that a region subset yields results not comparable to a full run."""
         if self.region_filter is not None and len(self.region_filter) < len(REGIONS):
             logger.warning(
                 'REGION SUBSET (%d of %d): results are NOT comparable to a full run, dropped '

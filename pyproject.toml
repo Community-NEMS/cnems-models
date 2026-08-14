@@ -33,12 +33,6 @@ line-length = 100
 extend-exclude = [
   "old_docs",
   "config_setup.py",
-  "src/models/natural_gas/ng_model.py",
-  "src/models/natural_gas/data.py",
-  "src/models/natural_gas/sequencer.py",
-  "src/models/natural_gas/ng_config.py",
-  "src/integrator/ng_coupling.py",
-  "tests/natural_gas/test_ng_coupling.py",
 ]
 
 [tool.ruff.format]

@@ -91,13 +91,8 @@ project-includes = ["src"]
 # not worth fixing or suppressing in code that should not be built on.
 project-excludes = [
   "src/models/electricity/electricity_model.py",
-  # Vendored C-NGMM sources, landed unchanged.  Same pyomo dynamic-attribute problem as
-  # electricity_model.py above (78 errors), plus they predate this repo's type-hint
-  # conventions.  Revisit when the model stops tracking an upstream.
   "src/models/natural_gas/ng_model.py",
-  "src/models/natural_gas/data.py",
-  "src/models/natural_gas/sequencer.py",
-  "src/integrator/ng_coupling.py",
+  # both of the main "model" files have typing issues related to pyomo that predate this work
   "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet
   "src/integrator/unified.py",  # not in upgrade scope yet

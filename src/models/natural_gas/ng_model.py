@@ -85,6 +85,7 @@ from pyomo.environ import (
     value,
 )
 
+from src.common.integrated_model import IntegratedModel
 from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
@@ -517,7 +518,7 @@ def _supply_pbase(p0: float, k: int, crv_below: list, crv_above: list,
 # Natural Gas Market Model
 ###############################################################################
 
-class NGModel(ConcreteModel):
+class NGModel(ConcreteModel, IntegratedModel):
     """Pyomo model for the EIA-style Natural Gas Market Module.
 
     Minimizes total annual cost of supplying natural gas across 9 US census
@@ -557,7 +558,7 @@ class NGModel(ConcreteModel):
         of NGMM features implemented (Tier 1) and the ones intentionally skipped
         (Tier 2/3). Equation numbers below cite NGMM_AEO2025.pdf §3.
         """
-        super().__init__()
+        ConcreteModel().__init__()
 
         # Region subsetting. `region_list` is the single
         # source of truth from here down; `is_region_subset` gates the unserved-demand backstop

@@ -1,26 +1,26 @@
 elec_region,elec_region_name,ng_region
-1,ERCT (Texas),west_south_central
-2,FRCC (Florida),south_atlantic
-3,MROE (E Midwest),east_north_central
-4,MROW (W Midwest),west_north_central
-5,NEWE (New England),new_england
-6,NYCW (New York City),middle_atlantic
-7,NYLI (NY Long Island),middle_atlantic
-8,NYUP (Upstate New York),middle_atlantic
-9,PJMC (PJM Chicago),east_north_central
-10,PJMD (PJM Dominion),south_atlantic
-11,PJME (PJM East),middle_atlantic
-12,PJMW (PJM West),east_north_central
-13,RMPA (Rocky Mountain),mountain
-14,SPNO (SPP North),west_north_central
-15,SPSO (SPP South),west_south_central
-16,SRCA (SERC Carolinas),south_atlantic
-17,SRCE (SERC Central),east_south_central
-18,SRCG (SERC Gulf),east_south_central
-19,SRSE (SERC Southeast),south_atlantic
-20,SRVC (SERC Virginia),south_atlantic
-21,WECC-CA (California),pacific
-22,WECC-CNV (Colorado/Nevada),mountain
-23,WECC-IDD (Idaho),mountain
-24,WECC-NNV (N Nevada),mountain
-25,WECC-PNW (Pacific NW),pacific
+1,TRE (Texas Reliability Entity),west_south_central
+2,FRCC (Florida Reliability Coordinating Council),south_atlantic
+3,MISW (Midcontinent ISO/West),west_north_central
+4,MISC (Midcontinent ISO/Central),east_north_central
+5,MISE (Midcontinent ISO/East),east_north_central
+6,MISS (Midcontinent ISO/South),west_south_central
+7,ISNE (NPCC/New England),new_england
+8,NYCW (NPCC/NYC & Long Island),middle_atlantic
+9,NYUP (NPCC/Upstate NY),middle_atlantic
+10,PJME (PJM/East),middle_atlantic
+11,PJMW (PJM/West),east_north_central
+12,PJMC (PJM/Commonwealth Edison),east_north_central
+13,PJMD (PJM/Dominion),south_atlantic
+14,SRCA (SERC Reliability Corporation/East),south_atlantic
+15,SRSE (SERC Reliability Corporation/Southeast),south_atlantic
+16,SRCE (SERC Reliability Corporation/Central),east_south_central
+17,SPPS (Southwest Power Pool/South),west_south_central
+18,SPPC (Southwest Power Pool/Central),west_north_central
+19,SPPN (Southwest Power Pool/North),west_north_central
+20,SRSG (WECC/Southwest),mountain
+21,CANO (WECC/CA North),pacific
+22,CASO (WECC/CA South),pacific
+23,NWPP (WECC/Northwest Power Pool),pacific
+24,RMRG (WECC/Rockies),mountain
+25,BASN (WECC/Basin),mountain

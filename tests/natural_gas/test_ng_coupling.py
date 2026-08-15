@@ -18,7 +18,6 @@ from src.integrator.ng_coupling import (
     check_coupling_contract,
     load_ng_region_map,
     poll_ng_gas_demand,
-    resolve_generation_index,
     update_ng_fuel_adj,
 )
 from src.models.natural_gas.ng_model import GI
@@ -106,19 +105,6 @@ def _mock_elec(order: str = 'r_tech_step_year_hour', gen_gwh: float = 100.0):
 # ---------------------------------------------------------------------------
 # index-order discovery, the silent-failure case
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    'order,expected',
-    [
-        ('r_tech_step_year_hour', {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}),
-        ('tech_year_r_step_hour', {'tech': 0, 'year': 1, 'region': 2, 'step': 3, 'hour': 4}),
-    ],
-)
-def test_index_order_is_discovered_not_assumed(order, expected):
-    """Both orderings must resolve correctly. This is the bug that produces no traceback."""
-    m = _mock_elec(order)
-    assert resolve_generation_index(m) == expected
 
 
 def test_gas_demand_identical_under_both_index_orders():

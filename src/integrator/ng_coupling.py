@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from pathlib import Path
+from warnings import deprecated
 
 import pandas as pd
 from pyomo.environ import value
@@ -117,6 +118,7 @@ def load_ng_region_map(path: str | Path | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 
+@deprecated('Should not need to go spelunking to figure this out.')
 def _model_role_sets(elec_model) -> dict[str, set]:
     """Collect the electricity model's sets, keyed by the role each plays."""
     found: dict[str, set] = {}
@@ -135,6 +137,10 @@ def _model_role_sets(elec_model) -> dict[str, set]:
     return found
 
 
+@deprecated(
+    'this is AI going down the wrong path.  It proposes to sample sets to '
+    'determine the label of a param.  DO NOT USE'
+)
 def resolve_generation_index(elec_model, sample: int = 400) -> dict[str, int]:
     """Determine which position in the generation index holds each role.
 

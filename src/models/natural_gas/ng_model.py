@@ -131,20 +131,6 @@ COST_TIER_LABELS = ['low_cost', 'medium_cost', 'high_cost']
 LNG_IMPORT = _NG_DATA['lng_import']
 
 # ── US LNG Export Demand ──────────────────────────────────────────────────────
-# US LNG exports are a major use of domestic gas supply (~14+ BCF/day in 2025).
-# Treated as exogenous demand, export contracts are long-term obligations
-# that tighten the domestic supply-demand balance and raise domestic prices.
-#
-# Sources:  EIA AEO 2025 LNG Export projections; DOE export authorisation data.
-#   West South Central: Sabine Pass, Corpus Christi, Freeport, Calcasieu Pass,
-#                       Cameron, Golden Pass (under construction), Plaquemines,
-#                       Port Arthur (planned), Rio Grande (planned).
-#   South Atlantic:     Cove Point (MD), Elba Island (GA).
-# Pacific: Jordan Cove / Magnolia (proposed, Oregon / BC border) ,
-#                       assumed to partially materialise after 2030.
-#
-# Units: BCF/yr.  Linearly interpolated for years between listed values.
-# Loaded from input/natural_gas/ng_lng_export.csv
 # Hardcoded dict:
 # LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = {
 #     'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},  # noqa: E501
@@ -173,101 +159,21 @@ def _interp_lng_export(region: str, year: int) -> float:
 
 
 # ── Demand Price Elasticities ─────────────────────────────────────────────────
-# Own-price short-run elasticities for each end-use sector.
-# Negative: demand falls when gas price rises.
-#
-# Used in NGModel.update_demand_from_price(), called by the GS/unified
-# integrator each iteration to add price-responsive demand behaviour,
-# matching NEMS NGMM's price-sensitive demand blocks.
-#
-# Sources: EIA NEMS NGMM documentation; EIA Short-Term Energy Outlook
-#          econometric estimates; literature review (Brown & Yucel 2008).
-# Loaded from input/natural_gas/ng_demand_elasticity.csv
-# Hardcoded dict:
-# DEMAND_PRICE_ELASTICITY: dict[str, float] = {
-#     'electric_power':  -0.15,
-#     'industrial':      -0.20,
-#     'residential':     -0.10,
-#     'commercial':      -0.10,
-#     'transportation':  -0.05,
-# }
 DEMAND_PRICE_ELASTICITY: dict[str, float] = _NG_DATA['demand_elasticity']
 
 # ── Demand Data ──────────────────────────────────────────────────────────────
-# Base-year (2025) demand by census division and end-use sector [BCF/yr].
-# Sectors:  electric_power | industrial | residential | commercial | transportation
-#
-# Source: EIA Natural Gas Annual 2022 Tables 1-7, scaled to 2025 using AEO 2023
-#         reference-case projections. Values rounded to nearest 5 BCF.
-#
 DEMAND_SECTORS = ['electric_power', 'industrial', 'residential', 'commercial', 'transportation']
 
-# Loaded from input/natural_gas/ng_base_demand.csv
-# Hardcoded dict (45 region-sector pairs):
-# BASE_DEMAND_2025: dict[str, dict[str, float]] = {
-#     'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},  # noqa: E501
-#     'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},  # noqa: E501
-#     'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},  # noqa: E501
-#     'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
-#     'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},  # noqa: E501
-#     'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},  # noqa: E501
-#     'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},  # noqa: E501
-#     'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
-#     'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},  # noqa: E501
-# }
 BASE_DEMAND_2025: dict[str, dict[str, float]] = _NG_DATA['base_demand']
 
-# Loaded from input/natural_gas/ng_demand_growth.csv
-# Hardcoded dict:
-# DEMAND_GROWTH_RATES: dict[str, float] = {
-#     'electric_power':  0.004,
-#     'industrial':      0.008,
-#     'residential':    -0.005,
-#     'commercial':     -0.003,
-#     'transportation':  0.025,
-# }
 DEMAND_GROWTH_RATES: dict[str, float] = _NG_DATA['demand_growth']
 
 # ── Pipeline Network ─────────────────────────────────────────────────────────
-# Directed arcs, each physical pipe defined as two directed arcs (both dirs).
-# capacity_bcf: maximum throughput [BCF/yr] per direction
-# tariff: FERC-approved transportation tariff [$/MMBtu]
-#
-# Source: EIA Compendium of Interstate Natural Gas Pipelines (2022)
-#         FERC Form 2 tariff filings; capacity = aggregate nameplate × 365 d
-#
-# Each tuple: (origin, destination, capacity_bcf, tariff_$/MMBtu)
-# Loaded from input/natural_gas/ng_pipeline_arcs.csv
-# Hardcoded list of 26 directed arcs (see ng_pipeline_arcs.csv for full values):
-# PIPELINE_ARCS_RAW = [
-#     ('new_england', 'middle_atlantic', 1400, 0.55),
-#     ('middle_atlantic', 'new_england', 1400, 0.55),
-#     ... (26 arcs total)
-# ]
 PIPELINE_ARCS_RAW = _NG_DATA['pipeline_arcs']
 
 # ── Underground Storage ───────────────────────────────────────────────────────
-# Working gas capacity [BCF] and maximum seasonal withdrawal rate [BCF/yr].
-# For an annual model the net storage change is constrained to ≈ 0 (cyclical).
-# Model doesn't currently use storage, just a placeholder for future work.
-# Source: EIA Form EIA-191M, aggregate by census division (2022)
-# Loaded from input/natural_gas/ng_storage.csv
-# Hardcoded dict:
-# STORAGE = {
-#     'new_england':        {'working': 180,  'inject':  60,  'withdraw':  90},
-#     'middle_atlantic':    {'working': 420,  'inject': 140,  'withdraw': 210},
-#     'east_north_central': {'working': 620,  'inject': 210,  'withdraw': 310},
-#     'west_north_central': {'working': 510,  'inject': 170,  'withdraw': 255},
-#     'south_atlantic':     {'working': 340,  'inject': 115,  'withdraw': 170},
-#     'east_south_central': {'working': 160,  'inject':  55,  'withdraw':  80},
-#     'west_south_central': {'working': 850,  'inject': 285,  'withdraw': 425},
-#     'mountain':           {'working': 360,  'inject': 120,  'withdraw': 180},
-#     'pacific':            {'working': 160,  'inject':  55,  'withdraw':  80},
-# }
 STORAGE = _NG_DATA['storage']
 
-# Loaded from input/natural_gas/ng_scalars.csv
-# Hardcoded value: STORAGE_OPEX = 0.18
 STORAGE_OPEX = _NG_DATA['storage_opex']
 
 # ── NGMM AEO2025 QP parameters ────────────────────────────────────────────────

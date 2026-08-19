@@ -134,13 +134,17 @@ class ModelSets:
         self.num_hr_day = int(
             self.cw_temporal['Map_hour'].max() / self.cw_temporal['Map_day'].max()
         )
-        self.h = range(1, self.num_hr_day + 1)
         # Number of time periods the model solves for: days x number of periods per day
-        self.num_hr = self.num_hr_day * self.num_days
-        self.hour = range(1, self.num_days * len(self.h) + 1)
-        # First time period of the day and all time periods that are not the first hour
-        self.hour1 = range(1, self.num_days * len(self.h) + 1, len(self.h))
-        self.hour23 = list(set(self.hour) - set(self.hour1))
+        self.hour = range(1, self.num_days * self.num_hr_day + 1)
+        # First time period of the day and all time periods that are not the first hour.
+        # dev note: at num_hr_day == 1 (the d4h1/d8h1 crosswalks) every hour is a first hour,
+        #           so hour_most is empty and the *_most_hours_balance constraints get no rows.
+        #           The *_first_hour_balance rules then wrap an hour onto itself, collapsing to
+        #           `efficiency * inflow == outflow` and `ramp_up == ramp_down`.
+        self.hour_first = range(1, self.num_days * self.num_hr_day + 1, self.num_hr_day)
+        # sorted() because set difference does not iterate in ascending order for every
+        # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
+        self.hour_most = sorted(set(self.hour) - set(self.hour_first))
 
         # Technology Sets
         @deprecated('currently not used.  Data ingestion makes these tech subsets from the file')
@@ -295,34 +299,34 @@ class ModelSets:
 
         # build the unique hour sets for ramping/storage first + other 23 hours
         self.ramp_most_hours_balance_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, hr23)
+            (idx.region, idx.tech, idx.step, idx.year, hr_most)
             for idx in supply_curve_index
             if idx.tech in self.tech_conv
-            for hr23 in self.hour23
+            for hr_most in self.hour_most
         )
         if not self.ramp_most_hours_balance_index:
             logger.warning('ramp_most_hours_balance_index is empty')
         self.ramp_first_hour_balance_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, hr1)
+            (idx.region, idx.tech, idx.step, idx.year, hr_first)
             for idx in supply_curve_index
             if idx.tech in self.tech_conv
-            for hr1 in self.hour1
+            for hr_first in self.hour_first
         )
         if not self.ramp_first_hour_balance_index:
             logger.warning('ramp_first_hour_balance_index is empty')
         self.storage_most_hours_balance_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, hr23)
+            (idx.region, idx.tech, idx.step, idx.year, hr_most)
             for idx in supply_curve_index
             if idx.tech in self.tech_stor
-            for hr23 in self.hour23
+            for hr_most in self.hour_most
         )
         if not self.storage_most_hours_balance_index:
             logger.warning('storage_most_hours_balance_index is empty')
         self.storage_first_hour_balance_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, hr1)
+            (idx.region, idx.tech, idx.step, idx.year, hr_first)
             for idx in supply_curve_index
             if idx.tech in self.tech_stor
-            for hr1 in self.hour1
+            for hr_first in self.hour_first
         )
         if not self.storage_first_hour_balance_index:
             logger.warning('storage_first_hour_balance_index is empty')

@@ -149,12 +149,18 @@ def create_sc_sets(all_frames, setin):
         index_list
     )
 
-    setin.ramp_most_hours_balance_index = hr_sub_sc_subset(all_frames, setin.T_conv, setin.hour23)
-    setin.ramp_first_hour_balance_index = hr_sub_sc_subset(all_frames, setin.T_conv, setin.hour1)
-    setin.storage_most_hours_balance_index = hr_sub_sc_subset(
-        all_frames, setin.T_stor, setin.hour23
+    setin.ramp_most_hours_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_conv, setin.hour_most
     )
-    setin.storage_first_hour_balance_index = hr_sub_sc_subset(all_frames, setin.T_stor, setin.hour1)
+    setin.ramp_first_hour_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_conv, setin.hour_first
+    )
+    setin.storage_most_hours_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_stor, setin.hour_most
+    )
+    setin.storage_first_hour_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_stor, setin.hour_first
+    )
 
     setin.generation_hydro_ub_index = create_hourly_sets(
         all_frames, step_sub_sc_subset(all_frames, setin.T_hydro, [2])

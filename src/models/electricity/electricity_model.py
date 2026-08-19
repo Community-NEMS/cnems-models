@@ -58,8 +58,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # temporal sets
         self.hour = pyo.Set(initialize=model_sets.hour)
-        self.hour_first = pyo.Set(initialize=model_sets.hour1, within=self.hour)
-        self.hour_most = pyo.Set(initialize=model_sets.hour23, within=self.hour)
+        self.hour_first = pyo.Set(initialize=model_sets.hour_first, within=self.hour)
+        self.hour_most = pyo.Set(initialize=model_sets.hour_most, within=self.hour)
         self.day = pyo.Set(initialize=model_sets.day)
         self.season = pyo.Set(initialize=model_sets.season)
         self.year = pyo.Set(initialize=model_sets.year_map.values())
@@ -903,7 +903,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # First hour
         @self.Constraint(self.storage_first_hour_balance_index)
-        def storage_first_hour_balance(self, r, t_stor, step, y, hr1):
+        def storage_first_hour_balance(self, r, t_stor, step, y, hr_first):
             """Storage balance constraint for the first hour time-segment in each day-type.
 
             Storage level == Storage level (in final hour time-segment in current day-type)
@@ -920,7 +920,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 region set
             step : pyomo.core.base.set.OrderedScalarSet
                 supply curve price/quantity step set
-            hr1 : pyomo.core.base.set.OrderedScalarSet
+            hr_first : pyomo.core.base.set.OrderedScalarSet
                 set containing first hour time-segment in each day-type
 
             Returns
@@ -929,15 +929,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Storage balance constraint for the first hour time-segment in each day-type
             """
             return (
-                self.storage_level[r, t_stor, step, y, hr1]
-                == self.storage_level[r, t_stor, step, y, hr1 + self.num_hr_day - 1]
-                + self.battery_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr1]
-                - self.storage_outflow[r, t_stor, step, y, hr1]
+                self.storage_level[r, t_stor, step, y, hr_first]
+                == self.storage_level[r, t_stor, step, y, hr_first + self.num_hr_day - 1]
+                + self.battery_efficiency[t_stor]
+                * self.storage_inflow[r, t_stor, step, y, hr_first]
+                - self.storage_outflow[r, t_stor, step, y, hr_first]
             )
 
         # Not first hour
         @self.Constraint(self.storage_most_hours_balance_index)
-        def storage_most_hours_balance(self, r, t_stor, step, y, hr23):
+        def storage_most_hours_balance(self, r, t_stor, step, y, hr_most):
             """Storage balance constraint for every time-segment after the first in a day-type.
 
             Storage level == Storage level (in previous hour time-segment)
@@ -954,7 +955,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 region set
             step : pyomo.core.base.set.OrderedScalarSet
                 supply curve price/quantity step set
-            hr23 : pyomo.core.base.set.OrderedScalarSet
+            hr_most : pyomo.core.base.set.OrderedScalarSet
                 set containing time-segment except first hour in each day-type
 
             Returns
@@ -964,10 +965,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             the first hour time-segment
             """
             return (
-                self.storage_level[r, t_stor, step, y, hr23]
-                == self.storage_level[r, t_stor, step, y, hr23 - 1]
-                + self.battery_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr23]
-                - self.storage_outflow[r, t_stor, step, y, hr23]
+                self.storage_level[r, t_stor, step, y, hr_most]
+                == self.storage_level[r, t_stor, step, y, hr_most - 1]
+                + self.battery_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr_most]
+                - self.storage_outflow[r, t_stor, step, y, hr_most]
             )
 
         # self.populate_hydro_sets = pyo.BuildAction(rule=em.populate_hydro_sets_rule)
@@ -1535,7 +1536,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.ramping_required:
 
             @self.Constraint(self.ramp_first_hour_balance_index)
-            def ramp_first_hour_balance(self, r, t_conv, step, y, hr1):
+            def ramp_first_hour_balance(self, r, t_conv, step, y, hr_first):
                 """Ramp constraint for the first hour time-segment in each day-type.
 
                 Generation == Generation (in final hour time-segment in current day-type)
@@ -1552,7 +1553,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     region set
                 step : pyomo.core.base.set.OrderedScalarSet
                     supply curve price/quantity step set
-                hr1 : pyomo.core.base.set.OrderedScalarSet
+                hr_first : pyomo.core.base.set.OrderedScalarSet
                     set containing first hour time-segment in each day-type
 
                 Returns
@@ -1561,14 +1562,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp constraint for the first hour
                 """
                 return (
-                    self.generation_total[r, t_conv, step, y, hr1]
-                    == self.generation_total[r, t_conv, step, y, hr1 + self.num_hr_day - 1]
-                    + self.generation_ramp_up[r, t_conv, step, y, hr1]
-                    - self.generation_ramp_down[r, t_conv, step, y, hr1]
+                    self.generation_total[r, t_conv, step, y, hr_first]
+                    == self.generation_total[r, t_conv, step, y, hr_first + self.num_hr_day - 1]
+                    + self.generation_ramp_up[r, t_conv, step, y, hr_first]
+                    - self.generation_ramp_down[r, t_conv, step, y, hr_first]
                 )
 
             @self.Constraint(self.ramp_most_hours_balance_index)
-            def ramp_most_hours_balance(self, r, t_conv, step, y, hr23):
+            def ramp_most_hours_balance(self, r, t_conv, step, y, hr_most):
                 """Ramp constraint for every time-segment after the first in a day-type.
 
                 Generation == Generation (in previous hour time-segment)
@@ -1585,7 +1586,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     region set
                 step : pyomo.core.base.set.OrderedScalarSet
                     supply curve price/quantity step set
-                hr23 : pyomo.core.base.set.OrderedScalarSet
+                hr_most : pyomo.core.base.set.OrderedScalarSet
                     set containing time-segment except first hour in each day-type
 
                 Returns
@@ -1594,10 +1595,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp constraint for the first hour
                 """
                 return (
-                    self.generation_total[r, t_conv, step, y, hr23]
-                    == self.generation_total[r, t_conv, step, y, hr23 - 1]
-                    + self.generation_ramp_up[r, t_conv, step, y, hr23]
-                    - self.generation_ramp_down[r, t_conv, step, y, hr23]
+                    self.generation_total[r, t_conv, step, y, hr_most]
+                    == self.generation_total[r, t_conv, step, y, hr_most - 1]
+                    + self.generation_ramp_up[r, t_conv, step, y, hr_most]
+                    - self.generation_ramp_down[r, t_conv, step, y, hr_most]
                 )
 
             @self.Constraint(self.generation_ramp_index)

@@ -1,4 +1,3 @@
-# Net natural gas exports (LNG + pipeline) = AEO2026 production - consumption (Table 59/62), distributed across export hubs.
 region,year,demand_bcf
 west_south_central,2025,6299.0
 south_atlantic,2025,1350.0

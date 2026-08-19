@@ -1,6 +1,3 @@
-# NG supply-curve anchor path (Phase 1.3) -- per-(region,year) multipliers on the
-# static (Q0,P0) anchors; from AEO2026 Table 59 HSM production + regional supply
-# prices, normalized to 2025. Built by harness/build_ng_anchor_path.py.
 region,year,q0_mult,p0_mult
 new_england,2025,1.0,1.0
 new_england,2030,1.0,1.0422

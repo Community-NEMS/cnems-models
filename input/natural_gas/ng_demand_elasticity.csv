@@ -1,5 +1,3 @@
-# Own-price short-run demand elasticities by end-use sector (negative = demand falls when price rises)
-# Source: EIA NEMS NGMM documentation; EIA STEO econometric estimates; Brown & Yucel 2008
 sector,own_price_elasticity
 electric_power,-0.15
 industrial,-0.20

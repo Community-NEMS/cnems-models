@@ -1,4 +1,3 @@
-# Base-year (2025) NG demand by region/sector -- scaled to AEO2026 sectoral consumption (Table 62), regional shape preserved.
 region,sector,demand_bcf_2025
 new_england,electric_power,225.3
 new_england,industrial,247.1

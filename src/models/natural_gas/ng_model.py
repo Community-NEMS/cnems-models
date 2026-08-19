@@ -131,12 +131,6 @@ COST_TIER_LABELS = ['low_cost', 'medium_cost', 'high_cost']
 LNG_IMPORT = _NG_DATA['lng_import']
 
 # ── US LNG Export Demand ──────────────────────────────────────────────────────
-# Hardcoded dict:
-# LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = {
-#     'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},  # noqa: E501
-#     'south_atlantic':     {2025:  480, 2030:  560, 2035:  620, 2040:  650, 2045:  700, 2050:  730},  # noqa: E501
-#     'pacific':            {2025:    0, 2030:   80, 2035:  200, 2040:  350, 2045:  500, 2050:  650},  # noqa: E501
-# }
 LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = _NG_DATA['lng_export']
 
 

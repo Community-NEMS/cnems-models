@@ -11,12 +11,13 @@ All line numbers refer to the files as landed. If they drift, the section headin
 
 ---
 
-## 1. The four files, and what each is responsible for
+## 1. The five files, and what each is responsible for
 
 | File | Lines | Responsibility | Depends on |
 |---|---:|---|---|
 | [data.py](data.py) | 712 | Read CSVs → plain Python dicts. No pyomo. | pandas |
-| [ng_model.py](ng_model.py) | 1,769 | Build and solve the QP; expose a coupling API | `data.py`, pyomo |
+| [ng_model.py](ng_model.py) | 1,535 | Build the QP; expose a coupling API | `data.py`, pyomo |
+| [postprocessor.py](postprocessor.py) | 271 | Read a solved model → result tables, console summary, CSVs | `data.py`, pyomo, pandas |
 | [../../integrator/ng_coupling.py](../../integrator/ng_coupling.py) | 379 | Translate between the electricity model and this one | neither model's internals |
 | [../../../tests/naturalgas/test_ng_coupling.py](../../../tests/naturalgas/test_ng_coupling.py) | 147 | Tests using a stand-in electricity model | `ng_coupling.py` |
 
@@ -66,7 +67,7 @@ loaded from CSV (9 regions)`) are the positive confirmation, worth reading more 
 
 ---
 
-## 3. Reading `ng_model.py` (1,769 lines)
+## 3. Reading `ng_model.py` (1,535 lines)
 
 ### Top-level map
 
@@ -80,9 +81,8 @@ loaded from CSV (9 regions)`) are the positive confirmation, worth reading more 
 | 491-1119 | `class NGModel`, `__init__` is 518-1119, the entire formulation |
 | 1121-1364 | The coupling API, eight methods |
 | 1369-1454 | `solve()` |
-| 1456-1610 | `_extract_*` result tables |
-| 1611-1669 | `report()` |
-| 1674-1769 | CLI |
+| — | `_extract_*` result tables and `report()` moved to `postprocessor.py` |
+| — | `solve()` moved to `sequencer.py::NGSequencer`; the CLI is gone |
 
 **Note line 94:** `_NG_DATA = _load_ng_data()` executes on *import*, not on model construction.
 That's why the fallback warnings appear before anything else, and why suppressing them requires
@@ -372,9 +372,9 @@ input/naturalgas/*.csv
         ▼ solve() → 'highs' → optimal
         │
         ├──► duals of demand_balance ──► poll_gas_price() ──► $/MMBtu by (region, year)
-        └──► _extract_* ──► results_production / flows / prices / storage / balance
+        └──► postprocessor._extract_* ──► results_production / flows / prices / storage / balance
                     │
-                    ▼ report() ──► console summary + 5 CSVs
+                    ▼ postprocessor.report() ──► console summary + 5 CSVs
 ```
 
 ---

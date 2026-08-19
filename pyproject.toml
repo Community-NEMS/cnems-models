@@ -92,6 +92,7 @@ project-includes = ["src"]
 project-excludes = [
   "src/models/electricity/electricity_model.py",
   "src/models/natural_gas/ng_model.py",
+  "src/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
   # both of the main "model" files have typing issues related to pyomo that predate this work
   "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet

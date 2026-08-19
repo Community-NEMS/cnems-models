@@ -107,7 +107,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         self.generation_hydro_ub_index = pyo.Set(initialize=model_sets.generation_hydro_ub_index)
         self.generation_dispatchable_ub_index = pyo.Set(
-            initialize=model_sets.generation_dispatchable_up_index
+            initialize=model_sets.generation_dispatchable_ub_index
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
         self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
@@ -273,17 +273,17 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
         #        of a *numeric* parameter.  They are just simple LUTs
         self.map_hour_season = pyo.Param(
-            self.hour, initialize=all_frames['MapHourSeason'], within=pyo.Any
+            self.hour, initialize=all_frames['map_hour_season'], within=pyo.Any
         )
         self.map_hour_day = pyo.Param(
-            self.hour, initialize=all_frames['MapHourDay']['day'], within=pyo.Any
+            self.hour, initialize=all_frames['map_hour_day']['day'], within=pyo.Any
         )
 
-        self.weight_year = pyo.Param(self.year, initialize=all_frames['WeightYear'])
+        self.weight_year = pyo.Param(self.year, initialize=all_frames['weight_year'])
 
-        self.weight_hour = pyo.Param(self.hour, initialize=all_frames['WeightHour']['WeightHour'])
-        self.weight_day = pyo.Param(self.day, initialize=all_frames['WeightDay'])
-        self.weight_season = pyo.Param(self.season, initialize=all_frames['WeightSeason'])
+        self.weight_hour = pyo.Param(self.hour, initialize=all_frames['weight_hour']['weight_hour'])
+        self.weight_day = pyo.Param(self.day, initialize=all_frames['weight_day'])
+        self.weight_season = pyo.Param(self.season, initialize=all_frames['weight_season'])
 
         # load and technology parameters
         # dev note:  set a default of 0.0 for all missing values,
@@ -292,7 +292,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.region_analyze,
             self.year,
             self.hour,
-            initialize=all_frames['Load'],
+            initialize=all_frames['elec_load'],
             within=pyo.NonNegativeReals,
             default=0.0,
         )

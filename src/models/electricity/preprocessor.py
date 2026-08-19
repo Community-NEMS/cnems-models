@@ -24,7 +24,7 @@ from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_utilities import (
     add_season_index,
     avg_by_group,
-    capacitycredit_df,
+    capacity_credit_df,
     create_hourly_params,
     step_sub_sc_subset,
     time_map,
@@ -453,7 +453,7 @@ def preprocessor(
         all_frames['SupplyCurveLearning']['SupplyCurveLearning'] == 0.0, 'SupplyCurveLearning'
     ] = 0.01
 
-    all_frames['CapacityCredit'] = capacitycredit_df(all_frames, setin)
+    all_frames['CapacityCredit'] = capacity_credit_df(all_frames, setin)
 
     # expand a few parameters to be hourly
     TLCI_cols = ['region', 'region1', 'year', 'hour', 'TranLimitCapInt']

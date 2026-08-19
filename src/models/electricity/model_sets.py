@@ -47,7 +47,7 @@ class ModelSets:
     """The MASTER capacity index, augmented with Hour"""
     capacity_hydro_ub_index: list[tuple]
     generation_demand_index: defaultdict
-    generation_dispatchable_up_index: list[tuple]
+    generation_dispatchable_ub_index: list[tuple]
     generation_hour_index: defaultdict
     generation_hydro_ub_index: list[tuple]
     generation_index: list[tuple]
@@ -353,14 +353,14 @@ class ModelSets:
         )
         if not self.generation_ramp_index:
             logger.warning('generation_ramp_index is empty')
-        self.generation_dispatchable_up_index = sorted(
+        self.generation_dispatchable_ub_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index
             if idx.tech in self.tech_disp
             for hour in self.hour
         )
-        if not self.generation_dispatchable_up_index:
-            logger.warning('generation_dispatchable_up_index is empty')
+        if not self.generation_dispatchable_ub_index:
+            logger.warning('generation_dispatchable_ub_index is empty')
         self.generation_vre_ub_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in supply_curve_index
@@ -370,7 +370,7 @@ class ModelSets:
         if not self.generation_vre_ub_index:
             logger.warning('generation_vre_ub_index is empty')
 
-    def build_international_travel_index(
+    def build_international_trade_index(
         self, intl_capacity: DataFrame, intl_gen_limit: DataFrame
     ) -> list[tuple]:
         """Create the valid international trading index.

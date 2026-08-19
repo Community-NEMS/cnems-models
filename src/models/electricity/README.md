@@ -143,7 +143,7 @@ step. These files are located in the input/electricity directory and are declare
 | $\Theta_{ret}$         | capacity_retirements_index       | Sparse Set | Retirable capacity set                                       |
 | $\Theta_{new}$         | BuildSet                         | Sparse Set | Buildable capacity set                                       |
 | $\Theta_{cc}$          | capacity_builds_index            | Sparse Set | Set of  capacity costs                                       |
-| $\Theta_{cc0}$         | CapCostInitial_index             | Sparse Set | Set of initial year's capacity costs                         |
+| $\Theta_{cc0}$         | cap_cost_initial_index           | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index | Sparse set | (non-first hour) storage balance set                         |
 | $\Theta_{proc}$        | reserves_procurement_index       | Sparse set | Set for procurement of operating reserves                    |
@@ -153,7 +153,7 @@ step. These files are located in the input/electricity directory and are declare
 | $\Theta_{tra}$         | trade_interregional_index        | Sparse set | Domestic interregional trade set                             |
 | $\Theta_{tracan}$      | trade_interational_index         | Sparse set | International interregional trade set                        |
 | $\Theta_{traL^{int}}$  | TranLimitInt_index               | Sparse set | International interregional trade limit set                  |
-| $\Theta_{traLL}$       | TranLimit_index                  | Sparse set | Domestic interregional trade limit set                       |
+| $\Theta_{traLL}$       | tran_limit_index                 | Sparse set | Domestic interregional trade limit set                       |
 | $\Theta_{traLL^{int}}$ | TranLineLimitInt_index           | Sparse set | International interregional trade line limit set             |
 
 ### Re-Indexed Sets
@@ -161,65 +161,65 @@ step. These files are located in the input/electricity directory and are declare
 These sets are re-indexed for specific constraints. They are all sub-sets accessed by certain indices to return the
 remaining indices.
 
-| Set                        | Code                     | Data Type     | Short Description                                                                   |
-|:---------------------------|:-------------------------|:--------------|:------------------------------------------------------------------------------------|
-| $\theta^{H2H}_h$           | H2GenSetByHour           | Sparse subset | Set for H2 generation indexed by hour                                               |
-| $\theta^{GSH}_h$           | GenSetByHour             | Sparse subset | Set for generation indexed by hour                                                  |
-| $\theta^{SSH}_h$           | StorageSetByHour         | Sparse subset | Set for storage indexed by hour                                                     |
-| $\theta^{GDB}_{y,r,h}$     | GenSetDemandBalance      | Sparse subset | Set for generation indexed by y,r,h                                                 |
-| $\theta^{SDB}_{y,r,h}$     | StorageSetDemandBalance  | Sparse subset | Set for storage indexed by y,r,h                                                    |
-| $\theta^{TDB}_{y,r,h}$     | TradeSetDemandBalance    | Sparse subset | Set for trade indexed by y,r,h                                                      |
-| $\theta^{TCDB}_{y,r,h}$    | TradeCanSetDemandBalance | Sparse subset | Set for international trade indexed by y,r,h                                        |
-| $\theta^{windor}_{y,r,h}$  | WindSetReserves          | Sparse subset | Set for wind generaton for operational reserves indexed by y,r,h                    |
-| $\theta^{solor}_{y,r,h}$   | SolarSetReserves         | Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h                    |
-| $\theta^{opres}_{y,r,h}$   | ProcurementSetReserves   | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
-| $\theta^{scrm}_{y,r,seas}$ | SupplyCurveRM            | Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas                         |
-| $\theta^{HSH}_{seas}$      | HourSHydro               | Sparse subset | Set for hours indexed by season                                                     |
+| Set                        | Code                      | Data Type     | Short Description                                                                   |
+|:---------------------------|:--------------------------|:--------------|:------------------------------------------------------------------------------------|
+| $\theta^{H2H}_h$           | H2GenSetByHour            | Sparse subset | Set for H2 generation indexed by hour                                               |
+| $\theta^{GSH}_h$           | GenSetByHour              | Sparse subset | Set for generation indexed by hour                                                  |
+| $\theta^{SSH}_h$           | StorageSetByHour          | Sparse subset | Set for storage indexed by hour                                                     |
+| $\theta^{GDB}_{y,r,h}$     | generation_demand_balance | Sparse subset | Set for generation indexed by y,r,h                                                 |
+| $\theta^{SDB}_{y,r,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by y,r,h                                                    |
+| $\theta^{TDB}_{y,r,h}$     | TradeSetDemandBalance     | Sparse subset | Set for trade indexed by y,r,h                                                      |
+| $\theta^{TCDB}_{y,r,h}$    | TradeCanSetDemandBalance  | Sparse subset | Set for international trade indexed by y,r,h                                        |
+| $\theta^{windor}_{y,r,h}$  | wind_reserves             | Sparse subset | Set for wind generaton for operational reserves indexed by y,r,h                    |
+| $\theta^{solor}_{y,r,h}$   | solar_reserves            | Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h                    |
+| $\theta^{opres}_{y,r,h}$   | eligible_reserves         | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
+| $\theta^{scrm}_{y,r,seas}$ | SupplyCurveRM             | Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas                         |
+| $\theta^{HSH}_{seas}$      | HourSHydro                | Sparse subset | Set for hours indexed by season                                                     |
 
 ### Parameters
 
 Note: the existing code shows cost units in MW/MWh instead of GW/GWh; we are aware and just haven't updated the code
 yet.
 
-| Parameter                         | Code                | Domain           | Short Description                                                                            | Units                      |
-|:----------------------------------|:--------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
-| $YR0$                             | y0                  | $\mathbb{I}$     | First year of model                                                                          | unitless                   |
-| $N$                               | num_hr_day          | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
-| $LOAD_{r,y,h}$                    | Load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
-| $CAP^{exist}_{r,seas,t,s,y}$      | SupplyCurve         | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
-| $SPR_{r,seas,t,s,y}$              | SupplyPrice         | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | \$/GWh                     |
-| $ICF_{t,y,r,s,h}$                 | CapFactorVRE        | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
-| $HCF_{t,y,r,s,h}$                 | HydroCapFactor      | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor                                             | fraction                   |
-| $STORLC$                          | StorageLevelCost    | $\mathbb{R}^+_0$ | Cost to hold storage (mimics losses)                                                         | \$/GWh                     |
-| $EFF_t$                           | StorageEfficiency   | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
-| $STOR^{dur}_t$                    | HourstoBuy          | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
-| $UMLPEN$                          | UnmetLoadPenalty    | $\mathbb{R}^+_0$ | Unmet load penalty                                                                           | \$/GWh                     |
-| $WY_y$                            | WeightYear          | $\mathbb{I}$     | number of years represented by a representative year (weight)                                | years/representative years |
-| $HW_h$                            | WeightHour          | $\mathbb{I}$     | number of hours represented by a representative hours(weight)                                | hours/representative hours |
-| $WeightDay_d$                     | WeightDay           | $\mathbb{I}$     | number of days representated by a representative day (weight)                                | days/representative day    |
-| $MHD_h$                           | MapHourDay          | $\mathbb{I}$     | map representative hour to representative day                                                | unitless                   |
-| $WHS_{seas}$                      | WeightSeason        | $\mathbb{I}$     | number of hours (per year) in a season (weight)                                              | unitless                   |
-| $MHS_h$                           | MapHourSeason       | $\mathbb{I}$     | map representative hour to season                                                            | unitless                   |
-| $FOMC_{r,t,s}$                    | FOMCost             | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | \$/GW-year                 |
-| $CC_{t,y,r,s,h}$                  | CapacityCredit      | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
-| $RM_r$                            | ReserveMargin       | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
-| $RUC_{t}$                         | RampUpCost          | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | \$/GW                      |
-| $RDC_{t}$                         | RampDownCost        | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | \$/GW                      |
-| $RR_t$                            | RampRate            | $\mathbb{R}^+_0$ | Max ramp rate                                                                                | GW                         |
-| $TRALINLIM_{r,r1,seas,y}$         | TranLimit           | $\mathbb{R}^+_0$ | Domestic interregional trade line limit                                                      | GW                         |
-| $TRALIM^{int}_{r^{int},c,y,h}$    | TranLimitGenInt     | $\mathbb{R}^+_0$ | International interregional trade limit                                                      | GW                         |
-| $TRALINLIM^{int}_{r,r^{int},y,h}$ | TranLimitCapInt     | $\mathbb{R}^+_0$ | International interregional trade line limit                                                 | GW                         |
-| $TRAC_{r,r1,y}$                   | TranCost            | $\mathbb{R}^+_0$ | Transmission hurdle rate (cost)                                                              | \$/GWh                     |
-| $TRACC_{r,r^{int},c,y}$           | TranCostInt         | $\mathbb{R}^+_0$ | International transmission hurdle rate (cost)                                                | \$/GWh                     |
-| $LL$                              | TransLoss           | $\mathbb{R}^+_0$ | Transmission line losses from 1 region to another                                            | fraction                   |
-| $OPRP_t$                          | RegReservesCost     | $\mathbb{R}^+_0$ | Cost of operating reserve procurement (TODO: update this in code so it contains all optypes) | \$/GWh                     |
-| $RTUB_{o,t}$                      | ResTechUpperBound   | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
-| $H2HR$                            | H2Heatrate          | $\mathbb{R}^+_0$ | Hydrogen heatrate                                                                            | kg/GWh                     |
-| $H2PR_{r,seas,t,s,y}$             | H2Price             | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
-| $CAPCL_{r,t,y,s}$                 | CapCostLearning     | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
-| $CAPC0_{r,t,s}$                   | CapCostInitial      | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
-| $LR_t$                            | LearningRate        | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
-| $SCL_t$                           | SupplyCurveLearning | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| Parameter                         | Code                  | Domain           | Short Description                                                                            | Units                      |
+|:----------------------------------|:----------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
+| $YR0$                             | y0                    | $\mathbb{I}$     | First year of model                                                                          | unitless                   |
+| $N$                               | num_hr_day            | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
+| $LOAD_{r,y,h}$                    | elec_load             | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
+| $CAP^{exist}_{r,seas,t,s,y}$      | supply_curve          | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
+| $SPR_{r,seas,t,s,y}$              | supply_price          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | \$/GWh                     |
+| $ICF_{t,y,r,s,h}$                 | cap_factor_vre        | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
+| $HCF_{t,y,r,s,h}$                 | hydro_cap_factor      | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor                                             | fraction                   |
+| $STORLC$                          | storage_level_cost    | $\mathbb{R}^+_0$ | Cost to hold storage (mimics losses)                                                         | \$/GWh                     |
+| $EFF_t$                           | StorageEfficiency     | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
+| $STOR^{dur}_t$                    | hours_to_buy          | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
+| $UMLPEN$                          | unmet_load_penalty    | $\mathbb{R}^+_0$ | Unmet load penalty                                                                           | \$/GWh                     |
+| $WY_y$                            | weight_year           | $\mathbb{I}$     | number of years represented by a representative year (weight)                                | years/representative years |
+| $HW_h$                            | weight_hour           | $\mathbb{I}$     | number of hours represented by a representative hours(weight)                                | hours/representative hours |
+| $WeightDay_d$                     | weight_day            | $\mathbb{I}$     | number of days representated by a representative day (weight)                                | days/representative day    |
+| $MHD_h$                           | map_hour_day          | $\mathbb{I}$     | map representative hour to representative day                                                | unitless                   |
+| $WHS_{seas}$                      | weight_season         | $\mathbb{I}$     | number of hours (per year) in a season (weight)                                              | unitless                   |
+| $MHS_h$                           | map_hour_season       | $\mathbb{I}$     | map representative hour to season                                                            | unitless                   |
+| $FOMC_{r,t,s}$                    | fom_cost              | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | \$/GW-year                 |
+| $CC_{t,y,r,s,h}$                  | capacity_credit       | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
+| $RM_r$                            | reserve_margin        | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
+| $RUC_{t}$                         | ramp_up_cost          | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | \$/GW                      |
+| $RDC_{t}$                         | ramp_down_cost        | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | \$/GW                      |
+| $RR_t$                            | ramp_rate             | $\mathbb{R}^+_0$ | Max ramp rate                                                                                | GW                         |
+| $TRALINLIM_{r,r1,seas,y}$         | tran_limit            | $\mathbb{R}^+_0$ | Domestic interregional trade line limit                                                      | GW                         |
+| $TRALIM^{int}_{r^{int},c,y,h}$    | tran_limit_gen_int    | $\mathbb{R}^+_0$ | International interregional trade limit                                                      | GW                         |
+| $TRALINLIM^{int}_{r,r^{int},y,h}$ | tran_limit_cap_int    | $\mathbb{R}^+_0$ | International interregional trade line limit                                                 | GW                         |
+| $TRAC_{r,r1,y}$                   | tran_cost             | $\mathbb{R}^+_0$ | Transmission hurdle rate (cost)                                                              | \$/GWh                     |
+| $TRACC_{r,r^{int},c,y}$           | tran_cost_int         | $\mathbb{R}^+_0$ | International transmission hurdle rate (cost)                                                | \$/GWh                     |
+| $LL$                              | TransLoss             | $\mathbb{R}^+_0$ | Transmission line losses from 1 region to another                                            | fraction                   |
+| $OPRP_t$                          | reg_reserves_cost     | $\mathbb{R}^+_0$ | Cost of operating reserve procurement (TODO: update this in code so it contains all optypes) | \$/GWh                     |
+| $RTUB_{o,t}$                      | res_tech_upper_bound  | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
+| $H2HR$                            | h2_heatrate           | $\mathbb{R}^+_0$ | Hydrogen heatrate                                                                            | kg/GWh                     |
+| $H2PR_{r,seas,t,s,y}$             | h2_price              | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
+| $CAPCL_{r,t,y,s}$                 | cap_cost              | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
+| $CAPC0_{r,t,s}$                   | cap_cost_initial      | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
+| $LR_t$                            | learning_rate         | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| $SCL_t$                           | supply_curve_learning | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
 
 ### Variables
 

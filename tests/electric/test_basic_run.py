@@ -41,34 +41,38 @@ from src.models.electricity.sequencer import (
 # development
 verbose = False
 
-# Always-required ParamSource keys -> the pyomo Param attribute they end up as on PowerModel.
-# Declared unconditionally in electricity_model.py, so should exist for every config.
-_ALWAYS_REQUIRED_ATTRS = {
-    'battery_efficiency': 'BatteryEfficiency',
-    'hours_to_buy': 'HourstoBuy',
-    'cap_factor_vre': 'CapFactorVRE',
-    'hydro_cap_factor': 'HydroCapFactor',
-    'supply_price': 'SupplyPrice',
-    'supply_curve': 'SupplyCurve',
-    'h2_price': 'H2Price',
-}
+# ParamSource keys are also the pyomo Param attribute name on PowerModel, so these are checked
+# with `hasattr(model, key)` directly.
+#
+# Always-required sources: declared unconditionally in electricity_model.py, so present for
+# every config.
+_ALWAYS_REQUIRED = frozenset(
+    {
+        'battery_efficiency',
+        'hours_to_buy',
+        'cap_factor_vre',
+        'hydro_cap_factor',
+        'supply_price',
+        'supply_curve',
+        'h2_price',
+    }
+)
 
-# Switch-gated ParamSource keys -> the pyomo Param attribute they end up as, plus which
-# ElecConfig switch gates their declaration in electricity_model.py.
-_GATED_ATTRS = {
-    'fom_cost': ('FOMCost', 'capacity_expansion'),
-    'cap_cost': ('CapCostLearning', 'capacity_expansion'),
-    'tran_cost': ('TranCost', 'regional_exchange'),
-    'tran_cost_int': ('TranCostInt', 'regional_exchange'),
-    'tran_limit': ('TranLimit', 'regional_exchange'),
-    'tran_limit_cap_int': ('TranLimitCapInt', 'regional_exchange'),
-    'tran_limit_gen_int': ('TranLimitGenInt', 'regional_exchange'),
-    'reserve_margin': ('ReserveMargin', 'reserve_margin_required'),
-    'ramp_up_cost': ('RampUpCost', 'ramping_required'),
-    'ramp_down_cost': ('RampDownCost', 'ramping_required'),
-    'ramp_rate': ('RampRate', 'ramping_required'),
-    'reg_reserves_cost': ('RegReservesCost', 'spinning_reserve_required'),
-    'res_tech_upper_bound': ('ResTechUpperBound', 'spinning_reserve_required'),
+# Switch-gated sources -> the ElecConfig switch gating their declaration in electricity_model.py.
+_GATED_BY_SWITCH = {
+    'fom_cost': 'capacity_expansion',
+    'cap_cost': 'capacity_expansion',
+    'tran_cost': 'regional_exchange',
+    'tran_cost_int': 'regional_exchange',
+    'tran_limit': 'regional_exchange',
+    'tran_limit_cap_int': 'regional_exchange',
+    'tran_limit_gen_int': 'regional_exchange',
+    'reserve_margin': 'reserve_margin_required',
+    'ramp_up_cost': 'ramping_required',
+    'ramp_down_cost': 'ramping_required',
+    'ramp_rate': 'ramping_required',
+    'reg_reserves_cost': 'spinning_reserve_required',
+    'res_tech_upper_bound': 'spinning_reserve_required',
 }
 # Note: cap_cost_initial/learning_rate/supply_curve_learning are gated by capacity_expansion +
 # expansion_learning_type != DISABLED, which none of this file's `configs` cases enable -- those
@@ -211,14 +215,14 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     # Empirically verify param_sources.toml's `required` flags against actual model structure:
     # always-required sources must be present regardless of config, switch-gated sources must
     # be present only when their gating switch is active for this config.
-    for key, attr in _ALWAYS_REQUIRED_ATTRS.items():
+    for key in _ALWAYS_REQUIRED:
         assert PARAM_SOURCES[key].required
-        assert hasattr(elec_model, attr), f'{attr} missing for config {config_info!r}'
-    for key, (attr, switch_name) in _GATED_ATTRS.items():
+        assert hasattr(elec_model, key), f'{key} missing for config {config_info!r}'
+    for key, switch_name in _GATED_BY_SWITCH.items():
         assert not PARAM_SOURCES[key].required
         expected_present = getattr(elec_config, switch_name)
-        assert hasattr(elec_model, attr) == expected_present, (
-            f'{attr} presence mismatch for config {config_info!r}'
+        assert hasattr(elec_model, key) == expected_present, (
+            f'{key} presence mismatch for config {config_info!r}'
         )
 
 
@@ -236,15 +240,11 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     elec_model = sequencer.build_model(common_config, elec_config)
 
     # with learning enabled, the learning-gated param_sources.toml entries should be wired in
-    for key, attr in {
-        'cap_cost_initial': 'CapCostInitial',
-        'learning_rate': 'LearningRate',
-        'supply_curve_learning': 'SupplyCurveLearning',
-    }.items():
+    for key in ('cap_cost_initial', 'learning_rate', 'supply_curve_learning'):
         assert not PARAM_SOURCES[key].required
-        assert hasattr(elec_model, attr), f'{attr} missing with learning enabled'
+        assert hasattr(elec_model, key), f'{key} missing with learning enabled'
 
-    # DEBUG level additionally captures the per-key CapCostLearning updates for the verbose table
+    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table
     capture_level = logging.DEBUG if verbose else logging.INFO
     with caplog.at_level(capture_level, logger='src.models.electricity.sequencer'):
         status = sequencer.solve_model()
@@ -252,17 +252,16 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
 
     if verbose:
         # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
-        cost_rows = [
-            rec.args for rec in caplog.records if rec.msg.startswith('Reduced CapCostLearning')
-        ]
+        cost_rows = [rec.args for rec in caplog.records if rec.msg.startswith('Reduced cap_cost')]
         y0 = value(elec_model.y0_learning)
         initial_costs = {
-            idx: value(elec_model.CapCostInitial[idx]) for idx in elec_model.CapCostInitial
+            idx: value(elec_model.cap_cost_initial[idx]) for idx in elec_model.cap_cost_initial
         }
         print(f'\ny0 for learning: {y0}')
-        print(f'CapCostInitial: {initial_costs}')
-        # one record per CapCostLearning key per iteration; recover the iteration index by chunking
-        n_keys = len(elec_model.CapCostLearning)
+        print(f'cap_cost_initial: {initial_costs}')
+        # one record per cap_cost key per iteration; recover the iteration index by
+        # chunking
+        n_keys = len(elec_model.cap_cost)
         table = [
             (i // n_keys, y, old, new)
             for i, (_r, _tech, _step, y, old, new) in enumerate(cost_rows)

@@ -46,17 +46,17 @@ def mock_model() -> pyo.ConcreteModel:
     m.year = pyo.Set(initialize=YEARS)
 
     m.y0_learning = pyo.Param(initialize=Y0)
-    m.WeightYear = pyo.Param(m.year, initialize={2030: 5, 2035: 3})
+    m.weight_year = pyo.Param(m.year, initialize={2030: 5, 2035: 3})
 
-    m.LearningRate = pyo.Param(m.tech, initialize={2: 0.1, 3: 0.2})
-    m.SupplyCurveLearning = pyo.Param(m.tech, initialize={2: 100.0, 3: 200.0})
-    m.CapCostInitial = pyo.Param(
+    m.learning_rate = pyo.Param(m.tech, initialize={2: 0.1, 3: 0.2})
+    m.supply_curve_learning = pyo.Param(m.tech, initialize={2: 100.0, 3: 200.0})
+    m.cap_cost_initial = pyo.Param(
         m.region,
         m.tech,
         m.step,
         initialize={(r, tech, s): 1000.0 for r in REGIONS for tech in TECHS for s in STEPS},
     )
-    m.CapCostLearning = pyo.Param(
+    m.cap_cost = pyo.Param(
         m.region,
         m.tech,
         m.step,
@@ -67,8 +67,8 @@ def mock_model() -> pyo.ConcreteModel:
         mutable=True,
     )
 
-    m.capacity_builds = pyo.Var(list(m.CapCostLearning.keys()), within=pyo.NonNegativeReals)
-    for r, tech, s, y in m.CapCostLearning:
+    m.capacity_builds = pyo.Var(list(m.cap_cost.keys()), within=pyo.NonNegativeReals)
+    for r, tech, s, y in m.cap_cost:
         m.capacity_builds[r, tech, s, y].set_value(10.0 if tech == 2 else 20.0)
 
     return m
@@ -147,16 +147,16 @@ class TestCostLearningFunc:
 
 
 def test_update_expansion_cost(mock_model):
-    """CapCostLearning is overwritten with CapCostInitial * learning multiplier."""
+    """cap_cost is overwritten with cap_cost_initial * learning multiplier."""
     new_cap = {(tech, y): 50.0 for tech in TECHS for y in YEARS}
 
     update_expansion_cost(mock_model, new_cap)
 
-    for r, tech, step, y in mock_model.CapCostLearning:
-        expected = mock_model.CapCostInitial[r, tech, step] * cost_learning_func(
+    for r, tech, step, y in mock_model.cap_cost:
+        expected = mock_model.cap_cost_initial[r, tech, step] * cost_learning_func(
             mock_model, tech, y, new_cap[tech, y]
         )
-        assert pyo.value(mock_model.CapCostLearning[r, tech, step, y]) == pytest.approx(expected)
+        assert pyo.value(mock_model.cap_cost[r, tech, step, y]) == pytest.approx(expected)
 
 
 def test_update_expansion_cost_no_growth_is_unchanged(mock_model):
@@ -165,5 +165,5 @@ def test_update_expansion_cost_no_growth_is_unchanged(mock_model):
 
     update_expansion_cost(mock_model, new_cap)
 
-    for r, tech, step in mock_model.CapCostInitial:
-        assert pyo.value(mock_model.CapCostLearning[r, tech, step, Y0]) == pytest.approx(1000.0)
+    for r, tech, step in mock_model.cap_cost_initial:
+        assert pyo.value(mock_model.cap_cost[r, tech, step, Y0]) == pytest.approx(1000.0)

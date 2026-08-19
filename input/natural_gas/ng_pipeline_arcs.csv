@@ -1,7 +1,3 @@
-# Interstate natural gas pipeline arcs (directed; each physical pipe = two rows)
-# capacity_bcf: aggregate nameplate capacity [BCF/yr] per direction
-# tariff_per_mmbtu: FERC-approved transportation tariff [$/MMBtu]
-# Source: EIA Compendium of Interstate Natural Gas Pipelines 2022; FERC Form 2
 origin,destination,capacity_bcf,tariff_per_mmbtu
 new_england,middle_atlantic,1400,0.55
 middle_atlantic,new_england,1400,0.55

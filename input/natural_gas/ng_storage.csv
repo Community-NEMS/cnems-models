@@ -1,8 +1,3 @@
-# Underground natural gas storage by census division
-# working_cap_bcf: working gas capacity [BCF]
-# inject_cap_bcf_yr: max seasonal injection rate [BCF/yr]
-# withdraw_cap_bcf_yr: max seasonal withdrawal rate [BCF/yr]
-# Source: EIA Form EIA-191M aggregate by census division (2022)
 region,working_cap_bcf,inject_cap_bcf_yr,withdraw_cap_bcf_yr
 new_england,180,60,90
 middle_atlantic,420,140,210

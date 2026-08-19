@@ -1,5 +1,3 @@
-# Scalar parameters for the natural gas model
-# Source: as noted per parameter
 parameter,value,units,source
 storage_opex,0.18,$/MMBtu,EIA average storage injection/withdrawal tariff
 lng_world_price_per_mmbtu,5.30,$/MMBtu,LNG netback anchor calibrated to AEO2026 Henry Hub (peak 5.36); default was 7.00 which pulled domestic price too high

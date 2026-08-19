@@ -16,7 +16,8 @@ from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.utilities import setup_logger
 from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import NGModel, report
+from src.models.natural_gas.ng_model import NGModel
+from src.models.natural_gas.postprocessor import report
 
 logger = logging.getLogger(__name__)
 
@@ -200,11 +201,11 @@ class NGSequencer(IntegratedModelSequencer):
         # ── attach result tables to the model for reporting ──────────────────────
         # TODO:  Extraction below on hold till model running and then maybe refactor to not
         #        "staple on" instance variables and do it cleaner
-        # m.results_production = _extract_production(m)
-        # m.results_flows = _extract_flows(m)
-        # m.results_prices = _extract_prices(m)
-        # m.results_storage = _extract_storage(m)
-        # m.results_balance = _extract_balance(m)
+        # m.results_production = postprocessor._extract_production(m)
+        # m.results_flows = postprocessor._extract_flows(m)
+        # m.results_prices = postprocessor._extract_prices(m)
+        # m.results_storage = postprocessor._extract_storage(m)
+        # m.results_balance = postprocessor._extract_balance(m)
         return IterationStatus.USABLE
 
     def full_postprocess(self, **kwargs):

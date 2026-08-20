@@ -54,10 +54,12 @@ def test_hours_set():
 
         all_frames = param_data.param_frames
         tot_load1 = pd.merge(
-            all_frames['Load'].reset_index(), all_frames['MapHourDay'].reset_index(), on='hour'
+            all_frames['elec_load'].reset_index(),
+            all_frames['map_hour_day'].reset_index(),
+            on='hour',
         )
-        tot_load1 = pd.merge(tot_load1, all_frames['WeightDay'], on='day')
-        tot_load1.loc[:, 'tot_load'] = tot_load1['Load'] * tot_load1['WeightDay']
+        tot_load1 = pd.merge(tot_load1, all_frames['weight_day'], on='day')
+        tot_load1.loc[:, 'tot_load'] = tot_load1['Load'] * tot_load1['weight_day']
         return sum(tot_load1.tot_load)
 
     # total load for 4 days, 1 hour per day

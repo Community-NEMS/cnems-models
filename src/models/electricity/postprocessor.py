@@ -61,7 +61,7 @@ def report_obj_df(mod_object, instance, dir_out, sub_dir):
 
     # list of names to not report
     # TODO:  Consider if these objs needs reporting, and if so adjust...
-    if name not in ['var_elec_request', 'FixedElecRequest']:
+    if name not in ['var_elec_request', 'fixed_elec_request']:
         # get data associated with object
         df = create_obj_df(mod_object)
         if not df.empty:

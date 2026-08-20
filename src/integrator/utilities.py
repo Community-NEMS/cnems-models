@@ -146,11 +146,11 @@ def get_elec_price(instance: PowerModel | ConcreteModel, block=None) -> pd.DataF
 
         # gather the weights for this hour
         # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
-        day = model.MapHourDay[ei.hour]
+        day = model.map_hour_day[ei.hour]
         # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
-        day_wt = model.WeightDay[day]
+        day_wt = model.weight_day[day]
         # pyrefly: ignore[bad-index]  - pyomo params attached at runtime read as Component
-        year_wt = model.WeightYear[ei.year]
+        year_wt = model.weight_year[ei.year]
 
         # remove the weighting & record
         # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
@@ -346,11 +346,11 @@ def poll_h2_prices_from_elec(
     """
     res = {}
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for idx in model.H2Price:
+    for idx in model.h2_price:
         # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
         r, t, step, y, season = idx
         if t == tech and r in regions and step == 1:  # TODO:  remove hard coding
-            res[r, season, y] = value(model.H2Price[idx])
+            res[r, season, y] = value(model.h2_price[idx])
 
     # pyrefly: ignore[bad-return]  - pyomo's value() is typed as returning None too
     return res
@@ -371,10 +371,10 @@ def update_h2_prices(model: PowerModel, h2_prices: dict[HI, float]) -> None:
     no_update = set()
     good_updates = set()
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for region, tech, step, yr, season in model.H2Price:
+    for region, tech, step, yr, season in model.h2_price:
         if tech in h2_techs:
             if (region, yr) in h2_prices:
-                model.H2Price[region, tech, step, yr, season] = h2_prices[
+                model.h2_price[region, tech, step, yr, season] = h2_prices[
                     HI(region=region, year=yr)
                 ]
                 update_count += 1
@@ -400,7 +400,7 @@ def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
     # this is kind of a 1-liner right now, but may evolve into something more elaborate when
     # time scale is tweaked
 
-    self.FixedElecRequest.store_values(elec_demand)
+    self.fixed_elec_request.store_values(elec_demand)
     logger.debug('Stored new fixed electrical request in elec model: %s', elec_demand)
 
 
@@ -435,8 +435,8 @@ def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
             h2_demand_weighted = (
                 # pyrefly: ignore[unsupported-operation]  - pyomo's value() may return None
                 value(model.generation_total[idx])
-                * model.WeightDay[model.MapHourDay[hr]]
-                / model.H2Heatrate
+                * model.weight_day[model.map_hour_day[hr]]
+                / model.h2_heatrate
             )
             res[HI(region=r, year=y)] += h2_demand_weighted
             tot_by_rep_year[y] += h2_demand_weighted

@@ -197,7 +197,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 eps = calculate_tolerance(
                     cap_growth=cap_growth,
                     new_cap_growth=new_cap_growth,
-                    year_weights=instance.WeightYear.extract_values(),
+                    year_weights=instance.weight_year.extract_values(),
                 )
 
                 # update the cap growth for potential next iteration
@@ -332,12 +332,12 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     # instance.old_cap_wt = {}
 
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for _r, tech, _step, y in instance.CapCostLearning:
+    for _r, tech, _step, y in instance.cap_cost:
         if (tech, y) not in initial_growth:
             # each tech will increase cap by 1 GW per year. reasonable starting point.
             # TODO:  come back to this assumption after better understanding of process
             initial_growth[tech, y] = (y - instance.y0_learning) * 1
-            # instance.old_cap_wt[(tech, y)] = instance.WeightYear[y] * instance.old_cap[(tech, y)]
+            # instance.old_cap_wt[(tech, y)] = instance.weight_year[y] * instance.old_cap[(tech, y)]
     return initial_growth
 
 
@@ -354,7 +354,7 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     """Calculate the current capacity of all buildable tech by year."""
     result = defaultdict(float)
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for r, tech, step, y in instance.CapCostLearning:
+    for r, tech, step, y in instance.cap_cost:
         # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
         result[(tech, y)] = sum(
             value(instance.capacity_builds[r, tech, step, year])
@@ -382,10 +382,10 @@ def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
         updated capital cost based on learning calculation
     """
     cost = (
-        (instance.SupplyCurveLearning[tech] + 0.0001 * (y - instance.y0_learning) + new_cap)
-        / instance.SupplyCurveLearning[tech]
+        (instance.supply_curve_learning[tech] + 0.0001 * (y - instance.y0_learning) + new_cap)
+        / instance.supply_curve_learning[tech]
         # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
-    ) ** (-1.0 * instance.LearningRate[tech])
+    ) ** (-1.0 * instance.learning_rate[tech])
     return cost
 
 
@@ -397,12 +397,12 @@ def update_expansion_cost(instance, new_cap: dict[tuple, float]):
         new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
 
     # Assign new cost
-    for r, tech, step, y in instance.CapCostLearning:
-        new_cost = instance.CapCostInitial[r, tech, step] * new_multiplier[tech, y]
-        old_value = value(instance.CapCostLearning[r, tech, step, y])
-        instance.CapCostLearning[r, tech, step, y] = new_cost
+    for r, tech, step, y in instance.cap_cost:
+        new_cost = instance.cap_cost_initial[r, tech, step] * new_multiplier[tech, y]
+        old_value = value(instance.cap_cost[r, tech, step, y])
+        instance.cap_cost[r, tech, step, y] = new_cost
         logger.debug(
-            'Reduced CapCostLearning[%s, %s, %s, %s] from %0.2f to %0.2f',
+            'Reduced cap_cost[%s, %s, %s, %s] from %0.2f to %0.2f',
             r,
             tech,
             step,

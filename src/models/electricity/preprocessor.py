@@ -24,7 +24,7 @@ from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_utilities import (
     add_season_index,
     avg_by_group,
-    capacitycredit_df,
+    capacity_credit_df,
     create_hourly_params,
     step_sub_sc_subset,
     time_map,
@@ -149,12 +149,18 @@ def create_sc_sets(all_frames, setin):
         index_list
     )
 
-    setin.ramp_most_hours_balance_index = hr_sub_sc_subset(all_frames, setin.T_conv, setin.hour23)
-    setin.ramp_first_hour_balance_index = hr_sub_sc_subset(all_frames, setin.T_conv, setin.hour1)
-    setin.storage_most_hours_balance_index = hr_sub_sc_subset(
-        all_frames, setin.T_stor, setin.hour23
+    setin.ramp_most_hours_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_conv, setin.hour_most
     )
-    setin.storage_first_hour_balance_index = hr_sub_sc_subset(all_frames, setin.T_stor, setin.hour1)
+    setin.ramp_first_hour_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_conv, setin.hour_first
+    )
+    setin.storage_most_hours_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_stor, setin.hour_most
+    )
+    setin.storage_first_hour_balance_index = hr_sub_sc_subset(
+        all_frames, setin.T_stor, setin.hour_first
+    )
 
     setin.generation_hydro_ub_index = create_hourly_sets(
         all_frames, step_sub_sc_subset(all_frames, setin.T_hydro, [2])
@@ -453,7 +459,7 @@ def preprocessor(
         all_frames['SupplyCurveLearning']['SupplyCurveLearning'] == 0.0, 'SupplyCurveLearning'
     ] = 0.01
 
-    all_frames['CapacityCredit'] = capacitycredit_df(all_frames, setin)
+    all_frames['CapacityCredit'] = capacity_credit_df(all_frames, setin)
 
     # expand a few parameters to be hourly
     TLCI_cols = ['region', 'region1', 'year', 'hour', 'TranLimitCapInt']

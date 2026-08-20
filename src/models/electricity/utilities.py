@@ -223,6 +223,6 @@ def annual_count(hour, m) -> int:
     int
         the aggregate weight (count) of this hour in the rep_year.  NOT the hour weight!
     """
-    WeightDay = m.WeightDay[m.MapHourDay[hour]]
-    WeightHour = m.WeightHour[hour]
-    return WeightDay * WeightHour
+    weight_day = m.weight_day[m.map_hour_day[hour]]
+    weight_hour = m.weight_hour[hour]
+    return weight_day * weight_hour

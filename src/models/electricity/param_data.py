@@ -50,7 +50,7 @@ class ParamData:
     map_day_season: DataFrame
 
     # other constructed dataframes
-    load: DataFrame
+    elec_load: DataFrame
 
     # loaded frames and dicts
     param_frames: dict[str, DataFrame]
@@ -122,8 +122,8 @@ class ParamData:
         # make the Load dataframe
         load_df = self.build_load_dataframe()
         aggregated_load_df = self.aggregate_time(load_df)
-        self.param_frames['Load'] = self.apply_hourly_weights(
-            self.param_frames['WeightHour'], aggregated_load_df
+        self.param_frames['elec_load'] = self.apply_hourly_weights(
+            self.param_frames['weight_hour'], aggregated_load_df
         )
 
         # Pluck out the time-based DF conversions and load them
@@ -136,7 +136,7 @@ class ParamData:
             df = df.set_index(list(df.columns[:-1]))
             self.param_frames[name] = df
 
-        # augment CapFactorVRE with year.... ugh
+        # augment cap_factor_vre with year.... ugh
         # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
         df = pd.merge(
             self.param_frames['cap_factor_vre'].reset_index(),
@@ -153,28 +153,28 @@ class ParamData:
         # TODO:  Investigate why this is done.  It seems unnecessary bloat to expand with
         #        duplicate information.  Why not just index with [season]?
         if len(self.param_frames['tran_limit_cap_int']) > 0:
-            TLCI_cols = ['region', 'region_international', 'year', 'hour', 'capacity']
-            TLGI_cols = ['region_international', 'step', 'year', 'hour', 'generation']
+            tlci_cols = ['region', 'region_international', 'year', 'hour', 'capacity']
+            tlgi_cols = ['region_international', 'step', 'year', 'hour', 'generation']
             self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
-                self.param_frames['MapHourSeason'],
+                self.param_frames['map_hour_season'],
                 self.param_frames['tran_limit_cap_int'],
-                TLCI_cols,
+                tlci_cols,
                 name='tran_limit_cap_int',
             )
             self.param_frames['tran_limit_gen_int'] = self.create_hourly_params(
-                self.param_frames['MapHourSeason'],
+                self.param_frames['map_hour_season'],
                 self.param_frames['tran_limit_gen_int'],
-                TLGI_cols,
+                tlgi_cols,
                 name='tran_limit_gen_int',
             )
         # do the same for interregional
         # we can skip this if there are no interregional connections
         if len(self.param_frames['tran_limit']) > 0:
-            TLI_cols = ['destination_region', 'source_region', 'year', 'hour', 'value']
+            tli_cols = ['destination_region', 'source_region', 'year', 'hour', 'value']
             self.param_frames['tran_limit'] = self.create_hourly_params(
-                self.param_frames['MapHourSeason'],
+                self.param_frames['map_hour_season'],
                 self.param_frames['tran_limit'],
-                TLI_cols,
+                tli_cols,
                 name='tran_limit',
             )
             logger.info(
@@ -188,7 +188,7 @@ class ParamData:
         model_sets.build_sc_indexes(supply_curve_index_vals)
 
         # populate the trade indices based on gathered parameter data
-        model_sets.build_international_travel_index(
+        model_sets.build_international_trade_index(
             intl_capacity=self.param_frames['tran_limit_cap_int'],
             intl_gen_limit=self.param_frames['tran_limit_gen_int'],
         )
@@ -202,10 +202,10 @@ class ParamData:
         # use the augmented supply_curve DF to make the capacity_credit df
         self.param_frames['capacity_credit'] = self.build_capacity_credit(
             augmented_supply_curve=augmented_supply_curve,
-            hour_season_map=self.param_frames['MapHourSeason'],
+            hour_season_map=self.param_frames['map_hour_season'],
             cap_factor_vre=self.param_frames['cap_factor_vre'],
             hydro_cap_factor=self.param_frames['hydro_cap_factor'],
-            tech_hyrdo=model_sets.tech_hydro,
+            tech_hydro=model_sets.tech_hydro,
         )
 
         # Load the remainder directly into dictionary objects
@@ -259,37 +259,37 @@ class ParamData:
 
     def build_temporal_maps(self):
         """Build the time-based dataframes."""
-        self.param_frames['MapDaySeason'] = time_map(
+        self.param_frames['map_day_season'] = time_map(
             self.model_sets.cw_temporal, {'Map_day': 'day', 'Map_s': 'season'}
         ).set_index('day')
-        self.param_frames['MapHourDay'] = time_map(
+        self.param_frames['map_hour_day'] = time_map(
             self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_day': 'day'}
         ).set_index('hour')
-        self.param_frames['MapHourSeason'] = time_map(
+        self.param_frames['map_hour_season'] = time_map(
             self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_s': 'season'}
         ).set_index('hour')
 
-        self.param_frames['WeightYear'] = pd.DataFrame.from_dict(
-            data=self.model_sets.year_agg_weights, orient='index', columns=['WeightYear']
+        self.param_frames['weight_year'] = pd.DataFrame.from_dict(
+            data=self.model_sets.year_agg_weights, orient='index', columns=['weight_year']
         ).rename_axis('year')
-        self.param_frames['WeightHour'] = time_map(
-            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'WeightHour': 'WeightHour'}
+        self.param_frames['weight_hour'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'WeightHour': 'weight_hour'}
         ).set_index('hour')
 
-        self.param_frames['WeightDay'] = time_map(
-            self.model_sets.cw_temporal, {'Map_day': 'day', 'WeightDay': 'WeightDay'}
+        self.param_frames['weight_day'] = time_map(
+            self.model_sets.cw_temporal, {'Map_day': 'day', 'WeightDay': 'weight_day'}
         ).set_index('day')
 
         # weights per season
-        self.param_frames['WeightSeason'] = self.model_sets.cw_temporal[
+        self.param_frames['weight_season'] = self.model_sets.cw_temporal[
             ['Map_s', 'Map_hour', 'WeightDay', 'WeightHour']
         ].drop_duplicates()
-        self.param_frames['WeightSeason'].loc[:, 'WeightSeason'] = (
-            self.param_frames['WeightSeason']['WeightDay']
-            * self.param_frames['WeightSeason']['WeightHour']
+        self.param_frames['weight_season'].loc[:, 'weight_season'] = (
+            self.param_frames['weight_season']['WeightDay']
+            * self.param_frames['weight_season']['WeightHour']
         )
-        self.param_frames['WeightSeason'] = (
-            self.param_frames['WeightSeason']
+        self.param_frames['weight_season'] = (
+            self.param_frames['weight_season']
             .drop(columns=['WeightDay', 'WeightHour', 'Map_hour'])
             .groupby(['Map_s'])
             .agg('sum')
@@ -311,20 +311,20 @@ class ParamData:
         """Apply the hourly weights to the data in the target dataframe by matching hour weights."""
         # Update load to be the total demand in each time segment rather than the average
         df = pd.merge(target, hour_weight, how='left', on=['hour'])
-        df['Load'] = df['Load'] * df['WeightHour']
-        df = df.drop(columns=['WeightHour'])
+        df['Load'] = df['Load'] * df['weight_hour']
+        df = df.drop(columns=['weight_hour'])
         df = df.set_index(list(df.columns[:-1]))
         return df
 
+    # supersedes param_utilities.capacity_credit_df(all_frames, setin)
     def build_capacity_credit(
         self,
         augmented_supply_curve: DataFrame,
         hour_season_map: DataFrame,
         cap_factor_vre: DataFrame,
         hydro_cap_factor: DataFrame,
-        tech_hyrdo: Collection[str],
+        tech_hydro: Collection[str],
     ) -> DataFrame:
-        # def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
         """Builds the capacity credit dataframe.
 
         Parameters
@@ -337,7 +337,7 @@ class ParamData:
             capacity factors for the variable renewable techs
         hydro_cap_factor : DataFrame
             seasonal capacity factors for the hydro techs
-        tech_hyrdo : Collection[str]
+        tech_hydro : Collection[str]
             techs treated as hydro, which draw their credit from ``hydro_cap_factor``
 
         Returns
@@ -358,12 +358,12 @@ class ParamData:
             cap_factor_vre,
             how='left',
             on=['tech', 'year', 'region', 'step', 'hour'],
-        ).rename(columns={'value': 'CapacityCredit'})  # TODO:  This seems hoaky
+        ).rename(columns={'value': 'capacity_credit'})  # TODO:  This seems hoaky
         # df now has all rows in it.  We just need to correct entries for non-VRE
         # technologies and hydro techs
 
         # capacity credit = 1 for dispatchable technologies
-        df['CapacityCredit'] = df['CapacityCredit'].fillna(1)  # everything non-VRE
+        df['capacity_credit'] = df['capacity_credit'].fillna(1)  # everything non-VRE
 
         # capacity credit is seasonal limit for hydro, map it out to hourly
         hydro_capacity = self.create_hourly_params(
@@ -381,14 +381,14 @@ class ParamData:
             on=['region', 'hour'],
         )
 
-        hydro_mask = df['tech'].isin(tech_hyrdo)
-        df.loc[hydro_mask, 'CapacityCredit'] = df.loc[hydro_mask, 'value']
+        hydro_mask = df['tech'].isin(tech_hydro)
+        df.loc[hydro_mask, 'capacity_credit'] = df.loc[hydro_mask, 'value']
 
         # drop unnecessary columns
         df = df.drop(columns=['capacity', 'value'])
 
         # reorder columns
-        df = df[['region', 'tech', 'step', 'year', 'hour', 'CapacityCredit']]
+        df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_credit']]
         df = df.set_index(list(df.columns)[:-1])
         return df
 

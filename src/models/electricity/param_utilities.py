@@ -104,7 +104,7 @@ def time_map(cw_temporal, rename_cols):
     return df
 
 
-def capacitycredit_df(all_frames: dict[str, DataFrame], setin):
+def capacity_credit_df(all_frames: dict[str, DataFrame], setin):
     """Builds the capacity credit dataframe.
 
     Parameters
@@ -192,14 +192,14 @@ def create_subsets(df: DataFrame, col: str, name_filter: list[str]):
     return df
 
 
-def step_sub_sc_subset(all_frames, T_subset, step_subset):
+def step_sub_sc_subset(all_frames, tech_subset, step_subset):
     """Creates supply curve subsets by step.
 
     Parameters
     ----------
     all_frames : dict[str, DataFrame]
         dictionary of dataframes where the key is the file name and the value is the table data
-    T_subset : list
+    tech_subset : list
        technologies to subset
     step_subset : list
         step numbers to subset
@@ -210,7 +210,7 @@ def step_sub_sc_subset(all_frames, T_subset, step_subset):
         data frame containing supply curve subsets by step
     """
     df = create_subsets(
-        create_subsets(all_frames['SupplyCurve'].reset_index(), 'tech', T_subset),
+        create_subsets(all_frames['SupplyCurve'].reset_index(), 'tech', tech_subset),
         'step',
         step_subset,
     )

@@ -99,7 +99,7 @@ def run_gs(settings):
 
         # run_gs - ELEC_INIT: check the "original" load
         # type: ignore[no-matching-overload]
-        agg_load = sum(pyo.value(elec_model.Load[idx]) for idx in elec_model.Load)
+        agg_load = sum(pyo.value(elec_model.elec_load[idx]) for idx in elec_model.elec_load)
         load_records.append((0, agg_load))
 
         if settings.sw_learning == 1:  # initializing iterative learning
@@ -247,9 +247,9 @@ def run_gs(settings):
             # that can be inspected... put them in the elec model parameter (update the
             # mutable param)
             if update_load:
-                elec_model.Load.store_values(meta.blk.Load.extract_values())
+                elec_model.elec_load.store_values(meta.blk.Load.extract_values())
             # type: ignore[no-matching-overload]
-            agg_load = sum(pyo.value(elec_model.Load[idx]) for idx in elec_model.Load)
+            agg_load = sum(pyo.value(elec_model.elec_load[idx]) for idx in elec_model.elec_load)
             load_records.append((i + 1, agg_load))
 
         #####

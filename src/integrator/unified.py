@@ -138,14 +138,14 @@ def run_unified(settings: Config_settings):
         # iterate over the Generation variable and screen out the H2 "demanders" and build a
         # summary expression for all the demands in the (region, year) index of the H2 model
 
-        # see note in Elec Model function for polling H2 regarding units of H2Heatrate
+        # see note in Elec Model function for polling H2 regarding units of h2_heatrate
         for idx in elec_model.generation_total.index_set():
             tech, y, r, _, hr = idx
             if tech in h2_consuming_techs:
                 h2_demand_weighted = (
                     elec_model.generation_total[idx]
-                    * elec_model.WeightDay[elec_model.MapHourDay[hr]]
-                    / elec_model.H2Heatrate
+                    * elec_model.weight_day[elec_model.map_hour_day[hr]]
+                    / elec_model.h2_heatrate
                 )
                 h2_demand_equations_from_elec[HI(region=r, year=y)] += h2_demand_weighted
 
@@ -219,7 +219,7 @@ def run_unified(settings: Config_settings):
 
         # catch the new Load metric from res...
         if settings.electricity and settings.residential and i > 0:
-            meta.elec.Load.store_values(meta.res.Load.extract_values())
+            meta.elec.elec_load.store_values(meta.res.Load.extract_values())
             # meta.res.Load.pprint()
             # sys.exit(-1)
 
@@ -227,7 +227,7 @@ def run_unified(settings: Config_settings):
             # we can still poll the elec load used from the elec model in all iterations which
             # will show the value used in the next iteration with/without the 0th update above
             # type: ignore[missing-attribute, no-matching-overload]
-            agg_load = sum(pyo.value(meta.elec.Load[idx]) for idx in meta.elec.Load)
+            agg_load = sum(pyo.value(meta.elec.elec_load[idx]) for idx in meta.elec.elec_load)
             load_records.append((i + 1, agg_load))
 
             # dev note:  the res block is now depleted... we have extracted the new load values

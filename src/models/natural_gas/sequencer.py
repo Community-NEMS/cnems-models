@@ -15,6 +15,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.utilities import setup_logger
+from src.models.natural_gas.data import load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
@@ -68,7 +69,8 @@ class NGSequencer(IntegratedModelSequencer):
         """
         self._common_config = common_config
         self._ng_config = model_config
-        self._model = NGModel(common_config, model_config)
+        data = load_all(common_config=common_config, ng_config=model_config)
+        self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 
     def update_model(self, **kwargs) -> NGModel:

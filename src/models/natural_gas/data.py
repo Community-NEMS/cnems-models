@@ -906,7 +906,7 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
             bogus_filters = r_filter - domestic
             if bogus_filters:
                 logger.error('NG Config region filter has unknown regions: %s', bogus_filters)
-                raise ValueError('Unrecognized region filter(s): %s', bogus_filters)
+                raise ValueError(f'Unrecognized region filter(s): {sorted(bogus_filters)}')
 
             filtered_domestic_regions = domestic.intersection(r_filter)
             if len(filtered_domestic_regions) < len(domestic):

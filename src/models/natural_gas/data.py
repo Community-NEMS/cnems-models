@@ -406,6 +406,7 @@ def load_lng_import(
         for _, row in df.iterrows()
     }
     if not result:
+        logger.warning('ng_lng_import.csv yielded empty result, using fallback')
         return dict(_LNG_IMPORT_FALLBACK)
     logger.info('LNG_IMPORT loaded from CSV (%d terminals)', len(result))
     return result
@@ -423,6 +424,7 @@ def load_lng_export(
         region = str(row['region'])
         result.setdefault(region, {})[int(row['year'])] = float(row['demand_bcf'])
     if not result:
+        logger.warning('ng_lng_export.csv yielded empty result, using fallback')
         return {k: dict(v) for k, v in _LNG_EXPORT_DEMAND_BCF_FALLBACK.items()}
     logger.info(
         'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
@@ -440,6 +442,7 @@ def load_demand_elasticity(
         return dict(_DEMAND_PRICE_ELASTICITY_FALLBACK)
     result = {str(row['sector']): float(row['own_price_elasticity']) for _, row in df.iterrows()}
     if not result:
+        logger.warning('ng_demand_elasticity.csv yielded empty result, using fallback')
         return dict(_DEMAND_PRICE_ELASTICITY_FALLBACK)
     logger.info('DEMAND_PRICE_ELASTICITY loaded from CSV')
     return result
@@ -457,6 +460,7 @@ def load_base_demand(
         region = str(row['region'])
         result.setdefault(region, {})[str(row['sector'])] = float(row['demand_bcf_2025'])
     if not result:
+        logger.warning('ng_base_demand.csv yielded empty result, using fallback')
         return {k: dict(v) for k, v in _BASE_DEMAND_2025_FALLBACK.items()}
     logger.info(
         'BASE_DEMAND_2025 loaded from CSV (%d region-sector pairs)',
@@ -474,6 +478,7 @@ def load_demand_growth(
         return dict(_DEMAND_GROWTH_RATES_FALLBACK)
     result = {str(row['sector']): float(row['annual_growth_rate']) for _, row in df.iterrows()}
     if not result:
+        logger.warning('ng_demand_growth.csv yielded empty result, using fallback')
         return dict(_DEMAND_GROWTH_RATES_FALLBACK)
     logger.info('DEMAND_GROWTH_RATES loaded from CSV')
     return result
@@ -496,6 +501,7 @@ def load_pipeline_arcs(
         for _, row in df.iterrows()
     ]
     if not result:
+        logger.warning('ng_pipeline_arcs.csv yielded empty result, using fallback')
         return list(_PIPELINE_ARCS_RAW_FALLBACK)
     logger.info('PIPELINE_ARCS_RAW loaded from CSV (%d directed arcs)', len(result))
     return result
@@ -517,6 +523,7 @@ def load_storage(
         for _, row in df.iterrows()
     }
     if not result:
+        logger.warning('ng_storage.csv yielded empty result, using fallback')
         return {k: dict(v) for k, v in _STORAGE_FALLBACK.items()}
     logger.info('STORAGE loaded from CSV (%d regions)', len(result))
     return result
@@ -636,6 +643,15 @@ def load_lng_demand_curve(
     if df is None:
         # <-- the early return. Returns before load_qp_scalars() is ever called, so
         # 'world_price' comes from the fallback dict (7.00), not ng_scalars.csv (5.30).
+        # Logged, not fixed: the warning below makes the substitution visible without changing
+        # which value the model solves on. See the KNOWN ISSUE note above.
+        logger.warning(
+            'LNG_DEMAND_CURVE_SHAPE: world_price=%s and max_factor=%s taken from fallback; any '
+            'lng_world_price_per_mmbtu / lng_max_price_factor in ng_scalars.csv is NOT applied '
+            'on this path',
+            _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price'],
+            _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor'],
+        )
         return {
             k: list(v) if isinstance(v, list) else v
             for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()
@@ -690,6 +706,15 @@ def load_losses(
     if df is None:
         return _losses_fallback(fallback_regions)
     try:
+        # The per-column row.get() defaults below are silent by nature: a file that is present
+        # but short a column reads as a successful load. Report the columns once, up front.
+        absent = [c for c in _LOSSES_FALLBACK if c not in df.columns]
+        if absent:
+            logger.warning(
+                'ng_losses.csv has no %s column(s), using default values for them: %s',
+                absent,
+                {c: _LOSSES_FALLBACK[c] for c in absent},
+            )
         result: dict[str, dict[str, float]] = {}
         for _, row in df.iterrows():
             result[str(row['region'])] = {
@@ -699,6 +724,7 @@ def load_losses(
                 'plant_fuel_frac': float(row.get('plant_fuel_frac', 0.030)),
             }
         if not result:
+            logger.warning('ng_losses.csv yielded empty result, using fallback')
             return _losses_fallback(fallback_regions)
         logger.info('LOSSES loaded from CSV (%d regions)', len(result))
         return result
@@ -723,6 +749,7 @@ def load_gathering_charges(
             str(row['region']): float(row['gathering_charge_per_mmbtu']) for _, row in df.iterrows()
         }
         if not result:
+            logger.warning('ng_gathering.csv yielded empty result, using fallback')
             return dict(_GATHERING_CHARGES_FALLBACK)
         logger.info('GATHERING_CHARGES loaded from CSV (%d regions)', len(result))
         return result
@@ -763,18 +790,40 @@ def load_qp_scalars(
     Reads the same ng_scalars.csv used by load_storage_opex(); returns all
     parameter/value rows whose key matches a recognised scalar name. Missing
     keys fall back to _QP_SCALARS_FALLBACK.
+
+    This is the one loader that merges per key rather than choosing one source for the whole
+    dataset, so it logs both halves: a present ng_scalars.csv that lists only some keys leaves
+    the rest on fallback values, and without the warning below that is invisible in the log.
     """
     df = _csv('ng_scalars.csv', data_dir)
     result = dict(_QP_SCALARS_FALLBACK)
     if df is None:
+        logger.warning(
+            'QP_SCALARS: all %d scalars using fallback values: %s',
+            len(_QP_SCALARS_FALLBACK),
+            _QP_SCALARS_FALLBACK,
+        )
         return result
     try:
         df = df.set_index('parameter')
+        from_csv = []
         for key in _QP_SCALARS_FALLBACK:
             if key in df.index:
                 # TODO:  Investigate the source df and determine if/why column is not typed
                 # pyrefly: ignore[bad-argument-type]  - this pulled value will be a float
                 result[key] = float(df.at[key, 'value'])  # noqa: PD008 - scalar lookup
+                from_csv.append(key)
+        logger.info(
+            'QP_SCALARS loaded from CSV (%d of %d keys): %s',
+            len(from_csv),
+            len(_QP_SCALARS_FALLBACK),
+            from_csv,
+        )
+        on_fallback = {k: v for k, v in result.items() if k not in from_csv}
+        if on_fallback:
+            logger.warning(
+                'QP_SCALARS not listed in ng_scalars.csv, using fallback values: %s', on_fallback
+            )
         return result
     except (KeyError, ValueError, TypeError) as exc:
         logger.warning('Could not parse ng_scalars.csv QP keys (%s), using fallbacks', exc)

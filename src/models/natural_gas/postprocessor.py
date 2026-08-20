@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from pyomo.environ import value
 
-from src.models.natural_gas.data import REGION_LABELS
+from src.models.natural_gas.data import load_region_data
 
 if TYPE_CHECKING:
     from src.models.natural_gas.ng_model import NGModel
@@ -41,7 +41,7 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
     step, which is why the column is named for the source rather than for the step.
     """
     rows = []
-    for r in m.regions:
+    for r in m.region_analyze:
         for t in m.steps:
             k_seg = int(t.replace('step', ''))
             for y in m.year:
@@ -130,7 +130,7 @@ def _extract_flows(m: NGModel) -> pd.DataFrame:
 
 def _extract_prices(m: NGModel) -> pd.DataFrame:
     rows = []
-    for r in m.regions:
+    for r in m.region_analyze:
         for y in m.year:
             try:
                 dual_val = m.dual[m.demand_balance[r, y]]
@@ -143,7 +143,7 @@ def _extract_prices(m: NGModel) -> pd.DataFrame:
 
 def _extract_storage(m: NGModel) -> pd.DataFrame:
     rows = []
-    for r in m.regions:
+    for r in m.region_analyze:
         for y in m.year:
             rows.append(
                 {
@@ -169,7 +169,7 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
         _out[o].append((o, d))
 
     rows = []
-    for r in m.regions:
+    for r in m.region_analyze:
         for y in m.year:
             # Use the production_total Expression (QMIN floor + step sum, NGMM Eq 8) rather
             # than summing the input cost tiers, which are not a model quantity.
@@ -240,7 +240,8 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     # Prices by region and year
     print('\n  Regional Wellhead/Citygate Gas Price [$/MMBtu]:')
     pivot = results_prices.pivot(index='region', columns='year', values='gas_price_per_mmbtu')
-    pivot.index = [REGION_LABELS.get(r, r) for r in pivot.index]
+    labels = load_region_data()['region_labels']
+    pivot.index = [labels.get(r, r) for r in pivot.index]
     print(pivot.round(2).to_string())
 
     # LNG export demand by year (new)

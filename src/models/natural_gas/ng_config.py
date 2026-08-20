@@ -13,7 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
-from src.models.natural_gas.data import REGIONS
+from src.models.natural_gas.data import load_region_data
 
 logger = getLogger(__name__)
 
@@ -34,14 +34,22 @@ class NGConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_region_filter(self):
-        """Warn that a region subset yields results not comparable to a full run."""
-        if self.region_filter is not None and len(self.region_filter) < len(REGIONS):
+        """Warn that a region subset yields results not comparable to a full run.
+
+        The comparison is against the domestic regions declared in this run's own
+        ``input_path``, so a filter is judged against the region set the model will be built
+        on rather than a hardcoded count.
+        """
+        if self.region_filter is None:
+            return self
+        domestic = load_region_data(self.input_path)['regions_domestic']
+        if len(self.region_filter) < len(domestic):
             logger.warning(
                 'REGION SUBSET (%d of %d): results are NOT comparable to a full run, dropped '
                 'regions take their production, demand, and trade with them. For mechanics and '
                 'timing tests only.',
                 len(self.region_filter),
-                len(REGIONS),
+                len(domestic),
             )
         return self
 

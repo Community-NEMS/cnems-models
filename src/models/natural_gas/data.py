@@ -78,12 +78,12 @@ _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'natural_gas
 # should appear on a healthy run.
 # ---------------------------------------------------------------------------
 
-# fmt: off
-_REGIONS_FALLBACK = [
-    'new_england', 'middle_atlantic', 'east_north_central', 'west_north_central',
-    'south_atlantic', 'east_south_central', 'west_south_central', 'mountain', 'pacific',
-]
+# Regions are NOT among the fallbacks: they are definitional, so ng_region_data.csv is a hard
+# requirement and load_region_data() raises rather than substituting a hardcoded list. A silent
+# region fallback would let the model build on a region set that disagrees with every other
+# input file, which is the one failure mode these fallbacks cannot absorb.
 
+# fmt: off
 _SUPPLY_COST_TIERS_FALLBACK: dict[str, list[tuple[float, float]]] = {
     'new_england':        [(  60,  3.50), (  30,  5.00), (  10,  7.50)],
     'middle_atlantic':    [(5000,  1.80), (5500,  2.30), (3000,  3.20)],
@@ -231,14 +231,14 @@ _LNG_DEMAND_CURVE_SHAPE_FALLBACK: dict[str, list[float] | float] = {
 # (~0.3 %). Storage loss is fraction of cycled storage volume (~0.5 %).
 # Plant fuel is the fixed BCF/yr consumed in lease + processing-plant operations
 # (~3 % of throughput, applied as a fraction of total sector demand).
-_LOSSES_FALLBACK: dict[str, dict[str, float]] = {
-    r: {
-        'distribution_loss': 0.008,
-        'intrastate_loss':   0.003,
-        'storage_loss':      0.005,
-        'plant_fuel_frac':   0.030,
-    }
-    for r in _REGIONS_FALLBACK
+# Held as one row of values rather than a per-region table: the regions now come from
+# ng_region_data.csv, so the fallback is expanded over whatever domestic regions that file
+# declares (see _losses_fallback) instead of over a hardcoded region list.
+_LOSSES_FALLBACK: dict[str, float] = {
+    'distribution_loss': 0.008,
+    'intrastate_loss':   0.003,
+    'storage_loss':      0.005,
+    'plant_fuel_frac':   0.030,
 }
 
 # Gathering charge ($/MMBtu) per supply region, first-mile cost of moving gas
@@ -667,6 +667,11 @@ def load_lng_demand_curve(
         }
 
 
+def _losses_fallback(data_dir: Path) -> dict[str, dict[str, float]]:
+    """Expand the single row of default loss fractions over the domestic regions."""
+    return {r: dict(_LOSSES_FALLBACK) for r in load_region_data(data_dir)['regions_domestic']}
+
+
 def load_losses(
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[str, dict[str, float]]:
@@ -677,7 +682,7 @@ def load_losses(
     """
     df = _csv('ng_losses.csv', data_dir)
     if df is None:
-        return {k: dict(v) for k, v in _LOSSES_FALLBACK.items()}
+        return _losses_fallback(data_dir)
     try:
         result: dict[str, dict[str, float]] = {}
         for _, row in df.iterrows():
@@ -688,12 +693,12 @@ def load_losses(
                 'plant_fuel_frac': float(row.get('plant_fuel_frac', 0.030)),
             }
         if not result:
-            return {k: dict(v) for k, v in _LOSSES_FALLBACK.items()}
+            return _losses_fallback(data_dir)
         logger.info('LOSSES loaded from CSV (%d regions)', len(result))
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_losses.csv (%s), using fallback', exc)
-        return {k: dict(v) for k, v in _LOSSES_FALLBACK.items()}
+        return _losses_fallback(data_dir)
 
 
 def load_gathering_charges(
@@ -770,6 +775,79 @@ def load_qp_scalars(
         return result
 
 
+class RegionData(TypedDict):
+    """Return shape of :func:`load_region_data`.
+
+    ``regions`` is the master list in file order; ``regions_domestic`` and
+    ``regions_international`` partition it; ``region_labels`` covers every region in either.
+    """
+
+    regions: list[str]
+    regions_domestic: list[str]
+    regions_international: list[str]
+    region_labels: dict[str, str]
+
+
+def load_region_data(
+    data_dir: Path = _DEFAULT_DATA_DIR,
+) -> RegionData:
+    """Load the model regions and their display labels from ng_region_data.csv.
+
+    Returns the master region list in file order plus the two subsets it is partitioned into,
+    mirroring the electricity model's region / region_domestic / region_international split,
+    and a label for every region in the file.
+
+    The ``covered_areas`` column (the states each census division spans) is documentation for
+    the reader of the CSV; it is not returned. Flags follow the electricity convention: a
+    case-insensitive 'true' means the region belongs to that group, anything else ('-') means
+    it does not.
+
+    Unlike every other loader here, this one has NO fallback: regions are definitional, and a
+    model built on a region set that disagrees with the rest of the input files is worse than a
+    model that refuses to build.
+
+    Raises
+    ------
+    ValueError
+        If the file is missing or unreadable, lacks a required column, or declares no domestic
+        regions.
+    """
+    df = _csv('ng_region_data.csv', data_dir)
+    if df is None:
+        raise ValueError(
+            f'ng_region_data.csv could not be read from {data_dir}; regions have no fallback'
+        )
+    try:
+        regions = [str(row['region']).strip() for _, row in df.iterrows()]
+        domestic = [
+            str(row['region']).strip()
+            for _, row in df.iterrows()
+            if str(row['domestic']).strip().lower() == 'true'
+        ]
+        international = [
+            str(row['region']).strip()
+            for _, row in df.iterrows()
+            if str(row['international']).strip().lower() == 'true'
+        ]
+        labels = {str(row['region']).strip(): str(row['label']).strip() for _, row in df.iterrows()}
+    except KeyError as exc:
+        raise ValueError(f'ng_region_data.csv is missing required column {exc}') from exc
+    if not domestic:
+        raise ValueError('ng_region_data.csv declares no domestic regions')
+    logger.info(
+        'Regions loaded from CSV (%d total: %d domestic, %d international)',
+        len(regions),
+        len(domestic),
+        len(international),
+    )
+    return {
+        'regions': regions,
+        'regions_domestic': domestic,
+        'regions_international': international,
+        'region_labels': labels,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Convenience: load everything at once
 # ---------------------------------------------------------------------------
@@ -783,6 +861,10 @@ class NGData(TypedDict):
     and so a typo'd key is a type error rather than a runtime KeyError.
     """
 
+    regions: list[str]
+    regions_domestic: list[str]
+    regions_international: list[str]
+    region_labels: dict[str, str]
     supply_cost_tiers: dict[str, list[tuple[float, float]]]
     supply_anchors: dict[tuple[str, int], tuple[float, float]]
     lng_import: dict[str, tuple[float, float]]
@@ -817,8 +899,13 @@ def load_all(data_dir: str | Path | None = None) -> NGData:
         One entry per loader; see the `NGData` field list for keys and value types.
     """
     d = Path(data_dir) if data_dir is not None else _DEFAULT_DATA_DIR
+    region_data = load_region_data(d)
     # fmt: off
     return {
+        'regions':               region_data['regions'],
+        'regions_domestic':      region_data['regions_domestic'],
+        'regions_international': region_data['regions_international'],
+        'region_labels':         region_data['region_labels'],
         'supply_cost_tiers': load_supply_cost_tiers(d),
         # Optional year-varying anchor path
         'supply_anchors':     load_supply_anchors(d),
@@ -840,36 +927,3 @@ def load_all(data_dir: str | Path | None = None) -> NGData:
         'qp_scalars':         load_qp_scalars(d),
     }
     # fmt: on
-
-
-# ── Regions ─────────────────────────────────────────────────────────────────
-# 9 EIA Census Divisions used throughout the NGMM
-# Kept as code constants (definitional, not parameterizable)
-# TODO:  Needed to move here temporarily to prevent circular import issue with config/model
-#        Future home.....TBD!
-
-# fmt: off
-REGIONS = [
-    'new_england',        # CT, ME, MA, NH, RI, VT
-    'middle_atlantic',    # NJ, NY, PA
-    'east_north_central', # IL, IN, MI, OH, WI
-    'west_north_central', # IA, KS, MN, MO, NE, ND, SD
-    'south_atlantic',     # DC, DE, FL, GA, MD, NC, SC, VA, WV
-    'east_south_central', # AL, KY, MS, TN
-    'west_south_central', # AR, LA, OK, TX  ← Gulf Coast + Haynesville
-    'mountain',           # AZ, CO, ID, MT, NV, NM, UT, WY ← Rockies + Permian
-    'pacific',            # AK, CA, HI, OR, WA
-]
-REGION_LABELS = {
-    'new_england':        'New England',
-    'middle_atlantic':    'Middle Atlantic',
-    'east_north_central': 'East North Central',
-    'west_north_central': 'West North Central',
-    'south_atlantic':     'South Atlantic',
-    'east_south_central': 'East South Central',
-    'west_south_central': 'West South Central (Gulf Coast)',
-    'mountain':           'Mountain (Rockies / Permian)',
-    'pacific':            'Pacific',
-}
-
-# fmt: on

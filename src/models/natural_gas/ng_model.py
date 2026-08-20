@@ -89,7 +89,8 @@ from pyomo.environ import (
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.models_modes import RunMode
-from src.models.natural_gas.data import load_all as _load_ng_data
+from src.common.validators import region_check
+from src.models.natural_gas.data import NGData
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
@@ -97,9 +98,6 @@ logger = logging.getLogger(__name__)
 # Named index used when exchanging prices/quantities with other BlueSky models
 GI = namedtuple('GI', ['region', 'year'])
 
-# Numerical parameters come from CSV files via the data.py loader rather than hardcoded
-# module-level dicts.  Fallback constants are preserved inside data.py for offline / test use.
-_NG_DATA = _load_ng_data()
 
 ###############################################################################
 # EIA NGMM Reference Data
@@ -117,34 +115,16 @@ _NG_DATA = _load_ng_data()
 ###############################################################################
 
 
-# ── Regions ──────────────────────────────────────────────────────────────────
-# The master region list and the two subsets it partitions into, read from
-# ng_region_data.csv. ALL_REGIONS carries the international regions (Canada) that domestic
-# census divisions trade with; DOMESTIC_REGIONS is what the model is actually solved over.
-ALL_REGIONS = _NG_DATA['regions']
-DOMESTIC_REGIONS = _NG_DATA['regions_domestic']
-INTERNATIONAL_REGIONS = _NG_DATA['regions_international']
-
-
 # ── Supply Curves ────────────────────────────────────────────────────────────
-SUPPLY_COST_TIERS = _NG_DATA['supply_cost_tiers']
-
-# Optional year-varying anchor path
-# {(region, year): (q0_mult, p0_mult)}; empty dict -> static anchors (previous behaviour).
-SUPPLY_ANCHORS = _NG_DATA.get('supply_anchors', {})
-
-COST_TIER_LABELS = ['low_cost', 'medium_cost', 'high_cost']
-
-# LNG import availability (coastal regions only), high-cost backstop supply
-LNG_IMPORT = _NG_DATA['lng_import']
 
 # ── US LNG Export Demand ──────────────────────────────────────────────────────
-LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = _NG_DATA['lng_export']
 
 
-def _interp_lng_export(region: str, year: int) -> float:
+def _interp_lng_export(
+    all_demand_table: dict[str, dict[int, float]], region: str, year: int
+) -> float:
     """Linearly interpolate LNG export demand for any year from table breakpoints."""
-    table = LNG_EXPORT_DEMAND_BCF.get(region, {})
+    table = all_demand_table.get(region, {})
     if not table:
         return 0.0
     years_sorted = sorted(table)
@@ -160,131 +140,10 @@ def _interp_lng_export(region: str, year: int) -> float:
     return 0.0
 
 
-# ── Demand Price Elasticities ─────────────────────────────────────────────────
-DEMAND_PRICE_ELASTICITY: dict[str, float] = _NG_DATA['demand_elasticity']
-
-# ── Demand Data ──────────────────────────────────────────────────────────────
-DEMAND_SECTORS = ['electric_power', 'industrial', 'residential', 'commercial', 'transportation']
-
-BASE_DEMAND_2025: dict[str, dict[str, float]] = _NG_DATA['base_demand']
-
-DEMAND_GROWTH_RATES: dict[str, float] = _NG_DATA['demand_growth']
-
-# ── Pipeline Network ─────────────────────────────────────────────────────────
-PIPELINE_ARCS_RAW = _NG_DATA['pipeline_arcs']
-
-# ── Underground Storage ───────────────────────────────────────────────────────
-STORAGE = _NG_DATA['storage']
-
-STORAGE_OPEX = _NG_DATA['storage_opex']
-
 # ── NGMM AEO2025 QP parameters ────────────────────────────────────────────────
 # New module-level constants for the
 # quadratic-program rewrite. All loaded from CSV via data.py with hardcoded
 # fallbacks defined there. References below cite NGMM_AEO2025.pdf.
-
-# Supply-curve shape (NGMM Eq 1-5, Fig 3.4). Built around an expected (Q0, P0)
-# anchor with per-step elasticities and CRV breakpoint adjustments.
-SUPPLY_CURVE_SHAPE = _NG_DATA['supply_curve_shape']
-
-# Pipeline tariff curve shape (NGMM Eq 6, Fig 3.5). Utilisation breakpoints and
-# tariff multipliers on the base tariff per arc.
-TARIFF_CURVE_SHAPE = _NG_DATA['tariff_curve_shape']
-
-# LNG export demand curve shape (NGMM Eq 14, Fig 3.6). World LNG price and
-# downward-sloping demand factors over fractional capacity.
-LNG_DEMAND_CURVE_SHAPE = _NG_DATA['lng_demand_curve']
-
-# Per-region losses (NGMM Eq 10, 11): distribution, intrastate, storage, and
-# plant-fuel fraction. {region: {distribution_loss, intrastate_loss,
-# storage_loss, plant_fuel_frac}}.
-LOSSES = _NG_DATA['losses']
-
-# Per-region gathering charges in $/MMBtu (NGMM Eq 7 term).
-GATHERING_CHARGES = _NG_DATA['gathering']
-
-# Per-arc pipeline fuel-loss fractions (NGMM Eq 11 f^pip). Sparse, arcs not
-# listed use the QP scalar default (~0.005).
-PIPE_LOSS_BY_ARC = _NG_DATA['pipe_loss']
-
-# Other NGMM-QP scalars (default values, overridable via ng_scalars.csv).
-QP_SCALARS = _NG_DATA['qp_scalars']
-
-# Supply-curve breakpoint count (5 segments → 6 breakpoints, matches NGMM
-# AEO 2022 default; see SUPPLY_CURVE_SHAPE for the elasticities). Kept as a
-# module constant because constraint indexing depends on it.
-# $/MMBtu penalty on unserved demand in region-subset runs
-# (see NGModel.__init__). Set ~100x any plausible gas price so the backstop is never economic and
-# only relieves a genuine shortfall created by dropping a subset's supplying neighbours.
-UNSERVED_PENALTY = 1000.0
-
-SUPPLY_BREAK_IDS = [1, 2, 3, 4, 5, 6]
-SUPPLY_STEP_IDS = [1, 2, 3, 4, 5]  # 5 segments between 6 breakpoints
-
-# Tariff-curve segments (one fewer than the number of breakpoints in TARIFF_CURVE_SHAPE).
-TARIFF_SEGMENTS = list(range(1, len(TARIFF_CURVE_SHAPE['util_break'])))
-
-# LNG demand-curve segments.
-LNG_SEGMENTS = list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac'])))
-
-###############################################################################
-# Helper: build demand projection
-###############################################################################
-
-
-# Region subsetting for standalone runs. The model
-# only ever had a `years` knob; regions were a module constant, so a "smoke" NG run was
-# full-size. resolve_regions() is the single place that validates and canonicalizes a subset, so
-# the CLI, the config path, and direct NGModel(...) construction cannot disagree.
-def resolve_regions(regions: list[str] | None) -> list[str]:
-    """Validate a region subset and return it in canonical DOMESTIC_REGIONS order.
-
-    ``None`` (or the full set) returns all nine census divisions, so the default path is
-    unchanged. Unknown names raise immediately with the valid list rather than failing later
-    inside Pyomo with an opaque index error. Duplicates are collapsed; order is always canonical
-    so two spellings of the same subset build identical models.
-    """
-    if regions is None:
-        return list(DOMESTIC_REGIONS)
-    requested = [str(r).strip() for r in regions if str(r).strip()]
-    if not requested:
-        raise ValueError('regions was empty, pass None for all nine, or at least one name.')
-    unknown = [r for r in requested if r not in DOMESTIC_REGIONS]
-    if unknown:
-        raise ValueError(
-            f'unknown NG region(s): {unknown}\nvalid regions are: {list(DOMESTIC_REGIONS)}'
-        )
-    return [r for r in DOMESTIC_REGIONS if r in set(requested)]
-
-
-# Added the `regions` argument (default None = all nine, so
-def project_demand(
-    years: list[int], regions: list[str] | None = None
-) -> dict[tuple[str, str, int], float]:
-    """Project sector demand for each region and year using AEO growth rates.
-
-    Parameters
-    ----------
-    years : list[int]
-        Model years (e.g. [2025, 2030, 2035, 2040, 2045, 2050]).
-    regions : list[str] | None
-        Region subset; ``None`` projects all nine census divisions.
-
-    Returns
-    -------
-    dict[(region, sector, year), float]
-        Projected demand in BCF/year.
-    """
-    base_year = 2025
-    demand: dict[tuple[str, str, int], float] = {}
-    for region in resolve_regions(regions):
-        for sector in DEMAND_SECTORS:
-            base = BASE_DEMAND_2025[region][sector]
-            g = DEMAND_GROWTH_RATES[sector]
-            for year in years:
-                dt = year - base_year
-                demand[(region, sector, year)] = base * ((1 + g) ** dt)
-    return demand
 
 
 ###############################################################################
@@ -416,11 +275,9 @@ class NGModel(ConcreteModel, IntegratedModel):
     # Added `regions` (default None = all nine, so every
     def __init__(
         self,
+        model_data: NGData,
         common_config: CommonConfig,
         ng_config: NGConfig,
-        # years: list[int] | None = None,
-        # regions: list[str] | None = None,
-        # mode: str = 'standard',
         demand_override: dict | None = None,
         elec_demand_override: dict | None = None,
         *args,
@@ -437,34 +294,92 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Region subsetting. `region_list` is the single
         # source of truth from here down; `is_region_subset` gates the unserved-demand backstop
         # so the full nine-region model is untouched (see the backstop block below).
-        region_list = resolve_regions(ng_config.region_filter)
-        self.region_list = region_list
-        self.is_region_subset = len(region_list) < len(DOMESTIC_REGIONS)
 
         if common_config.mode not in {RunMode.STANDALONE}:
             raise NotImplementedError('Only standalone mode is implemented.')
 
-        # if years is None:
-        #     years = [2025, 2030, 2035, 2040, 2045, 2050]
-        # year_list = sorted(years)
-        year_list = sorted(common_config.summary_years)
+        # ── SUPPORTING DATA ───────────────────────────────────────────────────
 
-        # ── build projected demand ────────────────────────────────────────────
-        # Project only the active regions.
-        projected = project_demand(year_list, regions=region_list)
+        analysis_regions = model_data['regions_analyze']
+        self.region_labels = model_data['region_labels']
+        LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = model_data['lng_export']
+        self.DEMAND_PRICE_ELASTICITY: dict[str, float] = model_data['demand_elasticity']
+        # ── Pipeline Network ─────────────────────────────────────────────────────────
+        PIPELINE_ARCS_RAW = model_data['pipeline_arcs']
+
+        # ── Underground Storage ───────────────────────────────────────────────────────
+        STORAGE = model_data['storage']
+        STORAGE_OPEX = model_data['storage_opex']
+        # Supply-curve shape (NGMM Eq 1-5, Fig 3.4). Built around an expected (Q0, P0)
+        # anchor with per-step elasticities and CRV breakpoint adjustments.
+        self.SUPPLY_CURVE_SHAPE = model_data['supply_curve_shape']
+
+        # Pipeline tariff curve shape (NGMM Eq 6, Fig 3.5). Utilisation breakpoints and
+        # tariff multipliers on the base tariff per arc.
+        TARIFF_CURVE_SHAPE = model_data['tariff_curve_shape']
+
+        # LNG export demand curve shape (NGMM Eq 14, Fig 3.6). World LNG price and
+        # downward-sloping demand factors over fractional capacity.
+        LNG_DEMAND_CURVE_SHAPE = model_data['lng_demand_curve']
+
+        # Per-region losses (NGMM Eq 10, 11): distribution, intrastate, storage, and
+        # plant-fuel fraction. {region: {distribution_loss, intrastate_loss,
+        # storage_loss, plant_fuel_frac}}.
+        LOSSES = model_data['losses']
+
+        # Per-region gathering charges in $/MMBtu (NGMM Eq 7 term).
+        GATHERING_CHARGES = model_data['gathering']
+
+        # Per-arc pipeline fuel-loss fractions (NGMM Eq 11 f^pip). Sparse, arcs not
+        # listed use the QP scalar default (~0.005).
+        PIPE_LOSS_BY_ARC = model_data['pipe_loss']
+
+        # Other NGMM-QP scalars (default values, overridable via ng_scalars.csv).
+        self.QP_SCALARS = model_data['qp_scalars']
+
+        # Supply-curve breakpoint count (5 segments → 6 breakpoints, matches NGMM
+        # AEO 2022 default; see SUPPLY_CURVE_SHAPE for the elasticities). Kept as a
+        # module constant because constraint indexing depends on it.
+        # $/MMBtu penalty on unserved demand in region-subset runs
+        # (see NGModel.__init__). Set ~100x any plausible gas price so the backstop
+        # is never economic and only relieves a genuine shortfall created by dropping a
+        # subset's supplying neighbours.
+        UNSERVED_PENALTY = 1000.0
+
+        self.SUPPLY_BREAK_IDS = [1, 2, 3, 4, 5, 6]
+        self.SUPPLY_STEP_IDS = [1, 2, 3, 4, 5]  # 5 segments between 6 breakpoints
+
+        # Tariff-curve segments (one fewer than the number of breakpoints in TARIFF_CURVE_SHAPE).
+        TARIFF_SEGMENTS = list(range(1, len(TARIFF_CURVE_SHAPE['util_break'])))
+
+        # LNG demand-curve segments.
+        LNG_SEGMENTS = list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac'])))
+
+        projected_demand = model_data['demand']
+
         if demand_override:
-            projected.update(demand_override)
+            projected_demand.update(demand_override)
 
         # if the electricity model passes updated elec-power gas demand, apply it
         if elec_demand_override:
             for gi, qty in elec_demand_override.items():
-                projected[(gi.region, 'electric_power', gi.year)] = qty
+                # TODO:  I don't like this literal here....perhaps make a static constant or such?
+                old_qty = projected_demand.get((gi.region, 'electric_power', gi.year), None)
+                if not old_qty:
+                    logger.error(
+                        'Could not locate prior demand for region %s and year %d',
+                        gi.region,
+                        gi.year,
+                    )
+                    logger.error('Check index and ensure "electric_power" column is present.')
+
+                projected_demand[gi.region, 'electric_power', gi.year] = qty
 
         # ── build pipeline arc index ─────────────────────────────────────────
         # Keep only arcs INTERNAL to the active regions.
         # An arc with one endpoint outside the subset has no counterparty balance constraint, so
         # leaving it in would let gas appear from or vanish into a region the model no longer
-        _active = set(region_list)
+        _active = set(analysis_regions)
         _arcs_raw = [
             (o, d, cap, tar)
             for o, d, cap, tar in PIPELINE_ARCS_RAW
@@ -480,18 +395,23 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Intersect with the active regions.
         lng_regions_list = [r for r in LNG_EXPORT_DEMAND_BCF if r in _active]
 
+        # -
+
         # ── SETS ──────────────────────────────────────────────────────────────
         # Region subsetting. Every region-keyed Param below
         # is built from a rule function indexed off this Set, so subsetting here propagates
         # automatically; only arcs, LNG regions, and _base_demand needed explicit filtering.
+        # TODO:  The set "S" appears unused?  Probably "step", but....  is it deleteable?
         self.S = Set(initialize=[1, 2, 3])
         # Master region list and its two subsets, mirroring electricity_model.py. region_analyze
         # is the subset actually solved: ng_config.region_filter when given, all domestic
         # regions otherwise (see resolve_regions).
-        self.region = Set(initialize=ALL_REGIONS)
-        self.region_dom = Set(initialize=DOMESTIC_REGIONS, within=self.region)
-        self.region_int = Set(initialize=INTERNATIONAL_REGIONS, within=self.region)
-        self.region_analyze = Set(initialize=region_list, within=self.region_dom)
+        self.region = Set(initialize=model_data['regions'], validate=region_check)
+        self.region_dom = Set(initialize=model_data['regions_domestic'], within=self.region)
+        self.region_analyze = Set(initialize=analysis_regions, within=self.region_dom)
+        self.is_region_subset = len(self.region_analyze) < len(self.region_dom)
+        self.region_int = Set(initialize=model_data['regions_international'], within=self.region)
+
         # NGMM vocabulary, used consistently throughout this model:
         # STEP, an elastic piece of the supply curve that carries volume. NGMM's SSTEP
         # (Eq 7, Eq 8: PROD = sum_step SSTEP + QMIN). There are five.
@@ -502,8 +422,8 @@ class NGModel(ConcreteModel, IntegratedModel):
         # NGMM counterpart at all (NGMM's supply dimension is (suptype, qps)) and are collapsed
         # into a single (Q0, P0) anchor below. update_supply_capacity() still accepts the legacy
         # three-key form from the HSM integrator and aggregates it into Q0.
-        self.steps = Set(initialize=[f'step{k}' for k in SUPPLY_STEP_IDS])  # 5 NGMM steps
-        self.supply_breaks = Set(initialize=SUPPLY_BREAK_IDS, ordered=True)  # 6 breakpoints
+        self.steps = Set(initialize=[f'step{k}' for k in self.SUPPLY_STEP_IDS])  # 5 NGMM steps
+        self.supply_breaks = Set(initialize=self.SUPPLY_BREAK_IDS, ordered=True)  # 6 breakpoints
         self.tariff_segs = Set(initialize=TARIFF_SEGMENTS, ordered=True)
         self.tariff_breaks = Set(
             initialize=list(range(1, len(TARIFF_CURVE_SHAPE['util_break']) + 1)), ordered=True
@@ -513,9 +433,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.lng_breaks = Set(
             initialize=list(range(1, len(LNG_DEMAND_CURVE_SHAPE['q_frac']) + 1)), ordered=True
         )
-        self.sectors = Set(initialize=DEMAND_SECTORS)
-        self.arcs = Set(initialize=arc_list, dimen=2)
-        self.year = Set(initialize=year_list, ordered=True)
+        self.sectors = Set(initialize=model_data['sectors'])
+        self.arcs = Set(
+            initialize=arc_list, dimen=2, within=self.region_analyze * self.region_analyze
+        )
+        self.year = Set(initialize=model_data['years'], ordered=True)
 
         # Suffix for dual (shadow price) extraction
         self.dual = Suffix(direction=Suffix.IMPORT)
@@ -536,6 +458,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         # initialization ignored y, which froze the curve and made Henry Hub rise monotonically
         # (+20% by 2050 vs AEO's hump peaking ~2040). Missing entries multiply by 1.0 = the
         # original static behaviour.
+
+        SUPPLY_COST_TIERS = model_data['supply_cost_tiers']
+        # Optional year-varying anchor path
+        # {(region, year): (q0_mult, p0_mult)}; empty dict -> static anchors (previous behaviour).
+        SUPPLY_ANCHORS = model_data.get('supply_anchors', {})
+
         def _q0_init(m, r, y):
             return (
                 sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
@@ -562,9 +490,9 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Supply-curve QBASE / PBASE breakpoints (NGMM Eq 2-5).
         # We compute initial breakpoint values from Q0/P0 and the SUPPLY_CURVE_SHAPE
         # constants here; update_supply_capacity() refreshes them whenever Q0 changes.
-        crv_below = SUPPLY_CURVE_SHAPE['crv_below']  # [c1, c2, c3] for steps 1, 2, 3 below
-        crv_above = SUPPLY_CURVE_SHAPE['crv_above']  # [c1, c2, c3] for steps 4, 5, 6 above
-        elas = SUPPLY_CURVE_SHAPE['elas']  # [e1..e5] for segments 1-5
+        crv_below = self.SUPPLY_CURVE_SHAPE['crv_below']  # [c1, c2, c3] for steps 1, 2, 3 below
+        crv_above = self.SUPPLY_CURVE_SHAPE['crv_above']  # [c1, c2, c3] for steps 4, 5, 6 above
+        elas = self.SUPPLY_CURVE_SHAPE['elas']  # [e1..e5] for segments 1-5
 
         # Same year-varying anchor multipliers as
         # _q0_init/_p0_init above (these recompute q0/p0 inline). Originals had no
@@ -593,7 +521,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # QMIN: committed production (NGMM Eq 8): the "wells already drilled"
         # floor.  Treated as a fraction of Q0 (NGMM uses an exogenous PEMEX /
         # historical-floor input; we use qmin_fraction × Q0 as a proxy).
-        qmin_frac = QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
+        qmin_frac = self.QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
         self.QMIN = Param(
             self.region_analyze,
             self.year,
@@ -604,9 +532,13 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Gathering charge (NGMM Eq 7 P^gath term, $/MMBtu)
         self.gathering_charge = Param(
             self.region_analyze,
-            initialize=lambda m, r: GATHERING_CHARGES.get(r, QP_SCALARS['gathering_charge_avg']),
+            initialize=lambda m, r: GATHERING_CHARGES.get(
+                r, self.QP_SCALARS['gathering_charge_avg']
+            ),
         )
 
+        # LNG import availability (coastal regions only), high-cost backstop supply
+        LNG_IMPORT = model_data['lng_import']
         # LNG backstop import (existing 3-region exogenous capacity)
         self.lng_capacity = Param(
             self.region_analyze,
@@ -638,7 +570,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         )
 
         # Pipeline fuel-loss fraction per directed arc (NGMM Eq 11 f^pip)
-        pipe_loss_default = QP_SCALARS.get('pipe_fuel_loss_default', 0.005)
+        pipe_loss_default = self.QP_SCALARS.get('pipe_fuel_loss_default', 0.005)
         self.pipe_loss = Param(
             self.arcs,
             initialize=lambda m, o, d: PIPE_LOSS_BY_ARC.get((o, d), pipe_loss_default),
@@ -657,7 +589,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         lng_world_p = LNG_DEMAND_CURVE_SHAPE['world_price']
 
         def _qlng_init(m, r, k, y):
-            cap = _interp_lng_export(r, y)
+            cap = _interp_lng_export(LNG_EXPORT_DEMAND_BCF, r, y)
             return cap * lng_q_frac[k - 1]
 
         def _plng_init(m, r, k, y):
@@ -689,25 +621,25 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.distribution_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'distribution_loss', QP_SCALARS['distribution_loss_default']
+                'distribution_loss', self.QP_SCALARS['distribution_loss_default']
             ),
         )
         self.intrastate_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'intrastate_loss', QP_SCALARS['intrastate_loss_default']
+                'intrastate_loss', self.QP_SCALARS['intrastate_loss_default']
             ),
         )
         self.storage_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'storage_loss', QP_SCALARS['storage_loss_default']
+                'storage_loss', self.QP_SCALARS['storage_loss_default']
             ),
         )
         self.plant_fuel_frac = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'plant_fuel_frac', QP_SCALARS['plant_fuel_fraction_default']
+                'plant_fuel_frac', self.QP_SCALARS['plant_fuel_fraction_default']
             ),
         )
 
@@ -716,7 +648,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.region_analyze,
             self.sectors,
             self.year,
-            initialize=lambda m, r, s, y: projected.get((r, s, y), 0.0),
+            initialize=lambda m, r, s, y: projected_demand.get((r, s, y), 0.0),
             mutable=True,
         )
 
@@ -737,12 +669,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Stores the initial (no-price-adjustment) projected demand.
         # update_demand_from_price() modifies self.demand relative to this base.
         self._base_demand: dict[tuple[str, str, int], float] = {
-            (r, s, y): projected.get((r, s, y), 0.0)
+            (r, s, y): projected_demand.get((r, s, y), 0.0)
             # Active regions only, so the elasticity update
             # cannot reference a region this model does not carry.
-            for r in region_list
-            for s in DEMAND_SECTORS
-            for y in year_list
+            for r in self.region_analyze
+            for s in self.sectors
+            for y in self.year
         }
         # Reference gas prices, set after first GS solve via set_reference_prices().
         # Before being set, price-responsive demand has no effect (prices=reference).
@@ -1040,7 +972,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         prod_cost = 0
         for r in self.region_analyze:
             for y in self.year:
-                for k_seg in range(1, len(SUPPLY_STEP_IDS) + 1):
+                for k_seg in range(1, len(self.SUPPLY_STEP_IDS) + 1):
                     tname = f'step{k_seg}'
                     qb_k_v = value(self.QBASE[r, k_seg, y])
                     qb_k1_v = value(self.QBASE[r, k_seg + 1, y])
@@ -1233,7 +1165,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 price_ratio = max(price, 1e-6) / ref_p
 
                 for sector in self.sectors:
-                    elas = DEMAND_PRICE_ELASTICITY.get(sector, 0.0)
+                    elas = self.DEMAND_PRICE_ELASTICITY.get(sector, 0.0)
                     if abs(elas) < 1e-9:
                         continue
                     base_d = self._base_demand.get((r, sector, y), 0.0)
@@ -1340,10 +1272,10 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Step 2: blend new Q0 with current Q0 (under-relaxation) and rebuild
         # the breakpoints for that (region, year) pair.
-        crv_below = SUPPLY_CURVE_SHAPE['crv_below']
-        crv_above = SUPPLY_CURVE_SHAPE['crv_above']
-        elas = SUPPLY_CURVE_SHAPE['elas']
-        qmin_frac = QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
+        crv_below = self.SUPPLY_CURVE_SHAPE['crv_below']
+        crv_above = self.SUPPLY_CURVE_SHAPE['crv_above']
+        elas = self.SUPPLY_CURVE_SHAPE['elas']
+        qmin_frac = self.QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
         rebuilt = 0
         for (region, year), new_q0 in agg.items():
             if alpha < 1.0:
@@ -1354,7 +1286,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.QMIN[region, year].set_value(qmin_frac * new_q0)
 
             p0 = value(self.P0[region, year])
-            for k in SUPPLY_BREAK_IDS:  # 1..6
+            for k in self.SUPPLY_BREAK_IDS:  # 1..6
                 self.QBASE[region, k, year].set_value(
                     _supply_qbase(new_q0, k, crv_below, crv_above)
                 )
@@ -1362,7 +1294,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                     _supply_pbase(p0, k, crv_below, crv_above, elas)
                 )
             # Refresh the legacy-shape ``supply_capacity`` Param (segment widths)
-            for k_seg in SUPPLY_STEP_IDS:  # 1..5
+            for k_seg in self.SUPPLY_STEP_IDS:  # 1..5
                 tname = f'step{k_seg}'
                 width = value(self.QBASE[region, k_seg + 1, year] - self.QBASE[region, k_seg, year])
                 self.supply_capacity[region, tname, year].set_value(max(width, 0.0))

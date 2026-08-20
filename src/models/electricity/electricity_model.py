@@ -11,6 +11,7 @@ import pyomo.environ as pyo
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
+from src.common.validators import region_check
 from src.models.electricity.constants import (
     REGULATION_RESERVE_PROPORTION,
     SOLAR_FLEX_RESERVE_PROPORTION,
@@ -28,7 +29,6 @@ from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.validators import (
-    region_check,
     reserve_procurement_check,
     reserve_tech_check,
     tech_name_check,

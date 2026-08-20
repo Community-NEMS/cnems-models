@@ -41,11 +41,16 @@ the QP rewrite of ng_model.py:
 
 from __future__ import annotations
 
+import csv
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TypedDict
 
 import pandas as pd
+
+from src.common.common_config import CommonConfig
+from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
 
@@ -667,12 +672,13 @@ def load_lng_demand_curve(
         }
 
 
-def _losses_fallback(data_dir: Path) -> dict[str, dict[str, float]]:
+def _losses_fallback(regions: Sequence[str]) -> dict[str, dict[str, float]]:
     """Expand the single row of default loss fractions over the domestic regions."""
-    return {r: dict(_LOSSES_FALLBACK) for r in load_region_data(data_dir)['regions_domestic']}
+    return dict.fromkeys(regions, _LOSSES_FALLBACK)
 
 
 def load_losses(
+    fallback_regions: Sequence[str],
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[str, dict[str, float]]:
     """Load per-region loss fractions and plant-fuel fraction (NGMM Eq 10, 11).
@@ -682,7 +688,7 @@ def load_losses(
     """
     df = _csv('ng_losses.csv', data_dir)
     if df is None:
-        return _losses_fallback(data_dir)
+        return _losses_fallback(fallback_regions)
     try:
         result: dict[str, dict[str, float]] = {}
         for _, row in df.iterrows():
@@ -693,12 +699,12 @@ def load_losses(
                 'plant_fuel_frac': float(row.get('plant_fuel_frac', 0.030)),
             }
         if not result:
-            return _losses_fallback(data_dir)
+            return _losses_fallback(fallback_regions)
         logger.info('LOSSES loaded from CSV (%d regions)', len(result))
         return result
     except (KeyError, ValueError) as exc:
         logger.warning('Could not parse ng_losses.csv (%s), using fallback', exc)
-        return _losses_fallback(data_dir)
+        return _losses_fallback(fallback_regions)
 
 
 def load_gathering_charges(
@@ -784,13 +790,31 @@ class RegionData(TypedDict):
 
     regions: list[str]
     regions_domestic: list[str]
+    regions_analyze: list[str]
     regions_international: list[str]
     region_labels: dict[str, str]
 
 
-def load_region_data(
-    data_dir: Path = _DEFAULT_DATA_DIR,
-) -> RegionData:
+def load_sector_data(ng_config: NGConfig) -> list[str]:
+    """Load sector data."""
+    f_name = 'ng_sector_data.csv'
+    path = ng_config.input_path / f_name
+    if not path.exists():
+        logger.error('Could not find sector data file (%s)', path)
+        raise FileNotFoundError(path)
+    res = []
+    try:
+        with open(path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                res.append(row['name'])
+    except KeyError, ValueError:
+        logger.warning('Could not parse sector_data.csv (%s)', path)
+        raise
+    return res
+
+
+def load_region_data(ng_config: NGConfig) -> RegionData:
     """Load the model regions and their display labels from ng_region_data.csv.
 
     Returns the master region list in file order plus the two subsets it is partitioned into,
@@ -812,40 +836,107 @@ def load_region_data(
         If the file is missing or unreadable, lacks a required column, or declares no domestic
         regions.
     """
+    data_dir = ng_config.input_path
     df = _csv('ng_region_data.csv', data_dir)
     if df is None:
         raise ValueError(
             f'ng_region_data.csv could not be read from {data_dir}; regions have no fallback'
         )
     try:
-        regions = [str(row['region']).strip() for _, row in df.iterrows()]
-        domestic = [
+        regions = {str(row['region']).strip() for _, row in df.iterrows()}
+        domestic = {
             str(row['region']).strip()
             for _, row in df.iterrows()
             if str(row['domestic']).strip().lower() == 'true'
-        ]
+        }
+        # apply the filter from the config
+        if ng_config.region_filter:
+            r_filter = set(ng_config.region_filter)
+
+            # look for erroneous filter entries first
+            bogus_filters = r_filter - domestic
+            if bogus_filters:
+                logger.error('NG Config region filter has unknown regions: %s', bogus_filters)
+                raise ValueError('Unrecognized region filter(s): %s', bogus_filters)
+
+            filtered_domestic_regions = domestic.intersection(r_filter)
+            if len(filtered_domestic_regions) < len(domestic):
+                dropped_regions = domestic - filtered_domestic_regions
+                logger.info('Dropped domestic regions: %s', dropped_regions)
+                logger.warning(
+                    'Domestic region subset (%d of %d): results are NOT comparable '
+                    'to a full run, dropped '
+                    'regions take their production, demand, and trade with them. For mechanics and '
+                    'timing tests only.',
+                    len(filtered_domestic_regions),
+                    len(domestic),
+                )
+        else:
+            filtered_domestic_regions = domestic
         international = [
             str(row['region']).strip()
             for _, row in df.iterrows()
             if str(row['international']).strip().lower() == 'true'
         ]
         labels = {str(row['region']).strip(): str(row['label']).strip() for _, row in df.iterrows()}
+
     except KeyError as exc:
         raise ValueError(f'ng_region_data.csv is missing required column {exc}') from exc
     if not domestic:
         raise ValueError('ng_region_data.csv declares no domestic regions')
     logger.info(
-        'Regions loaded from CSV (%d total: %d domestic, %d international)',
+        'Regions loaded from CSV (%d total: %d domestic (%d for analysis), %d international)',
         len(regions),
         len(domestic),
+        len(filtered_domestic_regions),
         len(international),
     )
     return {
-        'regions': regions,
-        'regions_domestic': domestic,
+        'regions': sorted(regions),
+        'regions_domestic': sorted(domestic),
+        'regions_analyze': sorted(filtered_domestic_regions),
         'regions_international': international,
         'region_labels': labels,
     }
+
+
+###############################################################################
+# Helper: build demand projection
+###############################################################################
+
+
+# Added the `regions` argument (default None = all nine, so
+def project_demand(
+    demand_table: dict,
+    growth_rate_table: dict,
+    years: list[int],
+    regions: list[str],
+    sectors: list[str],
+) -> dict[tuple[str, str, int], float]:
+    """Project sector demand for each region and year using AEO growth rates.
+
+    Parameters
+    ----------
+    years : list[int]
+        Model years (e.g. [2025, 2030, 2035, 2040, 2045, 2050]).
+    regions : list[str] | None
+        Region subset; ``None`` projects all nine census divisions.
+
+    Returns
+    -------
+    dict[(region, sector, year), float]
+        Projected demand in BCF/year.
+    """
+    base_year = 2025
+    demand: dict[tuple[str, str, int], float] = {}
+    for region in regions:
+        for sector in sectors:
+            base = demand_table[region][sector]
+            g = growth_rate_table[sector]
+            for year in years:
+                dt = year - base_year
+                demand[(region, sector, year)] = base * ((1 + g) ** dt)
+    return demand
 
 
 # ---------------------------------------------------------------------------
@@ -863,15 +954,19 @@ class NGData(TypedDict):
 
     regions: list[str]
     regions_domestic: list[str]
+    regions_analyze: list[str]
     regions_international: list[str]
     region_labels: dict[str, str]
+    sectors: list[str]
+    years: list[int]
     supply_cost_tiers: dict[str, list[tuple[float, float]]]
     supply_anchors: dict[tuple[str, int], tuple[float, float]]
     lng_import: dict[str, tuple[float, float]]
     lng_export: dict[str, dict[int, float]]
     demand_elasticity: dict[str, float]
-    base_demand: dict[str, dict[str, float]]
-    demand_growth: dict[str, float]
+    # base_demand: dict[str, dict[str, float]]
+    # demand_growth: dict[str, float]
+    demand: dict[tuple[str, str, int], float]
     pipeline_arcs: list[tuple[str, str, float, float]]
     storage: dict[str, dict[str, float]]
     storage_opex: float
@@ -884,7 +979,7 @@ class NGData(TypedDict):
     qp_scalars: dict[str, float]
 
 
-def load_all(data_dir: str | Path | None = None) -> NGData:
+def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
@@ -898,32 +993,45 @@ def load_all(data_dir: str | Path | None = None) -> NGData:
     NGData
         One entry per loader; see the `NGData` field list for keys and value types.
     """
-    d = Path(data_dir) if data_dir is not None else _DEFAULT_DATA_DIR
-    region_data = load_region_data(d)
-    # fmt: off
+    region_data = load_region_data(ng_config)
+    sectors = load_sector_data(ng_config)
+    data_path = ng_config.input_path
+
+    # compute the projected demand...
+    demand = project_demand(
+        demand_table=load_base_demand(ng_config.input_path),
+        growth_rate_table=load_demand_growth(ng_config.input_path),
+        years=common_config.summary_years,
+        regions=region_data['regions_analyze'],
+        sectors=sectors,
+    )
+
     return {
-        'regions':               region_data['regions'],
-        'regions_domestic':      region_data['regions_domestic'],
+        'regions': region_data['regions'],
+        'regions_domestic': region_data['regions_domestic'],
+        'regions_analyze': region_data['regions_analyze'],
         'regions_international': region_data['regions_international'],
-        'region_labels':         region_data['region_labels'],
-        'supply_cost_tiers': load_supply_cost_tiers(d),
+        'region_labels': region_data['region_labels'],
+        'sectors': sectors,
+        'years': sorted(common_config.summary_years),
+        'supply_cost_tiers': load_supply_cost_tiers(data_path),
         # Optional year-varying anchor path
-        'supply_anchors':     load_supply_anchors(d),
-        'lng_import':         load_lng_import(d),
-        'lng_export':         load_lng_export(d),
-        'demand_elasticity':  load_demand_elasticity(d),
-        'base_demand':        load_base_demand(d),
-        'demand_growth':      load_demand_growth(d),
-        'pipeline_arcs':      load_pipeline_arcs(d),
-        'storage':            load_storage(d),
-        'storage_opex':       load_storage_opex(d),
+        'supply_anchors': load_supply_anchors(data_path),
+        'lng_import': load_lng_import(data_path),
+        'lng_export': load_lng_export(data_path),
+        'demand_elasticity': load_demand_elasticity(data_path),
+        # 'base_demand': load_base_demand(data_path),
+        # 'demand_growth': load_demand_growth(data_path),
+        'demand': demand,
+        'pipeline_arcs': load_pipeline_arcs(data_path),
+        'storage': load_storage(data_path),
+        'storage_opex': load_storage_opex(data_path),
         # NGMM AEO2025 QP parameters
-        'supply_curve_shape': load_supply_curve_shape(d),
-        'tariff_curve_shape': load_tariff_curve_shape(d),
-        'lng_demand_curve':   load_lng_demand_curve(d),
-        'losses':             load_losses(d),
-        'gathering':          load_gathering_charges(d),
-        'pipe_loss':          load_pipe_loss(d),
-        'qp_scalars':         load_qp_scalars(d),
+        'supply_curve_shape': load_supply_curve_shape(data_path),
+        'tariff_curve_shape': load_tariff_curve_shape(data_path),
+        'lng_demand_curve': load_lng_demand_curve(data_path),
+        'losses': load_losses(fallback_regions=region_data['regions_analyze'], data_dir=data_path),
+        'gathering': load_gathering_charges(data_path),
+        'pipe_loss': load_pipe_loss(data_path),
+        'qp_scalars': load_qp_scalars(data_path),
     }
-    # fmt: on

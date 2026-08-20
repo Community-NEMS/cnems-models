@@ -21,8 +21,6 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from pyomo.environ import value
 
-from src.models.natural_gas.data import load_region_data
-
 if TYPE_CHECKING:
     from src.models.natural_gas.ng_model import NGModel
 
@@ -240,7 +238,7 @@ def report(m: NGModel, output_dir: Path | None = None) -> None:
     # Prices by region and year
     print('\n  Regional Wellhead/Citygate Gas Price [$/MMBtu]:')
     pivot = results_prices.pivot(index='region', columns='year', values='gas_price_per_mmbtu')
-    labels = load_region_data()['region_labels']
+    labels = m.region_labels
     pivot.index = [labels.get(r, r) for r in pivot.index]
     print(pivot.round(2).to_string())
 

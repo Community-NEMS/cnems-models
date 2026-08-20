@@ -22,6 +22,8 @@ from src.common.integrated_model_sequencer import IterationStatus
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
+verbose = True
+
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type      Total Cost    Variables   Constraints
 # ------------  ------------  ----------  -----------
@@ -38,7 +40,8 @@ from src.models.natural_gas.sequencer import NGSequencer
 # 3.  model size scales with common_config.summary_years, the only year knob the model reads,
 #     so trimming that list in the config file will move all three numbers.
 configs = [
-    ('BasicConfig', -371795726.11, 1476, 1530),
+    ('basic_config', -371795726.11, 1476, 1530),
+    ('partial_regions', -180937210.1642, 342, 342),
 ]
 
 
@@ -48,7 +51,7 @@ class TestNGBasicRun:
     @pytest.mark.parametrize(
         'config_info,expected_total_cost,expected_nvariables,expected_nconstraints',
         configs,
-        ids=['BasicConfig'],
+        ids=['Basic Config', 'Partial Regions'],
     )
     def test_basic_run(
         self,
@@ -77,8 +80,11 @@ class TestNGBasicRun:
         ng_config = NGConfig(**remainder.pop('natural_gas'))
 
         # make adjustments based on the config_info
-        if config_info == 'BasicConfig':
+        if config_info == 'basic_config':
             pass  # no adjustments; the config file is the basic case
+        elif config_info == 'partial_regions':
+            # chop down the regions with a filter
+            ng_config.region_filter = ['west_south_central', 'mountain', 'pacific']
 
         sequencer = NGSequencer()
         ng_model = sequencer.build_model(common_config, ng_config)
@@ -89,7 +95,8 @@ class TestNGBasicRun:
         assert status is IterationStatus.USABLE, f'solve failed with status {status}'
 
         # for test development/capture:
-        print(value(ng_model.total_cost), ng_model.nvariables(), ng_model.nconstraints())
+        if verbose:
+            print(value(ng_model.total_cost), ng_model.nvariables(), ng_model.nconstraints())
 
         # rel is loosened from the electricity test's default 1e-6: this is a convex QP solved by
         # a barrier method, and which solver gets picked varies by environment

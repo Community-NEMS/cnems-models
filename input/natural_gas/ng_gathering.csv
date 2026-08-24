@@ -1,0 +1,10 @@
+region,gathering_charge_per_mmbtu
+new_england,0.30
+middle_atlantic,0.25
+east_north_central,0.20
+west_north_central,0.20
+south_atlantic,0.25
+east_south_central,0.22
+west_south_central,0.15
+mountain,0.35
+pacific,0.30

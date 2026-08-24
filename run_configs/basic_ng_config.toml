@@ -18,7 +18,7 @@ temporal_resolution = "default"
 # list format, cannot be less than or greater than input data
 aggregate_years=false
 aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
-summary_years = [2025, 2030] # evaluation years / aggregation summary years (if selected)
+summary_years = [2025, 2030, 2035, 2040, 2045, 2050] # evaluation years / aggregation summary years (if selected)
 
 
 [natural_gas]

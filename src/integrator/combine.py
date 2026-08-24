@@ -229,6 +229,11 @@ def main() -> None:
     plt.show()
 
 
+# temp note:  This can be run from the project ROOT level by running as a module:
+#    pixi run python -m src.integrator.combine
+#              -- or just --
+#    python -m src.integrator.combine
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     main()

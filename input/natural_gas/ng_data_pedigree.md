@@ -39,6 +39,22 @@ regions. Carried no provenance notes.
 - Fractional per-year rates, negative for declining sectors (residential and commercial in
   the fallback series).
 
+## `ng_gathering.csv`
+
+- First-mile gathering charge per supply region, wellhead to regional hub
+  (NGMM Eq 7, the `P^gath` term), in $/MMBtu.
+- Higher in remote or steep-terrain regions (Mountain 0.35), lower on the Gulf Coast (0.15).
+- **Source:** values as previously carried in `data.py`.
+
+## `ng_lng_demand_curve.csv`
+
+- LNG export demand curve (NGMM Fig 3.6), a linear curve in (Q, P) approximated by three
+  steps: at `q_frac = 1.0` the price is the world LNG price, at `q_frac = 0` it is
+  `lng_max_price_factor` times that.
+- `q_frac` is a fraction of export capacity; `p_factor` multiplies the world price. The
+  anchoring scalars `lng_world_price_per_mmbtu` and `lng_max_price_factor` live in
+  `ng_scalars.csv`, not here.
+
 ## `ng_lng_export.csv`
 
 - Net natural gas exports (LNG + pipeline) = AEO2026 production - consumption
@@ -68,6 +84,33 @@ regions. Carried no provenance notes.
 - `cost_per_mmbtu`: delivered import cost [$/MMBtu].
 - **Source:** EIA AEO 2023; FERC terminal capacity filings.
 
+## `ng_losses.csv` — optional, not shipped
+
+- The four loss fractions (NGMM Eq 10, 11) are single numbers applying to every region, so
+  they live in `ng_scalars.csv` as `distribution_loss` (0.008, LDC
+  unaccounted-for-gas on residential + commercial volumes at delivery),
+  `intrastate_loss` (0.003, short-haul loss within a census division),
+  `storage_loss` (0.005, fraction of cycled storage volume) and
+  `plant_fuel_frac` (0.030, lease and processing-plant fuel use).
+  **There is no `ng_losses.csv` in this repo and none is required.**
+- The loader supports one purely as an *override*: add the file with a `region` column and any
+  subset of `distribution_loss`, `intrastate_loss`, `storage_loss`, `plant_fuel_frac`.
+- Overriding is per region **and** per column — the model resolves each value as
+  `losses.get(region, {}).get(column, <scalar default>)` — so a file listing one region and
+  one column leaves everything else on its scalar.
+
+## `ng_pipe_loss.csv` — optional, not shipped
+
+- Pipeline fuel loss (NGMM Eq 11, `f^pip`) is a single number applying to every corridor, so
+  it lives in `ng_scalars.csv` as `pipe_fuel_loss` (0.005, ~0.5% per long-haul
+  corridor). **There is no `ng_pipe_loss.csv` in this repo and none is required.**
+- The loader supports one purely as a per-arc *override*: add the file with
+  `origin,destination,loss_fraction` rows and only the arcs listed depart from the scalar.
+  Arcs not listed, and the absence of the file entirely, both mean "use the scalar".
+- This is the one optional input in `data.py`. Every other file listed here is required and
+  raises if missing, because for those the absent file would mean the value existed nowhere
+  on disk. Here the value is in `ng_scalars.csv` either way.
+
 ## `ng_pipeline_arcs.csv`
 
 - Interstate natural gas pipeline arcs (directed; each physical pipe = two rows).
@@ -84,6 +127,18 @@ regions. Carried no provenance notes.
 - **Source:** as noted per parameter (the `source` column carries per-row provenance).
 - `storage_opex` = 0.18 $/MMBtu, charged on injected volume. **Source:** EIA average storage
   injection / withdrawal tariff.
+- The eight scalars listed in `_REQUIRED_QP_SCALARS` (`data.py`) are all required:
+  `lng_world_price_per_mmbtu`, `lng_max_price_factor`, `pipe_fuel_loss`,
+  `distribution_loss`, `intrastate_loss`, `plant_fuel_frac`, `storage_loss`,
+  `supply_curve_qmin_fraction`. Dropping one raises rather than reverting to a built-in
+  default, so add a row here before referencing a new scalar in the model.
+- Five of them are the operative value for every region or arc, and can be overridden
+  selectively by an optional file: `pipe_fuel_loss` by `ng_pipe_loss.csv`, and
+  `distribution_loss` / `intrastate_loss` / `storage_loss` / `plant_fuel_frac` by
+  `ng_losses.csv`. Neither override file ships, so the scalars apply everywhere.
+- **Those five names match the override column names exactly.** Where a name can appear in
+  two places it is the same name in both, so a column in `ng_losses.csv` is unambiguously the
+  override of the scalar it shares a name with.
 
 ## `ng_storage.csv`
 
@@ -108,3 +163,21 @@ regions. Carried no provenance notes.
 - Natural gas supply cost tiers -- calibrated to AEO2026 HSM
   (`harness/build_ng_hsm_calibration.py`). capacity = peak HSM production x2.0; costs
   bracket AEO regional supply price.
+
+## `ng_supply_curve_shape.csv`
+
+- NGMM elastic supply-curve shape (NGMM Eq 2-5): the CRV breakpoint multipliers and the
+  per-segment elasticities used to build five steps around each region's `(Q0, P0)` anchor.
+- `side` is `below` / `above` for the three CRV steps either side of the anchor, or the
+  sentinel `elas` for the five segment elasticities, which are indexed 1-5 and so cannot
+  share the 1-3 step numbering. Rows carrying a CRV leave `elas` blank and vice versa.
+- **Source:** ELAS `[0.8, 0.7, 0.5, 0.3, 0.2]` per the AEO 2022 footnote; CRV values as
+  previously carried in `data.py`.
+
+## `ng_tariff_curve_shape.csv`
+
+- Piecewise-linear pipeline tariff curve (NGMM Fig 3.5). Seven utilisation breakpoints define
+  six segments; `tariff_mult` multiplies the flat base tariff from `ng_pipeline_arcs.csv`.
+- The curve rises slowly to ~80% utilisation then sharply approaching 100%, which is how the
+  NGMM hurdle-rate behaviour is encoded without a separate capacity-expansion QP. The
+  breakpoint beyond 1.0 represents capacity that a expansion run could build.

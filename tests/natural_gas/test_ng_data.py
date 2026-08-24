@@ -314,3 +314,178 @@ class TestLoadRegionDataRepoInput:
         config = NGConfig(input_path=Path('input/natural_gas'))
 
         assert config.input_path == PROJECT_ROOT / 'input/natural_gas'
+
+
+# ---------------------------------------------------------------------------
+# The no-fallback contract, extended to every loader
+# ---------------------------------------------------------------------------
+
+# (loader, filename it reads). Every loader in data.py that takes a data_dir; the two that take
+# an NGConfig instead (load_region_data, load_sector_data) are covered by their own classes.
+#
+# load_storage_opex and load_qp_scalars both read ng_scalars.csv, so both appear against it.
+DATA_DIR_LOADERS = [
+    (ng_data.load_supply_cost_tiers, 'ng_supply_cost_tiers.csv'),
+    (ng_data.load_supply_anchors, 'ng_supply_anchors.csv'),
+    (ng_data.load_lng_import, 'ng_lng_import.csv'),
+    (ng_data.load_lng_export, 'ng_lng_export.csv'),
+    (ng_data.load_demand_elasticity, 'ng_demand_elasticity.csv'),
+    (ng_data.load_base_demand, 'ng_base_demand.csv'),
+    (ng_data.load_demand_growth, 'ng_demand_growth.csv'),
+    (ng_data.load_pipeline_arcs, 'ng_pipeline_arcs.csv'),
+    (ng_data.load_storage, 'ng_storage.csv'),
+    (ng_data.load_storage_opex, 'ng_scalars.csv'),
+    (ng_data.load_supply_curve_shape, 'ng_supply_curve_shape.csv'),
+    (ng_data.load_tariff_curve_shape, 'ng_tariff_curve_shape.csv'),
+    (ng_data.load_lng_demand_curve, 'ng_lng_demand_curve.csv'),
+    (ng_data.load_gathering_charges, 'ng_gathering.csv'),
+    (ng_data.load_qp_scalars, 'ng_scalars.csv'),
+]
+
+# Deliberately absent from the list above: load_pipe_loss and load_losses read OPTIONAL override
+# files. Their values live in ng_scalars.csv, which is required, so an absent override file means
+# "nothing departs from the scalar" rather than "the value is hiding in Python".
+# See TestOptionalOverrideFiles.
+
+
+class TestNoFallbackContract:
+    """Every loader raises on an unusable input rather than substituting a built-in default.
+
+    These loaders each used to hold a hardcoded fallback dict, so a missing or malformed file
+    produced a warning and a plausible model. Six of the files were never shipped at all, which
+    meant the fallbacks were the live values rather than emergency defaults. The values now live
+    in ``input/natural_gas/`` and the fallbacks are gone; these tests are what keeps them gone.
+    """
+
+    @pytest.mark.parametrize(
+        'loader,filename', DATA_DIR_LOADERS, ids=lambda a: getattr(a, '__name__', a)
+    )
+    def test_missing_file_raises(self, loader, filename: str, tmp_path: Path) -> None:
+        """An absent input is fatal for every loader, not just load_region_data."""
+        with pytest.raises(ValueError, match='no fallback|could not be read'):
+            loader(data_dir=tmp_path)
+
+    @pytest.mark.parametrize(
+        'loader,filename', DATA_DIR_LOADERS, ids=lambda a: getattr(a, '__name__', a)
+    )
+    def test_unreadable_file_raises(
+        self, loader, filename: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_csv() flattens 'absent' and 'present but broken' to None; both must raise.
+
+        Mocked rather than provoked with a corrupt file: _csv swallows every read error, so
+        forcing its return value is the only way to pin the malformed-file branch specifically.
+        """
+        monkeypatch.setattr(ng_data, '_csv', lambda *args, **kwargs: None)
+
+        with pytest.raises(ValueError, match='no fallback|could not be read'):
+            loader(data_dir=tmp_path)
+
+    def test_no_loader_silently_returns_empty(self, tmp_path: Path) -> None:
+        """The failure mode this class exists to prevent: an empty result read as success.
+
+        A loader that returns {} on a missing file lets the model build with that parameter
+        group absent, which is the silent-wrong-answer case rather than a crash.
+        """
+        for loader, _filename in DATA_DIR_LOADERS:
+            with pytest.raises(ValueError):
+                result = loader(data_dir=tmp_path)
+                pytest.fail(f'{loader.__name__} returned {result!r} instead of raising')
+
+
+class TestShippedScalars:
+    """ng_scalars.csv must define every scalar load_qp_scalars requires."""
+
+    def test_repo_scalars_are_complete(self) -> None:
+        """A scalar dropped from the CSV now raises instead of reverting to a hidden default."""
+        result = ng_data.load_qp_scalars(PROJECT_ROOT / 'input/natural_gas')
+
+        assert set(result) == set(ng_data._REQUIRED_QP_SCALARS)
+        assert all(isinstance(v, float) for v in result.values())
+
+    def test_missing_scalar_raises(self, tmp_path: Path) -> None:
+        """Naming the absent key is what makes the error actionable."""
+        (tmp_path / 'ng_scalars.csv').write_text(
+            'parameter,value,units,source\nstorage_opex,0.18,$/MMBtu,test\n'
+        )
+
+        with pytest.raises(ValueError, match='missing required scalar'):
+            ng_data.load_qp_scalars(tmp_path)
+
+
+class TestOptionalOverrideFiles:
+    """The two loaders whose files may legitimately be absent.
+
+    ``pipe_fuel_loss`` and the four loss scalars live in ng_scalars.csv, which IS
+    required. ng_pipe_loss.csv and ng_losses.csv only override those scalars per arc / per
+    region, so an absent file means "nothing differs" rather than "the value is hiding in
+    Python". Neither ships in this repo.
+    """
+
+    def test_missing_file_returns_no_overrides(self, tmp_path: Path) -> None:
+        """Absence is benign here and must NOT raise, unlike every other loader."""
+        assert ng_data.load_pipe_loss(data_dir=tmp_path) == {}
+
+    def test_malformed_file_still_raises(self, tmp_path: Path) -> None:
+        """Optional to supply, but not optional to get right: a present file must parse."""
+        (tmp_path / 'ng_pipe_loss.csv').write_text('origin,destination,loss_fraction\na,b,zzz\n')
+
+        with pytest.raises(ValueError, match='Could not parse ng_pipe_loss.csv'):
+            ng_data.load_pipe_loss(data_dir=tmp_path)
+
+    def test_overrides_are_read_when_present(self, tmp_path: Path) -> None:
+        """The override path has no coverage otherwise, since the repo ships no such file."""
+        (tmp_path / 'ng_pipe_loss.csv').write_text(
+            'origin,destination,loss_fraction\nmountain,pacific,0.02\n'
+        )
+
+        assert ng_data.load_pipe_loss(data_dir=tmp_path) == {('mountain', 'pacific'): 0.02}
+
+    def test_repo_ships_no_override_file(self) -> None:
+        """Pin the current state: no arc overrides the scalar.
+
+        If someone adds ng_pipe_loss.csv, this fails and prompts a decision about whether the
+        arcs it lists are meant to be exceptions or a full table.
+        """
+        assert ng_data.load_pipe_loss(PROJECT_ROOT / 'input/natural_gas') == {}
+
+    def test_missing_losses_file_returns_no_overrides(self, tmp_path: Path) -> None:
+        """Absence is benign: every region takes the four scalars from ng_scalars.csv."""
+        assert ng_data.load_losses(data_dir=tmp_path) == {}
+
+    def test_losses_partial_override_keeps_only_present_columns(self, tmp_path: Path) -> None:
+        """Overriding is per column, so a one-column file must not imply the other three.
+
+        ng_model resolves losses.get(region, {}).get(column, scalar), so returning a column
+        the file never listed would silently pin it instead of letting the scalar apply.
+        """
+        (tmp_path / 'ng_losses.csv').write_text('region,plant_fuel_frac\nmountain,0.05\n')
+
+        assert ng_data.load_losses(data_dir=tmp_path) == {'mountain': {'plant_fuel_frac': 0.05}}
+
+    def test_losses_partial_override_keeps_only_listed_regions(self, tmp_path: Path) -> None:
+        """One region in the file must not displace the other eight."""
+        (tmp_path / 'ng_losses.csv').write_text(
+            'region,storage_loss\nmountain,0.01\npacific,0.02\n'
+        )
+        result = ng_data.load_losses(data_dir=tmp_path)
+
+        assert set(result) == {'mountain', 'pacific'}
+
+    def test_losses_file_with_no_known_column_raises(self, tmp_path: Path) -> None:
+        """A file that overrides nothing is a mistake, not a no-op: say so."""
+        (tmp_path / 'ng_losses.csv').write_text('region,something_else\nmountain,0.01\n')
+
+        with pytest.raises(ValueError, match='overrides nothing'):
+            ng_data.load_losses(data_dir=tmp_path)
+
+    def test_losses_malformed_file_still_raises(self, tmp_path: Path) -> None:
+        """Optional to supply, not optional to get right."""
+        (tmp_path / 'ng_losses.csv').write_text('region,storage_loss\nmountain,zzz\n')
+
+        with pytest.raises(ValueError, match='Could not parse ng_losses.csv'):
+            ng_data.load_losses(data_dir=tmp_path)
+
+    def test_repo_ships_no_losses_override_file(self) -> None:
+        """Pin the current state: no region departs from the scalar loss defaults."""
+        assert ng_data.load_losses(PROJECT_ROOT / 'input/natural_gas') == {}

@@ -530,11 +530,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         )
 
         # Gathering charge (NGMM Eq 7 P^gath term, $/MMBtu)
+        # Indexed directly, not .get(): ng_gathering.csv is a required input covering every
+        # region, so a missing one is a broken input file rather than a case to default away.
         self.gathering_charge = Param(
             self.region_analyze,
-            initialize=lambda m, r: GATHERING_CHARGES.get(
-                r, self.QP_SCALARS['gathering_charge_avg']
-            ),
+            initialize=lambda m, r: GATHERING_CHARGES[r],
         )
 
         # LNG import availability (coastal regions only), high-cost backstop supply
@@ -570,10 +570,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         )
 
         # Pipeline fuel-loss fraction per directed arc (NGMM Eq 11 f^pip)
-        pipe_loss_default = self.QP_SCALARS.get('pipe_fuel_loss_default', 0.005)
+        pipe_loss_scalar = self.QP_SCALARS['pipe_fuel_loss']
         self.pipe_loss = Param(
             self.arcs,
-            initialize=lambda m, o, d: PIPE_LOSS_BY_ARC.get((o, d), pipe_loss_default),
+            initialize=lambda m, o, d: PIPE_LOSS_BY_ARC.get((o, d), pipe_loss_scalar),
         )
 
         # Pipeline network base info (kept for reporting and capacity bounds)
@@ -621,25 +621,25 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.distribution_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'distribution_loss', self.QP_SCALARS['distribution_loss_default']
+                'distribution_loss', self.QP_SCALARS['distribution_loss']
             ),
         )
         self.intrastate_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'intrastate_loss', self.QP_SCALARS['intrastate_loss_default']
+                'intrastate_loss', self.QP_SCALARS['intrastate_loss']
             ),
         )
         self.storage_loss = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'storage_loss', self.QP_SCALARS['storage_loss_default']
+                'storage_loss', self.QP_SCALARS['storage_loss']
             ),
         )
         self.plant_fuel_frac = Param(
             self.region_analyze,
             initialize=lambda m, r: LOSSES.get(r, {}).get(
-                'plant_fuel_frac', self.QP_SCALARS['plant_fuel_fraction_default']
+                'plant_fuel_frac', self.QP_SCALARS['plant_fuel_frac']
             ),
         )
 

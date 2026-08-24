@@ -1,8 +1,8 @@
 """CSV-backed parameter loader for the C-NGMM.
 
-Reads all numerical parameters from ``input/natural_gas/`` CSV files.
-If a file is missing or malformed, a warning is logged and the hardcoded
-fallback constants defined here are used transparently.
+Reads all numerical parameters from ``input/natural_gas/`` CSV files. Every file listed below
+is required: a missing or malformed input raises ``ValueError`` rather than substituting a
+built-in default, so the values a run solves on are always the values on disk.
 
 Extracted from ng_model.py module-level
 constants so that supply curves, demand tables, pipelines, storage, and LNG
@@ -17,11 +17,10 @@ CSV files (all in ``input/natural_gas/``):
     ng_demand_growth.csv     → DEMAND_GROWTH_RATES
     ng_pipeline_arcs.csv     → PIPELINE_ARCS_RAW
     ng_storage.csv           → STORAGE
-    ng_scalars.csv           → STORAGE_OPEX, gathering_charge_avg,
-                                lng_world_price_per_mmbtu, lng_max_price_factor,
-                                pipe_fuel_loss_default,
-                                distribution_loss_default, intrastate_loss_default,
-                                plant_fuel_fraction_default, storage_loss_default,
+    ng_scalars.csv           → STORAGE_OPEX, lng_world_price_per_mmbtu,
+                                lng_max_price_factor, pipe_fuel_loss,
+                                distribution_loss, intrastate_loss,
+                                plant_fuel_frac, storage_loss,
                                 supply_curve_qmin_fraction (scalars)
 
 Added NGMM AEO2025-aligned parameters for
@@ -32,18 +31,25 @@ the QP rewrite of ng_model.py:
                                  tariff multipliers; NGMM Fig 3.5 hurdle-rate)
     ng_lng_demand_curve.csv   → LNG_DEMAND_CURVE_SHAPE (NGMM Fig 3.6 linear
                                  demand curve down from LNG_MAX to zero at 0)
-    ng_losses.csv             → LOSSES (per-region distribution, intrastate,
-                                 plant-fuel, storage-loss; NGMM Eq 10, 11)
     ng_gathering.csv          → GATHERING_CHARGES (per-region $/MMBtu;
                                  NGMM Eq 7 P^gath term)
-    ng_pipe_loss.csv          → PIPE_LOSS (per-arc fraction; NGMM Eq 11 f^pip)
+    ng_supply_anchors.csv     → SUPPLY_ANCHORS (per-(region,year) multipliers on
+                                 the static Q0/P0 anchors)
+
+OPTIONAL override files, the only inputs whose absence is not an error. Their values live
+in ng_scalars.csv under the same names, so an absent file means "nothing departs from the
+scalar" rather than "the value is hiding in Python". Neither ships in this repo:
+    ng_losses.csv             → LOSSES (per-region, per-column override of
+                                 distribution_loss, intrastate_loss, storage_loss,
+                                 plant_fuel_frac; NGMM Eq 10, 11)
+    ng_pipe_loss.csv          → PIPE_LOSS (per-arc override of pipe_fuel_loss;
+                                 NGMM Eq 11 f^pip)
 """
 
 from __future__ import annotations
 
 import csv
 import logging
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TypedDict
 
@@ -58,229 +64,38 @@ logger = logging.getLogger(__name__)
 # Default data directory
 # ---------------------------------------------------------------------------
 
-# DEPTH-SENSITIVE. This file sits at src/models/natural_gas/data.py, so parents[3] walks up
-# natural_gas -> models -> src -> <repo root>, giving <repo root>/input/natural_gas.
-#
-# Move this file to a different directory depth and the path still resolves, to somewhere
-# that does not exist. Every load then falls back, no exception is raised, and the model
-# solves on fallback constants throughout: plausible numbers, silently wrong provenance. If
-# you relocate the module, this line must be updated in the same commit.
+# parents[3] walks natural_gas -> models -> src -> <repo root>, giving
+# <repo root>/input/natural_gas.
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'natural_gas'
 
+
 # ---------------------------------------------------------------------------
-# Hardcoded fallback constants (original values from ng_model.py)
-# These are used verbatim if the corresponding CSV file cannot be read.
+# Required inputs
+# ---------------------------------------------------------------------------
+
+# There are no hardcoded fallback constants. Every CSV named in the module docstring is a hard
+# requirement: a missing or malformed file raises rather than substituting built-in values.
 #
-# Two reasons they exist rather than letting a missing file raise:
-# 1. the model stays runnable with an incomplete input set, so you can bisect what is
-# missing instead of being blocked at the first absent file;
-# 2. six of these groups ship with NO CSV at all in this distribution, so the fallbacks
-# are the live values, not merely emergency defaults, see the module docstring.
+# The previous design kept a fallback dict per input so the model stayed runnable with an
+# incomplete input set. The cost was that six of those groups shipped with no CSV at all, so
+# their fallbacks were the live values rather than emergency defaults, and a typo'd filename was
+# indistinguishable from a file absent on purpose. Both merely logged a warning.
+
+# Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
-# The cost of that design is that a typo'd filename is indistinguishable from a file that is
-# absent on purpose. Both log the same warning. The INFO lines emitted on the success path
-# ("SUPPLY_COST_TIERS loaded from CSV (9 regions)") are the more reliable signal: ten of those
-# should appear on a healthy run.
-# ---------------------------------------------------------------------------
-
-# Regions are NOT among the fallbacks: they are definitional, so ng_region_data.csv is a hard
-# requirement and load_region_data() raises rather than substituting a hardcoded list. A silent
-# region fallback would let the model build on a region set that disagrees with every other
-# input file, which is the one failure mode these fallbacks cannot absorb.
-
-# fmt: off
-_SUPPLY_COST_TIERS_FALLBACK: dict[str, list[tuple[float, float]]] = {
-    'new_england':        [(  60,  3.50), (  30,  5.00), (  10,  7.50)],
-    'middle_atlantic':    [(5000,  1.80), (5500,  2.30), (3000,  3.20)],
-    'east_north_central': [( 500,  2.40), ( 400,  3.50), ( 150,  5.00)],
-    'west_north_central': [( 900,  2.20), ( 700,  3.20), ( 300,  4.80)],
-    'south_atlantic':     [( 250,  3.00), ( 200,  4.50), ( 100,  6.50)],
-    'east_south_central': [( 450,  2.50), ( 350,  3.60), ( 150,  5.20)],
-    'west_south_central': [(8500,  1.40), (8000,  1.90), (4500,  2.80)],
-    'mountain':           [(4500,  1.80), (3500,  2.40), (2000,  3.40)],
-    'pacific':            [( 600,  2.80), ( 450,  3.80), ( 200,  5.80)],
-}
-
-_LNG_IMPORT_FALLBACK: dict[str, tuple[float, float]] = {
-    'new_england':    (350, 8.00),
-    'south_atlantic': (300, 7.50),
-    'pacific':        (200, 8.50),
-}
-
-_LNG_EXPORT_DEMAND_BCF_FALLBACK: dict[str, dict[int, float]] = {
-    'west_south_central': {2025: 4300, 2030: 5100, 2035: 5700, 2040: 6200, 2045: 6700, 2050: 7200},
-    'south_atlantic':     {2025:  480, 2030:  560, 2035:  620, 2040:  650, 2045:  700, 2050:  730},
-    'pacific':            {2025:    0, 2030:   80, 2035:  200, 2040:  350, 2045:  500, 2050:  650},
-}
-
-_DEMAND_PRICE_ELASTICITY_FALLBACK = {
-    'electric_power': -0.15,
-    'industrial':     -0.20,
-    'residential':    -0.10,
-    'commercial':     -0.10,
-    'transportation': -0.05,
-}
-
-# Rows are noqa'd for E501: the one-row-per-region alignment is what makes a 45-value table
-# readable, and reflowing it under 100 columns would cost that for no gain.
-_BASE_DEMAND_2025_FALLBACK: dict[str, dict[str, float]] = {
-    'new_england':        {'electric_power':  215, 'industrial':  290, 'residential':  395, 'commercial':  360, 'transportation':   55},  # noqa: E501
-    'middle_atlantic':    {'electric_power':  810, 'industrial': 1180, 'residential':  795, 'commercial':  620, 'transportation':  110},  # noqa: E501
-    'east_north_central': {'electric_power': 1250, 'industrial': 1820, 'residential':  710, 'commercial':  530, 'transportation':  160},  # noqa: E501
-    'west_north_central': {'electric_power':  820, 'industrial':  810, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
-    'south_atlantic':     {'electric_power': 2050, 'industrial': 1010, 'residential':  620, 'commercial':  510, 'transportation':  155},  # noqa: E501
-    'east_south_central': {'electric_power':  830, 'industrial':  620, 'residential':  315, 'commercial':  210, 'transportation':   60},  # noqa: E501
-    'west_south_central': {'electric_power': 3520, 'industrial': 3050, 'residential':  510, 'commercial':  415, 'transportation':  260},  # noqa: E501
-    'mountain':           {'electric_power': 1430, 'industrial':  820, 'residential':  415, 'commercial':  305, 'transportation':  115},  # noqa: E501
-    'pacific':            {'electric_power': 1320, 'industrial':  510, 'residential':  415, 'commercial':  360, 'transportation':   60},  # noqa: E501
-}
-
-_DEMAND_GROWTH_RATES_FALLBACK = {
-    'electric_power':  0.004,
-    'industrial':      0.008,
-    'residential':    -0.005,
-    'commercial':     -0.003,
-    'transportation':  0.025,
-}
-
-_PIPELINE_ARCS_RAW_FALLBACK: list[tuple[str, str, float, float]] = [
-    ('new_england',        'middle_atlantic',    1400, 0.55),
-    ('middle_atlantic',    'new_england',        1400, 0.55),
-    ('middle_atlantic',    'east_north_central', 2200, 0.40),
-    ('east_north_central', 'middle_atlantic',    2200, 0.40),
-    ('middle_atlantic',    'south_atlantic',     3000, 0.35),
-    ('south_atlantic',     'middle_atlantic',    3000, 0.35),
-    ('middle_atlantic',    'east_south_central',  800, 0.45),
-    ('east_south_central', 'middle_atlantic',     800, 0.45),
-    ('east_north_central', 'west_north_central', 1600, 0.30),
-    ('west_north_central', 'east_north_central', 1600, 0.30),
-    ('east_north_central', 'south_atlantic',      600, 0.40),
-    ('south_atlantic',     'east_north_central',  600, 0.40),
-    ('west_north_central', 'west_south_central', 2100, 0.35),
-    ('west_south_central', 'west_north_central', 2100, 0.35),
-    ('west_north_central', 'mountain',           1100, 0.30),
-    ('mountain',           'west_north_central', 1100, 0.30),
-    ('south_atlantic',     'east_south_central', 2200, 0.25),
-    ('east_south_central', 'south_atlantic',     2200, 0.25),
-    ('east_south_central', 'west_south_central', 3200, 0.20),
-    ('west_south_central', 'east_south_central', 3200, 0.20),
-    ('west_south_central', 'mountain',           3800, 0.30),
-    ('mountain',           'west_south_central', 3800, 0.30),
-    ('mountain',           'pacific',            4200, 0.40),
-    ('pacific',            'mountain',           4200, 0.40),
-    ('west_south_central', 'south_atlantic',     1500, 0.40),
-    ('south_atlantic',     'west_south_central', 1500, 0.40),
-]
-
-_STORAGE_FALLBACK: dict[str, dict[str, float]] = {
-    'new_england':        {'working': 180,  'inject':  60,  'withdraw':  90},
-    'middle_atlantic':    {'working': 420,  'inject': 140,  'withdraw': 210},
-    'east_north_central': {'working': 620,  'inject': 210,  'withdraw': 310},
-    'west_north_central': {'working': 510,  'inject': 170,  'withdraw': 255},
-    'south_atlantic':     {'working': 340,  'inject': 115,  'withdraw': 170},
-    'east_south_central': {'working': 160,  'inject':  55,  'withdraw':  80},
-    'west_south_central': {'working': 850,  'inject': 285,  'withdraw': 425},
-    'mountain':           {'working': 360,  'inject': 120,  'withdraw': 180},
-    'pacific':            {'working': 160,  'inject':  55,  'withdraw':  80},
-}
-
-_STORAGE_OPEX_FALLBACK: float = 0.18  # $/MMBtu
-
-# ---------------------------------------------------------------------------
-# NGMM AEO2025-aligned fallbacks
-# ---------------------------------------------------------------------------
-
-# Supply-curve shape parameters (NGMM Eq 1-5, Fig 3.4).
-# Five elastic segments built around an expected (Q0, P0) anchor point.
-# crv_below[k]: percentage drop in QBASE from the anchor for the k-th step below Q0
-# crv_above[k]: percentage rise in QBASE from the anchor for the k-th step above Q0
-# elas[k]:      step elasticity of supply (AEO 2022 footnote values, segments 1-5)
-# A 6-breakpoint curve forms 5 segments. Breakpoints are:
-#   QBASE_1 = Q0 * (1 - crv_below[3]) * (1 - crv_below[2]) * (1 - crv_below[1])
-#   QBASE_2 = Q0 * (1 - crv_below[3]) * (1 - crv_below[2])
-#   QBASE_3 = Q0 * (1 - crv_below[3])
-#   QBASE_4 = Q0 * (1 + crv_above[1])
-#   QBASE_5 = Q0 * (1 + crv_above[1]) * (1 + crv_above[2])
-#   QBASE_6 = Q0 * (1 + crv_above[1]) * (1 + crv_above[2]) * (1 + crv_above[3])
-# PBASE breakpoints use the same products of (1 +/- crv)/elas (NGMM Eq 3, 5).
-_SUPPLY_CURVE_SHAPE_FALLBACK: dict[str, list[float]] = {
-    'crv_below': [0.30, 0.15, 0.05],   # steps 1, 2, 3 below Q0
-    'crv_above': [0.05, 0.15, 0.30],   # steps 4, 5, 6 above Q0
-    'elas':      [0.8, 0.7, 0.5, 0.3, 0.2],  # 5 segment elasticities (AEO 2022)
-}
-
-# Pipeline tariff curve (NGMM Fig 3.5). Six breakpoints in capacity-utilisation
-# space define five segments; multipliers are relative to the flat base tariff.
-# The tariff rises slowly up to ~80 % utilisation, then sharply approaching 100 %
-# (hurdle-rate behavior), and the >100 % step represents capacity that could be
-# built in a capacity-expansion run.
-_TARIFF_CURVE_SHAPE_FALLBACK: dict[str, list[float]] = {
-    'util_break':     [0.00, 0.20, 0.60, 0.80, 0.95, 1.00, 1.40],  # 7 breakpoints, 6 segments
-    'tariff_mult':    [0.40, 0.55, 0.75, 0.95, 1.50, 3.00, 3.50],  # multiplier on base tariff
-}
-
-# LNG export demand curve (NGMM Fig 3.6). A linear demand curve in (Q, P) space:
-# at Q=Q_capacity, P = world LNG price; at Q=0, P = lng_max_price_factor × world price.
-# Three steps give a coarse PL approximation of the linear curve.
-_LNG_DEMAND_CURVE_SHAPE_FALLBACK: dict[str, list[float] | float] = {
-    'q_frac':         [0.00, 0.50, 0.85, 1.00],  # fraction of capacity at each breakpoint
-    'p_factor':       [2.00, 1.50, 1.10, 1.00],  # factor on world LNG price
-    'world_price':    7.00,                       # $/MMBtu, AEO 2025 reference
-    'max_factor':     2.00,                       # P at Q=0 = max_factor × world_price
-}
-
-# Per-region loss fractions and plant-fuel use (NGMM Eq 10, 11). Distribution
-# loss applies to residential + commercial volumes at delivery (~0.8 % typical
-# LDC unaccounted-for-gas). Intrastate loss represents short-haul pipeline
-# losses on volumes produced and consumed within the same census division
-# (~0.3 %). Storage loss is fraction of cycled storage volume (~0.5 %).
-# Plant fuel is the fixed BCF/yr consumed in lease + processing-plant operations
-# (~3 % of throughput, applied as a fraction of total sector demand).
-# Held as one row of values rather than a per-region table: the regions now come from
-# ng_region_data.csv, so the fallback is expanded over whatever domestic regions that file
-# declares (see _losses_fallback) instead of over a hardcoded region list.
-_LOSSES_FALLBACK: dict[str, float] = {
-    'distribution_loss': 0.008,
-    'intrastate_loss':   0.003,
-    'storage_loss':      0.005,
-    'plant_fuel_frac':   0.030,
-}
-
-# Gathering charge ($/MMBtu) per supply region, first-mile cost of moving gas
-# from wellhead to the regional hub (NGMM Eq 7 P^gath term). Higher in the
-# remote / steep-terrain regions (Mountain), lower in the Gulf Coast.
-_GATHERING_CHARGES_FALLBACK: dict[str, float] = {
-    'new_england':        0.30,
-    'middle_atlantic':    0.25,
-    'east_north_central': 0.20,
-    'west_north_central': 0.20,
-    'south_atlantic':     0.25,
-    'east_south_central': 0.22,
-    'west_south_central': 0.15,
-    'mountain':           0.35,
-    'pacific':            0.30,
-}
-
-# Pipeline fuel-loss fraction per directed arc (NGMM Eq 11 f^pip). Default
-# value (~0.5 % per long-haul corridor) applies unless an arc-specific value
-# is supplied via ng_pipe_loss.csv.
-_PIPE_LOSS_DEFAULT_FALLBACK: float = 0.005
-
-# Other QP scalars used by the rewrite. Surfaced through ng_scalars.csv keys.
-_QP_SCALARS_FALLBACK: dict[str, float] = {
-    'gathering_charge_avg':       0.25,
-    'lng_world_price_per_mmbtu':  7.00,
-    'lng_max_price_factor':       2.00,
-    'pipe_fuel_loss_default':     0.005,
-    'distribution_loss_default':  0.008,
-    'intrastate_loss_default':    0.003,
-    'plant_fuel_fraction_default':0.030,
-    'storage_loss_default':       0.005,
-    'supply_curve_qmin_fraction': 0.20,   # QMIN = qmin_fraction × Q0 (committed wells)
-}
-
-# fmt: on
-
+# The four loss names below deliberately match the column names of the optional ng_losses.csv
+# override file, and pipe_fuel_loss matches what ng_pipe_loss.csv overrides. Where a name can
+# appear in two places, it is the same name in both.
+_REQUIRED_QP_SCALARS: tuple[str, ...] = (
+    'lng_world_price_per_mmbtu',
+    'lng_max_price_factor',
+    'pipe_fuel_loss',
+    'distribution_loss',
+    'intrastate_loss',
+    'plant_fuel_frac',
+    'storage_loss',
+    'supply_curve_qmin_fraction',
+)
 # ---------------------------------------------------------------------------
 # Loader functions
 # ---------------------------------------------------------------------------
@@ -289,20 +104,21 @@ _QP_SCALARS_FALLBACK: dict[str, float] = {
 def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
     """Read a CSV from data_dir, skipping comment lines starting with '#'.
 
-    Returns None and logs a warning on any failure.
+    Returns None and logs a warning on any failure. **Every caller turns that None into a
+    ``ValueError``** - this primitive reports the failure, callers decide it is fatal, and
+    naming the file in the caller's message is what makes the error actionable.
 
-    The single I/O primitive every loader below goes through, so the missing-file policy is
-    defined in exactly one place. Two behaviours worth knowing:
+    The single I/O primitive every loader below goes through, so the read policy is defined in
+    exactly one place. Two behaviours worth knowing:
 
-    * ``comment='#'`` drops the provenance header each input carries (source, units, vintage),
+    * ``comment='#'`` drops any provenance header an input carries (source, units, vintage),
       so those headers can be edited freely without affecting parsing.
-    * The bare ``except Exception`` is deliberate: a malformed CSV must
-      degrade to the fallback exactly as an absent one does. Narrowing it to ParserError would
-      let an encoding error or a permissions failure propagate, which is precisely the
-      behaviour this loader is designed to avoid.
+    * The bare ``except Exception`` is deliberate: a malformed CSV must be reported the same
+      way an absent one is. Narrowing it to ParserError would let an encoding error or a
+      permissions failure propagate as a different exception type from a different place.
 
-    Note the asymmetry that follows from that: this returns None for BOTH "no such file" and
-    "file exists but is broken". The log message distinguishes them; the return value does not.
+    Note the asymmetry that follows: this returns None for BOTH "no such file" and "file
+    exists but is broken". The log message distinguishes them; the return value does not.
     """
     path = data_dir / filename
     try:
@@ -311,10 +127,10 @@ def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
         df.columns = df.columns.str.strip()
         return df
     except FileNotFoundError:
-        logger.warning('NG data file not found: %s, using fallback', path)
+        logger.warning('NG data file not found: %s', path)
         return None
     except Exception as exc:  # noqa: BLE001 - broad on purpose, see docstring
-        logger.warning('Could not read %s (%s), using fallback', path, exc)
+        logger.warning('Could not read %s (%s)', path, exc)
         return None
 
 
@@ -338,7 +154,10 @@ def load_supply_cost_tiers(
     """
     df = _csv('ng_supply_cost_tiers.csv', data_dir)
     if df is None:
-        return dict(_SUPPLY_COST_TIERS_FALLBACK)
+        raise ValueError(
+            f'ng_supply_cost_tiers.csv could not be read from {data_dir}; '
+            'this input has no fallback'
+        )
     # Fixed order, not the CSV's row order: the anchor is a weighted mean, so ordering does not
     # affect Q0/P0, but a stable order keeps the loaded structure comparable run to run.
     cost_tier_order = ['low_cost', 'medium_cost', 'high_cost']
@@ -358,8 +177,7 @@ def load_supply_cost_tiers(
         if row:
             result[str(region)] = row
     if not result:
-        logger.warning('ng_supply_cost_tiers.csv yielded empty result, using fallback')
-        return dict(_SUPPLY_COST_TIERS_FALLBACK)
+        raise ValueError(f'ng_supply_cost_tiers.csv in {data_dir} yielded no rows')
     logger.info('SUPPLY_COST_TIERS loaded from CSV (%d regions)', len(result))
     return result
 
@@ -367,16 +185,27 @@ def load_supply_cost_tiers(
 def load_supply_anchors(
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[tuple[str, int], tuple[float, float]]:
-    """Optional year-varying supply-curve anchor path.
+    """Year-varying supply-curve anchor path.
 
     Read from ng_supply_anchors.csv: {(region, year): (q0_mult, p0_mult)}, multipliers on the static
     cost-tier-derived (Q0, P0) anchors (harness/build_ng_anchor_path.py; AEO Table 59 production +
-    regional supply-price paths, normalized to 2025). Missing file or row -> {} / no entry, and the
-    model falls back to multiplier 1.0 = the previous static-curve behaviour.
+    regional supply-price paths, normalized to 2025).
+
+    The file is required. An *absent row* still means multiplier 1.0 for that region-year, which is
+    the static-curve behaviour, but an absent *file* is an error: it used to return {} silently,
+    which is indistinguishable from a file listing no anchors and quietly reverts every region to
+    the static curve.
+
+    Raises
+    ------
+    ValueError
+        If the file is missing or unreadable.
     """
     df = _csv('ng_supply_anchors.csv', data_dir)
     if df is None:
-        return {}
+        raise ValueError(
+            f'ng_supply_anchors.csv could not be read from {data_dir}; this input has no fallback'
+        )
     try:
         out = {
             # itertuples() attributes are typed as the union of every pandas scalar type, so
@@ -389,9 +218,8 @@ def load_supply_anchors(
         }
         logger.info('SUPPLY_ANCHORS loaded from CSV (%d region-years)', len(out))
         return out
-    except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001 - see docstring
-        logger.warning('ng_supply_anchors.csv malformed (%s), ignoring (static anchors)', exc)
-        return {}
+    except Exception as exc:
+        raise ValueError(f'Could not parse ng_supply_anchors.csv in {data_dir}') from exc
 
 
 def load_lng_import(
@@ -400,14 +228,15 @@ def load_lng_import(
     """Load LNG_IMPORT from ng_lng_import.csv."""
     df = _csv('ng_lng_import.csv', data_dir)
     if df is None:
-        return dict(_LNG_IMPORT_FALLBACK)
+        raise ValueError(
+            f'ng_lng_import.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result = {
         str(row['region']): (float(row['capacity_bcf']), float(row['cost_per_mmbtu']))
         for _, row in df.iterrows()
     }
     if not result:
-        logger.warning('ng_lng_import.csv yielded empty result, using fallback')
-        return dict(_LNG_IMPORT_FALLBACK)
+        raise ValueError(f'ng_lng_import.csv in {data_dir} yielded no rows')
     logger.info('LNG_IMPORT loaded from CSV (%d terminals)', len(result))
     return result
 
@@ -418,14 +247,15 @@ def load_lng_export(
     """Load LNG_EXPORT_DEMAND_BCF from ng_lng_export.csv."""
     df = _csv('ng_lng_export.csv', data_dir)
     if df is None:
-        return {k: dict(v) for k, v in _LNG_EXPORT_DEMAND_BCF_FALLBACK.items()}
+        raise ValueError(
+            f'ng_lng_export.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result: dict[str, dict[int, float]] = {}
     for _, row in df.iterrows():
         region = str(row['region'])
         result.setdefault(region, {})[int(row['year'])] = float(row['demand_bcf'])
     if not result:
-        logger.warning('ng_lng_export.csv yielded empty result, using fallback')
-        return {k: dict(v) for k, v in _LNG_EXPORT_DEMAND_BCF_FALLBACK.items()}
+        raise ValueError(f'ng_lng_export.csv in {data_dir} yielded no rows')
     logger.info(
         'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
         sum(len(v) for v in result.values()),
@@ -439,11 +269,13 @@ def load_demand_elasticity(
     """Load DEMAND_PRICE_ELASTICITY from ng_demand_elasticity.csv."""
     df = _csv('ng_demand_elasticity.csv', data_dir)
     if df is None:
-        return dict(_DEMAND_PRICE_ELASTICITY_FALLBACK)
+        raise ValueError(
+            f'ng_demand_elasticity.csv could not be read from {data_dir}; '
+            'this input has no fallback'
+        )
     result = {str(row['sector']): float(row['own_price_elasticity']) for _, row in df.iterrows()}
     if not result:
-        logger.warning('ng_demand_elasticity.csv yielded empty result, using fallback')
-        return dict(_DEMAND_PRICE_ELASTICITY_FALLBACK)
+        raise ValueError(f'ng_demand_elasticity.csv in {data_dir} yielded no rows')
     logger.info('DEMAND_PRICE_ELASTICITY loaded from CSV')
     return result
 
@@ -454,14 +286,15 @@ def load_base_demand(
     """Load BASE_DEMAND_2025 from ng_base_demand.csv."""
     df = _csv('ng_base_demand.csv', data_dir)
     if df is None:
-        return {k: dict(v) for k, v in _BASE_DEMAND_2025_FALLBACK.items()}
+        raise ValueError(
+            f'ng_base_demand.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result: dict[str, dict[str, float]] = {}
     for _, row in df.iterrows():
         region = str(row['region'])
         result.setdefault(region, {})[str(row['sector'])] = float(row['demand_bcf_2025'])
     if not result:
-        logger.warning('ng_base_demand.csv yielded empty result, using fallback')
-        return {k: dict(v) for k, v in _BASE_DEMAND_2025_FALLBACK.items()}
+        raise ValueError(f'ng_base_demand.csv in {data_dir} yielded no rows')
     logger.info(
         'BASE_DEMAND_2025 loaded from CSV (%d region-sector pairs)',
         sum(len(v) for v in result.values()),
@@ -475,11 +308,12 @@ def load_demand_growth(
     """Load DEMAND_GROWTH_RATES from ng_demand_growth.csv."""
     df = _csv('ng_demand_growth.csv', data_dir)
     if df is None:
-        return dict(_DEMAND_GROWTH_RATES_FALLBACK)
+        raise ValueError(
+            f'ng_demand_growth.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result = {str(row['sector']): float(row['annual_growth_rate']) for _, row in df.iterrows()}
     if not result:
-        logger.warning('ng_demand_growth.csv yielded empty result, using fallback')
-        return dict(_DEMAND_GROWTH_RATES_FALLBACK)
+        raise ValueError(f'ng_demand_growth.csv in {data_dir} yielded no rows')
     logger.info('DEMAND_GROWTH_RATES loaded from CSV')
     return result
 
@@ -490,7 +324,9 @@ def load_pipeline_arcs(
     """Load PIPELINE_ARCS_RAW from ng_pipeline_arcs.csv."""
     df = _csv('ng_pipeline_arcs.csv', data_dir)
     if df is None:
-        return list(_PIPELINE_ARCS_RAW_FALLBACK)
+        raise ValueError(
+            f'ng_pipeline_arcs.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result = [
         (
             str(row['origin']),
@@ -501,8 +337,7 @@ def load_pipeline_arcs(
         for _, row in df.iterrows()
     ]
     if not result:
-        logger.warning('ng_pipeline_arcs.csv yielded empty result, using fallback')
-        return list(_PIPELINE_ARCS_RAW_FALLBACK)
+        raise ValueError(f'ng_pipeline_arcs.csv in {data_dir} yielded no rows')
     logger.info('PIPELINE_ARCS_RAW loaded from CSV (%d directed arcs)', len(result))
     return result
 
@@ -513,7 +348,9 @@ def load_storage(
     """Load STORAGE from ng_storage.csv."""
     df = _csv('ng_storage.csv', data_dir)
     if df is None:
-        return {k: dict(v) for k, v in _STORAGE_FALLBACK.items()}
+        raise ValueError(
+            f'ng_storage.csv could not be read from {data_dir}; this input has no fallback'
+        )
     result = {
         str(row['region']): {
             'working': float(row['working_cap_bcf']),
@@ -523,8 +360,7 @@ def load_storage(
         for _, row in df.iterrows()
     }
     if not result:
-        logger.warning('ng_storage.csv yielded empty result, using fallback')
-        return {k: dict(v) for k, v in _STORAGE_FALLBACK.items()}
+        raise ValueError(f'ng_storage.csv in {data_dir} yielded no rows')
     logger.info('STORAGE loaded from CSV (%d regions)', len(result))
     return result
 
@@ -535,7 +371,9 @@ def load_storage_opex(
     """Load STORAGE_OPEX scalar from ng_scalars.csv."""
     df = _csv('ng_scalars.csv', data_dir)
     if df is None:
-        return _STORAGE_OPEX_FALLBACK
+        raise ValueError(
+            f'ng_scalars.csv could not be read from {data_dir}; this input has no fallback'
+        )
     try:
         df = df.set_index('parameter')
         # TODO:  Investigate the source df and determine if/why column is not typed
@@ -544,8 +382,7 @@ def load_storage_opex(
         logger.info('STORAGE_OPEX loaded from CSV: %.4f', val)
         return val
     except (KeyError, ValueError, TypeError) as exc:
-        logger.warning('Could not read storage_opex from ng_scalars.csv (%s), using fallback', exc)
-        return _STORAGE_OPEX_FALLBACK
+        raise ValueError(f'Could not read storage_opex from ng_scalars.csv in {data_dir}') from exc
 
 
 # ---------------------------------------------------------------------------
@@ -565,7 +402,10 @@ def load_supply_curve_shape(
     """
     df = _csv('ng_supply_curve_shape.csv', data_dir)
     if df is None:
-        return {k: list(v) for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
+        raise ValueError(
+            f'ng_supply_curve_shape.csv could not be read from {data_dir}; '
+            'this input has no fallback'
+        )
     try:
         crv_below = sorted(
             [(int(r['step']), float(r['crv'])) for _, r in df.iterrows() if r['side'] == 'below'],
@@ -597,8 +437,7 @@ def load_supply_curve_shape(
         logger.info('SUPPLY_CURVE_SHAPE loaded from CSV')
         return result
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_supply_curve_shape.csv (%s), using fallback', exc)
-        return {k: list(v) for k, v in _SUPPLY_CURVE_SHAPE_FALLBACK.items()}
+        raise ValueError(f'Could not parse ng_supply_curve_shape.csv in {data_dir}') from exc
 
 
 def load_tariff_curve_shape(
@@ -607,7 +446,10 @@ def load_tariff_curve_shape(
     """Load NGMM pipeline-tariff curve shape (NGMM Fig 3.5)."""
     df = _csv('ng_tariff_curve_shape.csv', data_dir)
     if df is None:
-        return {k: list(v) for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
+        raise ValueError(
+            f'ng_tariff_curve_shape.csv could not be read from {data_dir}; '
+            'this input has no fallback'
+        )
     try:
         rows = sorted(
             [(float(r['util_break']), float(r['tariff_mult'])) for _, r in df.iterrows()],
@@ -622,8 +464,7 @@ def load_tariff_curve_shape(
         logger.info('TARIFF_CURVE_SHAPE loaded from CSV (%d breakpoints)', len(rows))
         return result
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_tariff_curve_shape.csv (%s), using fallback', exc)
-        return {k: list(v) for k, v in _TARIFF_CURVE_SHAPE_FALLBACK.items()}
+        raise ValueError(f'Could not parse ng_tariff_curve_shape.csv in {data_dir}') from exc
 
 
 def load_lng_demand_curve(
@@ -633,29 +474,14 @@ def load_lng_demand_curve(
 
     CSV format (ng_lng_demand_curve.csv), one breakpoint per row:
         q_frac, p_factor
-    plus optional scalar rows in ng_scalars.csv for world_price / max_factor.
-
-    KNOWN ISSUE, the calibrated world price is not reaching the model
-    -----------------------------------------------------------------
-
+    The curve is anchored by ``lng_world_price_per_mmbtu`` and ``lng_max_price_factor``, both
+    read from ng_scalars.csv via :func:`load_qp_scalars`.
     """
     df = _csv('ng_lng_demand_curve.csv', data_dir)
     if df is None:
-        # <-- the early return. Returns before load_qp_scalars() is ever called, so
-        # 'world_price' comes from the fallback dict (7.00), not ng_scalars.csv (5.30).
-        # Logged, not fixed: the warning below makes the substitution visible without changing
-        # which value the model solves on. See the KNOWN ISSUE note above.
-        logger.warning(
-            'LNG_DEMAND_CURVE_SHAPE: world_price=%s and max_factor=%s taken from fallback; any '
-            'lng_world_price_per_mmbtu / lng_max_price_factor in ng_scalars.csv is NOT applied '
-            'on this path',
-            _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price'],
-            _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor'],
+        raise ValueError(
+            f'ng_lng_demand_curve.csv could not be read from {data_dir}; this input has no fallback'
         )
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()
-        }
     try:
         rows = sorted(
             [(float(r['q_frac']), float(r['p_factor'])) for _, r in df.iterrows()],
@@ -671,66 +497,77 @@ def load_lng_demand_curve(
         result: dict[str, list[float] | float] = {
             'q_frac': q_frac,
             'p_factor': p_factor,
-            'world_price': scalars.get(
-                'lng_world_price_per_mmbtu', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['world_price']
-            ),
-            'max_factor': scalars.get(
-                'lng_max_price_factor', _LNG_DEMAND_CURVE_SHAPE_FALLBACK['max_factor']
-            ),
+            # Direct indexing, not .get(): load_qp_scalars guarantees both keys or raises, so a
+            # default here would be unreachable code masking a contract change.
+            'world_price': scalars['lng_world_price_per_mmbtu'],
+            'max_factor': scalars['lng_max_price_factor'],
         }
         logger.info('LNG_DEMAND_CURVE_SHAPE loaded from CSV (%d breakpoints)', len(rows))
         return result
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_lng_demand_curve.csv (%s), using fallback', exc)
-        return {
-            k: list(v) if isinstance(v, list) else v
-            for k, v in _LNG_DEMAND_CURVE_SHAPE_FALLBACK.items()
-        }
-
-
-def _losses_fallback(regions: Sequence[str]) -> dict[str, dict[str, float]]:
-    """Expand the single row of default loss fractions over the domestic regions."""
-    return dict.fromkeys(regions, _LOSSES_FALLBACK)
+        raise ValueError(f'Could not parse ng_lng_demand_curve.csv in {data_dir}') from exc
 
 
 def load_losses(
-    fallback_regions: Sequence[str],
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[str, dict[str, float]]:
-    """Load per-region loss fractions and plant-fuel fraction (NGMM Eq 10, 11).
+    """Load per-region overrides of the loss fractions and plant-fuel fraction (NGMM Eq 10, 11).
 
     CSV format (ng_losses.csv), one row per region:
-        region, distribution_loss, intrastate_loss, storage_loss, plant_fuel_frac
+        region, and any of distribution_loss, intrastate_loss, storage_loss, plant_fuel_frac
+
+    **This file is optional.** The four values are single numbers applying to every region, so
+    they live in ng_scalars.csv as ``distribution_loss``, ``intrastate_loss``,
+    ``storage_loss`` and ``plant_fuel_frac``, all of which ARE required. The column names
+    here match those scalar names exactly.
+    This file exists only to override them where a region is known to differ.
+
+    Overriding is per region AND per column: ng_model resolves each value as
+    ``losses.get(region, {}).get(column, <scalar default>)``, so a file may list one region and
+    one column and everything else still takes its scalar. Only the columns actually present
+    are returned, which is what makes that partial override work.
+
+    Contrast with the required inputs in this module, where an absent file would mean the value
+    existed nowhere on disk. Here it is in ng_scalars.csv either way.
+
+    Returns
+    -------
+    dict[str, dict[str, float]]
+        {region: {column: value}} for overridden entries; empty if the file is absent.
+
+    Raises
+    ------
+    ValueError
+        If the file is present but cannot be parsed, or lacks a ``region`` column. Only its
+        absence is benign.
     """
     df = _csv('ng_losses.csv', data_dir)
     if df is None:
-        return _losses_fallback(fallback_regions)
+        logger.info('No ng_losses.csv; every region uses the loss defaults from ng_scalars')
+        return {}
+
+    if 'region' not in df.columns:
+        raise ValueError(f'ng_losses.csv in {data_dir} has no "region" column')
+
+    known = ('distribution_loss', 'intrastate_loss', 'storage_loss', 'plant_fuel_frac')
+    present = [col for col in known if col in df.columns]
+    if not present:
+        raise ValueError(
+            f'ng_losses.csv in {data_dir} overrides nothing: expected at least one of {known}'
+        )
+
     try:
-        # The per-column row.get() defaults below are silent by nature: a file that is present
-        # but short a column reads as a successful load. Report the columns once, up front.
-        absent = [c for c in _LOSSES_FALLBACK if c not in df.columns]
-        if absent:
-            logger.warning(
-                'ng_losses.csv has no %s column(s), using default values for them: %s',
-                absent,
-                {c: _LOSSES_FALLBACK[c] for c in absent},
-            )
-        result: dict[str, dict[str, float]] = {}
-        for _, row in df.iterrows():
-            result[str(row['region'])] = {
-                'distribution_loss': float(row.get('distribution_loss', 0.008)),
-                'intrastate_loss': float(row.get('intrastate_loss', 0.003)),
-                'storage_loss': float(row.get('storage_loss', 0.005)),
-                'plant_fuel_frac': float(row.get('plant_fuel_frac', 0.030)),
-            }
-        if not result:
-            logger.warning('ng_losses.csv yielded empty result, using fallback')
-            return _losses_fallback(fallback_regions)
-        logger.info('LOSSES loaded from CSV (%d regions)', len(result))
-        return result
+        result: dict[str, dict[str, float]] = {
+            str(row['region']): {col: float(row[col]) for col in present}
+            for _, row in df.iterrows()
+        }
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_losses.csv (%s), using fallback', exc)
-        return _losses_fallback(fallback_regions)
+        raise ValueError(f'Could not parse ng_losses.csv in {data_dir}') from exc
+
+    if not result:
+        raise ValueError(f'ng_losses.csv in {data_dir} yielded no rows')
+    logger.info('LOSSES overrides loaded from CSV (%d regions, columns %s)', len(result), present)
+    return result
 
 
 def load_gathering_charges(
@@ -743,43 +580,65 @@ def load_gathering_charges(
     """
     df = _csv('ng_gathering.csv', data_dir)
     if df is None:
-        return dict(_GATHERING_CHARGES_FALLBACK)
+        raise ValueError(
+            f'ng_gathering.csv could not be read from {data_dir}; this input has no fallback'
+        )
     try:
         result = {
             str(row['region']): float(row['gathering_charge_per_mmbtu']) for _, row in df.iterrows()
         }
-        if not result:
-            logger.warning('ng_gathering.csv yielded empty result, using fallback')
-            return dict(_GATHERING_CHARGES_FALLBACK)
-        logger.info('GATHERING_CHARGES loaded from CSV (%d regions)', len(result))
-        return result
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_gathering.csv (%s), using fallback', exc)
-        return dict(_GATHERING_CHARGES_FALLBACK)
+        raise ValueError(f'Could not parse ng_gathering.csv in {data_dir}') from exc
+
+    if not result:
+        raise ValueError(f'ng_gathering.csv in {data_dir} yielded no rows')
+    logger.info('GATHERING_CHARGES loaded from CSV (%d regions)', len(result))
+    return result
 
 
 def load_pipe_loss(
     data_dir: Path = _DEFAULT_DATA_DIR,
 ) -> dict[tuple[str, str], float]:
-    """Load per-arc pipeline fuel-loss fraction (NGMM Eq 11 f^pip).
+    """Load per-arc overrides of the pipeline fuel-loss fraction (NGMM Eq 11 f^pip).
 
     CSV format (ng_pipe_loss.csv), one row per directed arc:
         origin, destination, loss_fraction
-    Arcs not listed default to ``pipe_fuel_loss_default`` from ng_scalars.csv.
+
+    **This file is optional, and is the only optional input in this module.** Loss is a single
+    number that applies to every corridor unless a corridor is known to differ, so the value
+    itself lives in ng_scalars.csv as ``pipe_fuel_loss``, which IS required. This file
+    exists only to override that scalar for specific arcs; an absent file means no overrides,
+    and ng_model applies the scalar to all of them.
+
+    That is not the fallback pattern removed from the rest of this module. There, an absent file
+    meant the value came from a constant in Python and nothing on disk recorded it. Here the
+    value is on disk either way -- only the arc-level exceptions are missing, and there are
+    currently none.
+
+    Returns
+    -------
+    dict[tuple[str, str], float]
+        {(origin, destination): loss_fraction} for overridden arcs; empty if the file is absent.
+
+    Raises
+    ------
+    ValueError
+        If the file is present but cannot be parsed. Only its absence is benign.
     """
     df = _csv('ng_pipe_loss.csv', data_dir)
     if df is None:
-        return {}  # empty → falls back to default scalar at construction
+        logger.info('No ng_pipe_loss.csv; every arc uses pipe_fuel_loss from ng_scalars')
+        return {}
     try:
         result = {
             (str(row['origin']), str(row['destination'])): float(row['loss_fraction'])
             for _, row in df.iterrows()
         }
-        logger.info('PIPE_LOSS loaded from CSV (%d arcs)', len(result))
-        return result
     except (KeyError, ValueError) as exc:
-        logger.warning('Could not parse ng_pipe_loss.csv (%s), using fallback', exc)
-        return {}
+        raise ValueError(f'Could not parse ng_pipe_loss.csv in {data_dir}') from exc
+
+    logger.info('PIPE_LOSS overrides loaded from CSV (%d arcs)', len(result))
+    return result
 
 
 def load_qp_scalars(
@@ -787,47 +646,41 @@ def load_qp_scalars(
 ) -> dict[str, float]:
     """Load NGMM-QP scalars (default values for parameters not separately loaded).
 
-    Reads the same ng_scalars.csv used by load_storage_opex(); returns all
-    parameter/value rows whose key matches a recognised scalar name. Missing
-    keys fall back to _QP_SCALARS_FALLBACK.
+    Reads the same ng_scalars.csv used by load_storage_opex(). Every name in
+    ``_REQUIRED_QP_SCALARS`` must be present; there are no per-key defaults, so a scalar
+    omitted from the CSV is an error rather than a silent substitution.
 
-    This is the one loader that merges per key rather than choosing one source for the whole
-    dataset, so it logs both halves: a present ng_scalars.csv that lists only some keys leaves
-    the rest on fallback values, and without the warning below that is invisible in the log.
+    Raises
+    ------
+    ValueError
+        If ng_scalars.csv is missing or unreadable, omits a required scalar, or holds a
+        non-numeric value for one.
     """
     df = _csv('ng_scalars.csv', data_dir)
-    result = dict(_QP_SCALARS_FALLBACK)
     if df is None:
-        logger.warning(
-            'QP_SCALARS: all %d scalars using fallback values: %s',
-            len(_QP_SCALARS_FALLBACK),
-            _QP_SCALARS_FALLBACK,
+        raise ValueError(
+            f'ng_scalars.csv could not be read from {data_dir}; this input has no fallback'
         )
-        return result
+    if 'parameter' not in df.columns:
+        raise ValueError(f'ng_scalars.csv in {data_dir} has no "parameter" column')
+    df = df.set_index('parameter')
+
+    absent = [key for key in _REQUIRED_QP_SCALARS if key not in df.index]
+    if absent:
+        raise ValueError(f'ng_scalars.csv in {data_dir} is missing required scalar(s): {absent}')
+
     try:
-        df = df.set_index('parameter')
-        from_csv = []
-        for key in _QP_SCALARS_FALLBACK:
-            if key in df.index:
-                # TODO:  Investigate the source df and determine if/why column is not typed
-                # pyrefly: ignore[bad-argument-type]  - this pulled value will be a float
-                result[key] = float(df.at[key, 'value'])  # noqa: PD008 - scalar lookup
-                from_csv.append(key)
-        logger.info(
-            'QP_SCALARS loaded from CSV (%d of %d keys): %s',
-            len(from_csv),
-            len(_QP_SCALARS_FALLBACK),
-            from_csv,
-        )
-        on_fallback = {k: v for k, v in result.items() if k not in from_csv}
-        if on_fallback:
-            logger.warning(
-                'QP_SCALARS not listed in ng_scalars.csv, using fallback values: %s', on_fallback
-            )
-        return result
+        # TODO:  Investigate the source df and determine if/why column is not typed
+        result = {
+            # pyrefly: ignore[bad-argument-type]  - these pulled values will be floats
+            key: float(df.at[key, 'value'])  # noqa: PD008 - scalar lookup
+            for key in _REQUIRED_QP_SCALARS
+        }
     except (KeyError, ValueError, TypeError) as exc:
-        logger.warning('Could not parse ng_scalars.csv QP keys (%s), using fallbacks', exc)
-        return result
+        raise ValueError(f'Could not parse QP scalars from ng_scalars.csv in {data_dir}') from exc
+
+    logger.info('QP_SCALARS loaded from CSV (%d keys)', len(result))
+    return result
 
 
 class RegionData(TypedDict):
@@ -1079,7 +932,7 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'supply_curve_shape': load_supply_curve_shape(data_path),
         'tariff_curve_shape': load_tariff_curve_shape(data_path),
         'lng_demand_curve': load_lng_demand_curve(data_path),
-        'losses': load_losses(fallback_regions=region_data['regions_analyze'], data_dir=data_path),
+        'losses': load_losses(data_dir=data_path),
         'gathering': load_gathering_charges(data_path),
         'pipe_loss': load_pipe_loss(data_path),
         'qp_scalars': load_qp_scalars(data_path),

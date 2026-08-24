@@ -10,6 +10,7 @@ A rough framework for sequencers (runners) that build & solve models to common-i
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import Enum
 
 from src.common.common_config import CommonConfig, ModelConfig
@@ -48,7 +49,13 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](AB
         ...
 
     @abstractmethod
-    def build_model(self, common_config: CommonConfig, model_config: ConfigT, **kwargs) -> ModelT:
+    def build_model(
+        self,
+        common_config: CommonConfig,
+        model_config: ConfigT,
+        update_packages: Sequence[UpdatePackage] | None = None,
+        **kwargs,
+    ) -> ModelT:
         """Build a model new model instance."""
         ...
 

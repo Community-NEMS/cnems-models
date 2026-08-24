@@ -27,11 +27,12 @@ class MagicModel(IntegratedModel):
 
     def __init__(self):
         super().__init__()
-        sleep(5)
+        sleep(3)
         logger.info('magic model initialized')
 
     def solve(self):
         """Solve the magic model."""
+        sleep(3)
         logger.info('magic model solved')
         return IterationStatus.BEST
 
@@ -67,7 +68,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         return self._model
 
     def build_model(
-        self, common_config: CommonConfig, model_config: MagicConfig, **kwargs
+        self, common_config: CommonConfig, model_config: MagicConfig, update_packages=None, **kwargs
     ) -> MagicModel:
         """Build the magic model.
 
@@ -77,6 +78,8 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
             Common run configuration.
         model_config : MagicConfig
             Magic model configuration.
+        update_packages : list[UpdatePackage], optional
+            Updates to read-in data.
         **kwargs
             ``sequence_number`` (int, default 0) seeds the fabricated output signal.
 
@@ -122,9 +125,17 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
 
     def get_outbound_updates(self) -> list[UpdatePackage]:
         """Get outbound updates."""
-        # fabricate a sinusoid from the sequence number with a 10-cycle diminishment.
-        # centered on 1.0 so the scaler stays positive: SupplyPrice is NonNegativeReals, and a
-        # bare cosine goes negative for sequence numbers 3-5, 11-13, ...
+        # poll the model / sequencer to make the updates and return them
+        my_updates = self.make_mock_updates()
+        return my_updates
+
+    def make_mock_updates(self) -> list[UpdatePackage]:
+        """Make mock updates.
+
+        fabricate a sinusoid from the sequence number with a 10-cycle diminishment.
+        centered on 1.0 so the scaler stays positive: SupplyPrice is NonNegativeReals, and a
+        bare cosine goes negative for sequence numbers 3-5, 11-13, ...
+        """
         cycle_point = self._sequence_number * math.pi / 4
         scale = 2 * 2 ** (-self._sequence_number / 3)
         scalar = 1 + scale * math.cos(cycle_point)
@@ -134,7 +145,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
 
         # make a transmission cost update
         tcu = make_trans_update(
-            new_cost=2000 - 2000 * random.random() * math.e ** (-self._sequence_number),
+            new_cost=2000 - 5000 * random.random() * math.e ** (-self._sequence_number),
             year=2030,
         )
 

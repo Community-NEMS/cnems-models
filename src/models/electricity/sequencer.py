@@ -99,7 +99,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         return self._common_config
 
     def build_model(
-        self, common_config: CommonConfig, model_config: ElecConfig, **kwargs
+        self, common_config: CommonConfig, model_config: ElecConfig, update_packages=None, **kwargs
     ) -> PowerModel:
         """Preprocess inputs and build (but do not solve) the electricity model.
 
@@ -112,11 +112,14 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             Common run configuration.
         model_config : ElecConfig
             Electricity configuration
+        update_packages : list[UpdatePackage], optional
+            Update Packages to pass to update read-in data.
 
         Returns
         -------
         PowerModel
             The built, unsolved model (also retained as :attr:`model`).
+
         """
         logger.info('Preprocessing')
         self._elec_config = model_config
@@ -129,7 +132,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
-        update_packages = kwargs.pop('update_packages', [])
         if update_packages:
             logger.info('Received %s update_packages', len(update_packages))
             for pkg in update_packages:

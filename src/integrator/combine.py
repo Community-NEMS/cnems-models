@@ -58,6 +58,51 @@ class IterationCall:
     kwargs: dict
 
 
+@dataclass
+class IterationResult:
+    """One model's worth of finished work for a single iteration, returned from a pool worker.
+
+    Must stay picklable -- workers are spawned, so every field crosses a process boundary.
+
+    Attributes
+    ----------
+    model_type : ModelType
+        The model that produced this result.
+    status : IterationStatus
+        The solve status reported by the model's sequencer.
+    objective_value : float | None
+        The solved objective value, or ``None`` for models that have no objective.
+    update_packages : list of UpdatePackage
+        The packages this model wants routed onward to its receivers.
+    """
+
+    model_type: ModelType
+    status: IterationStatus
+    objective_value: float | None
+    update_packages: list[UpdatePackage]
+
+    def pprint(self, indent: int = 0) -> str:
+        """Render a 4-line summary: model, status, objective value, and update package types.
+
+        Returns
+        -------
+        str
+            The packages are named by class only -- their payloads are not summarized.
+        """
+        obj_value = 'n/a' if self.objective_value is None else f'{self.objective_value:,.2f}'
+        package_names = [type(package).__name__ for package in self.update_packages]
+        ind = ' ' * indent if indent else ''
+        return ind.join(
+            (
+                '',
+                f'IterationResult for model: {self.model_type.value}\n',
+                f'  status:               {self.status.name}\n',
+                f'  objective value:      {obj_value}\n',
+                f'  update packages sent: {package_names}',
+            )
+        )
+
+
 def route_updates(
     packages: Iterable[UpdatePackage], circuit: Collection[ModelType]
 ) -> dict[ModelType, list[UpdatePackage]]:
@@ -100,12 +145,15 @@ def route_updates(
     return routed
 
 
-def _logger_setup(iter_call: IterationCall):
+def _process_logger_setup(iter_call: IterationCall) -> None:
+    """Set up logging for a sub-process within an iteration from the IterationCall object."""
+    _logger_setup(iter_call.common_config.scenario_name, iter_call.model_type.value)
+
+
+def _logger_setup(scenario_name: str, process_name: str) -> None:
     """Setup logging for the process."""
-    # TODO:  This is fragile.  If any import touches logging setup, this is discarded
+    # TODO:  This is fragile.  If any import touches logging setup, this is discarded.
     #        As we go forward, need to make this more imperative
-    scenario_name = iter_call.common_config.scenario_name
-    process_name = iter_call.model_type.value
     logger_name = f'{scenario_name}-{process_name}'
     output_folder = PROJECT_ROOT / 'output' / scenario_name
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -117,11 +165,10 @@ def _logger_setup(iter_call: IterationCall):
         datefmt='%d-%b-%y %H:%M:%S',
         level=logging.INFO,
     )
+    logger.info('Logging started for scenario %s, process: %s', scenario_name, process_name)
 
 
-def driver(
-    iter_call: IterationCall,
-) -> tuple[tuple[ModelType, IterationStatus, float], list[UpdatePackage]]:
+def driver(iter_call: IterationCall) -> IterationResult:
     """Run one model end to end in a pool worker.
 
     Parameters
@@ -131,8 +178,8 @@ def driver(
 
     Returns
     -------
-    tuple of (IterationStatus, list of UpdatePackage)
-        The solve status and any packages the model wants sent onward.
+    IterationResult
+        The model's solve status, objective value, and any packages it wants sent onward.
 
     Raises
     ------
@@ -142,7 +189,7 @@ def driver(
         If the call's config does not match its model.
     """
     # start the logging for this process
-    _logger_setup(iter_call)
+    _process_logger_setup(iter_call)
     # IterationCall carries the config as the ModelConfig base, so each arm has to confirm it
     # got the config its sequencer expects -- this is the TypeError the docstring promises.
     match iter_call.model_type:
@@ -153,24 +200,23 @@ def driver(
                     f'got {type(iter_call.model_config).__name__}'
                 )
             sequencer = ElectricitySequencer()
-            status, updates = sequencer.full_run(
+            (model_type, status), updates = sequencer.full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
             )
             obj_value = value(sequencer.model.total_cost)
-            status = (*status, obj_value)
         case ModelType.MAGIC:
             if not isinstance(iter_call.model_config, MagicConfig):
                 raise TypeError(
                     f'ModelType.MAGIC needs a MagicConfig, '
                     f'got {type(iter_call.model_config).__name__}'
                 )
-            status, updates = MagicSequencer().full_run(
+            (model_type, status), updates = MagicSequencer().full_run(
                 iter_call.common_config, iter_call.model_config, **iter_call.kwargs
             )
-            status = (*status, -1.0)  # NO Obj value for MagicModel
+            obj_value = None  # MagicModel has no objective
         case _:
             raise NotImplementedError()
-    return status, updates
+    return IterationResult(model_type, status, obj_value, updates)
 
 
 def main() -> None:
@@ -179,15 +225,18 @@ def main() -> None:
     elec_cfg = ElecConfig(**remainder.pop('elec_config'))
     magic_cfg = MagicConfig(**remainder.pop('magic_config', {}))
 
+    # start the logger for the outer/control loop
+    _logger_setup(scenario_name=common_config.scenario_name, process_name='MAIN')
+
     # set up iterative solve
     iteration = 0
-    iter_limit = 18
+    iter_limit = 4
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
 
     # collect OBJ values for Electricity
-    electricity_obj_vals = []
+    electricity_obj_vals: list[float] = []
 
     # one pool for the whole run; spawning workers per iteration re-imports the world each time
     with Pool(processes=6) as worker_pool:
@@ -209,20 +258,21 @@ def main() -> None:
                 },
             )
             iter_calls = [elec_iter, magic_iter]
-            results = worker_pool.map(driver, iter_calls)
+            results: list[IterationResult] = worker_pool.map(driver, iter_calls)
             # log status of the model's solves
-            status_list = [type_status for (type_status, update_packages) in results]
-            for model_type, status, obj_value in status_list:
-                logger.info(f'iteration {iteration}, model: {model_type.value}, status: {status}')
-                if model_type is ModelType.ELECTRICITY:
+            for result in results:
+                logger.info('\n' + result.pprint(indent=2))
+                # only ELECTRICITY carries an objective; its None arm is unreachable in practice
+                obj_value = result.objective_value
+                if result.model_type is ModelType.ELECTRICITY and obj_value is not None:
                     electricity_obj_vals.append(obj_value)
             # route each model's outbound packages to their receivers for the next iteration
-            outbound = [pkg for _status, packages in results for pkg in packages]
+            outbound = [pkg for result in results for pkg in result.update_packages]
             routed_updates = route_updates(outbound, CIRCUIT)
 
             # TODO:  compute a real convergence measure; eps is never updated, so this loop
             #        currently always runs the full iter_limit
-            logger.info('done with iteration %d, results: %s', iteration, results)
+            logger.info('Done with iteration %d', iteration)
             iteration += 1
 
     plt.scatter(list(range(iteration)), electricity_obj_vals)
@@ -235,5 +285,4 @@ def main() -> None:
 #    python -m src.integrator.combine
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     main()

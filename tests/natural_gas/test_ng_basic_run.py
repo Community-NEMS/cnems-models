@@ -25,23 +25,32 @@ from src.models.natural_gas.sequencer import NGSequencer
 verbose = True
 
 # Test configurations with expected outputs, captured from a run of the current code:
-# Run Type      Total Cost    Variables   Constraints
-# ------------  ------------  ----------  -----------
-# BasicConfig   -371795726.11        1476         1530
+# Run Type          Total Cost ($)   Variables   Constraints
+# ----------------  ---------------  ----------  -----------
+# basic_config      -385180372245.78       1476         1530
+# partial_regions   -187450949730.18        342          342
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
 #     runs the model at full resolution (9 census divisions x the 6 years in summary_years),
 #     which is the same case src/models/natural_gas/README.md reports a reference solve for:
-#     1476 vars / 1530 constraints and an objective of -371795726.1060 under HiGHS.  All three
-#     agree, so this pins the model against an independently documented run.
+#     1476 vars / 1530 constraints.
 # 2.  a negative total cost is expected, not a defect: the LNG consumer-surplus term is
 #     subtracted in the minimisation form.
 # 3.  model size scales with common_config.summary_years, the only year knob the model reads,
 #     so trimming that list in the config file will move all three numbers.
+# 4.  THESE VALUES MOVED when bcf_to_mmbtu became the physical BCF->MMBtu conversion
+#     (mmbtu_per_bcf = 1.036e6 in ng_scalars.csv) instead of a 1e3 scaling constant, so that
+#     total_cost is denominated in dollars. The move is exactly the ratio of the two factors:
+#         -371795726.1059678 x 1036 = -385180372245.78   (basic_config)
+#         -180937210.1642696 x 1036 = -187450949730.18   (partial_regions)
+#     Every term in the objective carries that factor, so the rescale is linear and changed
+#     no quantity, flow or price: production and prices matched to solver tolerance across the
+#     change and the variable and constraint counts are unchanged. If these numbers move again
+#     WITHOUT a corresponding change to mmbtu_per_bcf, the formulation changed.
 configs = [
-    ('basic_config', -371795726.11, 1476, 1530),
-    ('partial_regions', -180937210.1642, 342, 342),
+    ('basic_config', -385180372245.78, 1476, 1530),
+    ('partial_regions', -187450949730.18, 342, 342),
 ]
 
 

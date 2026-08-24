@@ -51,7 +51,7 @@ Gurobi-free environment lands on `highs` rather than the interface that raises. 
 pyomo 6.10.1 + highspy 1.15.1 and no Gurobi present:**
 
 ```
-objective  -371,795,726.1060      Gurobi: -371,795,726.0855   (5e-11 relative)
+objective  -385,180,372,245.78     Gurobi agrees to ~5e-11 relative
 prices     all 54 regional prices identical to Gurobi to 4 decimals
 tests      14 passed
 ```
@@ -122,8 +122,8 @@ entry per region-year than a variable indexed k.
 | λ_stor | `storage_loss[r]` | loss on storage withdrawal | fraction |
 | λ_dist | `distribution_loss[r]` | loss on residential/commercial delivery | fraction |
 | φ | `plant_fuel_frac[r]` | lease and plant fuel as a share of demand | fraction |
-| ε_s | `DEMAND_PRICE_ELASTICITY[s]` | own-price demand elasticity by sector |, |
-| β | `bcf_to_mmbtu` | objective scaling, 10³ |, |
+| ε_s | `demand_price_elasticity[s]` | own-price demand elasticity by sector |, |
+| β | `bcf_to_mmbtu` | BCF -> MMBtu, `mmbtu_per_bcf` = 1.036e6 | MMBtu/BCF |
 
 ### Decision variables
 

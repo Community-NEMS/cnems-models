@@ -206,7 +206,7 @@ Verified with pyomo 6.10.1 + highspy 1.15.1, no Gurobi installed:
 
 | | HiGHS | Gurobi |
 |---|---|---|
-| Gas objective | −371,795,726.1060 | −371,795,726.0855 |
+| Gas objective | −385,180,372,245.78 | agrees to ~5e-11 relative |
 | Regional prices (54) | identical to 4 decimals | reference |
 | Coupling tests | 14 passed | 14 passed |
 

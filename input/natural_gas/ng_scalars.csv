@@ -8,3 +8,4 @@ intrastate_loss,0.003,fraction,short-haul intra-division pipeline loss (NGMM Eq 
 plant_fuel_frac,0.030,fraction,lease + processing-plant fuel use
 storage_loss,0.005,fraction,fraction of cycled storage volume lost
 supply_curve_qmin_fraction,0.20,fraction,QMIN = fraction x Q0 (committed wells)
+mmbtu_per_bcf,1036000.0,MMBtu/BCF,EIA average heat content of natural gas delivered to consumers (~1036 Btu/cf)

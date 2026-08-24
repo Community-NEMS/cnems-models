@@ -43,8 +43,8 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
         for t in m.steps:
             k_seg = int(t.replace('step', ''))
             for y in m.year:
-                pb_k = value(m.PBASE[r, k_seg, y])
-                pb_k1 = value(m.PBASE[r, k_seg + 1, y])
+                pb_k = value(m.p_base[r, k_seg, y])
+                pb_k1 = value(m.p_base[r, k_seg + 1, y])
                 rows.append(
                     {
                         'region': r,
@@ -68,7 +68,7 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
                 )
         # QMIN floor (committed production, NGMM Eq 8)
         for y in m.year:
-            qmin = value(m.QMIN[r, y])
+            qmin = value(m.q_min[r, y])
             if qmin > 0.01:
                 rows.append(
                     {
@@ -76,7 +76,7 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
                         'supply_source': 'qmin_committed',
                         'year': y,
                         'production_bcf': qmin,
-                        'cost_per_mmbtu': value(m.PBASE[r, 1, y]),
+                        'cost_per_mmbtu': value(m.p_base[r, 1, y]),
                     }
                 )
     return pd.DataFrame(rows)
@@ -101,10 +101,10 @@ def _extract_flows(m: NGModel) -> pd.DataFrame:
                     q = value(m.tar_step[o, d, k_seg, y])
                     if q < 1e-9:
                         continue
-                    pt_k = value(m.PTAR[o, d, k_seg, y])
-                    pt_k1 = value(m.PTAR[o, d, k_seg + 1, y])
-                    qt_k = value(m.QTAR[o, d, k_seg, y])
-                    qt_k1 = value(m.QTAR[o, d, k_seg + 1, y])
+                    pt_k = value(m.p_tar[o, d, k_seg, y])
+                    pt_k1 = value(m.p_tar[o, d, k_seg + 1, y])
+                    qt_k = value(m.q_tar[o, d, k_seg, y])
+                    qt_k1 = value(m.q_tar[o, d, k_seg + 1, y])
                     width = qt_k1 - qt_k
                     if width < 1e-9:
                         continue

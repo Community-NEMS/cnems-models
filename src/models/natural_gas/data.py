@@ -95,6 +95,7 @@ _REQUIRED_QP_SCALARS: tuple[str, ...] = (
     'plant_fuel_frac',
     'storage_loss',
     'supply_curve_qmin_fraction',
+    'mmbtu_per_bcf',
 )
 # ---------------------------------------------------------------------------
 # Loader functions

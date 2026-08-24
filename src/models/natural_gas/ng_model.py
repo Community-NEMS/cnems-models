@@ -90,7 +90,12 @@ from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.models_modes import RunMode
 from src.common.validators import region_check
-from src.models.natural_gas.data import NGData
+from src.models.natural_gas.data import (
+    NGData,
+    interp_lng_export,
+    supply_pbase,
+    supply_qbase,
+)
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
@@ -118,127 +123,6 @@ GI = namedtuple('GI', ['region', 'year'])
 # ── Supply Curves ────────────────────────────────────────────────────────────
 
 # ── US LNG Export Demand ──────────────────────────────────────────────────────
-
-
-def _interp_lng_export(
-    all_demand_table: dict[str, dict[int, float]], region: str, year: int
-) -> float:
-    """Linearly interpolate LNG export demand for any year from table breakpoints."""
-    table = all_demand_table.get(region, {})
-    if not table:
-        return 0.0
-    years_sorted = sorted(table)
-    if year <= years_sorted[0]:
-        return table[years_sorted[0]]
-    if year >= years_sorted[-1]:
-        return table[years_sorted[-1]]
-    for k in range(len(years_sorted) - 1):
-        y0, y1 = years_sorted[k], years_sorted[k + 1]
-        if y0 <= year <= y1:
-            t = (year - y0) / (y1 - y0)
-            return table[y0] + t * (table[y1] - table[y0])
-    return 0.0
-
-
-# ── NGMM AEO2025 QP parameters ────────────────────────────────────────────────
-# New module-level constants for the
-# quadratic-program rewrite. All loaded from CSV via data.py with hardcoded
-# fallbacks defined there. References below cite NGMM_AEO2025.pdf.
-
-
-###############################################################################
-# NGMM supply-curve breakpoint helpers (NGMM Eq 2-5)
-# Used by NGModel.__init__ to build the
-# elastic piecewise-linear supply curve around an expected (Q0, P0) anchor.
-###############################################################################
-
-
-def _supply_qbase(q0: float, k: int, crv_below: list, crv_above: list) -> float:
-    """Compute QBASE_k for the NGMM supply curve (NGMM Eq 2 and 4).
-
-    Note the two branches run their products in opposite directions. For k <= 3 the loop
-    starts at index k-1 and runs to the end, so breakpoint 1 accumulates all three downward
-    factors and sits furthest BELOW the anchor, while breakpoint 3 accumulates only the last
-    one and sits just below it. For k > 3 the loop starts at 0 and runs k-3 times, so
-    breakpoint 6 accumulates all three upward factors and sits furthest above.
-
-    Reversing either direction produces a curve that is still monotonic and still spans a
-    plausible range, so nothing downstream complains, the quantities are attached to
-    the wrong prices.
-
-
-    Breakpoints 1-3 sit below the anchor (Q0, P0); 4-6 sit above. Given:
-        crv_below = [c1, c2, c3]  (volume drop fractions for steps 1, 2, 3)
-        crv_above = [c1, c2, c3]  (volume rise fractions for steps 4, 5, 6)
-
-    Returns the cumulative-product breakpoint:
-        k = 1 -> Q0 × ∏_{i=1..3} (1 − crv_below[i])
-        k = 2 -> Q0 × ∏_{i=2..3} (1 − crv_below[i])
-        k = 3 -> Q0 × (1 − crv_below[3])
-        k = 4 -> Q0 × (1 + crv_above[1])
-        k = 5 -> Q0 × (1 + crv_above[1])(1 + crv_above[2])
-        k = 6 -> Q0 × (1 + crv_above[1])(1 + crv_above[2])(1 + crv_above[3])
-    """
-    if k <= 3:
-        f = 1.0
-        for i in range(k - 1, 3):
-            f *= 1.0 - crv_below[i]
-        return q0 * f
-    else:
-        f = 1.0
-        for i in range(k - 3):
-            f *= 1.0 + crv_above[i]
-        return q0 * f
-
-
-def _supply_pbase(p0: float, k: int, crv_below: list, crv_above: list, elas: list) -> float:
-    """Compute PBASE_k for the NGMM supply curve.
-
-    NGMM AEO2025 Eq 3 and Eq 5, as written
-    in the PDF, give a non-monotonic price curve with the AEO 2022 default
-    elasticities (0.2-0.8 < 1).  The literal formula is
-
-        PBASE_step = P0 × ∏ (1 ± CRV_step) / ELAS_step
-
-    which divides (1 ± CRV) by an elasticity < 1, exploding upward and
-    producing prices that *fall* between adjacent steps below Q0 (verified
-    with WSC test: PBASE_2 = 4.36 > PBASE_3 = 3.59, wrong direction).
-
-    The economically-correct form, derived from the elasticity definition
-    ε = (dQ/Q) / (dP/P) ⇒ dP/P = (dQ/Q)/ε ⇒ ΔPBASE/PBASE = ±CRV/ELAS, is
-
-        PBASE_step = P0 × ∏ (1 ± CRV_step / ELAS_step)
-
-    This is consistent with the in-step price formula (Eq 1)
-
-        P(Q) = PBASE × (1 + (1/ELAS) × (Q - QBASE)/QBASE),
-
-    which at Q = QBASE_{k+1} gives PBASE_{k+1} = PBASE_k × (1 + CRV/ELAS).
-    We use the elasticity-correct form here; the literal-PDF form is
-    preserved in the docstring above for documentation.
-
-    REVIEW NOTE. This is a deliberate departure from the published NGMM specification, and it
-    changes every price the model produces. The argument for it is that the published form is
-    internally inconsistent, it contradicts NGMM's own in-step price formula (Eq 1) and is
-    non-monotonic with NGMM's own default elasticities, but it is a departure nonetheless
-    and should be flagged in any comparison against NGMM results.
-
-    Note the elasticity indexing differs between branches: the k <= 3 branch reads elas[i] on
-    the same index as crv_below[i], while the k > 3 branch reads elas[2 + i], continuing into
-    the upper half of the five-element elasticity vector. Elasticities decline across the five
-    segments (0.8 -> 0.2), so dividing by a smaller number above the anchor is what makes the
-    curve steepen: supply gets progressively harder to expand.
-    """
-    if k <= 3:
-        f = 1.0
-        for i in range(k - 1, 3):
-            f *= 1.0 - crv_below[i] / elas[i]
-        return p0 * f
-    else:
-        f = 1.0
-        for i in range(k - 3):
-            f *= 1.0 + crv_above[i] / elas[2 + i]
-        return p0 * f
 
 
 ###############################################################################
@@ -462,7 +346,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         SUPPLY_COST_TIERS = model_data['supply_cost_tiers']
         # Optional year-varying anchor path
         # {(region, year): (q0_mult, p0_mult)}; empty dict -> static anchors (previous behaviour).
-        SUPPLY_ANCHORS = model_data.get('supply_anchors', {})
+        SUPPLY_ANCHORS = model_data['supply_anchors']
 
         def _q0_init(m, r, y):
             return (
@@ -502,14 +386,14 @@ class NGModel(ConcreteModel, IntegratedModel):
                 sum(cap for cap, _ in SUPPLY_COST_TIERS[r])
                 * SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[0]
             )
-            return _supply_qbase(q0, k, crv_below, crv_above)
+            return supply_qbase(q0, k, crv_below, crv_above)
 
         def _pbase_init(m, r, k, y):
             tr = SUPPLY_COST_TIERS[r]
             tot_q = sum(c for c, _ in tr)
             p0 = sum(c * p for c, p in tr) / tot_q if tot_q > 0 else 3.0
             p0 *= SUPPLY_ANCHORS.get((r, y), (1.0, 1.0))[1]
-            return _supply_pbase(p0, k, crv_below, crv_above, elas)
+            return supply_pbase(p0, k, crv_below, crv_above, elas)
 
         self.QBASE = Param(
             self.region_analyze, self.supply_breaks, self.year, initialize=_qbase_init, mutable=True
@@ -521,7 +405,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # QMIN: committed production (NGMM Eq 8): the "wells already drilled"
         # floor.  Treated as a fraction of Q0 (NGMM uses an exogenous PEMEX /
         # historical-floor input; we use qmin_fraction × Q0 as a proxy).
-        qmin_frac = self.QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
+        qmin_frac = self.QP_SCALARS['supply_curve_qmin_fraction']
         self.QMIN = Param(
             self.region_analyze,
             self.year,
@@ -589,7 +473,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         lng_world_p = LNG_DEMAND_CURVE_SHAPE['world_price']
 
         def _qlng_init(m, r, k, y):
-            cap = _interp_lng_export(LNG_EXPORT_DEMAND_BCF, r, y)
+            cap = interp_lng_export(LNG_EXPORT_DEMAND_BCF, r, y)
             return cap * lng_q_frac[k - 1]
 
         def _plng_init(m, r, k, y):
@@ -1165,7 +1049,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 price_ratio = max(price, 1e-6) / ref_p
 
                 for sector in self.sectors:
-                    elas = self.DEMAND_PRICE_ELASTICITY.get(sector, 0.0)
+                    elas = self.DEMAND_PRICE_ELASTICITY[sector]
                     if abs(elas) < 1e-9:
                         continue
                     base_d = self._base_demand.get((r, sector, y), 0.0)
@@ -1275,7 +1159,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         crv_below = self.SUPPLY_CURVE_SHAPE['crv_below']
         crv_above = self.SUPPLY_CURVE_SHAPE['crv_above']
         elas = self.SUPPLY_CURVE_SHAPE['elas']
-        qmin_frac = self.QP_SCALARS.get('supply_curve_qmin_fraction', 0.20)
+        qmin_frac = self.QP_SCALARS['supply_curve_qmin_fraction']
         rebuilt = 0
         for (region, year), new_q0 in agg.items():
             if alpha < 1.0:
@@ -1287,11 +1171,9 @@ class NGModel(ConcreteModel, IntegratedModel):
 
             p0 = value(self.P0[region, year])
             for k in self.SUPPLY_BREAK_IDS:  # 1..6
-                self.QBASE[region, k, year].set_value(
-                    _supply_qbase(new_q0, k, crv_below, crv_above)
-                )
+                self.QBASE[region, k, year].set_value(supply_qbase(new_q0, k, crv_below, crv_above))
                 self.PBASE[region, k, year].set_value(
-                    _supply_pbase(p0, k, crv_below, crv_above, elas)
+                    supply_pbase(p0, k, crv_below, crv_above, elas)
                 )
             # Refresh the legacy-shape ``supply_capacity`` Param (segment widths)
             for k_seg in self.SUPPLY_STEP_IDS:  # 1..5

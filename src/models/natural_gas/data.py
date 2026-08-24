@@ -908,6 +908,19 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         sectors=sectors,
     )
 
+    # Sectors and elasticities come from two separate files with no shared key, so a sector
+    # added to one and not the other would otherwise pass silently: ng_model reads the
+    # elasticity per sector, and an absent one reads as perfectly inelastic demand. That is a
+    # modelling statement, not a default, so it has to be made deliberately rather than by
+    # omission. Checked here because it is the only place both datasets are in scope.
+    demand_elasticity = load_demand_elasticity(data_path)
+    uncovered = [sector for sector in sectors if sector not in demand_elasticity]
+    if uncovered:
+        raise ValueError(
+            f'ng_demand_elasticity.csv in {data_path} has no entry for sector(s): {uncovered}. '
+            f'Every sector in ng_sector_data.csv needs one.'
+        )
+
     return {
         'regions': region_data['regions'],
         'regions_domestic': region_data['regions_domestic'],
@@ -921,7 +934,7 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'supply_anchors': load_supply_anchors(data_path),
         'lng_import': load_lng_import(data_path),
         'lng_export': load_lng_export(data_path),
-        'demand_elasticity': load_demand_elasticity(data_path),
+        'demand_elasticity': demand_elasticity,
         # 'base_demand': load_base_demand(data_path),
         # 'demand_growth': load_demand_growth(data_path),
         'demand': demand,
@@ -937,3 +950,130 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'pipe_loss': load_pipe_loss(data_path),
         'qp_scalars': load_qp_scalars(data_path),
     }
+
+
+# ---------------------------------------------------------------------------
+# Derivation helpers
+# ---------------------------------------------------------------------------
+# Pure functions of scalars and lists: no pyomo, no model state. They live here rather than in
+# ng_model.py because turning loaded values into model-ready numbers is a data-side job, and
+# because being importable makes them unit-testable without building a model.
+#
+# ng_model calls them in TWO places: at build time, and again inside update_supply_capacity(),
+# which rebuilds the breakpoints from a new Q0 during Gauss-Seidel iterations. That second path
+# is why the results are not simply precomputed into NGData -- the Q0 it uses does not exist
+# until mid-iteration.
+
+
+def interp_lng_export(
+    all_demand_table: dict[str, dict[int, float]], region: str, year: int
+) -> float:
+    """Linearly interpolate LNG export demand for any year from table breakpoints."""
+    table = all_demand_table.get(region, {})
+    if not table:
+        return 0.0
+    years_sorted = sorted(table)
+    if year <= years_sorted[0]:
+        return table[years_sorted[0]]
+    if year >= years_sorted[-1]:
+        return table[years_sorted[-1]]
+    for k in range(len(years_sorted) - 1):
+        y0, y1 = years_sorted[k], years_sorted[k + 1]
+        if y0 <= year <= y1:
+            t = (year - y0) / (y1 - y0)
+            return table[y0] + t * (table[y1] - table[y0])
+    return 0.0
+
+
+# ── NGMM AEO2025 QP parameters ────────────────────────────────────────────────
+# New module-level constants for the
+# quadratic-program rewrite. All loaded from CSV via data.py with hardcoded
+# fallbacks defined there. References below cite NGMM_AEO2025.pdf.
+
+
+def supply_qbase(q0: float, k: int, crv_below: list, crv_above: list) -> float:
+    """Compute QBASE_k for the NGMM supply curve (NGMM Eq 2 and 4).
+
+    Note the two branches run their products in opposite directions. For k <= 3 the loop
+    starts at index k-1 and runs to the end, so breakpoint 1 accumulates all three downward
+    factors and sits furthest BELOW the anchor, while breakpoint 3 accumulates only the last
+    one and sits just below it. For k > 3 the loop starts at 0 and runs k-3 times, so
+    breakpoint 6 accumulates all three upward factors and sits furthest above.
+
+    Reversing either direction produces a curve that is still monotonic and still spans a
+    plausible range, so nothing downstream complains, the quantities are attached to
+    the wrong prices.
+
+
+    Breakpoints 1-3 sit below the anchor (Q0, P0); 4-6 sit above. Given:
+        crv_below = [c1, c2, c3]  (volume drop fractions for steps 1, 2, 3)
+        crv_above = [c1, c2, c3]  (volume rise fractions for steps 4, 5, 6)
+
+    Returns the cumulative-product breakpoint:
+        k = 1 -> Q0 × ∏_{i=1..3} (1 − crv_below[i])
+        k = 2 -> Q0 × ∏_{i=2..3} (1 − crv_below[i])
+        k = 3 -> Q0 × (1 − crv_below[3])
+        k = 4 -> Q0 × (1 + crv_above[1])
+        k = 5 -> Q0 × (1 + crv_above[1])(1 + crv_above[2])
+        k = 6 -> Q0 × (1 + crv_above[1])(1 + crv_above[2])(1 + crv_above[3])
+    """
+    if k <= 3:
+        f = 1.0
+        for i in range(k - 1, 3):
+            f *= 1.0 - crv_below[i]
+        return q0 * f
+    else:
+        f = 1.0
+        for i in range(k - 3):
+            f *= 1.0 + crv_above[i]
+        return q0 * f
+
+
+def supply_pbase(p0: float, k: int, crv_below: list, crv_above: list, elas: list) -> float:
+    """Compute PBASE_k for the NGMM supply curve.
+
+    NGMM AEO2025 Eq 3 and Eq 5, as written
+    in the PDF, give a non-monotonic price curve with the AEO 2022 default
+    elasticities (0.2-0.8 < 1).  The literal formula is
+
+        PBASE_step = P0 × ∏ (1 ± CRV_step) / ELAS_step
+
+    which divides (1 ± CRV) by an elasticity < 1, exploding upward and
+    producing prices that *fall* between adjacent steps below Q0 (verified
+    with WSC test: PBASE_2 = 4.36 > PBASE_3 = 3.59, wrong direction).
+
+    The economically-correct form, derived from the elasticity definition
+    ε = (dQ/Q) / (dP/P) ⇒ dP/P = (dQ/Q)/ε ⇒ ΔPBASE/PBASE = ±CRV/ELAS, is
+
+        PBASE_step = P0 × ∏ (1 ± CRV_step / ELAS_step)
+
+    This is consistent with the in-step price formula (Eq 1)
+
+        P(Q) = PBASE × (1 + (1/ELAS) × (Q - QBASE)/QBASE),
+
+    which at Q = QBASE_{k+1} gives PBASE_{k+1} = PBASE_k × (1 + CRV/ELAS).
+    We use the elasticity-correct form here; the literal-PDF form is
+    preserved in the docstring above for documentation.
+
+    REVIEW NOTE. This is a deliberate departure from the published NGMM specification, and it
+    changes every price the model produces. The argument for it is that the published form is
+    internally inconsistent, it contradicts NGMM's own in-step price formula (Eq 1) and is
+    non-monotonic with NGMM's own default elasticities, but it is a departure nonetheless
+    and should be flagged in any comparison against NGMM results.
+
+    Note the elasticity indexing differs between branches: the k <= 3 branch reads elas[i] on
+    the same index as crv_below[i], while the k > 3 branch reads elas[2 + i], continuing into
+    the upper half of the five-element elasticity vector. Elasticities decline across the five
+    segments (0.8 -> 0.2), so dividing by a smaller number above the anchor is what makes the
+    curve steepen: supply gets progressively harder to expand.
+    """
+    if k <= 3:
+        f = 1.0
+        for i in range(k - 1, 3):
+            f *= 1.0 - crv_below[i] / elas[i]
+        return p0 * f
+    else:
+        f = 1.0
+        for i in range(k - 3):
+            f *= 1.0 + crv_above[i] / elas[2 + i]
+        return p0 * f

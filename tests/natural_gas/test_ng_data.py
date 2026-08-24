@@ -17,7 +17,9 @@ reads the real file, which is what catches an edit to the shipped data that the 
 fixtures would never see.
 """
 
+from itertools import pairwise
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -489,3 +491,173 @@ class TestOptionalOverrideFiles:
     def test_repo_ships_no_losses_override_file(self) -> None:
         """Pin the current state: no region departs from the scalar loss defaults."""
         assert ng_data.load_losses(PROJECT_ROOT / 'input/natural_gas') == {}
+
+
+# ---------------------------------------------------------------------------
+# Pure derivation helpers
+# ---------------------------------------------------------------------------
+
+# The shipped shape, from input/natural_gas/ng_supply_curve_shape.csv.
+CRV_BELOW = [0.30, 0.15, 0.05]
+CRV_ABOVE = [0.05, 0.15, 0.30]
+ELAS = [0.8, 0.7, 0.5, 0.3, 0.2]
+
+
+class TestSupplyQBase:
+    """NGMM Eq 2 and 4: the quantity breakpoints of the elastic supply curve.
+
+    Breakpoints 1-3 sit below the (Q0, P0) anchor and 4-6 above it, so no breakpoint equals Q0
+    exactly -- the anchor sits between 3 and 4.
+    """
+
+    @pytest.mark.parametrize(
+        'k,expected',
+        [
+            (1, 1000 * 0.70 * 0.85 * 0.95),  # all three downward factors
+            (2, 1000 * 0.85 * 0.95),
+            (3, 1000 * 0.95),  # just below the anchor
+            (4, 1000 * 1.05),  # just above
+            (5, 1000 * 1.05 * 1.15),
+            (6, 1000 * 1.05 * 1.15 * 1.30),  # all three upward factors
+        ],
+    )
+    def test_matches_hand_calculation(self, k: int, expected: float) -> None:
+        """Pins the cumulative product per breakpoint against arithmetic done by hand."""
+        assert ng_data.supply_qbase(1000.0, k, CRV_BELOW, CRV_ABOVE) == pytest.approx(expected)
+
+    def test_strictly_increasing_in_k(self) -> None:
+        """The curve must be monotonic, or quantities attach to the wrong prices."""
+        values = [ng_data.supply_qbase(1000.0, k, CRV_BELOW, CRV_ABOVE) for k in range(1, 7)]
+
+        assert values == sorted(values)
+        assert len(set(values)) == 6
+
+    def test_anchor_sits_between_breakpoints_3_and_4(self) -> None:
+        """The two branches run their products in opposite directions.
+
+        Reversing either one still yields a monotonic curve spanning a plausible range, so
+        nothing downstream complains -- this is the assertion that would catch it.
+        """
+        q0 = 1000.0
+
+        assert ng_data.supply_qbase(q0, 3, CRV_BELOW, CRV_ABOVE) < q0
+        assert ng_data.supply_qbase(q0, 4, CRV_BELOW, CRV_ABOVE) > q0
+
+    def test_scales_linearly_with_q0(self) -> None:
+        """Q0 is a pure multiplier, so doubling it doubles every breakpoint."""
+        single = [ng_data.supply_qbase(500.0, k, CRV_BELOW, CRV_ABOVE) for k in range(1, 7)]
+        double = [ng_data.supply_qbase(1000.0, k, CRV_BELOW, CRV_ABOVE) for k in range(1, 7)]
+
+        assert double == pytest.approx([2 * v for v in single])
+
+
+class TestSupplyPBase:
+    """NGMM Eq 3 and 5, in the elasticity-corrected form the model deliberately uses."""
+
+    @pytest.mark.parametrize(
+        'k,expected',
+        [
+            (1, 4.0 * (1 - 0.30 / 0.8) * (1 - 0.15 / 0.7) * (1 - 0.05 / 0.5)),
+            (2, 4.0 * (1 - 0.15 / 0.7) * (1 - 0.05 / 0.5)),
+            (3, 4.0 * (1 - 0.05 / 0.5)),
+            (4, 4.0 * (1 + 0.05 / 0.5)),  # elas[2], not elas[0]
+            (5, 4.0 * (1 + 0.05 / 0.5) * (1 + 0.15 / 0.3)),
+            (6, 4.0 * (1 + 0.05 / 0.5) * (1 + 0.15 / 0.3) * (1 + 0.30 / 0.2)),
+        ],
+    )
+    def test_matches_hand_calculation(self, k: int, expected: float) -> None:
+        """Pins the elasticity indexing, which differs between the two branches.
+
+        Below the anchor, elas[i] is read on the same index as crv_below[i]. Above it,
+        elas[2 + i] continues into the upper half of the five-element vector.
+        """
+        assert ng_data.supply_pbase(4.0, k, CRV_BELOW, CRV_ABOVE, ELAS) == pytest.approx(expected)
+
+    def test_strictly_increasing_in_k(self) -> None:
+        """THE property this form exists for.
+
+        The literal NGMM Eq 3/5 divides (1 +/- CRV) by an elasticity < 1, which is
+        non-monotonic with NGMM's own default elasticities -- PBASE_2 > PBASE_3, the wrong
+        direction. The model uses the elasticity-corrected form instead. If this test fails,
+        someone has restored the published formula.
+        """
+        values = [ng_data.supply_pbase(4.0, k, CRV_BELOW, CRV_ABOVE, ELAS) for k in range(1, 7)]
+
+        assert values == sorted(values)
+        assert len(set(values)) == 6
+
+    def test_curve_steepens_above_the_anchor(self) -> None:
+        """Elasticities decline 0.8 -> 0.2, so supply gets progressively harder to expand."""
+        vals = [ng_data.supply_pbase(4.0, k, CRV_BELOW, CRV_ABOVE, ELAS) for k in range(1, 7)]
+        gaps = [b - a for a, b in pairwise(vals)]
+
+        assert gaps[-1] > gaps[0]
+
+
+class TestInterpLngExport:
+    """Linear interpolation of the LNG export demand table, given at breakpoint years."""
+
+    TABLE: ClassVar[dict[str, dict[int, float]]] = {
+        'west_south_central': {2025: 4300.0, 2030: 5100.0, 2050: 7200.0}
+    }
+
+    def test_exact_breakpoint_year(self) -> None:
+        """A year present in the table returns its value untouched."""
+        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2030) == 5100.0
+
+    def test_interpolates_between_breakpoints(self) -> None:
+        """Midway between 2025 and 2030 is midway between 4300 and 5100."""
+        got = ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2027)
+
+        assert got == pytest.approx(4300 + (2 / 5) * (5100 - 4300))
+
+    @pytest.mark.parametrize(
+        'year,expected', [(2000, 4300.0), (2099, 7200.0)], ids=['before', 'after']
+    )
+    def test_clamps_outside_the_table_range(self, year: int, expected: float) -> None:
+        """Outside the breakpoints the series is flat, not extrapolated."""
+        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', year) == expected
+
+    def test_unknown_region_is_zero(self) -> None:
+        """A region with no LNG export terminal exports nothing, rather than raising."""
+        assert ng_data.interp_lng_export(self.TABLE, 'mountain', 2030) == 0.0
+
+
+class TestSectorElasticityCoverage:
+    """Every sector in ng_sector_data.csv must have an entry in ng_demand_elasticity.csv.
+
+    The two files share no key, so a sector added to one and not the other would otherwise pass
+    silently: ng_model reads the elasticity per sector, and an absent one used to read as 0.0,
+    meaning perfectly inelastic demand. That is a modelling statement rather than a default, so
+    it has to be made deliberately.
+    """
+
+    def test_repo_inputs_are_consistent(self) -> None:
+        """The shipped pair covers all five sectors."""
+        data_dir = PROJECT_ROOT / 'input/natural_gas'
+        elasticity = ng_data.load_demand_elasticity(data_dir)
+        config = NGConfig(input_path=Path('input/natural_gas'))
+
+        assert all(sector in elasticity for sector in ng_data.load_sector_data(config))
+
+    def test_uncovered_sector_raises_naming_it(self, tmp_path: Path) -> None:
+        """Loading must fail at load time, naming the sector, not silently later."""
+        import shutil
+
+        from src.common.common_config import CommonConfig
+
+        for csv_file in (PROJECT_ROOT / 'input/natural_gas').glob('*.csv'):
+            shutil.copy(csv_file, tmp_path)
+        rows = (tmp_path / 'ng_demand_elasticity.csv').read_text().splitlines()
+        (tmp_path / 'ng_demand_elasticity.csv').write_text(
+            '\n'.join(r for r in rows if not r.startswith('transportation')) + '\n'
+        )
+
+        common_config, remainder = CommonConfig.from_toml(
+            PROJECT_ROOT / 'tests/natural_gas/basic_ng_config.toml'
+        )
+        ng_config = NGConfig(**remainder.pop('natural_gas'))
+        ng_config.input_path = tmp_path
+
+        with pytest.raises(ValueError, match=r"no entry for sector\(s\): \['transportation'\]"):
+            ng_data.load_all(ng_config, common_config)

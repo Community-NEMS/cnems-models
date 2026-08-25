@@ -26,7 +26,7 @@ line-length = 100
 # default excludes rather than replacing them. Needed even though .gitignore lists
 # old_docs: the pre-commit ruff hook passes paths explicitly, which bypasses
 # gitignore-based filtering, and only honors this because its entry uses --force-exclude.
-extend-exclude = ["old_docs", "config_setup.py"]
+extend-exclude = ["old_docs"]
 
 [tool.ruff.format]
 quote-style = 'single'
@@ -80,16 +80,10 @@ project-includes = ["src"]
 # as the base `Component` class and reports ~68 spurious errors (calling a Set, indexing a Param,
 # iterating a Var).  None are actionable without annotating pyomo itself, so skip the file.
 # `src/integrator` files are not yet migrated and should be excluded for now.
-# `src/common/model.py` is dead as a base class (see CLAUDE.md); its errors are mostly real but
-# not worth fixing or suppressing in code that should not be built on.
 project-excludes = [
   "src/models/electricity/electricity_model.py",
-  "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet
   "src/integrator/unified.py",  # not in upgrade scope yet
-  "src/integrator/runner.py",  # flagged for removal
-  "src/common/model.py",  # flagged for removal
-  "src/common/config_setup.py",  # flagged for removal
 ]
 # The project has no [build-system] and is run from the repo root, so `definitions` and the
 # `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic

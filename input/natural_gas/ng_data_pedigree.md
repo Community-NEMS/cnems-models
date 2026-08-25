@@ -30,8 +30,8 @@ regions. Carried no provenance notes.
 - Consumed by `NGModel.update_demand_from_price()`, which applies
   `demand = base x (price/reference)^elasticity` to add price-responsive demand behaviour,
   matching NEMS NGMM's price-sensitive demand blocks. Intended to be driven once per
-  iteration by the Gauss-Seidel / unified integrator; that loop is proposed in
-  `COUPLING.md` but is not wired up yet, so nothing calls the method today.
+  iteration by an integrator, but no such loop is wired up yet, so nothing calls the method
+  today.
 
 ## `ng_demand_growth.csv`
 
@@ -59,8 +59,8 @@ regions. Carried no provenance notes.
 
 - Net natural gas exports (LNG + pipeline) = AEO2026 production - consumption
   (Table 59/62), distributed across export hubs.
-- Units: BCF/yr. Values are given at breakpoint years only; `_interp_lng_export` in
-  `ng_model.py` linearly interpolates between them and clamps outside the range.
+- Units: BCF/yr. Values are given at breakpoint years only; `interp_lng_export` in
+  `data.py` linearly interpolates between them and clamps outside the range.
 - Modeling role: US LNG export is a major use of domestic supply (~14+ BCF/day in 2025).
   It enters as demand rather than as a netted-out supply term, because export contracts are
   long-term obligations that tighten the domestic supply-demand balance and raise domestic
@@ -121,17 +121,35 @@ regions. Carried no provenance notes.
 - **Source:** EIA Compendium of Interstate Natural Gas Pipelines 2022; FERC Form 2 tariff
   filings.
 
+## `ng_region_data.csv`
+
+- The model's regions and their display labels. **Required**: regions are definitional, so
+  `load_region_data` raises rather than substituting a hardcoded list, and a model built on a
+  region set that disagrees with the other input files is worse than one that refuses to build.
+- `region`: identifier used as the key in every other file here.
+- `domestic` / `international`: case-insensitive `True` places the region in that subset;
+  anything else, conventionally `-`, does not. Mirrors the electricity model's convention.
+- `covered_areas`: the states each census division spans. Documentation for the reader; it is
+  read but not returned.
+- `label`: display name used in reporting.
+- `NGConfig.region_filter` narrows which of the domestic regions are analysed; it does not
+  change this file.
+
 ## `ng_scalars.csv`
 
 - Scalar parameters for the natural gas model.
 - **Source:** as noted per parameter (the `source` column carries per-row provenance).
 - `storage_opex` = 0.18 $/MMBtu, charged on injected volume. **Source:** EIA average storage
   injection / withdrawal tariff.
-- The eight scalars listed in `_REQUIRED_QP_SCALARS` (`data.py`) are all required:
+- The nine scalars listed in `_REQUIRED_QP_SCALARS` (`data.py`) are all required:
   `lng_world_price_per_mmbtu`, `lng_max_price_factor`, `pipe_fuel_loss`,
   `distribution_loss`, `intrastate_loss`, `plant_fuel_frac`, `storage_loss`,
-  `supply_curve_qmin_fraction`. Dropping one raises rather than reverting to a built-in
-  default, so add a row here before referencing a new scalar in the model.
+  `supply_curve_qmin_fraction`, `mmbtu_per_bcf`. Dropping one raises rather than reverting to
+  a built-in default, so add a row here before referencing a new scalar in the model.
+- `mmbtu_per_bcf` = 1.036e6 is the physical BCF -> MMBtu conversion, from the EIA average heat
+  content of natural gas delivered to consumers (~1036 Btu/cf). It multiplies every cost term
+  in the objective, which is what makes `total_cost` dollar-denominated, and is divided back
+  out of the demand-balance duals so prices come back as $/MMBtu.
 - Five of them are the operative value for every region or arc, and can be overridden
   selectively by an optional file: `pipe_fuel_loss` by `ng_pipe_loss.csv`, and
   `distribution_loss` / `intrastate_loss` / `storage_loss` / `plant_fuel_frac` by
@@ -139,6 +157,16 @@ regions. Carried no provenance notes.
 - **Those five names match the override column names exactly.** Where a name can appear in
   two places it is the same name in both, so a column in `ng_losses.csv` is unambiguously the
   override of the scalar it shares a name with.
+
+## `ng_sector_data.csv`
+
+- The demand sectors, and the display label for each. **Required**, like the region file.
+- `name`: sector key, used in `ng_base_demand.csv`, `ng_demand_elasticity.csv` and
+  `ng_demand_growth.csv`.
+- `label`: display name used in reporting.
+- Every sector listed here must have an entry in `ng_demand_elasticity.csv`. `load_all` checks
+  this and raises naming any that do not, because a sector with no elasticity would read as
+  perfectly inelastic demand, which is a modelling statement rather than a default.
 
 ## `ng_storage.csv`
 

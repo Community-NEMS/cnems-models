@@ -989,9 +989,9 @@ class NGModel(ConcreteModel, IntegratedModel):
     # update_supply_capacity, set_reference_prices
     # Outbound: poll_gas_price (the duals), poll_total_gas_demand
     #
-    # No method here re-solves. The caller owns the loop and decides when to solve, which is
-    # what makes the ordering in docs/COUPLING.md the caller's responsibility rather than
-    # something enforced here.
+    # No method here re-solves. The caller owns the loop and decides when to solve, so the
+    # ordering of these calls is the caller's responsibility rather than something enforced
+    # here.
 
     def set_reference_prices(self, prices: dict[GI, float]) -> None:
         """Store solved gas prices as the reference baseline for demand elasticities.

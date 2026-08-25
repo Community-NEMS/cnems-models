@@ -18,7 +18,7 @@ logger = getLogger(__name__)
 
 
 class NGConfig(BaseModel):
-    """Settings from the ``[ng_config]`` TOML section, controlling the Natural Gas model."""
+    """Settings from the ``[natural_gas]`` TOML section, controlling the Natural Gas model."""
 
     input_path: Path
     region_filter: list[str] | None = None
@@ -33,13 +33,13 @@ class NGConfig(BaseModel):
 
     @classmethod
     def from_toml(cls, path: Path) -> NGConfig:
-        """Parse the ``[ng_config]`` section of ``path`` into an ``NGConfig``."""
+        """Parse the ``[natural_gas]`` section of ``path`` into an ``NGConfig``."""
         with open(path, 'rb') as f:
             data = tomllib.load(f)
         try:
             config = NGConfig(**data['natural_gas'])
         except KeyError:
-            logger.error('[ng_config] section not found in TOML')
+            logger.error('[natural_gas] section not found in %s', path)
             raise
         except ValidationError as e:
             for error in e.errors():

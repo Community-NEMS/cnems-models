@@ -7,24 +7,28 @@ Two quantities cross the boundary each iteration:
 
 The electricity side of that exchange mirrors the pattern the electricity model already uses
 for hydrogen: a mutable price parameter written between solves, entering the dispatch cost.
-See docs/COUPLING.md for what must be added to the electricity model.
 
-Index order is DISCOVERED, not assumed
+What the electricity model must expose
 --------------------------------------
-Electricity models can disagree on the index order of ``generation_total``. Two
-orderings we have used:
+``generation_total``, ``weight_day`` and ``map_hour_day``, all of which already exist, plus a
+``ng_fuel_adj`` Param indexed exactly like ``supply_price``
+(region, tech, step, year, season) and declared ``within=Reals, mutable=True``. It carries a
+DELTA against a reference gas price, not a price level, so it goes negative whenever gas is
+cheaper than its reference; ``NonNegativeReals`` would silently clamp every downward signal to
+zero. Add it to the dispatch-cost term alongside ``supply_price``; both are $/GWh, so no
+conversion is needed. ``check_coupling_contract`` validates all four up front.
 
-    (region, tech, step, year, hour)
-    (tech, year, region, step, hour)
+Index order is DECLARED, not discovered
+--------------------------------------
+``generation_total`` is built at src/models/electricity/model_sets.py:224-229 as
 
-Both are five-tuples of the same types, so unpacking positionally against the wrong ordering
-raises no error, it silently binds ``tech`` to a region id, filters on the wrong values, and
-returns a plausible but entirely wrong gas demand. No traceback is produced; the numbers are wrong.
+    sorted((idx.region, idx.tech, idx.step, idx.year, hr) for ...)
 
-``resolve_generation_index`` therefore determines the position of each role from the model
-itself, preferring the declared constituent sets and falling back to value membership. Call
-``check_coupling_contract`` once at setup to fail loudly if the electricity model is missing
-something rather than discovering it mid-iteration.
+so its order is fixed by construction, and ``ng_fuel_adj`` mirrors ``supply_price``. Both are
+declared in ``GENERATION_INDEX`` and ``FUEL_ADJ_INDEX`` below.
+
+Call ``check_coupling_contract`` once at setup to fail loudly if the electricity model is
+missing something rather than discovering it mid-iteration.
 """
 
 from __future__ import annotations
@@ -32,7 +36,6 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from pathlib import Path
-from warnings import deprecated
 
 import pandas as pd
 from pyomo.environ import value
@@ -55,17 +58,12 @@ logger = logging.getLogger(__name__)
 NG_GAS_TECHS: set[int] = {3, 4}  # 3 = gas CT, 4 = gas CC
 NG_HEAT_RATE_MMBTUPERMWH: dict[int, float] = {3: 9.51, 4: 7.12}
 
-# Role -> the attribute names an electricity model might use for that set.
-# Strategy 1 of index discovery matches declared set names against this table, so adding a
-# naming convention here is how you teach the coupling about a new electricity model without
-# touching any of the logic below.
-_ROLE_SET_NAMES: dict[str, tuple[str, ...]] = {
-    'region': ('region', 'regions', 'region_analyze', 'r'),
-    'tech': ('tech', 'techs', 'technology'),
-    'step': ('step', 'steps'),
-    'year': ('year', 'years'),
-    'hour': ('hour', 'hours', 'hr'),
-}
+# Position of each role in the index tuples this module reads and writes. Fixed by construction
+# in the electricity model, so declared here rather than discovered:
+#   generation_total  src/models/electricity/model_sets.py:224-229
+#   ng_fuel_adj       mirrors supply_price, src/models/electricity/electricity_model.py:304-312
+GENERATION_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}
+FUEL_ADJ_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'season': 4}
 
 _DEFAULT_REGION_MAP = (
     Path(__file__).resolve().parents[2] / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
@@ -106,167 +104,50 @@ def load_ng_region_map(path: str | Path | None = None) -> dict:
         # that identify regions as ints and ones that use strings.
         out[raw] = ng
         try:
-            out[int(float(raw))] = ng
+            numeric = float(raw)
         except TypeError, ValueError:
-            pass
+            continue  # a non-numeric id such as 'CA' gets the string key only
+        # Only alias when the value is genuinely integral. int(float('7.5')) would be 7, which
+        # would silently route a malformed crosswalk row to the wrong electricity region.
+        if numeric.is_integer():
+            out[int(numeric)] = ng
     logger.info('Loaded electricity->gas region map: %d electricity regions', len(df))
     return out
 
 
-# ---------------------------------------------------------------------------
-# Index-order discovery
-# ---------------------------------------------------------------------------
+def check_coupling_contract(elec_model) -> None:
+    """Validate that the electricity model exposes everything the coupling needs.
 
-
-@deprecated('Should not need to go spelunking to figure this out.')
-def _model_role_sets(elec_model) -> dict[str, set]:
-    """Collect the electricity model's sets, keyed by the role each plays."""
-    found: dict[str, set] = {}
-    for role, names in _ROLE_SET_NAMES.items():
-        for nm in names:
-            comp = getattr(elec_model, nm, None)
-            if comp is None:
-                continue
-            try:
-                members = set(comp)
-            except TypeError:
-                continue
-            if members:
-                found[role] = members
-                break
-    return found
-
-
-@deprecated(
-    'this is AI going down the wrong path.  It proposes to sample sets to '
-    'determine the label of a param.  DO NOT USE'
-)
-def resolve_generation_index(elec_model, sample: int = 400) -> dict[str, int]:
-    """Determine which position in the generation index holds each role.
-
-    Strategy 1, declared constituent sets. If the index is a Pyomo set product, read the
-    ordered constituent set names and match them to roles by name.
-
-    Strategy 2, value membership. Sample index tuples and, for each position, find which role's
-    set contains every sampled value. Positions matching exactly one role are assigned first;
-    the rest are resolved by elimination.
-
-    Returns
-    -------
-    dict[str, int]
-        {'region': i, 'tech': j, 'step': k, 'year': l, 'hour': m}
+    Call once at setup. Raises with an actionable message rather than failing mid-iteration,
+    which is the point: a half-wired electricity model should fail before the first expensive
+    solve, not on the first write.
 
     Raises
     ------
     RuntimeError
-        If the ordering cannot be determined unambiguously. Failing here is deliberate, a
-        guess would produce silently wrong results.
-    """
-    idx_set = elec_model.generation_total.index_set()
-
-    # Strategy 1: named constituent sets.
-    try:
-        subs = list(idx_set.subsets())
-        if len(subs) >= 5:
-            name_to_role = {nm: role for role, names in _ROLE_SET_NAMES.items() for nm in names}
-            pos = {}
-            for i, s in enumerate(subs):
-                role = name_to_role.get(str(s.name).lower())
-                if role is not None and role not in pos:
-                    pos[role] = i
-            if set(pos) == set(_ROLE_SET_NAMES):
-                logger.info('generation_total index order from declared sets: %s', pos)
-                return pos
-    except AttributeError, TypeError:
-        pass
-
-    # Strategy 2: value membership.
-    role_sets = _model_role_sets(elec_model)
-    missing = set(_ROLE_SET_NAMES) - set(role_sets)
-    if missing:
-        raise RuntimeError(
-            f'Cannot resolve the generation index: the electricity model exposes no set for '
-            f'{sorted(missing)}. Looked for these attribute names: '
-            + '; '.join(f'{r}: {_ROLE_SET_NAMES[r]}' for r in sorted(missing))
-        )
-
-    tuples = []
-    for i, t in enumerate(idx_set):
-        if i >= sample:
-            break
-        tuples.append(t if isinstance(t, tuple) else (t,))
-    if not tuples:
-        raise RuntimeError('generation_total index set is empty; cannot resolve index order.')
-
-    width = len(tuples[0])
-    if width != 5:
-        raise RuntimeError(f'Expected a 5-tuple generation index, found width {width}.')
-
-    # For each position, collect every role whose set contains ALL sampled values there.
-    # A position usually matches more than one role, step={1} and hour={1,2} both sit inside
-    # year's range in small models, so this is a candidate set, not an answer.
-    candidates: dict[int, set[str]] = {}
-    for p in range(width):
-        vals = {t[p] for t in tuples}
-        ok = set()
-        for role, members in role_sets.items():
-            if all(v in members for v in vals):
-                ok.add(role)
-        candidates[p] = ok
-
-    # Constraint propagation: repeatedly assign any position left with exactly one candidate,
-    # remove that role from every other position, and go round again. This is the standard
-    # elimination used for logic puzzles, and it terminates because each pass either assigns a
-    # role (finitely many) or changes nothing and exits.
-    pos: dict[str, int] = {}
-    changed = True
-    while changed:
-        changed = False
-        for p, opts in candidates.items():
-            opts -= set(pos)
-            if len(opts) == 1:
-                role = next(iter(opts))
-                if role not in pos:
-                    pos[role] = p
-                    changed = True
-
-    if set(pos) != set(_ROLE_SET_NAMES):
-        raise RuntimeError(
-            'Could not unambiguously resolve the generation index order.\n'
-            f'  resolved: {pos}\n  candidates per position: {candidates}\n'
-            'Pass the ordering explicitly rather than letting this guess.'
-        )
-    logger.info('generation_total index order from value membership: %s', pos)
-    return pos
-
-
-def check_coupling_contract(elec_model) -> dict[str, int]:
-    """Validate that the electricity model exposes everything the coupling needs.
-
-    Call once at setup. Raises with an actionable message rather than failing mid-iteration.
-
-    Returns
-    -------
-    dict[str, int]
-        The resolved generation index order, to pass to the transfer functions.
+        If a required component is missing, or ``ng_fuel_adj`` is present but not mutable.
     """
     problems = []
     for attr, why in (
         ('generation_total', 'generation by region/tech/step/year/hour, read to compute gas burn'),
-        ('WeightDay', 'representative-day weights, converts hourly generation to annual'),
-        ('MapHourDay', 'hour -> representative day'),
+        ('weight_day', 'representative-day weights, converts hourly generation to annual'),
+        ('map_hour_day', 'hour -> representative day'),
         (
-            'NGFuelAdj',
-            'mutable gas fuel-cost adjustment, WRITTEN each iteration; see docs/COUPLING.md',
+            'ng_fuel_adj',
+            (
+                'mutable gas fuel-cost adjustment, WRITTEN each iteration. Declare it '
+                'indexed like supply_price (region, tech, step, year, season), '
+                'within=Reals, mutable=True'
+            ),
         ),
     ):
         if not hasattr(elec_model, attr):
             problems.append(f'  missing {attr}: {why}')
 
-    adj = getattr(elec_model, 'NGFuelAdj', None)
+    adj = getattr(elec_model, 'ng_fuel_adj', None)
     if adj is not None and not adj.mutable:
         problems.append(
-            '  NGFuelAdj exists but is not mutable=True; it cannot be updated between solves'
+            '  ng_fuel_adj exists but is not mutable=True; it cannot be updated between solves'
         )
 
     if problems:
@@ -274,9 +155,7 @@ def check_coupling_contract(elec_model) -> dict[str, int]:
             'Electricity model does not satisfy the gas coupling contract:\n' + '\n'.join(problems)
         )
 
-    pos = resolve_generation_index(elec_model)
     logger.info('Coupling contract satisfied.')
-    return pos
 
 
 # ---------------------------------------------------------------------------
@@ -284,9 +163,7 @@ def check_coupling_contract(elec_model) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def poll_ng_gas_demand(
-    elec_model, elec_to_ng: dict, index_pos: dict[str, int] | None = None
-) -> dict:
+def poll_ng_gas_demand(elec_model, elec_to_ng: dict) -> dict:
     """Compute annual gas demand [Bcf] by gas region from an electricity solution.
 
     Sums day-weighted generation for gas technologies, converts to Bcf with representative heat
@@ -302,8 +179,12 @@ def poll_ng_gas_demand(
     """
     from src.models.natural_gas.ng_model import GI
 
-    pos = index_pos or resolve_generation_index(elec_model)
-    i_r, i_t, i_y, i_h = pos['region'], pos['tech'], pos['year'], pos['hour']
+    i_r, i_t, i_y, i_h = (
+        GENERATION_INDEX['region'],
+        GENERATION_INDEX['tech'],
+        GENERATION_INDEX['year'],
+        GENERATION_INDEX['hour'],
+    )
 
     res: dict = defaultdict(float)
     skipped_regions: set = set()
@@ -317,13 +198,13 @@ def poll_ng_gas_demand(
             skipped_regions.add(idx[i_r])
             continue
         # Scale the representative hour up to its share of the year. generation_total is the
-        # value for ONE representative hour; WeightDay says how many real days the day that
+        # value for ONE representative hour; weight_day says how many real days the day that
         # hour belongs to stands for. Omitting this weight understates annual gas burn by
         # roughly two orders of magnitude while leaving the regional shares looking right.
         hr = idx[i_h]
         # pyrefly: ignore[unsupported-operation]  - pyomo's value() will not be None in solved mdl
         gen_gwh = value(elec_model.generation_total[idx]) * value(
-            elec_model.WeightDay[elec_model.MapHourDay[hr]]
+            elec_model.weight_day[elec_model.map_hour_day[hr]]
         )
         # GWh -> Bcf. GWh x MMBtu/MWh gives thousands of MMBtu (since 1 GWh = 1000 MWh), and
         # 1 Bcf ~ 1e6 MMBtu, so the two powers of ten collapse to a single division by 1e3.
@@ -350,12 +231,12 @@ def poll_ng_gas_demand(
 def update_ng_fuel_adj(
     elec_model, ng_prices: dict, elec_to_ng: dict, base_ng_prices: dict, alpha: float = 1.0
 ) -> int:
-    """Write the gas-price signal into the electricity model's NGFuelAdj parameter.
+    """Write the gas-price signal into the electricity model's ng_fuel_adj parameter.
 
     The value written is a DELTA against a reference price captured at the first gas solve, not
     an absolute price:
 
-        NGFuelAdj = (p - p_ref) [$/MMBtu] x heat rate [MMBtu/MWh] x 1000 [MWh/GWh]  ->  $/GWh
+        ng_fuel_adj = (p - p_ref) [$/MMBtu] x heat rate [MMBtu/MWh] x 1000 [MWh/GWh]  ->  $/GWh
 
     Passing a delta rather than a level preserves whatever fuel cost is already calibrated into
     the electricity model's own supply price: at convergence, if the gas market reproduces its
@@ -373,11 +254,16 @@ def update_ng_fuel_adj(
     """
     from src.models.natural_gas.ng_model import GI
 
-    pos = _resolve_fuel_adj_index(elec_model)
-    i_r, i_t = pos['region'], pos['tech']
+    # Validated rather than clamped. Above 1.0 the branch below is skipped entirely and the full
+    # adjustment is written, silently ignoring the value passed; below 0.0 it extrapolates away
+    # from the current adjustment instead of damping toward it. Neither raises on its own.
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError(f'alpha must be in [0.0, 1.0], got {alpha}')
+
+    i_r, i_t, i_y = FUEL_ADJ_INDEX['region'], FUEL_ADJ_INDEX['tech'], FUEL_ADJ_INDEX['year']
 
     updated = 0
-    for key in elec_model.NGFuelAdj:
+    for key in elec_model.ng_fuel_adj:
         # Three guards, each leaving the entry at its previous value (0.0 on the first pass):
         # a non-gas technology, an electricity region outside the crosswalk, or a region-year
         # the gas model did not price. Skipping rather than writing zero matters, because a
@@ -388,7 +274,7 @@ def update_ng_fuel_adj(
         ng_region = elec_to_ng.get(key[i_r])
         if ng_region is None:
             continue
-        yr = key[pos['year']]
+        yr = key[i_y]
         gi = GI(region=ng_region, year=int(yr))
         if gi not in ng_prices or gi not in base_ng_prices:
             continue
@@ -406,53 +292,11 @@ def update_ng_fuel_adj(
         # should damp here as well as on both gas-side demand updates.
         if alpha < 1.0:
             # pyrefly: ignore[unsupported-operation]  - pyomo's value() will not be None in solved mdl
-            adj = alpha * adj_full + (1.0 - alpha) * value(elec_model.NGFuelAdj[key])
+            adj = alpha * adj_full + (1.0 - alpha) * value(elec_model.ng_fuel_adj[key])
         else:
             adj = adj_full
-        elec_model.NGFuelAdj[key] = adj
+        elec_model.ng_fuel_adj[key] = adj
         updated += 1
 
-    logger.debug('Updated %d NGFuelAdj entries (alpha=%.2f)', updated, alpha)
+    logger.debug('Updated %d ng_fuel_adj entries (alpha=%.2f)', updated, alpha)
     return updated
-
-
-def _resolve_fuel_adj_index(elec_model) -> dict[str, int]:
-    """Resolve role positions in the NGFuelAdj index the same way as the generation index.
-
-    Separate from resolve_generation_index because NGFuelAdj is indexed by season rather than
-    hour, and only three roles matter here: region, tech, and year. Requiring all five would
-    fail on a valid parameter. Like its sibling it raises rather than guessing, an
-    ambiguous resolution would write the price signal onto the wrong technologies.
-    """
-    idx_set = elec_model.NGFuelAdj.index_set()
-    name_to_role = {nm: role for role, names in _ROLE_SET_NAMES.items() for nm in names}
-    name_to_role['season'] = 'season'
-    try:
-        subs = list(idx_set.subsets())
-        pos = {}
-        for i, s in enumerate(subs):
-            role = name_to_role.get(str(s.name).lower())
-            if role is not None and role not in pos:
-                pos[role] = i
-        if {'region', 'tech', 'year'} <= set(pos):
-            return pos
-    except AttributeError, TypeError:
-        pass
-
-    role_sets = _model_role_sets(elec_model)
-    tuples = [k if isinstance(k, tuple) else (k,) for k in list(elec_model.NGFuelAdj)[:400]]
-    if not tuples:
-        raise RuntimeError('NGFuelAdj index set is empty.')
-    pos = {}
-    for role in ('region', 'tech', 'year'):
-        members = role_sets.get(role)
-        if members is None:
-            raise RuntimeError(f'Electricity model exposes no set for {role}.')
-        hits = [p for p in range(len(tuples[0])) if all(t[p] in members for t in tuples)]
-        if len(hits) != 1:
-            raise RuntimeError(
-                f'Cannot resolve position of {role} in the NGFuelAdj index '
-                f'(candidates {hits}). Declare the index over named sets, or pass it explicitly.'
-            )
-        pos[role] = hits[0]
-    return pos

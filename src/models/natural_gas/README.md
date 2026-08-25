@@ -23,17 +23,23 @@ pixi run ng-smoke    # 3 regions, 2 years
 pixi run test # coupling tests
 ```
 
-Or call the module directly inside the environment:
+Or call the sequencer directly inside the environment:
 
 ```bash
-pixi run python -m src.models.natural_gas.ng_model --years 2025 2030
-
-pixi run python -m src.models.natural_gas.ng_model \
-    --years 2025 2030 \
-    --regions west_south_central east_south_central south_atlantic
+pixi run python -m src.models.natural_gas.sequencer
 ```
 
-Write CSV output with `--output <dir>`, force a solver with `--solver`.
+`ng_model.py` builds the model but has no `__main__` block, so it cannot be run with `-m`, and
+there are no command-line flags. Everything is set in `run_configs/basic_ng_config.toml`:
+
+| Setting | Key |
+|---|---|
+| years | `summary_years` under `[common]` |
+| region subset | `region_filter` under `[natural_gas]` |
+| output location | `output_path` and `scenario_name` under `[common]` |
+
+To force a solver, call `NGSequencer.solve_model(solver_name='highs')` rather than letting it
+probe. `'highs'` and `'appsi_highs'` are not interchangeable -- see the solver note below.
 
 ### Solvers (HiGHS default but with correct interface)
 
@@ -145,7 +151,7 @@ All are non-negative.
 Each collapses a segment index, which is why segment symbols do not appear in the market balance:
 
 ```
-production_total[r,y]     = Σ_k  sstep[r,k,y]
+production_total[r,y]     = q_min[r,y] + Σ_k  sstep[r,k,y]
 pipe_flow[o,d,y]          = Σ_j  tar_step[o,d,j,y]
 lng_export_demand[r,y]    = Σ_m  lng_export_step[r,m,y]      (zero for r ∉ ℓ)
 ```
@@ -283,7 +289,7 @@ PBASE_k = P0 · ∏ ( 1 ± CRV_k / ELAS_k )
 > is non-monotonic with the default elasticities, it produces prices that *fall* between adjacent
 > steps below Q0. This model uses the elasticity-correct form above, which is consistent with the
 > in-segment price relation `P(Q) = PBASE·(1 + (1/ELAS)·(Q−QBASE)/QBASE)`. The published
-> form is preserved in the docstring of `_supply_pbase`.
+> form is preserved in the docstring of `supply_pbase` in `data.py`.
 
 Elasticities decline across segments (0.8 → 0.2), so the curve steepens as production rises above
 the anchor, supply becomes progressively harder to expand.
@@ -302,10 +308,13 @@ exactly when an arc is unconstrained, which is the standard test that the networ
 
 # Data files
 
-All inputs are UTF-8 CSV in `../../../input/natural_gas/`, with `#` comment lines carrying provenance. The
-loader (`data.py`) is deliberately forgiving. A missing file logs a warning and falls back to a
-built-in constant rather than failing, so an incomplete input set degrades visibly instead of
-silently.
+All inputs are UTF-8 CSV in `../../../input/natural_gas/`. Provenance, units and construction
+notes live in `ng_data_pedigree.md` alongside them.
+
+**Every file below is required.** `data.py` holds no fallback constants: a missing, unreadable,
+malformed or empty input raises `ValueError` naming the file and the directory it looked in, so
+the values a run solves on are always the values on disk. The two exceptions are described under
+*Optional override files* below.
 
 | File | Key columns | Feeds |
 |---|---|---|
@@ -385,18 +394,23 @@ p_factor = [2.0, 1.5, 1.1, 1.0]      multipliers on the world LNG price
 So the first segment of export demand is willing to pay twice the world price and the last only
 the world price itself. `world_price` comes from `ng_scalars.csv`.
 
-## Parameters with no CSV
+## Optional override files
 
-Six parameter groups run on documented fallbacks in `data.py` and have no file in this
-distribution. Supplying a CSV overrides the fallback:
+Two files, and only two, may be absent. Their values live in `ng_scalars.csv`, which is required,
+so the file would carry only the exceptions:
 
 ```
-ng_supply_curve_shape.csv   ng_tariff_curve_shape.csv   ng_lng_demand_curve.csv
-ng_losses.csv               ng_gathering.csv            ng_pipe_loss.csv
+ng_losses.csv      per-region override of distribution_loss, intrastate_loss,
+                   storage_loss and plant_fuel_frac
+ng_pipe_loss.csv   per-arc override of pipe_fuel_loss
 ```
 
-Their values are the curve shapes and loss fractions quoted above. You will see
-`file not found, using fallback` warnings on every run; that is expected, not an error.
+Neither ships. Their absence logs at INFO, not as a warning, and the scalars apply everywhere.
+`ng_losses.csv` overrides per region *and* per column, so a file naming one region and one column
+leaves everything else on its scalar.
+
+A healthy run is quiet: one `... loaded from CSV` line per input, plus two INFO lines noting the
+absent override files. A `ValueError` naming a file is the system working.
 
 ---
 
@@ -438,9 +452,8 @@ coupling parameters rather than a basis.
 The electricity-side half of the exchange ships with this distribution:
 
 ```
-src/integrator/ng_coupling.py   transfer functions and the contract check
-docs/COUPLING.md                what to add to the electricity model, and the loop
-tests/test_ng_coupling.py       contract tests (pytest)
+src/integrator/ng_coupling.py            transfer functions and the contract check
+tests/natural_gas/test_ng_coupling.py    contract tests (pytest)
 ```
 
 `ng_coupling.py` provides `poll_ng_gas_demand` (electricity → gas burn by gas region),
@@ -448,16 +461,18 @@ tests/test_ng_coupling.py       contract tests (pytest)
 `check_coupling_contract`, which validates the electricity model up front rather than failing
 mid-iteration.
 
-**Index order is discovered, not assumed.** Electricity models in this lineage disagree on the
-order of the `generation_total` index. Both orderings are five-tuples of the same types, so
-unpacking positionally against the wrong one raises no error, it binds `tech` to a region id and
-returns a plausible but wrong answer. `resolve_generation_index` determines the order from the
-model's own declared sets, falling back to value membership, and raises rather than guessing if
-it cannot. The test suite exercises both orderings and asserts they give the same answer.
+**Index order is declared, not discovered.** `generation_total` is built in a fixed order,
+`(region, tech, step, year, hour)`, at `src/models/electricity/model_sets.py`, so `ng_coupling.py`
+declares it in `GENERATION_INDEX` rather than inferring it at runtime. Inference is not possible
+here in any case: the index is a flat list of 5-tuples with no named constituent sets to read, and
+regions and techs are both strings drawn from overlapping numerals, so value membership cannot
+separate them. A test builds a real `PowerModel` and checks the declared positions against it.
 
-Read `docs/COUPLING.md` before wiring anything: the electricity model needs an `NGFuelAdj`
-parameter and one objective term, and there are four failure modes there that produce
-plausible-looking but wrong results.
+The electricity model needs one addition: an `ng_fuel_adj` Param indexed exactly like
+`supply_price`, declared `within=pyo.Reals, mutable=True`, added to the dispatch-cost term
+alongside `supply_price`. Both are $/GWh, so no conversion is needed. See the `ng_coupling.py`
+module docstring for the full contract and the failure modes that produce plausible-looking but
+wrong results.
 
 # Requirements
 

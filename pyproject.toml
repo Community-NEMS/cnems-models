@@ -208,8 +208,11 @@ test-runner = {cmd="pytest --cov=src --cov-append --cov-report=xml --cov-fail-un
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.  Standalone; not yet wired into the integrator.
-ng = { cmd = "python -m src.models.naturalgas.ng_model", description = "Solve C-NGMM at full resolution (9 census divisions, 6 years)." }
-ng-smoke = { cmd = "python -m src.models.naturalgas.ng_model --years 2025 2030 --regions west_south_central east_south_central south_atlantic", description = "Solve C-NGMM on a self-sufficient 3-region, 2-year subset." }
+# The sequencer is the entry point: ng_model.py builds the model but has no __main__ block, so
+# it cannot be run with -m.  Years, region subset and output location come from the TOML rather
+# than the command line -- see run_configs/basic_ng_config.toml -- so there is no smoke variant
+# to pass a smaller case; set `region_filter` under [natural_gas] for that.
+ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
 # No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`

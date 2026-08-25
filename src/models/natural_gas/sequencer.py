@@ -211,7 +211,13 @@ class NGSequencer(IntegratedModelSequencer):
         return IterationStatus.USABLE
 
     def full_postprocess(self, **kwargs):
-        """Not implemented; result extraction is still on hold (see ``solve_model``)."""
+        """Write the result CSVs for the solved model.
+
+        Extracts production, pipeline flows, prices, storage and the regional balance, and
+        writes them to ``<output_path>/<scenario_name>/natural_gas/``. ``report`` derives the
+        tables itself, so this does not depend on the extraction calls commented out in
+        ``solve_model``.
+        """
         scenario_dir = (
             self.common_config.output_path / self.common_config.scenario_name / 'natural_gas'
         )
@@ -233,4 +239,3 @@ if __name__ == '__main__':
     obj_value = value(sequencer.model.total_cost)
     logger.info('Objective value: %0.2f', obj_value)
     sequencer.full_postprocess()
-    print(f'Objective value: {obj_value}')

@@ -707,7 +707,8 @@ def load_sector_data(ng_config: NGConfig) -> list[str]:
         raise FileNotFoundError(path)
     res = []
     try:
-        with open(path) as f:
+        # Explicit encoding: the platform default varies, and these files ship as UTF-8.
+        with open(path, encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 res.append(row['name'])
@@ -808,7 +809,6 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
 ###############################################################################
 
 
-# Added the `regions` argument (default None = all nine, so
 def project_demand(
     demand_table: dict,
     growth_rate_table: dict,
@@ -818,12 +818,22 @@ def project_demand(
 ) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
+    Applies ``base * (1 + growth) ** (year - 2025)`` per region and sector, so 2025 returns the
+    base-year value unchanged.
+
     Parameters
     ----------
+    demand_table : dict
+        Base-year demand, ``{region: {sector: BCF}}``, from :func:`load_base_demand`.
+    growth_rate_table : dict
+        Annual fractional growth per sector, ``{sector: rate}``, from :func:`load_demand_growth`.
+        Negative for declining sectors.
     years : list[int]
-        Model years (e.g. [2025, 2030, 2035, 2040, 2045, 2050]).
-    regions : list[str] | None
-        Region subset; ``None`` projects all nine census divisions.
+        Model years, e.g. ``[2025, 2030, 2035, 2040, 2045, 2050]``.
+    regions : list[str]
+        Regions to project. Required; every one must appear in ``demand_table``.
+    sectors : list[str]
+        Sectors to project. Every one must appear in ``growth_rate_table``.
 
     Returns
     -------
@@ -887,9 +897,16 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
 
     Parameters
     ----------
-    data_dir : str or Path, optional
-        Directory containing the NG input CSV files.
-        Defaults to ``input/natural_gas/`` relative to the repository root.
+    ng_config : NGConfig
+        Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
+    common_config : CommonConfig
+        Supplies ``summary_years``, the years demand is projected over.
+
+    Raises
+    ------
+    ValueError
+        If a required input is missing or unparseable, or if a sector in ng_sector_data.csv has
+        no entry in ng_demand_elasticity.csv.
 
     Returns
     -------
@@ -986,10 +1003,8 @@ def interp_lng_export(
     return 0.0
 
 
-# ── NGMM AEO2025 QP parameters ────────────────────────────────────────────────
-# New module-level constants for the
-# quadratic-program rewrite. All loaded from CSV via data.py with hardcoded
-# fallbacks defined there. References below cite NGMM_AEO2025.pdf.
+# ── NGMM AEO2025 supply-curve helpers ────────────────────────────
+# Equation references below cite NGMM_AEO2025.pdf.
 
 
 def supply_qbase(q0: float, k: int, crv_below: list, crv_above: list) -> float:

@@ -28,7 +28,7 @@ from src.models.magic.magic_model import MagicConfig, MagicSequencer
 
 # `python -m` names this module __main__ (__mp_main__ in a spawned worker); __spec__.name is
 # the dotted import name under every entry point, keeping these records in the captured tree
-logger = logging.getLogger(__spec__.name if __spec__ else __name__)
+logger = logging.getLogger(__name__)
 
 # The logger trees whose records belong in a scenario log.  `src` covers every project module.
 # `pyomo` covers solver output -- the bulk of the electricity log -- because every solver
@@ -170,7 +170,7 @@ def main() -> None:
     logger.info('Starting run for scenario "%s"', common_config.scenario_name)
 
     # set up iterative solve
-    iteration = 0
+    iteration = 1
     iter_limit = 15
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
@@ -181,7 +181,7 @@ def main() -> None:
 
     # one pool for the whole run; spawning workers per iteration re-imports the world each time
     with Pool(processes=6) as worker_pool:
-        while eps > tolerance and iteration < iter_limit:
+        while eps > tolerance and iteration <= iter_limit:
             # here we go...
             elec_iter = IterationCall(
                 ModelType.ELECTRICITY,
@@ -217,7 +217,7 @@ def main() -> None:
             print(f'Done with iteration {iteration}/{iter_limit}')
             iteration += 1
 
-    plt.scatter(list(range(iteration)), electricity_obj_vals)
+    plt.scatter(list(range(1, iteration)), electricity_obj_vals)
     plt.show()
 
 

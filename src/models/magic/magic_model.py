@@ -123,6 +123,10 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         """No-op; the magic model has nothing to do between iterations."""
         logger.info('iterative postprocessing magic model...done')
 
+    def get_objective_value(self) -> float | None:
+        """Get ``None``; the magic model has no objective to report."""
+        return None
+
     def get_outbound_updates(self) -> list[UpdatePackage]:
         """Get outbound updates."""
         # poll the model / sequencer to make the updates and return them

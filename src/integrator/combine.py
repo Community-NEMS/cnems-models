@@ -10,23 +10,37 @@ Test class to attempt multiprocessing run with electricity and magic models
 """
 
 import logging
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing import Pool
+from pathlib import Path
 
 from matplotlib import pyplot as plt
-from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
-from src.common.integrated_model_sequencer import IterationStatus
+from src.common.integrated_model_sequencer import IterationResult
+from src.common.log_setup import build_formatter, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
 
-logger = logging.getLogger(__name__)
+# `python -m` names this module __main__ (__mp_main__ in a spawned worker); __spec__.name is
+# the dotted import name under every entry point, keeping these records in the captured tree
+logger = logging.getLogger(__spec__.name if __spec__ else __name__)
+
+# The logger trees whose records belong in a scenario log.  `src` covers every project module.
+# `pyomo` covers solver output -- the bulk of the electricity log -- because every solver
+# interface logs under it (`pyomo.contrib.appsi.solvers.{highs,gurobi,...}`), and pyomo pipes the
+# solver's own native output through those loggers; highspy and gurobipy register none of their
+# own.  A solver driven outside pyomo would need its logger tree added here.
+#
+# Attaching to these trees rather than to the root logger keeps the run from hijacking a host
+# application's logging, at the cost of having to name what to capture.
+_CAPTURED_LOGGERS: tuple[str, ...] = ('src', 'pyomo')
 
 common_config_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
 
@@ -56,51 +70,6 @@ class IterationCall:
     common_config: CommonConfig
     model_config: ModelConfig
     kwargs: dict
-
-
-@dataclass
-class IterationResult:
-    """One model's worth of finished work for a single iteration, returned from a pool worker.
-
-    Must stay picklable -- workers are spawned, so every field crosses a process boundary.
-
-    Attributes
-    ----------
-    model_type : ModelType
-        The model that produced this result.
-    status : IterationStatus
-        The solve status reported by the model's sequencer.
-    objective_value : float | None
-        The solved objective value, or ``None`` for models that have no objective.
-    update_packages : list of UpdatePackage
-        The packages this model wants routed onward to its receivers.
-    """
-
-    model_type: ModelType
-    status: IterationStatus
-    objective_value: float | None
-    update_packages: list[UpdatePackage]
-
-    def pprint(self, indent: int = 0) -> str:
-        """Render a 4-line summary: model, status, objective value, and update package types.
-
-        Returns
-        -------
-        str
-            The packages are named by class only -- their payloads are not summarized.
-        """
-        obj_value = 'n/a' if self.objective_value is None else f'{self.objective_value:,.2f}'
-        package_names = [type(package).__name__ for package in self.update_packages]
-        ind = ' ' * indent if indent else ''
-        return ind.join(
-            (
-                '',
-                f'IterationResult for model: {self.model_type.value}\n',
-                f'  status:               {self.status.name}\n',
-                f'  objective value:      {obj_value}\n',
-                f'  update packages sent: {package_names}',
-            )
-        )
 
 
 def route_updates(
@@ -145,27 +114,86 @@ def route_updates(
     return routed
 
 
-def _process_logger_setup(iter_call: IterationCall) -> None:
-    """Set up logging for a sub-process within an iteration from the IterationCall object."""
-    _logger_setup(iter_call.common_config.scenario_name, iter_call.model_type.value)
+def _log_path(scenario_name: str, process_name: str) -> Path:
+    """Build the log file path for one process of a scenario run, creating its folder.
+
+    Parameters
+    ----------
+    scenario_name : str
+        Names the output folder holding the run's logs.
+    process_name : str
+        Names the log file; ``'MAIN'`` for the control loop, otherwise the model.
+
+    Returns
+    -------
+    Path
+        The log file to append to.
+    """
+    log_file = PROJECT_ROOT / 'output' / scenario_name / f'{process_name}.log'
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    return log_file
 
 
-def _logger_setup(scenario_name: str, process_name: str) -> None:
-    """Setup logging for the process."""
-    # TODO:  This is fragile.  If any import touches logging setup, this is discarded.
-    #        As we go forward, need to make this more imperative
-    logger_name = f'{scenario_name}-{process_name}'
-    output_folder = PROJECT_ROOT / 'output' / scenario_name
-    output_folder.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        filename=output_folder / f'{logger_name}.log',
-        encoding='utf-8',
-        filemode='a',
-        format='%(asctime)s | %(name)s | %(levelname)s :: %(message)s',
-        datefmt='%d-%b-%y %H:%M:%S',
-        level=logging.INFO,
+@contextmanager
+def _scenario_log(scenario_name: str, process_name: str) -> Iterator[None]:
+    """Route project and solver records to a scenario log file for the duration of the block.
+
+    Attaches one file handler to each tree in :data:`_CAPTURED_LOGGERS` and detaches any
+    console handler those trees already carry (pyomo installs one on stdout), then restores
+    both, along with the trees' previous level and propagation, on the way out.  Scoping this to
+    the block is what keeps it simple: a pool worker reused for a different model starts clean
+    instead of inheriting the previous task's log file, and nothing is left behind for a host
+    application to trip over.  Output goes to the file only -- no console handler is installed.
+
+    Parameters
+    ----------
+    scenario_name : str
+        Names the output folder and the first half of the log file name.
+    process_name : str
+        Names the second half of the log file name; ``'MAIN'`` for the control loop.
+
+    Yields
+    ------
+    None
+        The block runs with the scenario log attached.
+    """
+    handler = logging.FileHandler(
+        _log_path(scenario_name, process_name), mode='a', encoding='utf-8'
     )
-    logger.info('Logging started for scenario %s, process: %s', scenario_name, process_name)
+    handler.setFormatter(build_formatter())
+
+    captured_loggers = [logging.getLogger(name) for name in _CAPTURED_LOGGERS]
+    prior_state = [(target, target.level, target.propagate) for target in captured_loggers]
+    # pyomo installs its own stdout handler, which would echo every solver record to the
+    # terminal.  Detach console handlers on the captured trees for the duration -- filtering at
+    # the handler rather than raising the logger's level, so the records still reach the file.
+    # FileHandler subclasses StreamHandler, so it has to be excluded explicitly.
+    console_handlers = [
+        (target, existing)
+        for target in captured_loggers
+        for existing in target.handlers[:]
+        if isinstance(existing, logging.StreamHandler)
+        and not isinstance(existing, logging.FileHandler)
+    ]
+    try:
+        for target, existing in console_handlers:
+            target.removeHandler(existing)
+        for target in captured_loggers:
+            target.addHandler(handler)
+            target.setLevel(logging.INFO)
+            # stop here rather than propagating to root: these records belong in the scenario
+            # file, not in the handlers of whatever application is hosting the run
+            target.propagate = False
+        logger.info('Logging started for scenario %s, process: %s', scenario_name, process_name)
+        yield
+    finally:
+        for target, level, propagate in prior_state:
+            target.removeHandler(handler)
+            target.setLevel(level)
+            target.propagate = propagate
+        for target, existing in console_handlers:
+            target.addHandler(existing)
+        handler.close()
 
 
 def driver(iter_call: IterationCall) -> IterationResult:
@@ -188,35 +216,31 @@ def driver(iter_call: IterationCall) -> IterationResult:
     TypeError
         If the call's config does not match its model.
     """
-    # start the logging for this process
-    _process_logger_setup(iter_call)
-    # IterationCall carries the config as the ModelConfig base, so each arm has to confirm it
-    # got the config its sequencer expects -- this is the TypeError the docstring promises.
-    match iter_call.model_type:
-        case ModelType.ELECTRICITY:
-            if not isinstance(iter_call.model_config, ElecConfig):
-                raise TypeError(
-                    f'ModelType.ELECTRICITY needs an ElecConfig, '
-                    f'got {type(iter_call.model_config).__name__}'
+    # the scenario log is attached only for this task, so a reused worker never inherits it
+    with _scenario_log(iter_call.common_config.scenario_name, iter_call.model_type.value):
+        # IterationCall carries the config as the ModelConfig base, so each arm has to confirm
+        # it got the config its sequencer expects -- the TypeError the docstring promises.
+        match iter_call.model_type:
+            case ModelType.ELECTRICITY:
+                if not isinstance(iter_call.model_config, ElecConfig):
+                    raise TypeError(
+                        f'ModelType.ELECTRICITY needs an ElecConfig, '
+                        f'got {type(iter_call.model_config).__name__}'
+                    )
+                return ElectricitySequencer().full_run(
+                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                 )
-            sequencer = ElectricitySequencer()
-            (model_type, status), updates = sequencer.full_run(
-                iter_call.common_config, iter_call.model_config, **iter_call.kwargs
-            )
-            obj_value = value(sequencer.model.total_cost)
-        case ModelType.MAGIC:
-            if not isinstance(iter_call.model_config, MagicConfig):
-                raise TypeError(
-                    f'ModelType.MAGIC needs a MagicConfig, '
-                    f'got {type(iter_call.model_config).__name__}'
+            case ModelType.MAGIC:
+                if not isinstance(iter_call.model_config, MagicConfig):
+                    raise TypeError(
+                        f'ModelType.MAGIC needs a MagicConfig, '
+                        f'got {type(iter_call.model_config).__name__}'
+                    )
+                return MagicSequencer().full_run(
+                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                 )
-            (model_type, status), updates = MagicSequencer().full_run(
-                iter_call.common_config, iter_call.model_config, **iter_call.kwargs
-            )
-            obj_value = None  # MagicModel has no objective
-        case _:
-            raise NotImplementedError()
-    return IterationResult(model_type, status, obj_value, updates)
+            case _:
+                raise NotImplementedError()
 
 
 def main() -> None:
@@ -225,8 +249,10 @@ def main() -> None:
     elec_cfg = ElecConfig(**remainder.pop('elec_config'))
     magic_cfg = MagicConfig(**remainder.pop('magic_config', {}))
 
-    # start the logger for the outer/control loop
-    _logger_setup(scenario_name=common_config.scenario_name, process_name='MAIN')
+    # the control process logs to its own file and the console; the per-model scenario logs
+    # belong to the workers, not here
+    setup_control_loop_logging(_log_path(common_config.scenario_name, 'MAIN'))
+    logger.info('Starting run for scenario "%s"', common_config.scenario_name)
 
     # set up iterative solve
     iteration = 0
@@ -261,7 +287,7 @@ def main() -> None:
             results: list[IterationResult] = worker_pool.map(driver, iter_calls)
             # log status of the model's solves
             for result in results:
-                logger.info('\n' + result.pprint(indent=2))
+                logger.info('\n%s', result.pprint(indent=2))
                 # only ELECTRICITY carries an objective; its None arm is unreachable in practice
                 obj_value = result.objective_value
                 if result.model_type is ModelType.ELECTRICITY and obj_value is not None:

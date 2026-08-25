@@ -86,7 +86,7 @@ def select_solver(instance: ConcreteModel, nonlinear: bool = False) -> OptSolver
 
     if nonlinear:  # if nonlinear learning, set to ipopt
         solver_name = 'ipopt'
-        opt = pyo.SolverFactory(solver_name, tee=True)  # , tee=True
+        opt = pyo.SolverFactory(solver_name)
         # Select options. The prefix "OF_" tells pyomo to create an options file
         opt.options['OF_mu_strategy'] = 'adaptive'
         opt.options['OF_num_linear_variables'] = 100000

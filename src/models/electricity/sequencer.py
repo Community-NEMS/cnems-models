@@ -241,6 +241,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         logger.warning('get_outbound_updates not implemented yet.')
         return []
 
+    def get_objective_value(self) -> float | None:
+        """Get the solved total cost -- the electricity model's objective."""
+        return pyo.value(self.model.total_cost)
+
     def iteration_postprocess(self, **kwargs):
         """No-op; the electricity model has nothing to do between iterations."""
 

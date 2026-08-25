@@ -1,7 +1,6 @@
 """A gathering of utility functions for dealing with model interconnectivity."""
 
 import argparse
-import logging
 from collections.abc import Collection
 from datetime import datetime
 from logging import getLogger
@@ -9,8 +8,6 @@ from pathlib import Path
 from warnings import deprecated
 
 import pandas as pd
-
-from src.common.common_config import CommonConfig
 
 # Establish logger
 logger = getLogger(__name__)
@@ -32,42 +29,6 @@ def make_dir(dir_name):
         Path(dir_name).mkdir(parents=True)
     else:
         logger.info('Asked to make dir that already exists:' + str(dir_name))
-
-
-# Logger Setup
-def setup_logger(settings: CommonConfig, **kwargs):
-    """Initiates logging, sets up logger in the output directory specified.
-
-    Parameters
-    ----------
-    output_dir : path
-        output directory path
-    """
-    # set up root logger
-    output_dir = settings.output_path / settings.scenario_name / 'electricity'
-    log_path = Path(output_dir)
-    if not log_path.is_dir():
-        log_path.mkdir(parents=True, exist_ok=True)
-
-    # logger level
-    if kwargs.get('debug', False):
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-
-    # logger configs
-    logging.basicConfig(
-        filename=f'{output_dir}/run.log',
-        encoding='utf-8',
-        filemode='w',
-        # format='[%(asctime)s][%(name)s]' + '[%(funcName)s][%(levelname)s]  :: |%(message)s|',
-        format='%(asctime)s | %(name)s | %(levelname)s :: %(message)s',
-        datefmt='%d-%b-%y %H:%M:%S',
-        level=loglevel,
-    )
-    logging.getLogger('pyomo').setLevel(logging.WARNING)
-    logging.getLogger('pandas').setLevel(logging.WARNING)
-    logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 
 def get_args():

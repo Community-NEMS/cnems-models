@@ -10,18 +10,16 @@ Test class to attempt multiprocessing run with electricity and magic models
 """
 
 import logging
-from collections.abc import Collection, Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from multiprocessing import Pool
-from pathlib import Path
 
 from matplotlib import pyplot as plt
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
 from src.common.integrated_model_sequencer import IterationResult
-from src.common.log_setup import build_formatter, setup_control_loop_logging
+from src.common.log_setup import _scenario_log, log_path, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.models.electricity.elec_config import ElecConfig
@@ -40,7 +38,6 @@ logger = logging.getLogger(__spec__.name if __spec__ else __name__)
 #
 # Attaching to these trees rather than to the root logger keeps the run from hijacking a host
 # application's logging, at the cost of having to name what to capture.
-_CAPTURED_LOGGERS: tuple[str, ...] = ('src', 'pyomo')
 
 common_config_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
 
@@ -114,88 +111,6 @@ def route_updates(
     return routed
 
 
-def _log_path(scenario_name: str, process_name: str) -> Path:
-    """Build the log file path for one process of a scenario run, creating its folder.
-
-    Parameters
-    ----------
-    scenario_name : str
-        Names the output folder holding the run's logs.
-    process_name : str
-        Names the log file; ``'MAIN'`` for the control loop, otherwise the model.
-
-    Returns
-    -------
-    Path
-        The log file to append to.
-    """
-    log_file = PROJECT_ROOT / 'output' / scenario_name / f'{process_name}.log'
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    return log_file
-
-
-@contextmanager
-def _scenario_log(scenario_name: str, process_name: str) -> Iterator[None]:
-    """Route project and solver records to a scenario log file for the duration of the block.
-
-    Attaches one file handler to each tree in :data:`_CAPTURED_LOGGERS` and detaches any
-    console handler those trees already carry (pyomo installs one on stdout), then restores
-    both, along with the trees' previous level and propagation, on the way out.  Scoping this to
-    the block is what keeps it simple: a pool worker reused for a different model starts clean
-    instead of inheriting the previous task's log file, and nothing is left behind for a host
-    application to trip over.  Output goes to the file only -- no console handler is installed.
-
-    Parameters
-    ----------
-    scenario_name : str
-        Names the output folder and the first half of the log file name.
-    process_name : str
-        Names the second half of the log file name; ``'MAIN'`` for the control loop.
-
-    Yields
-    ------
-    None
-        The block runs with the scenario log attached.
-    """
-    handler = logging.FileHandler(
-        _log_path(scenario_name, process_name), mode='a', encoding='utf-8'
-    )
-    handler.setFormatter(build_formatter())
-
-    captured_loggers = [logging.getLogger(name) for name in _CAPTURED_LOGGERS]
-    prior_state = [(target, target.level, target.propagate) for target in captured_loggers]
-    # pyomo installs its own stdout handler, which would echo every solver record to the
-    # terminal.  Detach console handlers on the captured trees for the duration -- filtering at
-    # the handler rather than raising the logger's level, so the records still reach the file.
-    # FileHandler subclasses StreamHandler, so it has to be excluded explicitly.
-    console_handlers = [
-        (target, existing)
-        for target in captured_loggers
-        for existing in target.handlers[:]
-        if isinstance(existing, logging.StreamHandler)
-        and not isinstance(existing, logging.FileHandler)
-    ]
-    try:
-        for target, existing in console_handlers:
-            target.removeHandler(existing)
-        for target in captured_loggers:
-            target.addHandler(handler)
-            target.setLevel(logging.INFO)
-            # stop here rather than propagating to root: these records belong in the scenario
-            # file, not in the handlers of whatever application is hosting the run
-            target.propagate = False
-        logger.info('Logging started for scenario %s, process: %s', scenario_name, process_name)
-        yield
-    finally:
-        for target, level, propagate in prior_state:
-            target.removeHandler(handler)
-            target.setLevel(level)
-            target.propagate = propagate
-        for target, existing in console_handlers:
-            target.addHandler(existing)
-        handler.close()
-
-
 def driver(iter_call: IterationCall) -> IterationResult:
     """Run one model end to end in a pool worker.
 
@@ -251,7 +166,7 @@ def main() -> None:
 
     # the control process logs to its own file and the console; the per-model scenario logs
     # belong to the workers, not here
-    setup_control_loop_logging(_log_path(common_config.scenario_name, 'MAIN'))
+    setup_control_loop_logging(log_path(common_config.scenario_name, 'MAIN'))
     logger.info('Starting run for scenario "%s"', common_config.scenario_name)
 
     # set up iterative solve

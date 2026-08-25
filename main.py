@@ -9,9 +9,9 @@ from warnings import deprecated
 # Import python modules
 from definitions import PROJECT_ROOT
 from src.common.common_config import parse_config_file
+from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType, RunMode
-from src.common.update_package import my_update_package
-from src.common.utilities import get_args, setup_logger
+from src.common.utilities import get_args
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import run_elec_model
 
@@ -64,8 +64,11 @@ def main(
     if run_mode := kwargs.get('run_mode'):
         common_config.mode = run_mode
 
-    # Establish the logger
-    setup_logger(common_config, **args.__dict__)
+    # Standalone runs solve in this process with no per-model scenario log, so the run log is
+    # the complete record -- solver output included -- while the console stays project-only
+    log_file = common_config.output_path / common_config.scenario_name / 'run.log'
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    setup_control_loop_logging(log_file, level=logging.DEBUG if args.debug else logging.INFO)
     logger = logging.getLogger(__name__)
 
     # Log settings
@@ -116,7 +119,7 @@ if __name__ == '__main__':
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/exchange_elec_config.toml'))
     # reduced string-named input set (input/electricity_light) with regional exchange
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))
-    main(
-        common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'),
-        update_packages=[my_update_package],
-    )
+    # main(
+    #     common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'),
+    #     update_packages=[my_update_package],
+    # )

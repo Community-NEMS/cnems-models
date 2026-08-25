@@ -171,7 +171,7 @@ def main() -> None:
 
     # set up iterative solve
     iteration = 0
-    iter_limit = 4
+    iter_limit = 15
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
@@ -214,6 +214,7 @@ def main() -> None:
             # TODO:  compute a real convergence measure; eps is never updated, so this loop
             #        currently always runs the full iter_limit
             logger.info('Done with iteration %d', iteration)
+            print(f'Done with iteration {iteration}/{iter_limit}')
             iteration += 1
 
     plt.scatter(list(range(iteration)), electricity_obj_vals)

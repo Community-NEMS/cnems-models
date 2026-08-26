@@ -6,12 +6,14 @@ Reads all numerical parameters from CSV files. Every file listed below
 
 import csv
 import logging
+from functools import singledispatch
 from pathlib import Path
 from typing import TypedDict
 
 import pandas as pd
 
 from src.common.common_config import CommonConfig
+from src.common.update_package import NGDemandPackage, UpdatePackage
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
@@ -953,6 +955,55 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'pipe_loss': load_pipe_loss(data_path),
         'qp_scalars': load_qp_scalars(data_path),
     }
+
+
+# ---------------------------------------------------------------------------
+# Update package handlers
+# ---------------------------------------------------------------------------
+# Single-dispatch on the package type, mirroring the electricity model's
+# ParamData.apply_update_package.  Loaded data here is a plain NGData dict rather than a
+# class, so this is a module-level singledispatch on the package (the first argument)
+# instead of a singledispatchmethod.
+
+
+@singledispatch
+def apply_update_package(update_package: UpdatePackage, data: NGData) -> None:
+    """Apply an inbound update package to the loaded data, dispatching on package type.
+
+    Parameters
+    ----------
+    update_package : UpdatePackage
+        The package to apply; must have a registered handler below.
+    data : NGData
+        The loaded data from :func:`load_all`, modified in place.
+
+    Raises
+    ------
+    NotImplementedError
+        If no handler is registered for the package type.
+    """
+    raise NotImplementedError(f'Missing single dispatch handler for type: {type(update_package)}')
+
+
+@apply_update_package.register
+def _(update_package: NGDemandPackage, data: NGData) -> None:
+    """Scale every entry of the projected ``demand`` table by the package scalar.
+
+    Parameters
+    ----------
+    update_package : NGDemandPackage
+        Carries the multiplier to apply.
+    data : NGData
+        The loaded data; ``data['demand']`` is modified in place.
+    """
+    demand = data['demand']
+    for key in demand:
+        demand[key] *= update_package.scalar
+    logger.info(
+        'Scaled NG demand by factor %0.3f (%d region-sector-year entries)',
+        update_package.scalar,
+        len(demand),
+    )
 
 
 # ---------------------------------------------------------------------------

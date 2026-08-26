@@ -18,7 +18,7 @@ from src.common.integrated_model_sequencer import IntegratedModelSequencer, Iter
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.common.utilities import setup_logger
-from src.models.natural_gas.data import load_all
+from src.models.natural_gas.data import apply_update_package, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
@@ -26,7 +26,7 @@ from src.models.natural_gas.postprocessor import report
 logger = logging.getLogger(__name__)
 
 
-class NGSequencer(IntegratedModelSequencer):
+class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
     """Sequencer for Natural Gas models."""
 
     def __init__(self):
@@ -71,9 +71,9 @@ class NGSequencer(IntegratedModelSequencer):
         model_config : NGConfig
             The ``[natural_gas]`` settings.
         update_packages : Sequence[UpdatePackage], optional
-            Inbound data updates, accepted for interface compatibility with
-            :meth:`IntegratedModelSequencer.build_model`.  C-NGMM has no update path yet, so a
-            non-empty sequence raises rather than being applied or dropped.
+            Inbound data updates, applied to the loaded data (via
+            :func:`src.models.natural_gas.data.apply_update_package`) before the model is
+            built.  A package type with no registered handler raises.
 
         Returns
         -------
@@ -83,16 +83,14 @@ class NGSequencer(IntegratedModelSequencer):
         Raises
         ------
         NotImplementedError
-            If ``update_packages`` is non-empty.
+            If an update package has no registered handler in ``data.py``.
         """
-        if update_packages:
-            raise NotImplementedError(
-                f'NGSequencer received {len(update_packages)} update package(s); C-NGMM is not '
-                'yet wired into the iterative integrator and cannot apply them.'
-            )
         self._common_config = common_config
         self._ng_config = model_config
         data = load_all(common_config=common_config, ng_config=model_config)
+        for package in update_packages or []:
+            logger.info('Applying update package: %s', type(package).__name__)
+            apply_update_package(package, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 
@@ -247,12 +245,12 @@ class NGSequencer(IntegratedModelSequencer):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
     def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Get the outbound update packages."""
-        raise NotImplementedError()
+        """Get the outbound update packages.  C-NGMM produces none yet."""
+        return []
 
     def get_objective_value(self) -> float | None:
-        """Get the objective value or 'None' if N/A."""
-        raise NotImplementedError()
+        """Get the solved objective value (``total_cost``, in dollars)."""
+        return value(self.model.total_cost)
 
 
 if __name__ == '__main__':

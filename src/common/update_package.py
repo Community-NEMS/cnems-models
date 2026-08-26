@@ -95,6 +95,41 @@ class ElectricityPriceScaler(UpdatePackage):
 
 my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # multiply by 1.5
 
+
+@dataclass(frozen=True)
+class NGDemandPackage(UpdatePackage):
+    """Multiply the natural gas model's demand values by a scalar.
+
+    Handled by ``src.models.natural_gas.data.apply_update_package``, which scales every entry
+    of the loaded ``demand`` table in place before the model is built.
+
+    Attributes
+    ----------
+    receivers : tuple of ModelType
+        Fixed to the natural gas model.
+    scalar : float
+        The multiplier to apply; 1.0 leaves demand unchanged.  Must be positive -- a
+        non-positive demand inverts the demand-balance constraints.
+    """
+
+    receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+    scalar: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Reject a scalar that would drive demand non-positive.
+
+        Raises
+        ------
+        ValueError
+            If ``scalar`` is not positive.
+        """
+        if self.scalar <= 0:
+            raise ValueError(
+                f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
+                'non-positive multiplier drives natural gas demand non-positive.'
+            )
+
+
 # index/value labels of the electricity model's ``tran_cost`` frame, which a TransCostUpdate
 # must mirror -- see the "tran_cost" entry in src/models/electricity/param_sources.toml
 TRANS_COST_INDEX = ['destination_region', 'source_region', 'year']

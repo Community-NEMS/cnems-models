@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  8/7/26
 
-Test class to attempt multiprocessing run with electricity and magic models
+Test class to attempt multiprocessing run with electricity, natural gas, and magic models
 
 """
 
@@ -25,6 +25,8 @@ from src.common.update_package import UpdatePackage
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
+from src.models.natural_gas.ng_config import NGConfig
+from src.models.natural_gas.sequencer import NGSequencer
 
 # `python -m` names this module __main__ (__mp_main__ in a spawned worker); __spec__.name is
 # the dotted import name under every entry point, keeping these records in the captured tree
@@ -42,7 +44,7 @@ logger = logging.getLogger(__name__)
 common_config_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
 
 # the models participating in this run; order here fixes the order packages are routed in
-CIRCUIT: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.MAGIC)
+CIRCUIT: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC)
 
 
 @dataclass
@@ -145,6 +147,15 @@ def driver(iter_call: IterationCall) -> IterationResult:
                 return ElectricitySequencer().full_run(
                     iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                 )
+            case ModelType.NATURAL_GAS:
+                if not isinstance(iter_call.model_config, NGConfig):
+                    raise TypeError(
+                        f'ModelType.NATURAL_GAS needs an NGConfig, '
+                        f'got {type(iter_call.model_config).__name__}'
+                    )
+                return NGSequencer().full_run(
+                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
+                )
             case ModelType.MAGIC:
                 if not isinstance(iter_call.model_config, MagicConfig):
                     raise TypeError(
@@ -159,9 +170,10 @@ def driver(iter_call: IterationCall) -> IterationResult:
 
 
 def main() -> None:
-    """Run the electricity and magic models in parallel until converged or iteration-capped."""
+    """Run the electricity, natural gas, and magic models in parallel until iteration-capped."""
     common_config, remainder = parse_config_file(common_config_path)
     elec_cfg = ElecConfig(**remainder.pop('elec_config'))
+    ng_cfg = NGConfig(**remainder.pop('natural_gas'))
     magic_cfg = MagicConfig(**remainder.pop('magic_config', {}))
 
     # the control process logs to its own file and the console; the per-model scenario logs
@@ -176,8 +188,11 @@ def main() -> None:
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
 
-    # collect OBJ values for Electricity
-    electricity_obj_vals: list[float] = []
+    # collect OBJ values per objective-bearing model, in iteration order
+    obj_vals: dict[ModelType, list[float]] = {
+        ModelType.ELECTRICITY: [],
+        ModelType.NATURAL_GAS: [],
+    }
 
     # one pool for the whole run; spawning workers per iteration re-imports the world each time
     with Pool(processes=6) as worker_pool:
@@ -189,6 +204,12 @@ def main() -> None:
                 elec_cfg,
                 {'update_packages': routed_updates[ModelType.ELECTRICITY]},
             )
+            ng_iter = IterationCall(
+                ModelType.NATURAL_GAS,
+                common_config,
+                ng_cfg,
+                {'update_packages': routed_updates[ModelType.NATURAL_GAS]},
+            )
             magic_iter = IterationCall(
                 ModelType.MAGIC,
                 common_config,
@@ -198,15 +219,16 @@ def main() -> None:
                     'update_packages': routed_updates[ModelType.MAGIC],
                 },
             )
-            iter_calls = [elec_iter, magic_iter]
+            iter_calls = [elec_iter, ng_iter, magic_iter]
             results: list[IterationResult] = worker_pool.map(driver, iter_calls)
             # log status of the model's solves
             for result in results:
                 logger.info('\n%s', result.pprint(indent=2))
-                # only ELECTRICITY carries an objective; its None arm is unreachable in practice
+                # MAGIC carries no objective; the None arms for the other two are
+                # unreachable in practice
                 obj_value = result.objective_value
-                if result.model_type is ModelType.ELECTRICITY and obj_value is not None:
-                    electricity_obj_vals.append(obj_value)
+                if result.model_type in obj_vals and obj_value is not None:
+                    obj_vals[result.model_type].append(obj_value)
             # route each model's outbound packages to their receivers for the next iteration
             outbound = [pkg for result in results for pkg in result.update_packages]
             routed_updates = route_updates(outbound, CIRCUIT)
@@ -217,7 +239,22 @@ def main() -> None:
             print(f'Done with iteration {iteration}/{iter_limit}')
             iteration += 1
 
-    plt.scatter(list(range(1, iteration)), electricity_obj_vals)
+    # the two objectives are orders of magnitude apart (and NG's is negative), so each model
+    # gets its own y-axis; colors keyed by axis so the legend stays readable
+    _fig, elec_ax = plt.subplots()
+    ng_ax = elec_ax.twinx()
+    elec_vals = obj_vals[ModelType.ELECTRICITY]
+    ng_vals = obj_vals[ModelType.NATURAL_GAS]
+    elec_scatter = elec_ax.scatter(
+        list(range(1, len(elec_vals) + 1)), elec_vals, color='tab:blue', label='electricity'
+    )
+    ng_scatter = ng_ax.scatter(
+        list(range(1, len(ng_vals) + 1)), ng_vals, color='tab:orange', label='natural gas'
+    )
+    elec_ax.set_xlabel('iteration')
+    elec_ax.set_ylabel('electricity objective', color='tab:blue')
+    ng_ax.set_ylabel('natural gas objective', color='tab:orange')
+    elec_ax.legend(handles=[elec_scatter, ng_scatter], loc='lower right')
     plt.show()
 
 

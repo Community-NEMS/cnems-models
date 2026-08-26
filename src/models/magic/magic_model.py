@@ -17,7 +17,12 @@ from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import ElectricityPriceScaler, UpdatePackage, make_trans_update
+from src.common.update_package import (
+    ElectricityPriceScaler,
+    NGDemandPackage,
+    UpdatePackage,
+    make_trans_update,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,4 +158,9 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
             year=2030,
         )
 
-        return [update, tcu]
+        # exponential decay toward 1.4:  exactly 1.0 at sequence number 1 (the first
+        # iteration in the control loop), approaching 1.4 as the sequence advances
+        ng_scalar = 1.4 - 0.4 * math.exp(-(self._sequence_number - 1) / 3)
+        ng_demand = NGDemandPackage(receivers=(ModelType.NATURAL_GAS,), scalar=ng_scalar)
+
+        return [update, tcu, ng_demand]

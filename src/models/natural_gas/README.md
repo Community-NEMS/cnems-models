@@ -301,8 +301,18 @@ Regional gas prices are the **duals of the market-balance constraint**, retrieve
 equality and the objective is a true surplus integral, the dual is the marginal cost of an
 additional unit delivered into that region, the competitive clearing price.
 
-A consequence worth knowing: price spreads between adjacent regions equal the pipeline tariff
-exactly when an arc is unconstrained, which is the standard test that the network is behaving.
+A consequence worth knowing, stated carefully because the obvious version of it is wrong.
+Shipping one unit from `o` delivers only `1 - pipe_loss[o,d]` units to `d`, and transport cost is
+piecewise over `tariff_segs`, so adjacent prices do **not** simply differ by the tariff. For an
+arc carrying positive flow on the interior of an active segment:
+
+```
+(1 - pipe_loss[o,d]) * p_d - p_o = marginal transport cost on that segment
+```
+
+At zero flow this is an inequality rather than an equality, and at a segment breakpoint the
+marginal value lies between the slopes of the two adjacent segments. The simpler
+`p_d - p_o = tariff` holds only in the zero-loss, constant-tariff case, which is not this model.
 
 ---
 

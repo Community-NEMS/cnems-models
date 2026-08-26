@@ -2,9 +2,10 @@
 
 Provenance, units, and construction notes for the CSV inputs in `input/natural_gas/`.
 These notes were previously carried as `#` comment rows at the top of each CSV and were
-moved here so the files are plain, comment-free CSV; the readers in
-`src/models/natural_gas/data.py` and `src/integrator/ng_coupling.py` still parse with
-`comment='#'`, so re-adding a note inline remains harmless but is discouraged.
+moved here so the files are plain, comment-free CSV. Do not re-add notes inline. The crosswalk
+reader in `src/integrator/ng_coupling.py` uses `csv.DictReader`, which has no comment support
+and treats the first line as the header, so a leading `#` row makes the real header
+unreachable.
 
 ## `elec_to_ng_region_map.csv`
 

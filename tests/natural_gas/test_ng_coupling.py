@@ -19,6 +19,7 @@ from src.integrator.ng_coupling import (
     NG_GAS_TECHS,
     NG_HEAT_RATE_MMBTUPERMWH,
     check_coupling_contract,
+    load_ng_region_map,
     poll_ng_gas_demand,
     update_ng_fuel_adj,
 )
@@ -290,3 +291,45 @@ class TestContractAgainstRealPowerModel:
             assert {k[position] for k in keys} <= set(expected), (
                 f'values at position {position} are not members of {role}'
             )
+
+
+class TestRegionMapLoading:
+    """``load_ng_region_map`` must fail readably rather than with a bare ``KeyError``.
+
+    The reader uses ``csv.DictReader``, which has no comment support and treats the first line
+    as the header. A file carrying a leading ``#`` note therefore used to raise
+    ``KeyError: 'elec_region'``, naming a column plainly present in the file.
+    """
+
+    def test_shipped_crosswalk_resolves(self) -> None:
+        """The shipped file is non-empty and region '1' resolves to a gas region."""
+        crosswalk = load_ng_region_map()
+        assert crosswalk, 'shipped crosswalk is empty'
+        assert crosswalk['1'], "region '1' must resolve"
+
+    def test_leading_comment_row_raises_named_error(self, tmp_path: Path) -> None:
+        """A '#' note is consumed as the header, and that must be said plainly."""
+        target = tmp_path / 'xw.csv'
+        target.write_text(
+            '# provenance note\nelec_region,ng_region\n1,west_south_central\n', encoding='utf-8'
+        )
+        with pytest.raises(ValueError, match='missing required column'):
+            load_ng_region_map(target)
+
+    @pytest.mark.parametrize(
+        'content,label',
+        [
+            ('', 'zero-byte file'),
+            ('elec_region,ng_region\n', 'header with no rows'),
+        ],
+    )
+    def test_empty_mapping_raises(self, tmp_path: Path, content: str, label: str) -> None:
+        """Both empty shapes raise, though they reach the check by different paths.
+
+        A zero-byte file has no fieldnames at all and fails header validation; a header-only
+        file passes that and fails the row check.
+        """
+        target = tmp_path / 'xw.csv'
+        target.write_text(content, encoding='utf-8')
+        with pytest.raises(ValueError):
+            load_ng_region_map(target)

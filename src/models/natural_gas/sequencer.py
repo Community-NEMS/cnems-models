@@ -227,7 +227,16 @@ class NGSequencer(IntegratedModelSequencer):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
 
-if __name__ == '__main__':
+def main() -> int:
+    """Build and solve the C-NGMM from the default config, then report results.
+
+    Returns
+    -------
+    int
+        ``0`` when the solve is usable, ``1`` when the solver reported
+        :attr:`IterationStatus.ERROR`. Returned rather than raised so the failure path can be
+        exercised by a test without spawning a subprocess.
+    """
     logger.info('Trial run from sequencer')
     config_path = PROJECT_ROOT / 'run_configs/basic_ng_config.toml'
     common_config, remainder = parse_config_file(config_path)
@@ -236,7 +245,22 @@ if __name__ == '__main__':
     sequencer = NGSequencer()
     sequencer.build_model(common_config, ng_config)
     status = sequencer.solve_model()
-    print(f'Solved with status: {status}')
+
+    # Reject ERROR specifically rather than testing for one success value. Sequencers in this
+    # repo disagree on which success they return, electricity BEST and gas USABLE, so an
+    # equality test against either would reject a good solve from the other. Returning before
+    # the objective read matters: total_cost on a failed solve is meaningless, and
+    # full_postprocess would write a full set of result CSVs indistinguishable from a good run.
+    if status is IterationStatus.ERROR:
+        logger.error('C-NGMM: solve failed with status %s, no results written', status)
+        return 1
+
+    logger.info('C-NGMM: solve finished with status %s', status)
     obj_value = value(sequencer.model.total_cost)
     logger.info('Objective value: %0.2f', obj_value)
     sequencer.full_postprocess()
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

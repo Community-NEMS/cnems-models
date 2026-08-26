@@ -1,0 +1,27 @@
+[common]
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['natural_gas']
+
+common_data_path='input/common'  # currently unused
+residential_data_path='input/residential'
+output_path='output'
+scenario_name = "ng_baseline"
+
+# Temporal resolution (inter-annual)
+# default = 24 representative (rep) days and 4 rep hours
+# d8h12 = 8 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
+temporal_resolution = "default"
+
+# Temporal resolution (annual)
+# list format, cannot be less than or greater than input data
+aggregate_years=false
+aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
+summary_years = [2025, 2030, 2035, 2040, 2045, 2050] # evaluation years / aggregation summary years (if selected)
+
+
+[natural_gas]
+
+input_path = 'input/natural_gas'
+# region_filter = ...  # commented out for no filter == all regions

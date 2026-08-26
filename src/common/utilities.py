@@ -1,34 +1,54 @@
 """A gathering of utility functions for dealing with model interconnectivity."""
 
 import argparse
+import logging
 from collections.abc import Collection
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
-from warnings import deprecated
 
 import pandas as pd
+
+from src.common.common_config import CommonConfig
 
 # Establish logger
 logger = getLogger(__name__)
 
 
-@deprecated('should be using normal Path functions')
-def make_dir(dir_name):
-    """Generates an output directory to write model results.
+# Logger Setup
+def setup_logger(settings: CommonConfig, **kwargs):
+    """Initiates logging, sets up logger in the output directory specified.
 
-    The output directory is the date/time at the time this function executes. It includes subdirs
-    for vars, params, constraints.
-
-    Returns
-    -------
-    string
-        the name of the output directory
+    Parameters
+    ----------
+    output_dir : path
+        output directory path
     """
-    if not Path(dir_name).exists():
-        Path(dir_name).mkdir(parents=True)
+    # set up root logger
+    output_dir = settings.output_path / settings.scenario_name
+    log_path = Path(output_dir)
+    if not log_path.is_dir():
+        log_path.mkdir(parents=True, exist_ok=True)
+
+    # logger level
+    if kwargs.get('debug', False):
+        loglevel = logging.DEBUG
     else:
-        logger.info('Asked to make dir that already exists:' + str(dir_name))
+        loglevel = logging.INFO
+
+    # logger configs
+    logging.basicConfig(
+        filename=f'{output_dir}/run.log',
+        encoding='utf-8',
+        filemode='w',
+        # format='[%(asctime)s][%(name)s]' + '[%(funcName)s][%(levelname)s]  :: |%(message)s|',
+        format='%(asctime)s | %(name)s | %(levelname)s :: %(message)s',
+        datefmt='%d-%b-%y %H:%M:%S',
+        level=loglevel,
+    )
+    logging.getLogger('pyomo').setLevel(logging.WARNING)
+    logging.getLogger('pandas').setLevel(logging.WARNING)
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 
 def get_args():

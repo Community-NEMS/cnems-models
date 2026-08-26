@@ -1,52 +1,8 @@
 """CSV-backed parameter loader for the C-NGMM.
 
-Reads all numerical parameters from ``input/natural_gas/`` CSV files. Every file listed below
-is required: a missing or malformed input raises ``ValueError`` rather than substituting a
-built-in default, so the values a run solves on are always the values on disk.
+Reads all numerical parameters from CSV files. Every file listed below
 
-Extracted from ng_model.py module-level
-constants so that supply curves, demand tables, pipelines, storage, and LNG
-assumptions are traceable to versioned data files rather than embedded code.
-
-CSV files (all in ``input/natural_gas/``):
-    ng_supply_cost_tiers.csv → SUPPLY_COST_TIERS
-    ng_lng_import.csv        → LNG_IMPORT
-    ng_lng_export.csv        → LNG_EXPORT_DEMAND_BCF
-    ng_demand_elasticity.csv → DEMAND_PRICE_ELASTICITY
-    ng_base_demand.csv       → BASE_DEMAND_2025
-    ng_demand_growth.csv     → DEMAND_GROWTH_RATES
-    ng_pipeline_arcs.csv     → PIPELINE_ARCS_RAW
-    ng_storage.csv           → STORAGE
-    ng_scalars.csv           → STORAGE_OPEX, lng_world_price_per_mmbtu,
-                                lng_max_price_factor, pipe_fuel_loss,
-                                distribution_loss, intrastate_loss,
-                                plant_fuel_frac, storage_loss,
-                                supply_curve_qmin_fraction (scalars)
-
-Added NGMM AEO2025-aligned parameters for
-the QP rewrite of ng_model.py:
-    ng_supply_curve_shape.csv → SUPPLY_CURVE_SHAPE (ELAS, CRV per step; AEO 2022
-                                 footnote: ELAS = [0.8, 0.7, 0.5, 0.3, 0.2])
-    ng_tariff_curve_shape.csv → TARIFF_CURVE_SHAPE (utilisation breakpoints and
-                                 tariff multipliers; NGMM Fig 3.5 hurdle-rate)
-    ng_lng_demand_curve.csv   → LNG_DEMAND_CURVE_SHAPE (NGMM Fig 3.6 linear
-                                 demand curve down from LNG_MAX to zero at 0)
-    ng_gathering.csv          → GATHERING_CHARGES (per-region $/MMBtu;
-                                 NGMM Eq 7 P^gath term)
-    ng_supply_anchors.csv     → SUPPLY_ANCHORS (per-(region,year) multipliers on
-                                 the static Q0/P0 anchors)
-
-OPTIONAL override files, the only inputs whose absence is not an error. Their values live
-in ng_scalars.csv under the same names, so an absent file means "nothing departs from the
-scalar" rather than "the value is hiding in Python". Neither ships in this repo:
-    ng_losses.csv             → LOSSES (per-region, per-column override of
-                                 distribution_loss, intrastate_loss, storage_loss,
-                                 plant_fuel_frac; NGMM Eq 10, 11)
-    ng_pipe_loss.csv          → PIPE_LOSS (per-arc override of pipe_fuel_loss;
-                                 NGMM Eq 11 f^pip)
 """
-
-from __future__ import annotations
 
 import csv
 import logging
@@ -60,26 +16,6 @@ from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Default data directory
-# ---------------------------------------------------------------------------
-
-# parents[3] walks natural_gas -> models -> src -> <repo root>, giving
-# <repo root>/input/natural_gas.
-_DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / 'input' / 'natural_gas'
-
-
-# ---------------------------------------------------------------------------
-# Required inputs
-# ---------------------------------------------------------------------------
-
-# There are no hardcoded fallback constants. Every CSV named in the module docstring is a hard
-# requirement: a missing or malformed file raises rather than substituting built-in values.
-#
-# The previous design kept a fallback dict per input so the model stayed runnable with an
-# incomplete input set. The cost was that six of those groups shipped with no CSV at all, so
-# their fallbacks were the live values rather than emergency defaults, and a typo'd filename was
-# indistinguishable from a file absent on purpose. Both merely logged a warning.
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
@@ -136,7 +72,7 @@ def _csv(filename: str, data_dir: Path) -> pd.DataFrame | None:
 
 
 def load_supply_cost_tiers(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, list[tuple[float, float]]]:
     """Load SUPPLY_COST_TIERS from ng_supply_cost_tiers.csv.
 
@@ -152,6 +88,13 @@ def load_supply_cost_tiers(
 
     and then builds five NGMM *steps* around that anchor. So ``sstep[r, 'step3', y]`` has no
     relationship to ``high_cost``; the tiers survive only as a way of expressing the anchor.
+
+    Raises
+    ------
+    ValueError
+        If the file is missing or unreadable, if a required column is absent, if any capacity or
+        cost value is blank or non-numeric, or if any row's cost_tier is not one of low_cost /
+        medium_cost / high_cost.
     """
     df = _csv('ng_supply_cost_tiers.csv', data_dir)
     if df is None:
@@ -159,9 +102,45 @@ def load_supply_cost_tiers(
             f'ng_supply_cost_tiers.csv could not be read from {data_dir}; '
             'this input has no fallback'
         )
+    # Cast the numeric columns once, up front, rather than per cell. read_csv infers `object`
+    # for a column holding any non-numeric entry, so without this a typo'd value reaches the
+    # scalar reads below one row at a time and fails without naming the file it came from.
+    # errors='raise' makes it fatal here instead, and the resulting float64 columns are what
+    # let the reads below be plain lookups.
+    for col in ('capacity_bcf', 'cost_per_mmbtu'):
+        if col not in df.columns:
+            raise ValueError(f'ng_supply_cost_tiers.csv in {data_dir} has no {col} column')
+        try:
+            df[col] = pd.to_numeric(df[col], errors='raise').astype(float)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f'ng_supply_cost_tiers.csv in {data_dir} has a non-numeric {col} value'
+            ) from exc
+        # read_csv already maps '', 'N/A' and friends to NaN, so they reach to_numeric as
+        # floats and the cast above cannot fail on them. Rejecting NaN here is what makes them
+        # fatal: a NaN capacity would otherwise be summed into Q0, and NaN propagates silently
+        # through the anchor into every price the model reports.
+        if df[col].isna().any():
+            bad = df.loc[df[col].isna(), 'region'].tolist()
+            raise ValueError(
+                f'ng_supply_cost_tiers.csv in {data_dir} has a blank or unparseable {col} '
+                f'for region(s): {bad}'
+            )
+
     # Fixed order, not the CSV's row order: the anchor is a weighted mean, so ordering does not
     # affect Q0/P0, but a stable order keeps the loaded structure comparable run to run.
     cost_tier_order = ['low_cost', 'medium_cost', 'high_cost']
+    if 'cost_tier' not in df.columns:
+        raise ValueError(f'ng_supply_cost_tiers.csv in {data_dir} has no cost_tier column')
+    tiers = df['cost_tier'].astype('string').str.strip()
+    invalid = df.loc[~tiers.isin(cost_tier_order), ['region', 'cost_tier']]
+    if not invalid.empty:
+        raise ValueError(
+            f'ng_supply_cost_tiers.csv in {data_dir} has row(s) whose cost_tier is blank or not '
+            f'one of {cost_tier_order}: {invalid.to_dict("records")}'
+        )
+    df['cost_tier'] = tiers
+
     result: dict[str, list[tuple[float, float]]] = {}
     for region, grp in df.groupby('region'):
         grp = grp.set_index('cost_tier')
@@ -169,11 +148,11 @@ def load_supply_cost_tiers(
         for t in cost_tier_order:
             if t in grp.index:
                 # .at, not .loc: both are scalar lookups on a unique index, .at is cheaper.
-                # TODO:  Investigate the source df and determine if/why column is not typed
-                # pyrefly: ignore[bad-argument-type]  - these pulled values will be floats
-                cap = float(grp.at[t, 'capacity_bcf'])  # noqa: PD008
-                # pyrefly: ignore[bad-argument-type]  - these pulled values will be floats
-                cost = float(grp.at[t, 'cost_per_mmbtu'])  # noqa: PD008
+                # Indexed through the column Series rather than as grp.at[t, col]: the
+                # two-argument DataFrame form is typed as the full pandas scalar union
+                # (Timestamp, complex, date, ...), which float() does not accept.
+                cap = float(grp['capacity_bcf'].at[t])  # noqa: PD008
+                cost = float(grp['cost_per_mmbtu'].at[t])  # noqa: PD008
                 row.append((cap, cost))
         if row:
             result[str(region)] = row
@@ -184,7 +163,7 @@ def load_supply_cost_tiers(
 
 
 def load_supply_anchors(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[tuple[str, int], tuple[float, float]]:
     """Year-varying supply-curve anchor path.
 
@@ -200,31 +179,43 @@ def load_supply_anchors(
     Raises
     ------
     ValueError
-        If the file is missing or unreadable.
+        If the file is missing or unreadable, if a required column is absent, or if any year or
+        multiplier is blank or non-numeric.
     """
     df = _csv('ng_supply_anchors.csv', data_dir)
     if df is None:
         raise ValueError(
             f'ng_supply_anchors.csv could not be read from {data_dir}; this input has no fallback'
         )
-    try:
-        out = {
-            # itertuples() attributes are typed as the union of every pandas scalar type, so
-            # int()/float() on them do not check. The CSV columns are numeric; a non-numeric
-            # value raises and is caught below.
-            # TODO:  Investigate the source df and determine if/why columns are not typed
-            # pyrefly: ignore[bad-argument-type]  - these pulled values will be numeric
-            (str(r.region), int(r.year)): (float(r.q0_mult), float(r.p0_mult))
-            for r in df.itertuples()
-        }
-        logger.info('SUPPLY_ANCHORS loaded from CSV (%d region-years)', len(out))
-        return out
-    except Exception as exc:
-        raise ValueError(f'Could not parse ng_supply_anchors.csv in {data_dir}') from exc
+    for col in ('region', 'year', 'q0_mult', 'p0_mult'):
+        if col not in df.columns:
+            raise ValueError(f'ng_supply_anchors.csv in {data_dir} has no {col} column')
+    for col in ('year', 'q0_mult', 'p0_mult'):
+        try:
+            df[col] = pd.to_numeric(df[col], errors='raise')
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f'ng_supply_anchors.csv in {data_dir} has a non-numeric {col} value'
+            ) from exc
+        if df[col].isna().any():
+            bad = df.loc[df[col].isna(), 'region'].tolist()
+            raise ValueError(
+                f'ng_supply_anchors.csv in {data_dir} has a blank or unparseable {col} '
+                f'for region(s): {bad}'
+            )
+
+    out = {
+        (str(region), int(year)): (float(q0), float(p0))
+        for region, year, q0, p0 in zip(
+            df['region'], df['year'], df['q0_mult'], df['p0_mult'], strict=True
+        )
+    }
+    logger.info('SUPPLY_ANCHORS loaded from CSV (%d region-years)', len(out))
+    return out
 
 
 def load_lng_import(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, tuple[float, float]]:
     """Load LNG_IMPORT from ng_lng_import.csv."""
     df = _csv('ng_lng_import.csv', data_dir)
@@ -243,7 +234,7 @@ def load_lng_import(
 
 
 def load_lng_export(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, dict[int, float]]:
     """Load LNG_EXPORT_DEMAND_BCF from ng_lng_export.csv."""
     df = _csv('ng_lng_export.csv', data_dir)
@@ -265,7 +256,7 @@ def load_lng_export(
 
 
 def load_demand_elasticity(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, float]:
     """Load DEMAND_PRICE_ELASTICITY from ng_demand_elasticity.csv."""
     df = _csv('ng_demand_elasticity.csv', data_dir)
@@ -282,7 +273,7 @@ def load_demand_elasticity(
 
 
 def load_base_demand(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, dict[str, float]]:
     """Load BASE_DEMAND_2025 from ng_base_demand.csv."""
     df = _csv('ng_base_demand.csv', data_dir)
@@ -304,7 +295,7 @@ def load_base_demand(
 
 
 def load_demand_growth(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, float]:
     """Load DEMAND_GROWTH_RATES from ng_demand_growth.csv."""
     df = _csv('ng_demand_growth.csv', data_dir)
@@ -320,7 +311,7 @@ def load_demand_growth(
 
 
 def load_pipeline_arcs(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> list[tuple[str, str, float, float]]:
     """Load PIPELINE_ARCS_RAW from ng_pipeline_arcs.csv."""
     df = _csv('ng_pipeline_arcs.csv', data_dir)
@@ -344,7 +335,7 @@ def load_pipeline_arcs(
 
 
 def load_storage(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, dict[str, float]]:
     """Load STORAGE from ng_storage.csv."""
     df = _csv('ng_storage.csv', data_dir)
@@ -367,7 +358,7 @@ def load_storage(
 
 
 def load_storage_opex(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> float:
     """Load STORAGE_OPEX scalar from ng_scalars.csv."""
     df = _csv('ng_scalars.csv', data_dir)
@@ -377,7 +368,6 @@ def load_storage_opex(
         )
     try:
         df = df.set_index('parameter')
-        # TODO:  Investigate the source df and determine if/why column is not typed
         # pyrefly: ignore[bad-argument-type]  - this pulled value will be a float
         val = float(df.at['storage_opex', 'value'])  # noqa: PD008 - scalar lookup
         logger.info('STORAGE_OPEX loaded from CSV: %.4f', val)
@@ -392,7 +382,7 @@ def load_storage_opex(
 
 
 def load_supply_curve_shape(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, list[float]]:
     """Load NGMM-style supply-curve shape (ELAS per segment, CRV per breakpoint).
 
@@ -442,7 +432,7 @@ def load_supply_curve_shape(
 
 
 def load_tariff_curve_shape(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, list[float]]:
     """Load NGMM pipeline-tariff curve shape (NGMM Fig 3.5)."""
     df = _csv('ng_tariff_curve_shape.csv', data_dir)
@@ -469,7 +459,7 @@ def load_tariff_curve_shape(
 
 
 def load_lng_demand_curve(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, list[float] | float]:
     """Load NGMM LNG export demand curve shape (NGMM Fig 3.6).
 
@@ -510,7 +500,7 @@ def load_lng_demand_curve(
 
 
 def load_losses(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, dict[str, float]]:
     """Load per-region overrides of the loss fractions and plant-fuel fraction (NGMM Eq 10, 11).
 
@@ -572,7 +562,7 @@ def load_losses(
 
 
 def load_gathering_charges(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, float]:
     """Load per-region gathering charges in $/MMBtu (NGMM Eq 7 P^gath term).
 
@@ -598,7 +588,7 @@ def load_gathering_charges(
 
 
 def load_pipe_loss(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[tuple[str, str], float]:
     """Load per-arc overrides of the pipeline fuel-loss fraction (NGMM Eq 11 f^pip).
 
@@ -643,7 +633,7 @@ def load_pipe_loss(
 
 
 def load_qp_scalars(
-    data_dir: Path = _DEFAULT_DATA_DIR,
+    data_dir: Path,
 ) -> dict[str, float]:
     """Load NGMM-QP scalars (default values for parameters not separately loaded).
 
@@ -659,9 +649,7 @@ def load_qp_scalars(
     """
     df = _csv('ng_scalars.csv', data_dir)
     if df is None:
-        raise ValueError(
-            f'ng_scalars.csv could not be read from {data_dir}; this input has no fallback'
-        )
+        raise ValueError(f'ng_scalars.csv could not be read from {data_dir}')
     if 'parameter' not in df.columns:
         raise ValueError(f'ng_scalars.csv in {data_dir} has no "parameter" column')
     df = df.set_index('parameter')
@@ -707,7 +695,6 @@ def load_sector_data(ng_config: NGConfig) -> list[str]:
         raise FileNotFoundError(path)
     res = []
     try:
-        # Explicit encoding: the platform default varies, and these files ship as UTF-8.
         with open(path, encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -953,8 +940,6 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'lng_import': load_lng_import(data_path),
         'lng_export': load_lng_export(data_path),
         'demand_elasticity': demand_elasticity,
-        # 'base_demand': load_base_demand(data_path),
-        # 'demand_growth': load_demand_growth(data_path),
         'demand': demand,
         'pipeline_arcs': load_pipeline_arcs(data_path),
         'storage': load_storage(data_path),

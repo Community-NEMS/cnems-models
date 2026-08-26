@@ -107,9 +107,9 @@ regions. Carried no provenance notes.
 - The loader supports one purely as a per-arc *override*: add the file with
   `origin,destination,loss_fraction` rows and only the arcs listed depart from the scalar.
   Arcs not listed, and the absence of the file entirely, both mean "use the scalar".
-- This is the one optional input in `data.py`. Every other file listed here is required and
-  raises if missing, because for those the absent file would mean the value existed nowhere
-  on disk. Here the value is in `ng_scalars.csv` either way.
+- This and `ng_losses.csv` are the only two optional inputs in `data.py`. Every other file
+  listed here is required and raises if missing, because for those the absent file would mean
+  the value existed nowhere on disk. For these two the value is in `ng_scalars.csv` either way.
 
 ## `ng_pipeline_arcs.csv`
 

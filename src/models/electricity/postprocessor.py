@@ -16,129 +16,16 @@ dependency on any precomputed column-naming dict.
 
 from logging import getLogger
 from pathlib import Path
-from warnings import deprecated
 
 import pandas as pd
 import pyomo.environ as pyo
 from pyomo.core.base.indexed_component import IndexedComponent
 
 from definitions import PROJECT_ROOT
-from src.models.electricity.utilities import create_obj_df
 
 # Establish logger
 logger = getLogger(__name__)
 
-###################################################################################################
-# Legacy: Review of Variables, Sets, Parameters, Constraints (deprecated)
-
-
-@deprecated(
-    'Depends on instance.cols_dict, which only the deprecated src.common.model.Model populates; '
-    'PowerModel no longer subclasses it. Superseded by extract_all_variables for Vars.'
-)
-def report_obj_df(mod_object, instance, dir_out, sub_dir):
-    """Creates a df of the component object within the pyomo model.
-
-    Separates the key data into different columns and then names the columns if the names are
-    included in the cols_dict. Writes the df out to the output directory.
-
-    Parameters
-    ----------
-    obj : pyomo component object
-        e.g., pyo.Var, pyo.Set, pyo.Param, pyo.Constraint
-    instance : pyomo model
-        electricity concrete model
-    dir_out : str
-        output electricity directory
-    sub_dir : str
-        output electricity sub-directory
-    """
-    # get name of object
-    if '.' in mod_object.name:
-        name = mod_object.name.split('.')[1]
-    else:
-        name = mod_object.name
-
-    # list of names to not report
-    # TODO:  Consider if these objs needs reporting, and if so adjust...
-    if name not in ['var_elec_request', 'fixed_elec_request']:
-        # get data associated with object
-        df = create_obj_df(mod_object)
-        if not df.empty:
-            # get column names associated with object if available
-            if name in instance.cols_dict:
-                df.columns = ['Key'] + instance.cols_dict[name]
-            elif len(df.columns) == 2:
-                df.columns = ['Key', name]
-            else:
-                pass
-                # logger.debug('Electricity Model:' + name + ' missing from cols_dict')
-            df.to_csv(Path(dir_out / sub_dir / f'{name}.csv'), index=False)
-        else:
-            logger.info('Electricity Model:' + name + ' is empty.')
-
-
-@deprecated('Only used by the deprecated postprocessor() entry point.')
-def make_elec_output_dir(output_dir):
-    """Generates an output subdirectory to write electricity model results.
-
-    It includes subdirs for vars, params, constraints.
-
-    Returns
-    -------
-    string
-        the name of the output directory
-    """
-    if not Path(output_dir).exists():
-        Path(output_dir).mkdir(parents=True)
-        Path(output_dir / 'variables').mkdir(parents=True)
-        Path(output_dir / 'parameters').mkdir(parents=True)
-        Path(output_dir / 'constraints').mkdir(parents=True)
-        Path(output_dir / 'sets').mkdir(parents=True)
-        Path(output_dir / 'prices').mkdir(parents=True)
-        Path(output_dir / 'obj').mkdir(parents=True)
-
-
-###################################################################################################
-# Legacy: Main Project Execution (deprecated)
-@deprecated(
-    'Only reachable from the out-of-scope hydrogen-integrated legacy paths (unified.py, '
-    'gaussseidel.py). Superseded by extract_all_variables/export_variables_to_csv for Vars.'
-)
-def postprocessor(instance):
-    """Master postprocessor that writes out the final dataframes from the electricity model.
-
-    Creates the output directories and writes out dataframes for variables, parameters, and
-    constraints. Gets the correct columns names for each dataframe using the cols_dict.
-
-    Parameters
-    ----------
-    instance : pyomo model
-        electricity concrete model
-
-    Returns
-    -------
-    string
-        output directory name
-    """
-    output_dir = Path(instance.OUTPUT_ROOT / 'electricity')
-    make_elec_output_dir(output_dir)
-
-    for variable in instance.component_objects(pyo.Var, active=True):
-        report_obj_df(variable, instance, output_dir, 'variables')
-
-    for s in instance.component_objects(pyo.Set, active=True):
-        report_obj_df(s, instance, output_dir, 'sets')
-
-    for parameter in instance.component_objects(pyo.Param, active=True):
-        report_obj_df(parameter, instance, output_dir, 'parameters')
-
-    for constraint in instance.component_objects(pyo.Constraint, active=True):
-        report_obj_df(constraint, instance, output_dir, 'constraints')
-
-
-###################################################################################################
-# New: model-native variable extraction
 storage_index_names = ['region', 'tech', 'step', 'year', 'hour']
 
 # mapping the names of the indices to the core variables to use as labels in extraction

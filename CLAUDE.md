@@ -4,23 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-This repo is a fork of EIA's [Project BlueSky](https://www.eia.gov/totalenergy/data/bluesky/) prototype
-(an open-source energy systems modeling framework), being reworked by the current maintainer
-under the internal name "C-NEMS Project" (see file headers). The upstream prototype had three sectoral
-modules (electricity, hydrogen, residential) combined via an integrator; **this fork has removed the
-hydrogen and residential modules and is focused solely on the electricity module**, run in standalone
-mode. Don't assume the upstream root `README.md` (which still describes all three modules and multiple
-run modes) reflects the current code — large parts of it are aspirational/stale here.
+This repo is a large-scale energy model comprising sub-models under `src/models`, each intended to run
+stand-alone or in an integrated construct. Only the electricity model is currently in the repo and
+tested; the integration elements in `src/integrator` are in-work and partly unmaintained.
 
 ### Configuration
 
-All current code uses the pydantic config system: `src/common/common_config.py` (`CommonConfig`) plus
-`src/models/electricity/elec_config.py` (`ElecConfig`), loaded from a TOML with `[common]` and
-`[elec_config]` sections via `CommonConfig.from_toml(path)` (or `parse_config_file(path)`), which returns
-`(common_config, remainder_dict)`. Enums (`RunMode`, `ModelType`, `ExpansionLearningType`,
-`LoadScaleMode`, `ReserveType`) replace the old int switches. See `run_configs/*.toml` and
-`tests/electric/basic_elec_config.toml`. A parallel legacy config system still exists — see
-"Ignore / do not touch" below.
+All current code uses the pydantic config system: `src/common/common_config.py` (`CommonConfig`) plus a
+model-specific configuration such as `src/models/electricity/elec_config.py` (`ElecConfig`), loaded from
+a TOML with `[common]` and `[elec_config]` sections via `CommonConfig.from_toml(path)` (or
+`parse_config_file(path)`), which returns `(common_config, remainder_dict)`. Enums (`RunMode`,
+`ModelType`, `ExpansionLearningType`, `LoadScaleMode`, `ReserveType`) are used to control
+modes/configuration options. See `run_configs/*.toml` and `tests/electric/basic_elec_config.toml` for
+working examples.
 
 ## Commands
 
@@ -67,7 +63,7 @@ python main.py
 3. `src/models/electricity/param_data.py::ParamData(common_config, elec_config, model_sets)` reads and
    shapes the parameter data (supply curves, capacity factors, costs, transmission limits, etc.). Simple
    params are kept as plain dicts; params still needing manipulation are kept as DataFrames. Some helpers
-   still live in `preprocessor.py` (`add_season_index`, `avg_by_group`, `time_map`).
+   still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`).
 4. `sequencer.py::ElectricitySequencer` implements the `IntegratedModelSequencer` ABC
    (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
    `full_postprocess` / `iteration_postprocess`). `solve_model` returns an `IterationStatus`. Tests build
@@ -95,7 +91,8 @@ python main.py
   conditionally added based on `ElecConfig` switches (e.g. trade constraints only exist if
   `regional_exchange=True`).
 - `sequencer.py` — build/solve orchestration described above, plus the linear-learning iteration loop.
-- `postprocessor.py`, `validators.py`, `utilities.py` — output shaping and result sanity checks.
+- `postprocessor.py` (variable extraction / CSV export), `validators.py` (pyomo domain checks),
+  `param_utilities.py` (param reshaping helpers), `utilities.py` (`annual_count` only).
 - `analysis_tools/` (top-level package) — `model_diagnostics.py`, `transmission_network.py`, `viewer.py`.
 - Input data lives under `input/electricity/` and `input/electricity/cem_inputs/`
   (regionally/technology-indexed CSVs for costs, transmission, supply curves, etc.).
@@ -130,14 +127,15 @@ correct, not verified against an independent source).
 
 ## Ignore / do not touch
 
-- `old_docs/` — outdated; ignore completely until it is updated.
-- **Legacy config + Dash GUI stack**: `src/common/config_setup.py` (`Config_settings`) and
-  `src/integrator/{unified,gaussseidel,runner}.py`. These still use the old flat-TOML config style.
-  Don't build on them and don't fix breakage in them. (`src/integrator/utilities.py` is *not* legacy —
-  `select_solver` and `create_temporal_mapping` are live dependencies of the electricity path.)
-- `src/common/model.py::Model` — dead as a base class. `PowerModel` is already a direct
-  `pyo.ConcreteModel` subclass (`class PowerModel(pyo.ConcreteModel, IntegratedModel)`). The one
-  remaining import is `src/models/electricity/utilities.py`; do not add new ones or use its methods.
+- `old_docs/` — a deliberately preserved reference archive (the BlueSky prototype PDF and its
+  images) left over from the deleted Sphinx tree. Not maintained and not slated for update;
+  don't cite it as current, and don't propose deleting it.
+- `src/integrator/{unified,gaussseidel}.py` — do not build on these and do not fix breakage in them.
+  They import the deleted `src.common.config_setup` and no longer import at all.
+  (`src/integrator/utilities.py` is *not* legacy — `select_solver` and `create_temporal_mapping`
+  are live dependencies of the electricity path.)
+- **Dash GUI stack**: `app.py`, `run_dash_app.bat`, `src/common/config_gui.py` — unmaintained;
+  don't build on them.
 
 ## Creating and editing rules
 
@@ -148,3 +146,5 @@ correct, not verified against an independent source).
   `tests/electric/test_basic_run.py` for examples.
 - Make minimal changes -- do not refactor unrelated code without asking first.
 - When editing or adding code, use type hints.  The project is poorly type-hinted and this will help.
+- New modules get the standard header docstring (`Created as part of the C-NEMS Project.` plus
+  author/contact/date) — copy the form from an existing file such as `param_source_loader.py`.

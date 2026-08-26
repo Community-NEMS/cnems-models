@@ -85,10 +85,7 @@ def load_ng_region_map(path: str | Path | None = None) -> dict[str, str]:
     """
     p = Path(path) if path is not None else _DEFAULT_REGION_MAP
     with p.open(newline='', encoding='utf-8') as fh:
-        # Skipping '#' lines keeps any provenance header out of the rows, matching the
-        # comment='#' the pandas readers use; stripping fieldnames guards a hand-edited
-        # header carrying trailing spaces.
-        reader = csv.DictReader(line for line in fh if not line.lstrip().startswith('#'))
+        reader = csv.DictReader(fh)
         if reader.fieldnames:
             reader.fieldnames = [name.strip() for name in reader.fieldnames]
         out = {row['elec_region'].strip(): row['ng_region'].strip() for row in reader}

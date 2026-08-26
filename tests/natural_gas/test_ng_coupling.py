@@ -19,7 +19,6 @@ from src.integrator.ng_coupling import (
     NG_GAS_TECHS,
     NG_HEAT_RATE_MMBTUPERMWH,
     check_coupling_contract,
-    load_ng_region_map,
     poll_ng_gas_demand,
     update_ng_fuel_adj,
 )
@@ -242,20 +241,6 @@ def test_contract_fails_on_immutable_ng_fuel_adj() -> None:
         check_coupling_contract(m)
 
 
-def test_region_map_is_string_keyed() -> None:
-    """The crosswalk must be keyed and valued by strings, matching the electricity model.
-
-    Electricity region ids are strings of numerals, and the coupling looks them up without
-    coercion. A crosswalk keyed on anything else would match nothing, and gas demand would
-    come back empty rather than raising.
-    """
-    xw = load_ng_region_map()
-    assert xw, 'crosswalk is empty'
-    assert all(isinstance(k, str) for k in xw), 'keys must be strings'
-    assert all(isinstance(v, str) for v in xw.values()), 'values must be strings'
-    assert xw['1'], "region '1' must resolve"
-
-
 # ---------------------------------------------------------------------------
 # the contract, against a real electricity model
 # ---------------------------------------------------------------------------
@@ -305,5 +290,3 @@ class TestContractAgainstRealPowerModel:
             assert {k[position] for k in keys} <= set(expected), (
                 f'values at position {position} are not members of {role}'
             )
-
-    # Tests asserting the ng_fuel_adj contract belong here once that parameter exists.

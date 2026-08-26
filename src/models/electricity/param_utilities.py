@@ -10,8 +10,6 @@ construction.  Largely drawn from elements of the old "preprocessor.py" file
 
 """
 
-from warnings import deprecated
-
 import pandas as pd
 from pandas import DataFrame
 
@@ -143,31 +141,6 @@ def capacity_credit_df(all_frames: dict[str, DataFrame], setin):
     df.loc[df['tech'].isin(setin.T_hydro), 'CapacityCredit'] = df['HydroCapFactor']
     df = df.drop(columns=['SupplyCurve', 'HydroCapFactor'])
     df = df[['tech', 'year', 'region', 'step', 'hour', 'CapacityCredit']]
-    return df
-
-
-@deprecated('Should not be needed.  Future refactoring will remove this function.')
-def create_hourly_params(all_frames, key, cols):
-    """Expands params that are indexed by season to be indexed by hour.
-
-    Parameters
-    ----------
-    all_frames : dict[str, DataFrame]
-        dictionary of dataframes where the key is the file name and the value is the table data
-    key : str
-        name of data frame to access
-    cols : list[str]
-        column names to keep in data frame
-
-    Returns
-    -------
-    pd.DataFrame
-        data frame with name key with new hourly index
-    """
-    df = pd.merge(all_frames[key], all_frames['MapHourSeason'], on=['season'], how='left').drop(
-        columns=['season']
-    )
-    df = df[cols]
     return df
 
 

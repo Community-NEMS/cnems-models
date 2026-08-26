@@ -22,14 +22,6 @@ dependencies = []
 
 [tool.ruff]
 line-length = 100
-# Inherited, unmaintained Sphinx tree (see CLAUDE.md). "extend-" keeps ruff's built-in
-# default excludes rather than replacing them. Needed even though .gitignore lists
-# old_docs: the pre-commit ruff hook passes paths explicitly, which bypasses
-# gitignore-based filtering, and only honors this because its entry uses --force-exclude.
-# Also excluded: vendored C-NGMM sources, landed unchanged from their source distribution (see
-# src/models/natural_gas/README.md).  They were authored against a laxer ruff config and
-# report 47 findings here, mostly E501.  Excluded so the import is verifiably byte-identical
-# to its origin; revisit once the model is no longer tracking an upstream.
 extend-exclude = [
   "old_docs",
 ]

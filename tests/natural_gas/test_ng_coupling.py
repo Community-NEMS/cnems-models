@@ -7,8 +7,6 @@ silently, and a crosswalk that doesn't match.
 Run: pytest tests/test_ng_coupling.py -v
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pyomo.environ as pyo
@@ -46,10 +44,8 @@ def _mock_elec(gen_gwh: float = 100.0) -> pyo.ConcreteModel:
         Constant generation assigned to every index entry, so expected values stay hand-checkable.
     """
     m = pyo.ConcreteModel()
-    # Regions are ints here on purpose: real models use int or str region ids, and the
-    # crosswalk must cope with both (see test_region_map_accepts_both_key_types).
-    m.region = pyo.Set(initialize=[7, 8])
-    m.tech = pyo.Set(initialize=[3, 4, 6])  # 6 is non-gas, must be ignored
+    m.region = pyo.Set(initialize=['7', '8'])
+    m.tech = pyo.Set(initialize=['3', '4', '6'])  # '6' is non-gas, must be ignored
     m.step = pyo.Set(initialize=[1])
     m.year = pyo.Set(initialize=[2025, 2030])
     m.hour = pyo.Set(initialize=[1, 2])
@@ -105,25 +101,25 @@ def test_gas_demand_matches_hand_calculation() -> None:
     that merely looks a bit off.
     """
     m = _mock_elec(gen_gwh=100.0)
-    got = poll_ng_gas_demand(m, {7: 'west_south_central', 8: 'south_atlantic'})
+    got = poll_ng_gas_demand(m, {'7': 'west_south_central', '8': 'south_atlantic'})
 
-    # per region-year: 2 hours x 1 step, techs 3 and 4. 100 GWh x 182.5 day-weight x the
-    # tech's MMBtu/MWh, divided by 1e3 to land in Bcf. Tech 6 must not appear.
+    # per region-year: 2 hours x 1 step, techs '3' and '4'. 100 GWh x 182.5 day-weight x the
+    # tech's MMBtu/MWh, divided by 1e3 to land in Bcf. Tech '6' must not appear.
     expect = sum(
-        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in (3, 4) for _ in range(2)
+        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in ('3', '4') for _ in range(2)
     )
     assert got[GI('west_south_central', 2025)] == pytest.approx(expect)
 
 
 def test_non_gas_techs_are_excluded() -> None:
-    """Tech 6 is not a gas technology and must contribute nothing.
+    """Tech '6' is not a gas technology and must contribute nothing.
 
-    The complement of the test above: that one fixes the value for techs 3 and 4, this one
+    The complement of the test above: that one fixes the value for techs '3' and '4', this one
     proves nothing else leaked in. A tech filter applied against the wrong index position
     would inflate this total by including non-gas generation.
     """
     m = _mock_elec()
-    got = poll_ng_gas_demand(m, {7: 'west_south_central', 8: 'south_atlantic'})
+    got = poll_ng_gas_demand(m, {'7': 'west_south_central', '8': 'south_atlantic'})
     only_gas = sum(
         100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in NG_GAS_TECHS for _ in range(2)
     )
@@ -133,11 +129,11 @@ def test_non_gas_techs_are_excluded() -> None:
 def test_unmapped_regions_are_skipped_not_silently_counted() -> None:
     """An electricity region absent from the crosswalk must drop out, not land somewhere else.
 
-    Region 8 has no entry here. The danger case is its gas burn being attributed to a mapped
+    Region '8' has no entry here. The danger case is its gas burn being attributed to a mapped
     region instead, which keeps the national total plausible while regional detail is wrong.
     """
     m = _mock_elec()
-    got = poll_ng_gas_demand(m, {7: 'west_south_central'})  # region 8 unmapped
+    got = poll_ng_gas_demand(m, {'7': 'west_south_central'})  # region '8' unmapped
     assert {k.region for k in got} == {'west_south_central'}
 
 
@@ -149,7 +145,7 @@ def test_unmapped_regions_are_skipped_not_silently_counted() -> None:
 def test_fuel_adj_is_zero_when_price_equals_reference() -> None:
     """At the reference, the adjustment must vanish, this is what preserves calibration."""
     m = _mock_elec()
-    xw = {7: 'west_south_central', 8: 'south_atlantic'}
+    xw = {'7': 'west_south_central', '8': 'south_atlantic'}
     ref = {GI('west_south_central', y): 3.0 for y in (2025, 2030)}
     ref.update({GI('south_atlantic', y): 3.0 for y in (2025, 2030)})
 
@@ -166,13 +162,13 @@ def test_fuel_adj_sign_and_magnitude() -> None:
     wrong scales the entire coupling signal while leaving its sign and shape believable.
     """
     m = _mock_elec()
-    xw = {7: 'west_south_central', 8: 'south_atlantic'}
+    xw = {'7': 'west_south_central', '8': 'south_atlantic'}
     ref = {GI(r, y): 3.0 for r in ('west_south_central', 'south_atlantic') for y in (2025, 2030)}
     now = {k: v + 1.0 for k, v in ref.items()}
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=1.0)
-    assert pyo.value(m.ng_fuel_adj[7, 4, 1, 2025, 'spring']) == pytest.approx(
-        1.0 * NG_HEAT_RATE_MMBTUPERMWH[4] * 1000.0
+    assert pyo.value(m.ng_fuel_adj['7', '4', 1, 2025, 'spring']) == pytest.approx(
+        1.0 * NG_HEAT_RATE_MMBTUPERMWH['4'] * 1000.0
     )
 
 
@@ -184,12 +180,12 @@ def test_fuel_adj_can_go_negative() -> None:
     electricity model would see gas rises but never falls.
     """
     m = _mock_elec()
-    xw = {7: 'west_south_central', 8: 'south_atlantic'}
+    xw = {'7': 'west_south_central', '8': 'south_atlantic'}
     ref = {GI(r, y): 3.0 for r in ('west_south_central', 'south_atlantic') for y in (2025, 2030)}
     now = {k: v - 1.0 for k, v in ref.items()}
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=1.0)
-    assert pyo.value(m.ng_fuel_adj[7, 3, 1, 2025, 'spring']) < 0
+    assert pyo.value(m.ng_fuel_adj['7', '3', 1, 2025, 'spring']) < 0
 
 
 def test_under_relaxation_blends() -> None:
@@ -200,13 +196,13 @@ def test_under_relaxation_blends() -> None:
     accepted but not actually applied would let the loop oscillate instead of converging.
     """
     m = _mock_elec()
-    xw = {7: 'west_south_central', 8: 'south_atlantic'}
+    xw = {'7': 'west_south_central', '8': 'south_atlantic'}
     ref = {GI(r, y): 3.0 for r in ('west_south_central', 'south_atlantic') for y in (2025, 2030)}
     now = {k: v + 1.0 for k, v in ref.items()}
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=0.25)  # from 0 -> 25% of full
-    full = 1.0 * NG_HEAT_RATE_MMBTUPERMWH[4] * 1000.0
-    assert pyo.value(m.ng_fuel_adj[7, 4, 1, 2025, 'spring']) == pytest.approx(0.25 * full)
+    full = 1.0 * NG_HEAT_RATE_MMBTUPERMWH['4'] * 1000.0
+    assert pyo.value(m.ng_fuel_adj['7', '4', 1, 2025, 'spring']) == pytest.approx(0.25 * full)
 
 
 # ---------------------------------------------------------------------------
@@ -246,16 +242,18 @@ def test_contract_fails_on_immutable_ng_fuel_adj() -> None:
         check_coupling_contract(m)
 
 
-def test_region_map_accepts_both_key_types() -> None:
-    """The crosswalk must answer to int and str region ids identically.
+def test_region_map_is_string_keyed() -> None:
+    """The crosswalk must be keyed and valued by strings, matching the electricity model.
 
-    Electricity models in this lineage disagree on whether region ids are ints or strings.
-    load_ng_region_map keys the mapping under both so either lookup succeeds; if it did not,
-    a type mismatch would match nothing and gas demand would come back empty.
+    Electricity region ids are strings of numerals, and the coupling looks them up without
+    coercion. A crosswalk keyed on anything else would match nothing, and gas demand would
+    come back empty rather than raising.
     """
     xw = load_ng_region_map()
     assert xw, 'crosswalk is empty'
-    assert xw.get(1) == xw.get('1'), 'int and str keys must agree'
+    assert all(isinstance(k, str) for k in xw), 'keys must be strings'
+    assert all(isinstance(v, str) for v in xw.values()), 'values must be strings'
+    assert xw['1'], "region '1' must resolve"
 
 
 # ---------------------------------------------------------------------------

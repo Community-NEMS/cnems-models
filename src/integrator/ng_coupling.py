@@ -14,9 +14,8 @@ What the electricity model must expose
 ``ng_fuel_adj`` Param indexed exactly like ``supply_price``
 (region, tech, step, year, season) and declared ``within=Reals, mutable=True``. It carries a
 DELTA against a reference gas price, not a price level, so it goes negative whenever gas is
-cheaper than its reference; ``NonNegativeReals`` would silently clamp every downward signal to
-zero. Add it to the dispatch-cost term alongside ``supply_price``; both are $/GWh, so no
-conversion is needed. ``check_coupling_contract`` validates all four up front.
+cheaper than its reference. Add it to the dispatch-cost term alongside ``supply_price``;
+both are $/GWh, so no conversion is needed. ``check_coupling_contract`` validates all four up front.
 
 Index order is DECLARED, not discovered
 --------------------------------------
@@ -31,14 +30,14 @@ Call ``check_coupling_contract`` once at setup to fail loudly if the electricity
 missing something rather than discovering it mid-iteration.
 """
 
-from __future__ import annotations
-
+import csv
 import logging
 from collections import defaultdict
 from pathlib import Path
 
-import pandas as pd
 from pyomo.environ import value
+
+from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +48,14 @@ logger = logging.getLogger(__name__)
 # Wrong tech numbers fail in one of two ways, neither of which raises: numbers that match no
 # technology give zero gas demand, and numbers that match the wrong technology attribute coal
 # or nuclear generation to the gas market. For cnems-models these are correct, see
-# src/models/electricity/README.md lines 84-85, which name 3 and 4 exactly.
+# src/models/electricity/README.md lines 84-85, which name '3' and '4' exactly.
 #
 # The heat rates are representative constants carried in from the source distribution, NOT
 # derived from this repo's data. CT is the less efficient of the two, hence the higher figure.
 # They set the scale of everything crossing the boundary, so a run whose polled demand is
 # consistently biased (rather than wrong by orders of magnitude) should suspect these first.
-NG_GAS_TECHS: set[int] = {3, 4}  # 3 = gas CT, 4 = gas CC
-NG_HEAT_RATE_MMBTUPERMWH: dict[int, float] = {3: 9.51, 4: 7.12}
+NG_GAS_TECHS: set[str] = {'3', '4'}  # '3' = gas CT, '4' = gas CC
+NG_HEAT_RATE_MMBTUPERMWH: dict[str, float] = {'3': 9.51, '4': 7.12}
 
 # Position of each role in the index tuples this module reads and writes. Fixed by construction
 # in the electricity model, so declared here rather than discovered:
@@ -65,9 +64,7 @@ NG_HEAT_RATE_MMBTUPERMWH: dict[int, float] = {3: 9.51, 4: 7.12}
 GENERATION_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}
 FUEL_ADJ_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'season': 4}
 
-_DEFAULT_REGION_MAP = (
-    Path(__file__).resolve().parents[2] / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
-)
+_DEFAULT_REGION_MAP = PROJECT_ROOT / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
 
 
 # ---------------------------------------------------------------------------
@@ -75,43 +72,27 @@ _DEFAULT_REGION_MAP = (
 # ---------------------------------------------------------------------------
 
 
-def load_ng_region_map(path: str | Path | None = None) -> dict:
+def load_ng_region_map(path: str | Path | None = None) -> dict[str, str]:
     """Load the electricity-region -> gas-region crosswalk.
 
-    The returned mapping is keyed by BOTH the string and the integer form of each electricity
-    region id, because electricity models in this lineage differ on whether region identifiers
-    are strings or integers. Looking up either form succeeds.
+    Both columns are read as strings and stripped, matching the electricity model, whose region
+    ids are strings.
 
     Returns
     -------
-    dict
-        {elec_region (str and int): ng_region (str)}
+    dict[str, str]
+        {elec_region: ng_region}
     """
     p = Path(path) if path is not None else _DEFAULT_REGION_MAP
-    # comment='#' keeps the provenance header lines out of the frame; strip() guards against
-    # trailing spaces in hand-edited CSV headers, which would otherwise break the column lookup.
-    df = pd.read_csv(p, comment='#')
-    df.columns = df.columns.str.strip()
-
-    out: dict = {}
-    for _, row in df.iterrows():
-        ng = str(row['ng_region']).strip()
-        raw = str(row['elec_region']).strip()
-        # Store under the string form always, and under the int form when the id is numeric.
-        # int(float(raw)) rather than int(raw) so that '7.0', which is what pandas produces
-        # from a numeric column, still yields 7. A non-numeric id (e.g. 'CA') just skips the
-        # int alias. This double-keying is what lets one crosswalk serve electricity models
-        # that identify regions as ints and ones that use strings.
-        out[raw] = ng
-        try:
-            numeric = float(raw)
-        except TypeError, ValueError:
-            continue  # a non-numeric id such as 'CA' gets the string key only
-        # Only alias when the value is genuinely integral. int(float('7.5')) would be 7, which
-        # would silently route a malformed crosswalk row to the wrong electricity region.
-        if numeric.is_integer():
-            out[int(numeric)] = ng
-    logger.info('Loaded electricity->gas region map: %d electricity regions', len(df))
+    with p.open(newline='', encoding='utf-8') as fh:
+        # Skipping '#' lines keeps any provenance header out of the rows, matching the
+        # comment='#' the pandas readers use; stripping fieldnames guards a hand-edited
+        # header carrying trailing spaces.
+        reader = csv.DictReader(line for line in fh if not line.lstrip().startswith('#'))
+        if reader.fieldnames:
+            reader.fieldnames = [name.strip() for name in reader.fieldnames]
+        out = {row['elec_region'].strip(): row['ng_region'].strip() for row in reader}
+    logger.info('Loaded electricity->gas region map: %d electricity regions', len(out))
     return out
 
 
@@ -163,7 +144,7 @@ def check_coupling_contract(elec_model) -> None:
 # ---------------------------------------------------------------------------
 
 
-def poll_ng_gas_demand(elec_model, elec_to_ng: dict) -> dict:
+def poll_ng_gas_demand(elec_model, elec_to_ng: dict[str, str]) -> dict:
     """Compute annual gas demand [Bcf] by gas region from an electricity solution.
 
     Sums day-weighted generation for gas technologies, converts to Bcf with representative heat
@@ -187,11 +168,11 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict) -> dict:
     )
 
     res: dict = defaultdict(float)
-    skipped_regions: set = set()
+    skipped_regions: set[str] = set()
 
     for idx in elec_model.generation_total.index_set():
         tech = idx[i_t]
-        if int(tech) not in NG_GAS_TECHS:
+        if tech not in NG_GAS_TECHS:
             continue
         ng_region = elec_to_ng.get(idx[i_r])
         if ng_region is None:
@@ -210,14 +191,14 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict) -> dict:
         # 1 Bcf ~ 1e6 MMBtu, so the two powers of ten collapse to a single division by 1e3.
         # Accumulate onto (gas region, year): many electricity regions map to one gas region.
         res[GI(region=ng_region, year=int(idx[i_y]))] += (
-            gen_gwh * NG_HEAT_RATE_MMBTUPERMWH[int(tech)] / 1e3
+            gen_gwh * NG_HEAT_RATE_MMBTUPERMWH[tech] / 1e3
         )
 
     if skipped_regions:
         logger.warning(
             'No gas region mapped for electricity regions %s, their gas burn is '
             'excluded from gas demand.',
-            sorted(map(str, skipped_regions)),
+            sorted(skipped_regions),
         )
     logger.debug('Polled gas demand for %d region-years', len(res))
     return dict(res)
@@ -229,7 +210,11 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict) -> dict:
 
 
 def update_ng_fuel_adj(
-    elec_model, ng_prices: dict, elec_to_ng: dict, base_ng_prices: dict, alpha: float = 1.0
+    elec_model,
+    ng_prices: dict,
+    elec_to_ng: dict[str, str],
+    base_ng_prices: dict,
+    alpha: float = 1.0,
 ) -> int:
     """Write the gas-price signal into the electricity model's ng_fuel_adj parameter.
 
@@ -269,7 +254,7 @@ def update_ng_fuel_adj(
         # the gas model did not price. Skipping rather than writing zero matters, because a
         # zero would be indistinguishable from "gas is exactly at its reference price".
         tech = key[i_t]
-        if int(tech) not in NG_HEAT_RATE_MMBTUPERMWH:
+        if tech not in NG_HEAT_RATE_MMBTUPERMWH:
             continue
         ng_region = elec_to_ng.get(key[i_r])
         if ng_region is None:
@@ -284,9 +269,7 @@ def update_ng_fuel_adj(
         # base_ng_prices must come from the FIRST gas solve and never be reassigned. Recapture
         # it each iteration and this difference is identically zero every time, the coupling
         # transmits nothing, converges immediately, and looks healthy.
-        adj_full = (
-            (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[int(tech)] * 1000.0
-        )
+        adj_full = (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[tech] * 1000.0
         # Under-relaxation blends toward the value already in the parameter. Gas price and
         # gas-fired dispatch drive each other hard, so alpha=1.0 tends to oscillate; the loop
         # should damp here as well as on both gas-side demand updates.

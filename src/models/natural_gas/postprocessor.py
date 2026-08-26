@@ -11,8 +11,6 @@ Equation references of the form "NGMM Eq 7" cite EIA's *Natural Gas Market Modul
 of NEMS: Model Documentation 2025*, not this code.
 """
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from pathlib import Path

@@ -65,8 +65,6 @@ References
 # Setup
 ###############################################################################
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict, namedtuple
 from warnings import deprecated
@@ -242,7 +240,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG demand-curve segments.
         lng_segments = list(range(1, len(lng_demand_curve_shape['q_frac'])))
 
-        projected_demand = model_data['demand']
+        projected_demand = model_data['demand'].copy()
 
         if demand_override:
             projected_demand.update(demand_override)

@@ -1,0 +1,6 @@
+sector,own_price_elasticity
+electric_power,-0.15
+industrial,-0.20
+residential,-0.10
+commercial,-0.10
+transportation,-0.05

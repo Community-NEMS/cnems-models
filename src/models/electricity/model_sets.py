@@ -14,7 +14,6 @@ Collection of sets used by model.
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Collection, Iterable
-from warnings import deprecated
 
 import pandas as pd
 from pandas import DataFrame
@@ -145,41 +144,6 @@ class ModelSets:
         # sorted() because set difference does not iterate in ascending order for every
         # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
         self.hour_most = sorted(set(self.hour) - set(self.hour_first))
-
-        # Technology Sets
-        @deprecated('currently not used.  Data ingestion makes these tech subsets from the file')
-        def load_and_assign_subsets(df, col):
-            """Create list based on tech subset assignment.
-
-            Parameters
-            ----------
-            df : pd.DataFrame
-                data frame containing tech subsets
-            col : str
-                name of tech subset
-
-            Returns
-            -------
-            list
-                list of techs in subset
-            """
-            # set attributes for the main list
-            main = next(iter(df.columns))
-            df = df.set_index(df[main])
-
-            # return subset of list based on col assignments
-            subset_list = list(df[df[col].notna()].index)
-            # print(col,subset_list)
-
-            return subset_list
-
-        # # read in subset dataframe from inputs
-        # tech_subsets = pd.read_csv(data_root / 'tech_subsets.csv')
-        # self.tech_subset_names = tech_subsets.columns
-        #
-        # for tss in self.tech_subset_names:
-        #     # create the technology subsets based on the tech_subsets input
-        #     setattr(self, tss, load_and_assign_subsets(tech_subsets, tss))
 
         # Misc Inputs
         self.step = range(1, 5)

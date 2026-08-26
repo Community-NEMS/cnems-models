@@ -32,7 +32,6 @@ line-length = 100
 # to its origin; revisit once the model is no longer tracking an upstream.
 extend-exclude = [
   "old_docs",
-  "config_setup.py",
 ]
 
 [tool.ruff.format]
@@ -87,19 +86,13 @@ project-includes = ["src"]
 # as the base `Component` class and reports ~68 spurious errors (calling a Set, indexing a Param,
 # iterating a Var).  None are actionable without annotating pyomo itself, so skip the file.
 # `src/integrator` files are not yet migrated and should be excluded for now.
-# `src/common/model.py` is dead as a base class (see CLAUDE.md); its errors are mostly real but
-# not worth fixing or suppressing in code that should not be built on.
 project-excludes = [
   "src/models/electricity/electricity_model.py",
   "src/models/natural_gas/ng_model.py",
   "src/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
   # both of the main "model" files have typing issues related to pyomo that predate this work
-  "src/models/electricity/preprocessor.py",  # flagged for removal
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet
   "src/integrator/unified.py",  # not in upgrade scope yet
-  "src/integrator/runner.py",  # flagged for removal
-  "src/common/model.py",  # flagged for removal
-  "src/common/config_setup.py",  # flagged for removal
 ]
 # The project has no [build-system] and is run from the repo root, so `definitions` and the
 # `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic
@@ -207,11 +200,7 @@ test-erase = { cmd = "coverage erase", description = "Wipe previously recorded c
 test-runner = {cmd="pytest --cov=src --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
-# C-NGMM, the natural gas market model.  Standalone; not yet wired into the integrator.
-# The sequencer is the entry point: ng_model.py builds the model but has no __main__ block, so
-# it cannot be run with -m.  Years, region subset and output location come from the TOML rather
-# than the command line -- see run_configs/basic_ng_config.toml -- so there is no smoke variant
-# to pass a smaller case; set `region_filter` under [natural_gas] for that.
+# C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }

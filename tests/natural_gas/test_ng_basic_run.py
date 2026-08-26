@@ -27,8 +27,8 @@ verbose = True
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type          Total Cost ($)   Variables   Constraints
 # ----------------  ---------------  ----------  -----------
-# basic_config      -385180372245.78       1476         1530
-# partial_regions   -187450949730.18        342          342
+# basic_config      -480902641083.88       1476         1530
+# partial_regions   -319146064790.54        342          342
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
@@ -46,11 +46,20 @@ verbose = True
 #         -180937210.1642696 x 1036 = -187450949730.18   (partial_regions)
 #     Every term in the objective carries that factor, so the rescale is linear and changed
 #     no quantity, flow or price: production and prices matched to solver tolerance across the
-#     change and the variable and constraint counts are unchanged. If these numbers move again
-#     WITHOUT a corresponding change to mmbtu_per_bcf, the formulation changed.
+#     change and the variable and constraint counts are unchanged.
+# 5.  THESE VALUES MOVED AGAIN when the supply curve's origin was reconciled with the
+#     committed-production floor. QBASE_1, the curve's lowest breakpoint, and QMIN were built
+#     from unrelated inputs, 0.565 x Q0 against 0.20 x Q0, so production_total reported a
+#     quantity 31,510 BCF away from the point the marginal price was read at. Both now derive
+#     from the same fraction, which is the condition NGMM Eq 8's identity assumes. 2030
+#     production is essentially unchanged, 44,639 BCF against 44,661 before, while prices fall
+#     from 2.44-4.73 to 1.84-3.51 $/MMBtu because the old curve was evaluated about 35 percent
+#     further along than the production it reported. Counts are unchanged because the
+#     producer-cost coefficients moved into mutable Params, which add neither a variable nor a
+#     constraint.
 configs = [
-    ('basic_config', -385180372245.78, 1476, 1530),
-    ('partial_regions', -187450949730.18, 342, 342),
+    ('basic_config', -480902641083.88, 1476, 1530),
+    ('partial_regions', -319146064790.54, 342, 342),
 ]
 
 

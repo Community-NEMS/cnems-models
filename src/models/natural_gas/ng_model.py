@@ -387,7 +387,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 sum(cap for cap, _ in supply_cost_tiers[r])
                 * supply_anchors.get((r, y), (1.0, 1.0))[0]
             )
-            return supply_qbase(q0, k, crv_below, crv_above)
+            return self._supply_qbase_at(q0, k)
 
         def _pbase_init(m, r, k, y):
             tr = supply_cost_tiers[r]
@@ -585,9 +585,17 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Total production per (region, year), Expression rather than Var so the
         # objective and demand-balance terms reference the step sum directly (NGMM Eq 8).
-        # Equals QMIN (committed floor) + Σ_k sstep[r, k, y]  (NGMM Eq 8).
+        # Equals QBASE_1 (the curve's own origin) + Σ_k sstep[r, k, y].
+        #
+        # WHY QBASE_1 AND NOT QMIN. Each sstep is a WIDTH measured between consecutive
+        # breakpoints, so the five of them sum to QBASE_6 - QBASE_1, and the origin added
+        # back has to be the one the widths were measured from or the reported total sits
+        # at a different place on the curve than the marginal price came from. NGMM Eq 8
+        # writes the same identity with QMIN, which is consistent because _supply_qbase_at()
+        # makes QBASE_1 the committed floor. Reading QBASE_1 here rather than QMIN keeps the
+        # identity true of the curve itself rather than of an equality maintained elsewhere.
         def _prod_total_rule(m, r, y):
-            return m.q_min[r, y] + quicksum(m.sstep[r, t, y] for t in m.steps)
+            return m.q_base[r, 1, y] + quicksum(m.sstep[r, t, y] for t in m.steps)
 
         self.production_total = Expression(self.region_analyze, self.year, rule=_prod_total_rule)
 
@@ -677,6 +685,31 @@ class NGModel(ConcreteModel, IntegratedModel):
                 m.q_base[r, int(t.replace('step', '')) + 1, y]
                 - m.q_base[r, int(t.replace('step', '')), y]
             ),
+            mutable=True,
+        )
+
+        # Producer-cost coefficients per supply segment, held as mutable Params so that a
+        # capacity update can refresh them alongside the breakpoints they derive from. See
+        # the producer-cost block in the objective for why these are coefficients rather
+        # than symbolic reads of q_base / p_base.
+        _cost_coeffs = {
+            (r, f'step{k}', y): self._supply_cost_coeffs(r, k, y)
+            for r in self.region_analyze
+            for k in self.supply_step_ids
+            for y in self.year
+        }
+        self.prod_cost_intercept = Param(
+            self.region_analyze,
+            self.steps,
+            self.year,
+            initialize={key: coeffs[0] for key, coeffs in _cost_coeffs.items()},
+            mutable=True,
+        )
+        self.prod_cost_slope = Param(
+            self.region_analyze,
+            self.steps,
+            self.year,
+            initialize={key: coeffs[1] for key, coeffs in _cost_coeffs.items()},
             mutable=True,
         )
 
@@ -838,44 +871,35 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # 1) Producer cost, area under the supply curve (subtracted from
         #    surplus = added to total_cost in minimisation form, NGMM Eq 7).
-        # Evaluate widths/slopes as
-        # numeric values from the breakpoint Params at construction time and
-        # skip zero-width segments to avoid ZeroDivisionError on regions with
-        # Q0 = 0 (none in current data, but defensive).
-        # WHY THIS IS A QP, AND WHY THE SLOPES ARE PYTHON FLOATS.
+        # WHY THIS IS A QP, AND WHY THE COEFFICIENTS ARE PARAMS.
         # Each segment contributes the trapezoid area under the supply curve between
         # (QBASE_k, PBASE_k) and (QBASE_k+1, PBASE_k+1), which integrates to
         # PBASE_k * q + 0.5 * slope * q^2
         # , linear plus quadratic in the segment volume q. That q^2 is the entire source of
         # the model's non-linearity, and it is why appsi_highs cannot carry this model.
         #
-        # Note value() on the breakpoints: the widths and slopes are evaluated NUMERICALLY at
-        # construction, so they enter the expression as constants and only q stays symbolic.
-        # That keeps the Hessian constant and the problem a genuine convex QP rather than a
-        # general nonlinear program. Rewriting these to read the Params symbolically would
-        # still "work" but would hand the solver a harder problem.
+        # The intercept and slope live in mutable Params rather than being read symbolically
+        # from q_base / p_base. Pyomo resolves mutable Params to numbers when the model is
+        # written, so the Hessian stays constant and the problem stays a genuine convex QP;
+        # dividing one breakpoint difference by another inside the expression would not.
+        # Unlike the Python floats this block used to bake in, Params can be refreshed, so
+        # update_supply_capacity() moves the cost curve and the segment widths together.
+        # Both paths compute the coefficients through _supply_cost_coeffs(), which is what
+        # keeps them consistent.
         #
-        # Note also the k and k+1 reads: SIX breakpoints bound FIVE segments, so every loop
-        # here spans a pair. Mixing up breakpoint and segment indexing is the classic
+        # Note the k and k+1 reads inside that helper: SIX breakpoints bound FIVE segments,
+        # so it spans a pair. Mixing up breakpoint and segment indexing is the classic
         # off-by-one in this formulation.
-        prod_cost = 0
-        for r in self.region_analyze:
-            for y in self.year:
-                for k_seg in range(1, len(self.supply_step_ids) + 1):
-                    tname = f'step{k_seg}'
-                    qb_k_v = value(self.q_base[r, k_seg, y])
-                    qb_k1_v = value(self.q_base[r, k_seg + 1, y])
-                    width_v = qb_k1_v - qb_k_v
-                    # Zero-width segments are skipped, not divided by. They arise wherever a
-                    # region has no capacity of a given type (all breakpoints collapse onto
-                    # the same value), and without this guard the slope below is a 0/0.
-                    if width_v <= 1e-9:
-                        continue
-                    pb_k_v = value(self.p_base[r, k_seg, y])
-                    pb_k1_v = value(self.p_base[r, k_seg + 1, y])
-                    slope_v = (pb_k1_v - pb_k_v) / width_v
-                    q = self.sstep[r, tname, y]
-                    prod_cost = prod_cost + (pb_k_v * q + 0.5 * slope_v * q * q) * bcf
+        prod_cost = quicksum(
+            (
+                self.prod_cost_intercept[r, t, y] * self.sstep[r, t, y]
+                + 0.5 * self.prod_cost_slope[r, t, y] * self.sstep[r, t, y] * self.sstep[r, t, y]
+            )
+            * bcf
+            for r in self.region_analyze
+            for t in self.steps
+            for y in self.year
+        )
 
         # 2) Gathering charge (NGMM Eq 7, P^gath term)
         gathering_cost = quicksum(
@@ -1117,6 +1141,72 @@ class NGModel(ConcreteModel, IntegratedModel):
                 continue
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
+    def _supply_qbase_at(self, q0: float, k: int) -> float:
+        """Return supply-curve breakpoint ``k`` for anchor ``q0``, floor rule included.
+
+        Breakpoint 1 is the curve's origin and therefore IS the committed-production floor
+        QMIN, not a further step below it. NGMM Eq 8 writes production as QMIN plus the
+        segment volumes, an identity that only holds when QBASE_1 == QMIN; deriving the two
+        from unrelated inputs (the crv_below cumulative product against a scalar fraction of
+        Q0) put them 0.565 x Q0 and 0.20 x Q0 apart and left every price reading off the
+        curve at a quantity the model never reported.
+
+        Construction and :meth:`update_supply_capacity` both route through here so the rule
+        cannot be applied in one place and missed in the other.
+
+        Parameters
+        ----------
+        q0 : float
+            Expected-production anchor for the region and year.
+        k : int
+            1-based breakpoint index, 1..6.
+
+        Returns
+        -------
+        float
+            Breakpoint quantity in BCF.
+        """
+        if k == 1:
+            return self.qp_scalars['supply_curve_qmin_fraction'] * q0
+        shape = self.supply_curve_shape
+        return supply_qbase(q0, k, shape['crv_below'], shape['crv_above'])
+
+    def _supply_cost_coeffs(self, region: str, k_seg: int, year: int) -> tuple[float, float]:
+        """Return the producer-cost trapezoid coefficients for one supply segment.
+
+        The segment between breakpoints ``k_seg`` and ``k_seg + 1`` contributes
+        ``intercept * q + 0.5 * slope * q**2`` to producer cost, where ``q`` is the volume
+        on that segment. Construction and :meth:`update_supply_capacity` both call this, so
+        the coefficients cannot drift away from the breakpoints they are derived from.
+
+        Degenerate (zero-width) segments return ``(0.0, 0.0)`` rather than dividing by zero.
+        Their ``sstep`` is capped at zero by ``supply_step_cap_con``, so the term vanishes
+        either way, and the segment recovers real coefficients if a later capacity update
+        gives it width.
+
+        Parameters
+        ----------
+        region : str
+            Analysis region.
+        k_seg : int
+            1-based segment index over the five supply segments.
+        year : int
+            Model year.
+
+        Returns
+        -------
+        tuple[float, float]
+            Intercept (PBASE at the lower breakpoint) and slope (price rise per BCF).
+        """
+        qb_k = value(self.q_base[region, k_seg, year])
+        qb_k1 = value(self.q_base[region, k_seg + 1, year])
+        width = qb_k1 - qb_k
+        if width <= 1e-9:
+            return 0.0, 0.0
+        pb_k = value(self.p_base[region, k_seg, year])
+        pb_k1 = value(self.p_base[region, k_seg + 1, year])
+        return pb_k, (pb_k1 - pb_k) / width
+
     def update_supply_capacity(
         self,
         capacity_updates: dict,  # {(region_str, cost_tier_str, year_int): bcf_float}
@@ -1137,8 +1227,9 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         Having aggregated to a new Q0, this alpha-blends it against the current Q0, rebuilds
         the breakpoints (QBASE, PBASE) via the NGMM Eq 2-5 helpers, and refreshes the
-        step-width ``supply_capacity`` Param. The objective's quadratic supply-cost expression
-        picks the new curve up on the next solve.
+        step-width ``supply_capacity`` Param together with the producer-cost coefficients,
+        so the objective's quadratic supply-cost expression picks the new curve up on the
+        next solve.
 
         Parameters
         ----------
@@ -1178,19 +1269,22 @@ class NGModel(ConcreteModel, IntegratedModel):
             # moves -- so the price breakpoints are rebuilt around the same anchor price.
             current_p0 = value(self.p0[region, year])
             for k in self.supply_break_ids:  # 1..6
-                self.q_base[region, k, year].set_value(
-                    supply_qbase(new_q0, k, crv_below, crv_above)
-                )
+                self.q_base[region, k, year].set_value(self._supply_qbase_at(new_q0, k))
                 self.p_base[region, k, year].set_value(
                     supply_pbase(current_p0, k, crv_below, crv_above, elas)
                 )
-            # Refresh the legacy-shape ``supply_capacity`` Param (segment widths)
+            # Refresh the legacy-shape ``supply_capacity`` Param (segment widths) and the
+            # producer-cost coefficients. Both derive from the breakpoints just rebuilt, and
+            # missing the second is what previously left the objective on the old curve.
             for k_seg in self.supply_step_ids:  # 1..5
                 tname = f'step{k_seg}'
                 width = value(
                     self.q_base[region, k_seg + 1, year] - self.q_base[region, k_seg, year]
                 )
                 self.supply_capacity[region, tname, year].set_value(max(width, 0.0))
+                intercept, slope = self._supply_cost_coeffs(region, k_seg, year)
+                self.prod_cost_intercept[region, tname, year].set_value(intercept)
+                self.prod_cost_slope[region, tname, year].set_value(slope)
             rebuilt += 1
 
         logger.debug(

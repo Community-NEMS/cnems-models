@@ -88,7 +88,9 @@ class FilterPackage:
         self.year_filter = set(self.year_filter) if self.year_filter else None
 
 
-def load_dataframes_w_datapackage(base_path: UPath, filters: FilterPackage | None = None) -> pd.DataFrame:
+def load_dataframes_w_datapackage(
+    base_path: UPath, filters: FilterPackage | None = None
+) -> pd.DataFrame:
     """Load dataframes from CSV files and enforce schema.
 
     This method assumes that ``base_path`` points to a directory (either local or
@@ -101,17 +103,17 @@ def load_dataframes_w_datapackage(base_path: UPath, filters: FilterPackage | Non
     Optionally, this method can take a ``FilterPackage`` object, which will filter
     the dataframes on a set of region and year columns.
     """
-    datapackage = json.loads((base_path / "datapackage.json").read_text())
+    datapackage = json.loads((base_path / 'datapackage.json').read_text())
     dfs = {}
-    for resource in datapackage["resources"]:
+    for resource in datapackage['resources']:
         # Skip resource if CSV doesn't exist
-        csv_path = base_path / resource["path"]
+        csv_path = base_path / resource['path']
         if not csv_path.exists():
-            logger.info(f"{csv_path} does not exist. Skipping!")
+            logger.info(f'{csv_path} does not exist. Skipping!')
             continue
 
         # Load a pandera schema from the datapackage
-        schema = from_frictionless_schema(resource["schema"])
+        schema = from_frictionless_schema(resource['schema'])
         # Read the CSV and enforce the schema
         df = schema.validate(pd.read_csv(csv_path))
 
@@ -128,7 +130,7 @@ def load_dataframes_w_datapackage(base_path: UPath, filters: FilterPackage | Non
                 if len(year_cols) > 0:
                     year_mask = df[year_cols].isin(filters.year_filter).all(axis=1)
             df = df[region_mask & year_mask]
-        dfs[resource["name"]] = df
+        dfs[resource['name']] = df
     return dfs
 
 
@@ -430,7 +432,7 @@ if __name__ == '__main__':
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     new_dfs = load_dataframes_w_datapackage(
-        base_path=UPath("file://input/electricity/cem_inputs"), filters=param_filter
+        base_path=UPath('file://input/electricity/cem_inputs'), filters=param_filter
     )
     for name, df in new_dfs.items():
         print(name, '\n', df.head())

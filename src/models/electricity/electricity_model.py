@@ -161,7 +161,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             wind_members = defaultdict(list, {k: sorted(v) for k, v in wind_idx.items()})
             solar_members = defaultdict(list, {k: sorted(v) for k, v in solar_idx.items()})
 
-            # TODO:  Rename these 3 sets...they are all VRE... can we be more clear?
             self.eligible_reserves = pyo.Set(
                 self.region_analyze,
                 ReserveType,
@@ -185,26 +184,40 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=solar_members,
             )
 
-        # make an indexed set of storage (region, tech, step, year) indexed by hour
+        # Indexed set of storage (region, tech, step, year) indexed by hour
         self.storage_hour_index = pyo.Set(
             self.hour,
             initialize=model_sets.storage_hour_index,
             within=self.region_analyze * self.tech_stor * self.step * self.year,
         )
 
-        # Generation-eligible hours
-        self.generation_hour_index = pyo.Set(self.hour, initialize=model_sets.generation_hour_index)
+        # Generation sources indexed by hour
+        self.generation_hour_index = pyo.Set(
+            self.hour,
+            within=self.region_analyze * self.tech_gen * self.step * self.year,
+            initialize=model_sets.generation_hour_index,
+        )
 
-        # Generation-eligible hours for H2 technologies
+        # Generation sources indexed by hour for H2 technologies
         self.h2_generation_hour_index = pyo.Set(
-            self.hour, initialize=model_sets.h2_generation_hour_index
+            self.hour,
+            within=self.region_analyze * self.tech_h2 * self.step * self.year,
+            initialize=model_sets.h2_generation_hour_index,
         )
 
         self.generation_demand_balance = pyo.Set(
-            self.region_analyze, self.year, self.hour, initialize=model_sets.generation_demand_index
+            self.region_analyze,
+            self.year,
+            self.hour,
+            within=self.tech_gen * self.step,
+            initialize=model_sets.generation_demand_index,
         )
         self.storage_demand_balance = pyo.Set(
-            self.region_analyze, self.year, self.hour, initialize=model_sets.storage_demand_index
+            self.region_analyze,
+            self.year,
+            self.hour,
+            within=self.tech_stor * self.step,
+            initialize=model_sets.storage_demand_index,
         )
 
         # Capacity sources indexed by region, year
@@ -220,16 +233,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-
-            def retireable(m, _, tech, step, __):
-                """Check if the combination of tech-step is in the eligible set."""
-                return (tech, step) in m.tech_retireable
-
             self.capacity_retirements_index = pyo.Set(
                 dimen=4,
-                within=self.region_analyze * self.tech * self.step * self.year,
+                within=self.region_analyze * self.tech_retireable * self.year,
                 initialize=model_sets.retirement_index,
-                validate=retireable,
             )
 
         # if capacity expansion and learning are on
@@ -300,7 +307,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.unmet_load_penalty = pyo.Param(initialize=UNMET_LOAD_PRICE)
 
         # dev note: A missing price value (sparse set) will cause fail w/o a default value here,
-        #           which is OK
+        #           which is OK as it probably indicates a true error.
         self.supply_price = pyo.Param(
             self.region_analyze,
             self.tech,
@@ -331,7 +338,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.hour,
             initialize=all_frames['cap_factor_vre'],
             within=pyo.NonNegativeReals,
-            # TODO:  Needed to "make it work" with MIA values.  Decide if that is intended...
             default=0.0,
         )
         self.hydro_cap_factor = pyo.Param(
@@ -346,6 +352,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.hours_to_buy = pyo.Param(
             self.tech_stor, initialize=all_dicts['hours_to_buy'], within=pyo.NonNegativeReals
         )
+        # TODO:  How is it that the H2 price could be sensitive to the "step" of the consuming
+        #        technology?  Same question for the technology itself?
+        #        Is it some compensation for usage rate, which should be handled
+        #        in a different way?
         self.h2_price = pyo.Param(
             self.region_analyze,
             self.tech_h2,
@@ -491,19 +501,19 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=lambda m, r, y, h: domestic_destinations.get((r, y, h), []),
             )
 
-        # if reserve margin requirements are on
+        # if reserve margin requirements are on, set up the reserve margin reqts.
         if elec_config.reserve_margin_required:
             self.reserve_margin = pyo.Param(
                 self.region_analyze, initialize=all_dicts['reserve_margin']
             )
 
-        # if ramping requirements are on
+        # if ramping requirements are on, ...
         if elec_config.ramping_required:
             self.ramp_up_cost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_up_cost'])
             self.ramp_down_cost = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_down_cost'])
             self.ramp_rate = pyo.Param(self.tech_conv, initialize=all_dicts['ramp_rate'])
 
-        # if operating reserve requirements are on
+        # if operating reserve requirements are on, ...
         if elec_config.spinning_reserve_required:
             self.reg_reserves_cost = pyo.Param(self.tech, initialize=all_dicts['reg_reserves_cost'])
             # note:  The data is cast to cover all combinations of ReserveType and Tech

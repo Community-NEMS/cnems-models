@@ -177,6 +177,8 @@ class ModelSets:
             logger.warning('capacity_index is empty')
         logger.info(f'Built Capacity Index of size: {len(self.capacity_index)}')
 
+        # TODO:  This structure limits possible retirements to only things currently in
+        #        supply_curve_index.  Review.
         self.retirement_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year)
             for idx in supply_curve_index

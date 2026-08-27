@@ -10,6 +10,7 @@ initialization
 
 """
 
+import json
 import logging
 from collections.abc import Iterable, Sequence
 from csv import DictReader
@@ -18,6 +19,8 @@ from pathlib import Path
 
 import pandas as pd
 from pandas import DataFrame
+from pandera.io.pandas_io import from_frictionless_schema
+from upath import UPath
 
 from definitions import PROJECT_ROOT
 from src.models.electricity.param_source_loader import ParamSource, load_param_sources
@@ -70,7 +73,7 @@ class FilterPackage:
         '2025' and '2042' in 'year'
     """
 
-    region_filter: Iterable[str] | None = None
+    region_filter: Iterable[str] | Iterable[int] | None = None
     region_cols: Iterable[str] = ('region', 'destination_region', 'source_region')
     year_filter: Iterable[int] | None = None
     year_col: Iterable[str] = ('year',)
@@ -80,11 +83,38 @@ class FilterPackage:
         # check for correct types for proper filter functionality
         if self.year_filter and any(isinstance(v, str) for v in self.year_filter):
             raise ValueError('Year filter must be a set of integers')
-        if self.region_filter and any(isinstance(v, int) for v in self.region_filter):
-            raise ValueError('Region filter must be a set of strings')
         # pop items into set for faster lookups
         self.region_filter = set(self.region_filter) if self.region_filter else None
         self.year_filter = set(self.year_filter) if self.year_filter else None
+
+
+def load_dataframes_w_datapackage(base_path: UPath, filters: FilterPackage | None = None) -> pd.DataFrame:
+    """Read a specified csv from a given directory, and enforce the schema."""
+    datapackage = json.loads((base_path / "datapackage.json").read_text())
+    dfs = {}
+    for resource in datapackage["resources"]:
+        csv_path = base_path / resource["path"]
+        if not csv_path.exists():
+            logger.info(f"{csv_path} does not exist. Skipping!")
+            continue
+
+        schema = from_frictionless_schema(resource["schema"])
+        df = schema.validate(pd.read_csv(csv_path))
+
+        if filters is not None:
+            region_mask = pd.Series(True, index=df.index)
+            year_mask = pd.Series(True, index=df.index)
+            if filters.region_filter is not None:
+                region_cols = list(set(df.columns) & set(filters.region_cols))
+                if len(region_cols) > 0:
+                    region_mask = df[region_cols].isin(filters.region_filter).all(axis=1)
+            if filters.year_filter is not None:
+                year_cols = list(set(df.columns) & set(filters.year_col))
+                if len(year_cols) > 0:
+                    year_mask = df[year_cols].isin(filters.year_filter).all(axis=1)
+            df = df[region_mask & year_mask]
+        dfs[resource["name"]] = df
+    return dfs
 
 
 def convert_to_df(param_dict: dict, index_names: Sequence[str], value_name: str) -> DataFrame:
@@ -378,4 +408,14 @@ if __name__ == '__main__':
     # make df conversions
     dfs = load_dataframes(param_data)
     for name, df in dfs.items():
+        print(name, '\n', df.head())
+
+    # test new df loader
+    regions = {4, 7, 8}
+    years = {2025, 2042}
+    param_filter = FilterPackage(region_filter=regions, year_filter=years)
+    new_dfs = load_dataframes_w_datapackage(
+        base_path=UPath("file://input/electricity/cem_inputs"), filters=param_filter
+    )
+    for name, df in new_dfs.items():
         print(name, '\n', df.head())

@@ -13,7 +13,6 @@ from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.validators import region_check
 from src.models.electricity.constants import (
-    H2_HEATRATE,
     REGULATION_RESERVE_PROPORTION,
     SOLAR_FLEX_RESERVE_PROPORTION,
     SOLAR_REGULATION_RESERVE_PROPORTION,
@@ -352,24 +351,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.hours_to_buy = pyo.Param(
             self.tech_stor, initialize=all_dicts['hours_to_buy'], within=pyo.NonNegativeReals
         )
-        # TODO:  How is it that the H2 price could be sensitive to the "step" of the consuming
-        #        technology?  Same question for the technology itself?
-        #        Is it some compensation for usage rate, which should be handled
-        #        in a different way?
-        self.h2_price = pyo.Param(
-            self.region_analyze,
-            self.tech_h2,
-            self.step,
-            self.year,
-            self.season,
-            initialize=all_frames['h2_price'],
-            within=pyo.NonNegativeReals,
-            mutable=True,
-        )
 
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
-
-        self.h2_heatrate = pyo.Param(initialize=H2_HEATRATE)
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -633,16 +616,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             * self.storage_level[r, tech, step, y, hr]
                         )
                         for (r, tech, step, y) in self.storage_hour_index[hr]
-                    )
-                    # dimensional analysis for cost:
-                    # $/kg * kg/Gwh * Gwh = $
-                    # so we need 1/heatrate for kg/Gwh
-                    + sum(
-                        self.weight_year[y]
-                        * self.h2_price[r, tech, step, y, season]
-                        / self.h2_heatrate
-                        * self.generation_total[r, tech, 1, y, hr]  # TODO:  Why the hardcode "1"?
-                        for (r, tech, step, y) in self.h2_generation_hour_index[hr]
                     )
                 )
                 for hr in self.hour

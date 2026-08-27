@@ -10,8 +10,9 @@ Any constants used in elec processing
 """
 
 TRANSMISSION_LOSS_FACTOR = 0.02  # Transmission losses %
+
 # 13.84 kwh/kg, for kwh/kg H2 -> 54.3, #conversion kwh/kg to GWh/kg
-H2_HEATRATE = 13.84 / 1000000
+H2_HEATRATE = 13.84 / 1000000  # currently NOT used
 
 UNMET_LOAD_PRICE = 500_000  # TODO:  This seems quite high, but scale is unclear RN.  Re-evaluate
 

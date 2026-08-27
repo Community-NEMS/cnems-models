@@ -54,7 +54,6 @@ _ALWAYS_REQUIRED = frozenset(
         'hydro_cap_factor',
         'supply_price',
         'supply_curve',
-        'h2_price',
     }
 )
 
@@ -101,21 +100,26 @@ _GATED_BY_SWITCH = {
 # generation_dispatchable_ub / generation_vre_ub / storage_outflow_ub -- restores the bound, which
 # raises each of these objectives by ~4-13%.  Variable and constraint counts are unchanged: the
 # degenerate form still referenced capacity_total (a Var), so the constraint was always constructed.
+# Note: all seven expected total costs below were re-captured when the `h2_price` param and its
+# objective term were removed.  That term charged an H2 fuel cost on generation from `tech_h2`, so
+# dropping it lowers each objective by ~0.0003%.  Variable and constraint counts are unaffected:
+# the term only added a Param coefficient onto `generation_total` entries that other constraints
+# already referenced.
 configs = [
-    ('basic', 3664955382.94, 17436, 19182),
-    ('exchange', 2581536448.8, 20892, 22830),
-    ('expansion_no_learning', 3668708970.98, 17610, 19308),
-    ('ramping', 3734942516.56, 32412, 41646),
-    ('reserve_with_expansion_no_learning', 5138465146.53, 18762, 22188),
+    ('basic', 3664944639.12, 17436, 19182),
+    ('exchange', 2581526790.54, 20892, 22830),
+    ('expansion_no_learning', 3668698225.74, 17610, 19308),
+    ('ramping', 3734931833.87, 32412, 41646),
+    ('reserve_with_expansion_no_learning', 5138454401.3, 18762, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        5140340877.8,
+        5140330132.57,
         51594,
         56748,
     ),
-    ('agg_years', 14185060761.96, 17436, 19182),  # <-- no good starting value
+    ('agg_years', 14185018119.65, 17436, 19182),  # <-- no good starting value
 ]
 
 

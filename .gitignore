@@ -51,3 +51,6 @@ run_configs/last_app_config.json
 # coverage
 coverage.xml
 .coverage
+# per-worker data files written by pytest-cov under xdist, normally consumed by
+# `coverage combine`; they survive an interrupted run and `.coverage` does not match them
+.coverage.*

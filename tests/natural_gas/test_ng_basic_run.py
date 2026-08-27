@@ -20,7 +20,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IterationStatus
 from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from src.models.natural_gas.sequencer import NGSequencer, main
 
 verbose = True
 
@@ -127,3 +127,46 @@ class TestNGBasicRun:
         assert ng_model.nconstraints() == expected_nconstraints, (
             f'found {ng_model.nconstraints()} constraints'
         )
+
+
+class TestSequencerMain:
+    """``main()`` must not present a failed solve as a successful run.
+
+    The failure path used to log an objective read off a failed solve and write five result
+    CSVs, so an infeasible configuration produced output indistinguishable from a good run.
+    """
+
+    def test_returns_one_on_solve_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An ERROR status exits non-zero rather than falling through."""
+        monkeypatch.setattr(
+            NGSequencer, 'solve_model', lambda self, **kwargs: IterationStatus.ERROR
+        )
+        monkeypatch.setattr(NGSequencer, 'full_postprocess', lambda self, **kwargs: None)
+        assert main() == 1
+
+    def test_no_results_written_on_solve_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Neither the objective read nor the CSV write happens after a failed solve."""
+        monkeypatch.setattr(
+            NGSequencer, 'solve_model', lambda self, **kwargs: IterationStatus.ERROR
+        )
+        touched: list[str] = []
+        monkeypatch.setattr(
+            NGSequencer, 'full_postprocess', lambda self, **kwargs: touched.append('postprocess')
+        )
+        # Patch the module-global `value` so a read of total_cost is observable rather than
+        # merely assumed absent.
+        import src.models.natural_gas.sequencer as seq_mod
+
+        monkeypatch.setattr(seq_mod, 'value', lambda expr: touched.append('objective') or 0.0)
+
+        assert main() == 1
+        assert touched == [], f'failed solve still did: {touched}'
+
+    def test_returns_zero_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The happy path is unchanged and still postprocesses."""
+        touched: list[str] = []
+        monkeypatch.setattr(
+            NGSequencer, 'full_postprocess', lambda self, **kwargs: touched.append('postprocess')
+        )
+        assert main() == 0
+        assert touched == ['postprocess']

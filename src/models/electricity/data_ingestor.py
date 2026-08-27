@@ -89,18 +89,33 @@ class FilterPackage:
 
 
 def load_dataframes_w_datapackage(base_path: UPath, filters: FilterPackage | None = None) -> pd.DataFrame:
-    """Read a specified csv from a given directory, and enforce the schema."""
+    """Load dataframes from CSV files and enforce schema.
+
+    This method assumes that ``base_path`` points to a directory (either local or
+    remote) that contains a ``datapackage.json`` file and a set of CSVs. It will then
+    loop through all of the resources described in the datapackage, check if there
+    is a corresponding CSV file for each resource, and read the CSV if it exists.
+    While reading CSV files, it will also use pandera to enforce the schema specified
+    in the datapackage.
+
+    Optionally, this method can take a ``FilterPackage`` object, which will filter
+    the dataframes on a set of region and year columns.
+    """
     datapackage = json.loads((base_path / "datapackage.json").read_text())
     dfs = {}
     for resource in datapackage["resources"]:
+        # Skip resource if CSV doesn't exist
         csv_path = base_path / resource["path"]
         if not csv_path.exists():
             logger.info(f"{csv_path} does not exist. Skipping!")
             continue
 
+        # Load a pandera schema from the datapackage
         schema = from_frictionless_schema(resource["schema"])
+        # Read the CSV and enforce the schema
         df = schema.validate(pd.read_csv(csv_path))
 
+        # Filter on region / year columns
         if filters is not None:
             region_mask = pd.Series(True, index=df.index)
             year_mask = pd.Series(True, index=df.index)

@@ -90,7 +90,7 @@ class FilterPackage:
 
 def load_dataframes_w_datapackage(
     base_path: UPath, filters: FilterPackage | None = None
-) -> pd.DataFrame:
+) -> dict[str, pd.DataFrame]:
     """Load dataframes from CSV files and enforce schema.
 
     This method assumes that ``base_path`` points to a directory (either local or

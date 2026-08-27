@@ -693,8 +693,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
 
-            # linear expansion costs
-            else:
+            # linear or no learning...  [linear is handled in the sequencer]
+            elif elec_config.expansion_learning_type in {
+                ExpansionLearningType.LINEAR,
+                ExpansionLearningType.DISABLED,
+            }:
 
                 def capacity_expansion_cost(self):
                     """Capacity expansion cost component for the objective function.
@@ -712,6 +715,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
+            else:
+                raise NotImplementedError(
+                    'unimplemented learning type/logic error: %s',
+                    elec_config.expansion_learning_type.value,
+                )
+
+        else:
+            self.fixed_om_cost = 0.0
+            self.capacity_expansion_cost = 0.0
 
         # if trade operation is on
         if elec_config.regional_exchange:
@@ -739,6 +751,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 )
 
             self.trade_cost = pyo.Expression(expr=trade_cost)
+        else:
+            self.trade_cost = 0.0
 
         # if ramping requirements are on
         if elec_config.ramping_required:
@@ -763,6 +777,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 )
 
             self.ramp_cost = pyo.Expression(expr=ramp_cost)
+        else:
+            self.ramp_cost = 0.0
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
@@ -789,6 +805,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 )
 
             self.operating_reserves_cost = pyo.Expression(expr=operating_reserves_cost)
+        else:
+            self.operating_reserves_cost = 0.0
 
         # Final Objective Function
         def electricity_objective_function(self):
@@ -799,18 +817,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             int
                 Objective function
             """
-            # TODO:  Clean up the double-conditionals here and make the cost zero where created
             return (
                 self.dispatch_cost
                 + self.unmet_load_cost
-                + (self.ramp_cost if elec_config.ramping_required else 0)
-                + (self.trade_cost if elec_config.regional_exchange else 0)
-                + (
-                    self.capacity_expansion_cost + self.fixed_om_cost
-                    if elec_config.capacity_expansion
-                    else 0
-                )
-                + (self.operating_reserves_cost if elec_config.spinning_reserve_required else 0)
+                + self.ramp_cost
+                + self.trade_cost
+                + self.capacity_expansion_cost
+                + self.fixed_om_cost
+                + self.operating_reserves_cost
             )
 
         self.total_cost = pyo.Objective(rule=electricity_objective_function, sense=pyo.minimize)
@@ -818,13 +832,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #  =======================================
         #               Constraints
         #  =======================================
-
-        # self.regional_exchange = elec_config.regional_exchange  # Only needed by rule below
-
-        # below is handled in indexed set creation at top (still incomplete)
-        # self.populate_demand_balance_sets = pyo.BuildAction(
-        #     rule=em.populate_demand_balance_sets_rule
-        # )
 
         # Property: ShadowPrice
         @self.Constraint(self.region_analyze, self.year, self.hour)
@@ -858,8 +865,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     - self.trade_interregional[r1, r, y, hr]
                     for r1 in self.regional_sources[r, y, hr]
                 )
-                # note:  don't need to check "region_trade" as the lookup in partners could be empty
-                if elec_config.regional_exchange  # and r in self.region_trade
+                if elec_config.regional_exchange
                 else 0
             ) + (
                 sum(
@@ -940,13 +946,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 - self.storage_outflow[r, t_stor, step, y, hr_most]
             )
 
-        # self.populate_hydro_sets = pyo.BuildAction(rule=em.populate_hydro_sets_rule)
-
-        # quick reverse lookup
+        # quick reverse lookup helper set...
         idx = defaultdict(list)
         for hour, season in self.map_hour_season.items():
             idx[season].append(hour)
-        self.hour_season_index = pyo.Set(self.season, initialize=idx)
+        self.hour_season_index = pyo.Set(self.season, within=self.hour, initialize=idx)
 
         @self.Constraint(self.capacity_hydro_ub_index)
         def capacity_hydro_ub(self, r, t_hydro, y, season):
@@ -1128,8 +1132,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
-
-        # TODO check if it's only able to build in regions with existing capacity?
         @self.Constraint(model_sets.storage_index)
         def storage_outflow_ub(self, r, tech, step, y, hr):
             """Storage outflow upper bound.
@@ -1333,8 +1335,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     <= self.tran_limit_cap_int[r, r_int, y, hr] * self.weight_hour[hr]
                 )
 
-            # filter the domestic region out of the international trade index and resequence
-
+            # filter the domestic region (receiver) out of the international trade index
             idx = [
                 (region_int, step, year, hour)
                 for (_, region_int, step, year, hour) in self.international_trade_index
@@ -1401,9 +1402,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 )
 
         # if reserve margin requirements and expansion are on
-
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
-            # self.populate_RM_sets = pyo.BuildAction(rule=em.populate_RM_sets_rule)
 
             @self.Constraint(self.elec_load.index_set())
             def reserve_margin_lb(self, r, y, hr):
@@ -1634,7 +1633,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
-            # self.populate_reserves_sets = pyo.BuildAction(rule=em.populate_reserves_sets_rule)
 
             @self.Constraint(self.elec_load.index_set())
             def reserve_requirement_spin_lb(self, r, y, hr):

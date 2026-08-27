@@ -326,22 +326,6 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
     return res
 
 
-def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
-    """
-    Update the external electical demand parameter with demands from the H2 model.
-
-    Parameters
-    ----------
-    elec_demand : dict[HI, float]
-        the new demands broken out by hyd index (region, year)
-    """
-    # this is kind of a 1-liner right now, but may evolve into something more elaborate when
-    # time scale is tweaked
-
-    self.fixed_elec_request.store_values(elec_demand)
-    logger.debug('Stored new fixed electrical request in elec model: %s', elec_demand)
-
-
 def create_temporal_mapping(temporal_resolution):
     """Combines the electricity model input mapping files into a master temporal mapping frame.
 

@@ -123,7 +123,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
         )
 
-        ################# Indexed sets
+        # —————————————  Indexed sets
 
         # Derivative reserve indexing sets...
         if elec_config.spinning_reserve_required:
@@ -416,19 +416,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
             """destination, source, year, hour"""
 
-            # An aside to make an indexed set of trading partners
-            # dev note:  It might be worthwhile to make this a sparse set and fabricate the index
-            #            of this separately to maintain the validation?  That would require a
-            #            conditional membership check where this is used.
-            partners = defaultdict(list)
-            for destination_region, source_region, year, hour in all_frames['tran_limit'].index:
-                partners[destination_region, year, hour].append(source_region)
-            self.regional_sources = pyo.Set(
-                self.region_analyze,
-                self.year,
-                self.hour,
-                initialize=lambda m, r, y, h: partners.get((r, y, h), []),
-            )
             self.tran_cost_int = pyo.Param(
                 self.region_analyze,
                 self.region_int,
@@ -450,6 +437,23 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.hour,
                 initialize=all_frames['tran_limit_cap_int'],
             )
+
+            # ————————————— Parameter-derived helper sets
+
+            # An aside to make an indexed set of trading partners
+            # dev note:  It might be worthwhile to make this a sparse set and fabricate the index
+            #            of this separately to maintain the validation?  That would require a
+            #            conditional membership check where this is used.
+            partners = defaultdict(list)
+            for destination_region, source_region, year, hour in all_frames['tran_limit'].index:
+                partners[destination_region, year, hour].append(source_region)
+            self.regional_sources = pyo.Set(
+                self.region_analyze,
+                self.year,
+                self.hour,
+                initialize=lambda m, r, y, h: partners.get((r, y, h), []),
+            )
+
             # use the index to create reverse-lookup to make index of intl regions that are
             # connected to a domestic region
             partners = defaultdict(list)
@@ -507,24 +511,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=all_dicts['res_tech_upper_bound'],
                 validate=reserve_tech_check,
             )
-
-        # Cross-talk from H2 model  # preserved as basis for expansion/ideas...?
-        # TODO:  Extract these?  ...not used
-        self.fixed_elec_request = pyo.Param(
-            self.region_analyze,
-            self.year,
-            domain=pyo.NonNegativeReals,
-            initialize=0,
-            mutable=True,
-            doc='a known fixed request from H2',
-        )
-        self.var_elec_request = pyo.Var(
-            self.region_analyze,
-            self.year,
-            domain=pyo.NonNegativeReals,
-            initialize=0,
-            doc='variable request from H2',
-        )
 
         #  =======================================
         #                 Variables

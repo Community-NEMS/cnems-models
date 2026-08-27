@@ -105,21 +105,26 @@ _GATED_BY_SWITCH = {
 # dropping it lowers each objective by ~0.0003%.  Variable and constraint counts are unaffected:
 # the term only added a Param coefficient onto `generation_total` entries that other constraints
 # already referenced.
+# Note: all seven expected variable counts below dropped by 6 when the `var_elec_request` Var (and
+# its companion `fixed_elec_request` Param) were removed.  That Var held an external electricity
+# demand from the deleted hydrogen module; nothing set it and no constraint or objective term
+# referenced it, so it contributed |region_analyze| x |year| = 3 x 2 = 6 free variables to every
+# config.  Total costs and constraint counts are unaffected.
 configs = [
-    ('basic', 3664944639.12, 17436, 19182),
-    ('exchange', 2581526790.54, 20892, 22830),
-    ('expansion_no_learning', 3668698225.74, 17610, 19308),
-    ('ramping', 3734931833.87, 32412, 41646),
-    ('reserve_with_expansion_no_learning', 5138454401.3, 18762, 22188),
+    ('basic', 3664944639.12, 17430, 19182),
+    ('exchange', 2581526790.54, 20886, 22830),
+    ('expansion_no_learning', 3668698225.74, 17604, 19308),
+    ('ramping', 3734931833.87, 32406, 41646),
+    ('reserve_with_expansion_no_learning', 5138454401.3, 18756, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
         5140330132.57,
-        51594,
+        51588,
         56748,
     ),
-    ('agg_years', 14185018119.65, 17436, 19182),  # <-- no good starting value
+    ('agg_years', 14185018119.65, 17430, 19182),  # <-- no good starting value
 ]
 
 

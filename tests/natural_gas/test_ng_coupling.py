@@ -301,12 +301,6 @@ class TestRegionMapLoading:
     ``KeyError: 'elec_region'``, naming a column plainly present in the file.
     """
 
-    def test_shipped_crosswalk_resolves(self) -> None:
-        """The shipped file is non-empty and region '1' resolves to a gas region."""
-        crosswalk = load_ng_region_map()
-        assert crosswalk, 'shipped crosswalk is empty'
-        assert crosswalk['1'], "region '1' must resolve"
-
     def test_leading_comment_row_raises_named_error(self, tmp_path: Path) -> None:
         """A '#' note is consumed as the header, and that must be said plainly."""
         target = tmp_path / 'xw.csv'

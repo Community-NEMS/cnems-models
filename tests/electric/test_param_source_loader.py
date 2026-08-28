@@ -24,7 +24,6 @@ _EXPECTED_PARAM_SOURCES = {
     'cap_cost_initial': ('CapCostInitial.csv', ('region', 'tech', 'step'), 'cost'),
     'cap_factor_vre': ('CapFactorVRE.csv', ('region', 'tech', 'step', 'hour'), 'value'),
     'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'cost'),
-    'h2_price': ('H2Price.csv', ('region', 'tech', 'step', 'year', 'season'), 'cost'),
     'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'hours'),
     'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'value'),
     'learning_rate': ('LearningRate.csv', ('tech',), 'rate'),
@@ -71,15 +70,14 @@ _REQUIRED_KEYS = {
     'hydro_cap_factor',
     'supply_price',
     'supply_curve',
-    'h2_price',
 }
 
 
 def test_load_param_sources_count_and_keys():
-    """All 23 entries load, keyed by the same names as the original dict."""
+    """All 22 entries load, keyed by the same names as the original dict."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
-    assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 23
+    assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 22
     assert set(loaded.keys()) == set(_EXPECTED_PARAM_SOURCES.keys())
 
 

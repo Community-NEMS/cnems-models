@@ -35,7 +35,6 @@ PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
 TIME_BASED_DFS = (
     'cap_cost',
     'cap_factor_vre',
-    'h2_price',
     'hydro_cap_factor',
     'supply_curve',
     'supply_price',

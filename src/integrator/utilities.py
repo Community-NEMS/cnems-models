@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 import pyomo.opt as pyo
-from pyomo.environ import ConcreteModel, value
+from pyomo.environ import ConcreteModel
 from pyomo.opt import OptSolver
 
 # Import python modules
@@ -323,125 +323,6 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
         res[hi] = sum(year_region_records[hi]) / len(year_region_records[hi])
 
     logger.debug('Computed these region-year averages for elec price: \n\t %s', res)
-    return res
-
-
-def poll_h2_prices_from_elec(
-    model: PowerModel, tech, regions: typing.Iterable
-) -> dict[typing.Any, float]:
-    """Poll the step-1 H2 price currently in the model for region/year, averaged over any steps.
-
-    Parameters
-    ----------
-    model : PowerModel
-        solved PowerModel
-    tech : str
-        h2 tech
-    regions : typing.Iterable
-
-    Returns
-    -------
-    dict[typing.Any, float]
-        a dictionary of (region, seasons, year): price
-    """
-    res = {}
-    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for idx in model.h2_price:
-        # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
-        r, t, step, y, season = idx
-        if t == tech and r in regions and step == 1:  # TODO:  remove hard coding
-            res[r, season, y] = value(model.h2_price[idx])
-
-    # pyrefly: ignore[bad-return]  - pyomo's value() is typed as returning None too
-    return res
-
-
-def update_h2_prices(model: PowerModel, h2_prices: dict[HI, float]) -> None:
-    """Update the H2 prices held in the model.
-
-    Parameters
-    ----------
-    h2_prices : list[tuple[HI, float]]
-        new prices
-    """
-    # TODO:  Fix this hard-coding below!
-    h2_techs = {5}  # temp hard-coding of the tech who's price we're going to set
-
-    update_count = 0
-    no_update = set()
-    good_updates = set()
-    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for region, tech, step, yr, season in model.h2_price:
-        if tech in h2_techs:
-            if (region, yr) in h2_prices:
-                model.h2_price[region, tech, step, yr, season] = h2_prices[
-                    HI(region=region, year=yr)
-                ]
-                update_count += 1
-                good_updates.add((region, yr))
-            else:
-                no_update.add((region, yr))
-    logger.debug('Updated %d H2 prices: %s', update_count, good_updates)
-
-    # check for any missing data
-    if no_update:
-        logger.warning('No new price info for region-year combos: %s', no_update)
-
-
-def update_elec_demand(self, elec_demand: dict[HI, float]) -> None:
-    """
-    Update the external electical demand parameter with demands from the H2 model.
-
-    Parameters
-    ----------
-    elec_demand : dict[HI, float]
-        the new demands broken out by hyd index (region, year)
-    """
-    # this is kind of a 1-liner right now, but may evolve into something more elaborate when
-    # time scale is tweaked
-
-    self.fixed_elec_request.store_values(elec_demand)
-    logger.debug('Stored new fixed electrical request in elec model: %s', elec_demand)
-
-
-def poll_h2_demand(model: PowerModel) -> dict[HI, float]:
-    """
-    Get the hydrogen demand by rep_year and region.
-
-    Use the Generation variable for h2 techs
-
-    NOTE:  Not sure about day weighting calculation here!!
-
-    Returns
-    -------
-    dict[HI, float]
-        dictionary of prices by H2 Index: price
-    """
-    h2_consuming_techs = {5}  # TODO:  get rid of this hard-coding
-
-    # gather results
-    res: dict[HI, float] = defaultdict(float)
-    tot_by_rep_year = defaultdict(float)
-    # iterate over the Generation variable and screen out the H2 "demanders"
-    # dimensional analysis for H2 demand:
-    #
-    # Gwh * kg/Gwh = kg
-    # so we need 1/heat_rate for kg/Gwh
-    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for idx in model.generation_total.index_set():
-        # pyrefly: ignore[not-iterable]  - idx is a pyomo key tuple, untyped
-        r, tech, _, y, hr = idx
-        if tech in h2_consuming_techs:
-            h2_demand_weighted = (
-                # pyrefly: ignore[unsupported-operation]  - pyomo's value() may return None
-                value(model.generation_total[idx])
-                * model.weight_day[model.map_hour_day[hr]]
-                / model.h2_heatrate
-            )
-            res[HI(region=r, year=y)] += h2_demand_weighted
-            tot_by_rep_year[y] += h2_demand_weighted
-
-    logger.debug('Calculated cumulative H2 demand by year as: %s', tot_by_rep_year)
     return res
 
 

@@ -118,7 +118,10 @@ Notes on each:
 - **`sorted(some_dict)`** — a bug, not a form. `sorted()` on a dict yields its *keys*, so
   this is the previous row with the index tuples as members:
   `ValueError: The value=('7', 2025, 1) has dimension 3 and is not valid for Set s['7',2025,1] which has dimen=2`.
-  When the dict is empty it degrades to `sorted({}) == []` and the bug hides completely.
+  The error only fires when the key dimension differs from `within=`'s `dimen` — the
+  real case had 3-tuple keys against `tech * step`. Match those two and it constructs
+  silently with the index tuples as members. When the dict is empty it degrades to
+  `sorted({}) == []` and the bug hides completely.
 
 ## Where this bit us
 
@@ -148,7 +151,7 @@ because its consumers only iterate keys it populates.
 `within=` is enforced per member set on an indexed Set, and it does real work:
 
 ```python
-pyo.Set(probe.i, within=ReserveType, initialize={1: ['not-a-reserve-type'], 2: []})
+pyo.Set(m.i, within=ReserveType, initialize={1: ['not-a-reserve-type'], 2: []})
 # ValueError: Cannot add value not-a-reserve-type to Set s[1].
 #   The value is not in the domain {ReserveType.FLEX, ReserveType.SPINNING, ReserveType.REGULATION}
 ```
@@ -162,8 +165,8 @@ enforce it with a `validate=` callback — see
 
 ## Probe source
 
-Two throwaway scripts reproduce everything above. Keep them in the scratchpad, not the
-repo.
+Three throwaway scripts reproduce everything above. Keep them in the scratchpad, not
+the repo.
 
 ```python
 # sparse Set: construction vs access
@@ -218,4 +221,72 @@ m.q = pyo.Param(m.i, m.j, initialize={('a', 1): 10.0})
 
 print(len(m.p), sorted(m.p))       # 4, all four keys
 print(len(m.q))                    # 1
+```
+
+```python
+# within= validation, the rejected Set default, and the sorted() bug
+from enum import Enum, unique
+
+import pyomo.environ as pyo
+
+
+@unique
+class ReserveType(Enum):
+    SPINNING = 'spinning'
+    REGULATION = 'regulation'
+    FLEX = 'flex'
+
+
+def probe():
+    m = pyo.ConcreteModel()
+    m.i = pyo.Set(initialize=[1, 2])
+    return m
+
+
+def show(label, fn):
+    try:
+        fn()
+        print(f'{label:<16} no error')
+    except Exception as exc:
+        print(f'{label:<16} {type(exc).__name__}: {" ".join(str(exc).split())}')
+
+
+m = probe()
+show('Set(default=)', lambda: m.add_component('s', pyo.Set(m.i, default=[])))
+
+m2 = probe()
+show(
+    'within=',
+    lambda: m2.add_component(
+        's', pyo.Set(m2.i, within=ReserveType, initialize={1: ['not-a-reserve-type'], 2: []})
+    ),
+)
+
+# sorted() on a dict yields its KEYS; the dimen error only fires when the key
+# dimension differs from within='s dimen
+m3 = pyo.ConcreteModel()
+m3.region = pyo.Set(initialize=['7'])
+m3.year = pyo.Set(initialize=[2025])
+m3.hour = pyo.Set(initialize=[1])
+m3.tech = pyo.Set(initialize=['wind'])
+m3.step = pyo.Set(initialize=[1])
+DATA = {('7', 2025, 1): [('wind', 1)]}
+show(
+    'sorted(dict)',
+    lambda: m3.add_component(
+        's', pyo.Set(m3.region, m3.year, m3.hour, within=m3.tech * m3.step, initialize=sorted(DATA))
+    ),
+)
+
+print(f"Enum vs str      {ReserveType.REGULATION == 'regulation'} "
+      f"(.value: {ReserveType.REGULATION.value == 'regulation'})")
+```
+
+```
+Set(default=)    ValueError: Unexpected keyword options found while constructing 'IndexedSet': default
+within=          ValueError: Cannot add value not-a-reserve-type to Set s[1]. The value is not in
+                 the domain {ReserveType.SPINNING, ReserveType.FLEX, ReserveType.REGULATION}
+sorted(dict)     ValueError: The value=('7', 2025, 1) has dimension 3 and is not valid for
+                 Set s['7',2025,1] which has dimen=2
+Enum vs str      False (.value: True)
 ```

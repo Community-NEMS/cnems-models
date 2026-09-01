@@ -82,8 +82,15 @@ def bubble_sort(items): ...
   after the block supplies the content. The trailing `!` strips the comment
   characters from the rendered output. Needs the `content.code.annotate` feature
   (or `.annotate` on the block).
-- **Embed a file** (needs `pymdownx.snippets`): `;--8<-- ".browserslistrc"` inside
-  a fenced block, or `--8<-- "path"` in prose.
+- **Embed a file** (needs `pymdownx.snippets`) — the marker sits on a line of its
+  own, in prose or inside a fenced block:
+
+      --8<-- "fragment.md"
+
+  Set `base_path = ["docs"]`; it defaults to the CWD, so an unqualified name is not
+  found from `docs/`. A leading `;` is the *escape*, not part of the syntax:
+  `;--8<-- "path"` renders the marker literally and embeds nothing. With the default
+  `check_paths = false` a missing file is dropped silently, leaving an empty block.
 - Use four backticks to fence a block that itself contains a fence.
 
 ## Diagrams

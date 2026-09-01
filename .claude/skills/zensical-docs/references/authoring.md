@@ -136,6 +136,10 @@ Figure caption
 ///
 ```
 
+The `/// caption` block needs `pymdownx.blocks.caption`, which is **not** in
+Zensical's default set — and declaring any extension replaces the defaults
+wholesale, so enabling it means re-declaring the rest too. See `configuration.md`.
+
 Light/dark variants: append `#only-light` / `#only-dark` to the image URL.
 
 ## Grids and cards

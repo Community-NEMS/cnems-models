@@ -21,10 +21,12 @@ __pycache__
 /docs/update_index_v2.py
 /docs/elec_debug.txt
 /docs/process_md_files.py
-/docs/build
 old_docs
 
 /src/models/electricity/process_md_files.py
+
+# Zensical build output
+/site
 
 # Outputs
 #output_root.txt

@@ -54,12 +54,12 @@ _ALWAYS_REQUIRED = frozenset(
         'hydro_cap_factor',
         'supply_price',
         'supply_curve',
+        'fom_cost',
     }
 )
 
 # Switch-gated sources -> the ElecConfig switch gating their declaration in electricity_model.py.
 _GATED_BY_SWITCH = {
-    'fom_cost': 'capacity_expansion',
     'cap_cost': 'capacity_expansion',
     'tran_cost': 'regional_exchange',
     'tran_cost_int': 'regional_exchange',
@@ -80,16 +80,17 @@ _GATED_BY_SWITCH = {
 # TODO:  Add combination with expansion + margin required to test combo
 #        constraint near line 1500 in model
 
-# Test configurations with expected ORIGINAL outputs:
+# Test configurations with expected outputs:
+# (Total Cost is kept current; the variable/constraint counts are the ORIGINAL legacy capture)
 # (constraint counts below are pre-VRE_UB-fix; current expectations add +192 constraints)
 # (variable counts below are pre-removal of season index from capacity add +450 vars, +450 constr)
 # Run Type                                Total Cost    Variables   Constraints
 # --------------------------------------  ------------  ----------  -----------
-# Basic No-Frills                         3452103301.9       17886        19440
-# Exchange Enabled                        2278237043.0       21342        23088
-# Expansion (no learning)                 3455793875.5       18060        19566
-# Ramping Required                        3522284566.9       32862        41904
-# Reserve Margin (mandatory expansion)    4925573167.9       19212        22446
+# Basic No-Frills                         3669432143.1       17886        19440
+# Exchange Enabled                        2586014294.5       21342        23088
+# Expansion (no learning)                 3668698225.7       18060        19566
+# Ramping Required                        3739419337.9       32862        41904
+# Reserve Margin (mandatory expansion)    5138454401.3       19212        22446
 # Agg Years                               ??  Broken.  Suspect it is used in preprocessor
 
 # Note: the six configs below that run with spinning_reserve_required=False had their expected
@@ -110,11 +111,21 @@ _GATED_BY_SWITCH = {
 # demand from the deleted hydrogen module; nothing set it and no constraint or objective term
 # referenced it, so it contributed |region_analyze| x |year| = 3 x 2 = 6 free variables to every
 # config.  Total costs and constraint counts are unaffected.
+# Note: the four expected total costs for configs running with capacity_expansion=False (basic,
+# exchange, ramping, agg_years) were re-captured when the cost logic was adjusted to apply FOM costs
+# universally instead of just to expansion.  The `fom_cost` param and the `fixed_om_cost` objective
+# term are now declared unconditionally rather than inside the `if elec_config.capacity_expansion`
+# block (where the term was otherwise hard-set to 0.0), so every config charges FOM against
+# `capacity_total`.  That adds a constant ~4.49M to each of those objectives (~18.0M for agg_years,
+# which weights multiple years into the representative one).  The three capacity_expansion=True
+# configs are unchanged -- they already carried the term -- and no variable or constraint count
+# moves, since `fixed_om_cost` is an Expression over `capacity_total`, which every config already
+# constructed.
 configs = [
-    ('basic', 3664944639.12, 17430, 19182),
-    ('exchange', 2581526790.54, 20886, 22830),
+    ('basic', 3669432143.12, 17430, 19182),
+    ('exchange', 2586014294.54, 20886, 22830),
     ('expansion_no_learning', 3668698225.74, 17604, 19308),
-    ('ramping', 3734931833.87, 32406, 41646),
+    ('ramping', 3739419337.87, 32406, 41646),
     ('reserve_with_expansion_no_learning', 5138454401.3, 18756, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
@@ -124,7 +135,7 @@ configs = [
         51588,
         56748,
     ),
-    ('agg_years', 14185018119.65, 17430, 19182),  # <-- no good starting value
+    ('agg_years', 14203013438.65, 17430, 19182),  # <-- no good starting value
 ]
 
 

@@ -44,11 +44,9 @@ run_configs/last_app_config.json
 # agents & such
 # Local settings and hooks stay untracked (settings.local.json holds a personal
 # permission allowlist; settings.json hardcodes an absolute hook path). Shared
-# skills are committed so docs conventions travel with the repo.
+# skills are committed so repo conventions travel with the repo.
 /.claude/*
 !/.claude/skills/
-/.claude/skills/*
-!/.claude/skills/zensical-docs/
 
 # coverage
 coverage.xml

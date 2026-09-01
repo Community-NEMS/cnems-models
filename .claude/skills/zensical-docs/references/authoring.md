@@ -140,6 +140,20 @@ The `/// caption` block needs `pymdownx.blocks.caption`, which is **not** in
 Zensical's default set — and declaring any extension replaces the defaults
 wholesale, so enabling it means re-declaring the rest too. See `configuration.md`.
 
+For a caption with no config change, use `md_in_html`, which *is* a default:
+
+```html
+<figure markdown="1">
+![Dispatch by technology](img/plot.png){ width="300" }
+<figcaption markdown="span">Figure 1. Dispatch, *base case*. See [the model](model.md).</figcaption>
+</figure>
+```
+
+`markdown="span"` is what gets inline Markdown parsed inside the caption; without
+it `*base case*` stays literal. Links inside are rewritten and link-validated
+exactly as in prose. Reach for `pymdownx.blocks.caption` when you want its
+auto-numbering — that is the part this recipe cannot fake.
+
 Light/dark variants: append `#only-light` / `#only-dark` to the image URL.
 
 ## Grids and cards

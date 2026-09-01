@@ -133,13 +133,12 @@ class ModelSets:
         self.num_hr_day = int(
             self.cw_temporal['Map_hour'].max() / self.cw_temporal['Map_day'].max()
         )
+        if self.num_hr_day < 2:
+            raise ValueError('The number of representative hours in a day must be greater than 1')
+
         # Number of time periods the model solves for: days x number of periods per day
         self.hour = range(1, self.num_days * self.num_hr_day + 1)
         # First time period of the day and all time periods that are not the first hour.
-        # dev note: at num_hr_day == 1 (the d4h1/d8h1 crosswalks) every hour is a first hour,
-        #           so hour_most is empty and the *_most_hours_balance constraints get no rows.
-        #           The *_first_hour_balance rules then wrap an hour onto itself, collapsing to
-        #           `efficiency * inflow == outflow` and `ramp_up == ramp_down`.
         self.hour_first = range(1, self.num_days * self.num_hr_day + 1, self.num_hr_day)
         # sorted() because set difference does not iterate in ascending order for every
         # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]

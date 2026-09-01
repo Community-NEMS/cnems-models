@@ -17,13 +17,7 @@ __pycache__
 
 
 # Doc files
-/docs/run_sphinx.bat
-/docs/update_index_v2.py
-/docs/elec_debug.txt
-/docs/process_md_files.py
 old_docs
-
-/src/models/electricity/process_md_files.py
 
 # Zensical build output
 /site

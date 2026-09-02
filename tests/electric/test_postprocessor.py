@@ -118,10 +118,13 @@ def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
     """The core_only default must skip active Vars that aren't in core_variable_indices."""
     _, _, elec_model = solved_model
 
+    # every Var the basic config builds is a core one, so attach a non-core Var to exclude
+    elec_model.scratch_var = pyo.Var(elec_model.region_analyze, elec_model.year)
+
     dfs = extract_all_variables(elec_model)
 
     all_names = {v.local_name for v in elec_model.component_objects(pyo.Var, active=True)}
-    assert 'var_elec_request' in all_names
+    assert 'scratch_var' in all_names
     assert set(dfs.keys()) == all_names & set(core_variable_indices)
 
 

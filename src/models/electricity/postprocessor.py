@@ -173,7 +173,7 @@ def extract_all_variables(
         A solved electricity model (any ``pyo.ConcreteModel``; no particular base class assumed).
     core_only : bool, optional
         If True (default), only extract Vars whose name is a key in ``core_variable_indices``
-        (the recognized, model-defined outputs); other active Vars (e.g. ``var_elec_request``)
+        (the recognized, model-defined outputs); other active Vars (e.g. ``storage_avail_cap``)
         are skipped. If False, every active Var on the model is extracted.
 
     Returns

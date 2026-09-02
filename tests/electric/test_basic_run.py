@@ -55,7 +55,6 @@ _ALWAYS_REQUIRED = frozenset(
         'hydro_cap_factor',
         'supply_price',
         'supply_curve',
-        'h2_price',
     }
 )
 
@@ -102,26 +101,36 @@ _GATED_BY_SWITCH = {
 # generation_dispatchable_ub / generation_vre_ub / storage_outflow_ub -- restores the bound, which
 # raises each of these objectives by ~4-13%.  Variable and constraint counts are unchanged: the
 # degenerate form still referenced capacity_total (a Var), so the constraint was always constructed.
+# Note: all seven expected total costs below were re-captured when the `h2_price` param and its
+# objective term were removed.  That term charged an H2 fuel cost on generation from `tech_h2`, so
+# dropping it lowers each objective by ~0.0003%.  Variable and constraint counts are unaffected:
+# the term only added a Param coefficient onto `generation_total` entries that other constraints
+# already referenced.
+# Note: all seven expected variable counts below dropped by 6 when the `var_elec_request` Var (and
+# its companion `fixed_elec_request` Param) were removed.  That Var held an external electricity
+# demand from the deleted hydrogen module; nothing set it and no constraint or objective term
+# referenced it, so it contributed |region_analyze| x |year| = 3 x 2 = 6 free variables to every
+# config.  Total costs and constraint counts are unaffected.
 configs = [
-    ('basic', 3664955382.94, 17436, 19182),
-    ('exchange', 2581536448.8, 20892, 22830),
-    ('expansion_no_learning', 3668708970.98, 17610, 19308),
-    ('ramping', 3734942516.56, 32412, 41646),
-    ('reserve_with_expansion_no_learning', 5138465146.53, 18762, 22188),
+    ('basic', 3664944639.12, 17430, 19182),
+    ('exchange', 2581526790.54, 20886, 22830),
+    ('expansion_no_learning', 3668698225.74, 17604, 19308),
+    ('ramping', 3734931833.87, 32406, 41646),
+    ('reserve_with_expansion_no_learning', 5138454401.3, 18756, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        5140340877.8,
-        51594,
+        5140330132.57,
+        51588,
         56748,
     ),
-    ('agg_years', 14185060761.96, 17436, 19182),  # <-- no good starting value
+    ('agg_years', 14185018119.65, 17430, 19182),  # <-- no good starting value
     # Nonlinear learning is paired with the reserve margin deliberately.  Without it the optimum
     # builds nothing, the learning term multiplies zero, and the case would pin solver tolerance
     # noise rather than model behavior.  Counts match the reserve/expansion case above because
     # only the objective expression differs between learning modes.
-    ('nonlinear_learning_with_reserve', 5230684491.26, 18762, 22188),
+    ('nonlinear_learning_with_reserve', 5230677496.18, 18756, 22188),
 ]
 
 # Nonlinear learning solves through IPOPT, whose termination tolerance is much looser than the LP

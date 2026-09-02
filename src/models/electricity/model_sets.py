@@ -44,7 +44,6 @@ class ModelSets:
 
     capacity_index: list[tuple]
     """The MASTER capacity index, augmented with Hour"""
-    capacity_hydro_ub_index: list[tuple]
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
     generation_hour_index: defaultdict
@@ -61,6 +60,7 @@ class ModelSets:
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
     storage_hour_index: defaultdict
@@ -86,9 +86,9 @@ class ModelSets:
         self.tech_vre = td['T_vre']
         self.tech_hydro = td['T_hydro']
         # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
-        # hydro is limited by a per-season energy budget (capacity_hydro_ub), regular hydro by an
-        # hourly capacity factor (generation_hydro_ub).  These replace what used to be a hard-coded
-        # supply-curve step number.
+        # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
+        # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
+        # be a hard-coded supply-curve step number.
         self.tech_hydro_seasonal = td['T_hydro_seasonal']
         self.tech_hydro_regular = td['T_hydro_regular']
 
@@ -313,8 +313,9 @@ class ModelSets:
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
         # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
-        # whole supply curve, so capacity_hydro_ub sums over hydro_seasonal_step_index instead.
-        self.capacity_hydro_ub_index = sorted(
+        # whole supply curve, so seasonal_hydro_discharge_ub sums over hydro_seasonal_step_index
+        # instead.
+        self.seasonal_hydro_index = sorted(
             {
                 (idx.region, idx.tech, idx.year, season)
                 for idx in supply_curve_index
@@ -322,8 +323,8 @@ class ModelSets:
                 for season in self.season
             }
         )
-        if not self.capacity_hydro_ub_index:
-            logger.warning('capacity_hydro_ub_index is empty')
+        if not self.seasonal_hydro_index:
+            logger.warning('seasonal_hydro_index is empty')
         self.hydro_seasonal_step_index = defaultdict(list)
         for idx in supply_curve_index:
             if idx.tech in self.tech_hydro_seasonal:

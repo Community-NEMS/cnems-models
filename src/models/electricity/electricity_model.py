@@ -115,7 +115,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.generation_dispatchable_ub_index
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
-        self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
+        self.seasonal_hydro_index = pyo.Set(initialize=model_sets.seasonal_hydro_index)
         self.reserves_procurement_index = pyo.Set(
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
@@ -236,8 +236,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=idx,
         )
 
-        # Supply curve steps of each seasonal-hydro tech, so capacity_hydro_ub can bound the
-        # tech's whole capacity rather than assuming a particular step
+        # Supply curve steps of each seasonal-hydro tech, so seasonal_hydro_discharge_ub can
+        # bound the tech's whole capacity rather than assuming a particular step
         self.hydro_seasonal_steps = pyo.Set(
             self.region_analyze,
             self.tech_hydro_seasonal,
@@ -968,8 +968,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             idx[season].append(hour)
         self.hour_season_index = pyo.Set(self.season, within=self.hour, initialize=idx)
 
-        @self.Constraint(self.capacity_hydro_ub_index)
-        def capacity_hydro_ub(self, r, t_hydro, y, season):
+        @self.Constraint(self.seasonal_hydro_index)
+        def seasonal_hydro_discharge_ub(self, r, t_hydro, y, season):
             """Hydroelectric generation seasonal upper bound.
 
             Hydo generation <= Hydo capacity * Hydro capacity factor.

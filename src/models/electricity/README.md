@@ -146,7 +146,7 @@ step. These files are located in the input/electricity directory and are declare
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric (T_hydro_regular) generation upper bound set   |
-| $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric (T_hydro_seasonal) seasonal upper bound set    |
+| $\Theta_{hs}$          | seasonal_hydro_index                          | Sparse Set | Hydroelectric (T_hydro_seasonal) seasonal upper bound set    |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
 | $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse Set | Buildable capacity set                                       |
 | $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of  capacity costs                                       |

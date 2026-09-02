@@ -91,6 +91,17 @@ def select_solver(instance: ConcreteModel, nonlinear: bool = False) -> OptSolver
         opt.options['OF_mu_strategy'] = 'adaptive'
         opt.options['OF_num_linear_variables'] = 100000
         opt.options['OF_mehrotra_algorithm'] = 'yes'
+        # IPOPT relaxes variable bounds by bound_relax_factor (default 1e-8) and excludes
+        # violations of the ORIGINAL bounds from its reported constraint violation, so
+        # NonNegativeReals build variables are returned slightly negative.  Individually those
+        # are negligible, but against billion-dollar capital costs they aggregate into a visibly
+        # negative expansion cost.  This projects the final point back inside the original bounds.
+        # Setting bound_relax_factor to 0 also clears it, and additionally puts the objective on
+        # the correct side of the LP value, but measured 29x slower, so projection is preferred.
+        # NOTE: the projection happens AFTER optimization, and IPOPT's reported constraint
+        # violations describe the UNPROJECTED point.  A post-solve check of the original bounds and
+        # constraint residuals is therefore still required before trusting a solve.
+        opt.options['honor_original_bounds'] = 'yes'
         # Ask IPOPT to print options so you can confirm that they were used by the solver
         opt.options['print_user_options'] = 'yes'
 

@@ -175,6 +175,7 @@ pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
+zensical = "*"
 
 
 [tool.pixi.tasks]
@@ -214,7 +215,7 @@ format = { depends-on = [
   "format-yaml",
 ], description = "Run all formatters, modifying files in place." }
 
-#docs = { cmd = "zensical build", description = "Build the documentation with Zensical into site/." }
-#docs-serve = { cmd = "zensical serve", description = "Serve the documentation locally, rebuilding on changes." }
+docs = { cmd = "zensical build --strict", description = "Build the documentation with Zensical into site/." }
+docs-serve = { cmd = "zensical serve", description = "Serve the documentation locally, rebuilding on changes." }
 
 prek-update = { cmd = "prek update", description = "Bump the `rev` pins in .pre-commit-config.yaml to their latest tagged versions. Used by .github/workflows/update-lockfiles.yml; see also `pixi update` for refreshing pixi.lock itself." }

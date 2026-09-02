@@ -6,6 +6,7 @@ constraints, plus additional misc support functions.
 
 from collections import defaultdict
 from logging import getLogger
+from math import isfinite
 
 import pyomo.environ as pyo
 
@@ -379,8 +380,25 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     initialize=all_dicts['cap_cost_initial'],
                 )
                 self.supply_curve_learning = pyo.Param(
-                    self.tech, initialize=all_dicts['supply_curve_learning']
+                    self.tech,
+                    initialize=all_dicts['supply_curve_learning'],
+                    within=pyo.PositiveReals,
                 )
+                # The curve divides by this baseline and raises the result to a fractional power,
+                # so a bad value poisons the whole objective.  PositiveReals above rejects zero,
+                # negatives and NaN at construction, naming the technology.  It accepts infinity,
+                # which the CSV read admits and which yields NaN from the curve rather than
+                # raising, so that case is caught here.
+                infinite = sorted(
+                    str(tech)
+                    for tech in self.supply_curve_learning
+                    if not isfinite(self.supply_curve_learning[tech])
+                )
+                if infinite:
+                    raise ValueError(
+                        'supply_curve_learning must be finite, found a non finite baseline for '
+                        f'technology {infinite}'
+                    )
 
             # cap_cost is declared in every mode because capacity_builds is indexed from its
             # keys; only DISABLED and LINEAR consume its values in the objective.
@@ -659,8 +677,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     """Capacity expansion cost component for the objective function.
 
                     Applies when the learning switch is set to the nonlinear option.  The curve
-                    itself lives in ``learning.py`` and is shared with the linear path, so the two
-                    modes cannot drift apart.
+                    itself lives in ``learning.py``.  The linear path keeps its own copy of the
+                    formula in ``sequencer.cost_learning_func``, which still carries a
+                    calendar-time drift term that this one omits.
 
                     Returns
                     -------

@@ -257,6 +257,56 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         )
 
 
+@pytest.mark.parametrize(
+    'bad_value,expected_message',
+    [
+        (0.0, 'Value not in parameter domain PositiveReals'),
+        (-5.0, 'Value not in parameter domain PositiveReals'),
+        (float('nan'), 'Value not in parameter domain PositiveReals'),
+        (float('inf'), 'must be finite'),
+    ],
+    ids=['zero', 'negative', 'nan', 'infinity'],
+)
+def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected_message):
+    """An unusable ``supply_curve_learning`` is caught at construction, not in the objective.
+
+    The curve divides by this baseline and raises the result to a fractional power, so any of these
+    would otherwise surface as a division error, a domain error, or a silent NaN from somewhere
+    inside the objective, with nothing to say which technology caused it.
+
+    ``within=PositiveReals`` covers zero, negatives and NaN.  Infinity passes that domain check and
+    is caught separately, which is why all four are exercised here.
+    """
+    from src.models.electricity import param_data as param_data_module
+
+    original_init = param_data_module.ParamData.__init__
+    poisoned = {}
+
+    def poisoned_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        baselines = self.param_dicts['supply_curve_learning']
+        key = min(baselines)
+        # keys are single element tuples, while the error names the technology itself
+        poisoned['tech'] = key[0] if isinstance(key, tuple) else key
+        baselines[key] = bad_value
+
+    monkeypatch.setattr(param_data_module.ParamData, '__init__', poisoned_init)
+
+    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    elec_config.capacity_expansion = True
+    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
+
+    with pytest.raises(ValueError) as caught:
+        ElectricitySequencer().build_model(common_config, elec_config)
+
+    message = str(caught.value)
+    assert expected_message in message
+    # The offending technology has to be identifiable, which is the point of catching it here.
+    assert str(poisoned['tech']) in message
+
+
 @pytest.mark.parametrize('regions', [None, [str(i) for i in range(1, 26)]], ids=['config', 'all'])
 def test_nonlinear_learning_index_domains(regions):
     """Nonlinear learning borrows its variable index from the linear cost table.

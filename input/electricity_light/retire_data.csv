@@ -4,5 +4,6 @@ NG_Fired_Plant,2,True
 NG_Fired_Plant,3,True
 Hydro_Plant_seasonal,1,True
 Hydro_Plant_regular,1,-
-Solar,1,True
+Solar_utility,1,True
+Solar_end_use,1,-
 Battery_Storage,1,True

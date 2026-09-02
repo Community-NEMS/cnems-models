@@ -79,6 +79,13 @@ class ModelSets:
         self.tech_re = td['T_re']
         self.tech_wind = td['T_wind']
         self.tech_solar = td['T_solar']
+        # T_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        # filters on these -- utility-scale and end-use solar face the same constraints and differ
+        # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
+        # are carried so the distinction is addressable in the formulation and in reporting rather
+        # than living implicitly in a supply curve step number.
+        self.tech_solar_utility = td['T_solar_utility']
+        self.tech_solar_end_use = td['T_solar_end_use']
         self.tech_h2 = td['T_h2']
         self.tech_disp = td['T_disp']
         self.tech_gen = td['T_gen']

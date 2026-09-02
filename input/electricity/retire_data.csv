@@ -18,6 +18,7 @@ tech,step,retires
 10_regular,1,-
 12,1,True
 14,1,True
-15,1,True
+15_utility,1,True
+15_end_use,1,-
 11,1,True
 13,1,True

@@ -14,4 +14,5 @@ tech,tech_type,color,hex
 12,Battery,hotpink,#FF69B4
 13,OffWind,dodgerblue,#00008B
 14,OnWind,dodgerblue,#1E90FF
-15,Solar,gold1,#FFD700
+15_utility,Solar,gold1,#FFD700
+15_end_use,Solar,gold1,#FFD700

@@ -85,6 +85,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.tech_vre = pyo.Set(initialize=model_sets.tech_vre, within=self.tech)
         self.tech_wind = pyo.Set(initialize=model_sets.tech_wind, within=self.tech)
         self.tech_solar = pyo.Set(initialize=model_sets.tech_solar, within=self.tech)
+        self.tech_solar_utility = pyo.Set(
+            initialize=model_sets.tech_solar_utility, within=self.tech_solar
+        )
+        self.tech_solar_end_use = pyo.Set(
+            initialize=model_sets.tech_solar_end_use, within=self.tech_solar
+        )
         self.tech_h2 = pyo.Set(initialize=model_sets.tech_h2, within=self.tech)
         self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
         self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)

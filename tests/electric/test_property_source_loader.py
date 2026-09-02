@@ -19,7 +19,9 @@ PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.
 #
 # 'T_hydro_seasonal'/'T_hydro_regular' post-date that snapshot: they were added when hydro was
 # split into a seasonally-budgeted and an hourly-limited technology, replacing the supply-curve
-# step numbers that used to select between the two hydro bounds.
+# step numbers that used to select between the two hydro bounds.  'T_solar_utility' and
+# 'T_solar_end_use' likewise post-date it, from the equivalent split of solar into utility-scale
+# and end-use.
 _ORIGINAL_PROPERTY_SOURCES = {
     'tech_data': (
         'tech_data.csv',
@@ -34,6 +36,8 @@ _ORIGINAL_PROPERTY_SOURCES = {
             'T_vre',
             'T_wind',
             'T_solar',
+            'T_solar_utility',
+            'T_solar_end_use',
             'T_h2',
             'T_disp',
             'T_gen',

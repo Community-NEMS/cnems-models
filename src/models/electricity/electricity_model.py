@@ -26,6 +26,7 @@ from src.models.electricity.constants import (
     WIND_REGULATION_RESERVE_PROPORTION,
 )
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
+from src.models.electricity.learning import learning_cost
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.validators import (
@@ -388,10 +389,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     self.tech, initialize=all_dicts['supply_curve_learning']
                 )
 
-            # if learning is not to be solved nonlinearly directly in the obj
+            # cap_cost is declared in every mode because capacity_builds is indexed from its
+            # keys; only DISABLED and LINEAR consume its values in the objective.
             if elec_config.expansion_learning_type in {
                 ExpansionLearningType.DISABLED,
                 ExpansionLearningType.LINEAR,
+                ExpansionLearningType.NONLINEAR,
             }:
                 if elec_config.expansion_learning_type == ExpansionLearningType.DISABLED:
                     mute = False
@@ -682,44 +685,36 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             # nonlinear expansion costs
             if elec_config.expansion_learning_type == ExpansionLearningType.NONLINEAR:
-                # TODO:  Review after no-learning is done
+
                 def capacity_expansion_cost(self):
                     """Capacity expansion cost component for the objective function.
 
-                    Applies when the learning switch is set to the nonlinear option.
+                    Applies when the learning switch is set to the nonlinear option.  The curve
+                    itself lives in ``learning.py`` and is shared with the linear path, so the two
+                    modes cannot drift apart.
 
                     Returns
                     -------
-                    int
+                    pyomo expression
                         Capacity expansion cost component (nonlinear learning)
                     """
                     return sum(
-                        (
-                            self.cap_cost_initial[r, tech, step]
-                            * (
-                                (
-                                    (
-                                        self.supply_curve_learning[tech]
-                                        + 0.0001 * (y - self.y0_learning)
-                                        # TODO:  investigate / pull out this hardcode
-                                        #        (which seems very small)
-                                        + sum(
-                                            sum(
-                                                self.capacity_builds[r, tech, step, year]
-                                                for year in self.year
-                                                if year < y
-                                            )
-                                            for (r, t, step) in self.cap_cost_initial_index
-                                            if t == tech
-                                        )
-                                    )
-                                    / self.supply_curve_learning[tech]
-                                )
-                                ** (-1.0 * self.learning_rate[tech])
-                            )
+                        learning_cost(
+                            build_quantity=self.capacity_builds[r, tech, step, y],
+                            # Experience is this technology's builds across every region and step,
+                            # in years strictly before y, so a build never discounts its own cost.
+                            cumulative_quantity=sum(
+                                self.capacity_builds[region, tech, other_step, year]
+                                for (region, other_tech, other_step) in self.cap_cost_initial
+                                if other_tech == tech
+                                for year in self.year
+                                if year < y
+                            ),
+                            baseline_quantity=self.supply_curve_learning[tech],
+                            initial_cost=self.cap_cost_initial[r, tech, step],
+                            learning_rate=self.learning_rate[tech],
                         )
-                        * self.capacity_builds[r, tech, step, y]
-                        for (r, tech, step, y) in self.capacity_builds_index
+                        for (r, tech, step, y) in self.capacity_builds
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)

@@ -44,7 +44,7 @@ key = "fom_cost"
 filename = "FOMCost.csv"
 index_cols = ["region", "tech", "step"]
 value_col = "cost"
-required = false  # capacity_expansion
+required = true
 
 [[param_source]]
 key = "hours_to_buy"

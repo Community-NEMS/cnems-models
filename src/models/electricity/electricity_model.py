@@ -354,11 +354,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
 
+        self.fom_cost = pyo.Param(
+            self.region_analyze, self.tech, self.step, initialize=all_dicts['fom_cost']
+        )
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            self.fom_cost = pyo.Param(
-                self.region_analyze, self.tech, self.step, initialize=all_dicts['fom_cost']
-            )
             self.capacity_credit = pyo.Param(
                 self.region_analyze,
                 self.tech,
@@ -629,26 +629,25 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         self.unmet_load_cost = pyo.Expression(expr=unmet_load_cost)
 
+        def fixed_om_cost(self):
+            """Fixed operation and maintenance (FOM) cost component for the objective function.
+
+            Returns
+            -------
+            int
+                FOM cost component
+            """
+            return sum(
+                self.weight_year[y]
+                * self.fom_cost[r, tech, step]
+                * self.capacity_total[r, tech, step, y]
+                for (r, tech, step, y) in self.capacity_total
+            )
+
+        self.fixed_om_cost = pyo.Expression(expr=fixed_om_cost)
+
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-
-            def fixed_om_cost(self):
-                """Fixed operation and maintenance (FOM) cost component for the objective function.
-
-                Returns
-                -------
-                int
-                    FOM cost component
-                """
-                return sum(
-                    self.weight_year[y]
-                    * self.fom_cost[r, tech, step]
-                    * self.capacity_total[r, tech, step, y]
-                    for (r, tech, step, y) in self.capacity_total
-                )
-
-            self.fixed_om_cost = pyo.Expression(expr=fixed_om_cost)
-
             # nonlinear expansion costs
             if elec_config.expansion_learning_type == ExpansionLearningType.NONLINEAR:
                 # TODO:  Review after no-learning is done
@@ -722,7 +721,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 )
 
         else:
-            self.fixed_om_cost = 0.0
             self.capacity_expansion_cost = 0.0
 
         # if trade operation is on

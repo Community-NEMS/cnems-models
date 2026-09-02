@@ -7,7 +7,8 @@ spinning,6,0.0
 spinning,7,0.4
 spinning,8,0.4
 spinning,9,0.4
-spinning,10,1.0
+spinning,10_seasonal,1.0
+spinning,10_regular,1.0
 spinning,11,1.0
 spinning,12,1.0
 spinning,14,0.0
@@ -22,7 +23,8 @@ regulation,6,0.0
 regulation,7,0.2
 regulation,8,0.2
 regulation,9,0.2
-regulation,10,1.0
+regulation,10_seasonal,1.0
+regulation,10_regular,1.0
 regulation,11,1.0
 regulation,12,1.0
 regulation,14,0.0
@@ -37,7 +39,8 @@ flex,6,0.0
 flex,7,1.0
 flex,8,1.0
 flex,9,1.0
-flex,10,1.0
+flex,10_seasonal,1.0
+flex,10_regular,1.0
 flex,11,1.0
 flex,12,1.0
 flex,14,0.0

@@ -54,6 +54,8 @@ class ModelSets:
     generation_vre_ub_index: list[tuple]
     h2_generation_hour_index: defaultdict
     h2_generation_index: list[tuple]
+    hydro_seasonal_step_index: defaultdict
+    """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
     international_trade_index: list[tuple]
     ramp_first_hour_balance_index: list[tuple]
     ramp_most_hours_balance_index: list[tuple]
@@ -83,6 +85,12 @@ class ModelSets:
         self.tech_stor = td['T_stor']
         self.tech_vre = td['T_vre']
         self.tech_hydro = td['T_hydro']
+        # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        # hydro is limited by a per-season energy budget (capacity_hydro_ub), regular hydro by an
+        # hourly capacity factor (generation_hydro_ub).  These replace what used to be a hard-coded
+        # supply-curve step number.
+        self.tech_hydro_seasonal = td['T_hydro_seasonal']
+        self.tech_hydro_regular = td['T_hydro_regular']
 
         self.tech_retires = set_data['retireable_techs']['retires']
         self.tech_builds = set_data['buildable_techs']['builds']
@@ -299,21 +307,27 @@ class ModelSets:
         self.generation_hydro_ub_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 2  # TODO: review this hard-code assumption
+            if idx.tech in self.tech_hydro_regular
             for hr in self.hour
         )
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
+        # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
+        # whole supply curve, so capacity_hydro_ub sums over hydro_seasonal_step_index instead.
         self.capacity_hydro_ub_index = sorted(
-            (idx.region, idx.tech, idx.year, season)
-            for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 1  # TODO: review this hard-code assumption
-            for season in self.season
+            {
+                (idx.region, idx.tech, idx.year, season)
+                for idx in supply_curve_index
+                if idx.tech in self.tech_hydro_seasonal
+                for season in self.season
+            }
         )
         if not self.capacity_hydro_ub_index:
             logger.warning('capacity_hydro_ub_index is empty')
+        self.hydro_seasonal_step_index = defaultdict(list)
+        for idx in supply_curve_index:
+            if idx.tech in self.tech_hydro_seasonal:
+                self.hydro_seasonal_step_index[idx.region, idx.tech, idx.year].append(idx.step)
 
         self.generation_ramp_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)

@@ -16,6 +16,10 @@ PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.
 
 # Transcription reference: the original PROPERTY_SOURCES dict literal, verbatim, before the
 # TOML migration. Used only to audit that no data was lost/reordered in the conversion.
+#
+# 'T_hydro_seasonal'/'T_hydro_regular' post-date that snapshot: they were added when hydro was
+# split into a seasonally-budgeted and an hourly-limited technology, replacing the supply-curve
+# step numbers that used to select between the two hydro bounds.
 _ORIGINAL_PROPERTY_SOURCES = {
     'tech_data': (
         'tech_data.csv',
@@ -24,6 +28,8 @@ _ORIGINAL_PROPERTY_SOURCES = {
             'T_conv',
             'T_re',
             'T_hydro',
+            'T_hydro_seasonal',
+            'T_hydro_regular',
             'T_stor',
             'T_vre',
             'T_wind',

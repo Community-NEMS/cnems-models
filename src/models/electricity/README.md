@@ -76,7 +76,7 @@ The `[common]` section holds settings that are not specific to the electricity m
 
 ### Technology Settings
 
-The model contains 15 technologies (tech) in its initial layout. Users could change the technology assignments and add
+The model contains 16 technologies (tech) in its initial layout. Users could change the technology assignments and add
 more technology types or remove technology types, but any changes to the code would require updates to the corresponding
 input data. The technologies represented include:
 <br> 1.)    Coal Steam
@@ -88,7 +88,8 @@ input data. The technologies represented include:
 <br> 7.)    Biomass
 <br> 8.)    Geothermal
 <br> 9.)    Municipal-Solid-Waste
-<br> 10.)    Hydroelectric Generation
+<br> 10_seasonal.)    Hydroelectric Generation, seasonally budgeted
+<br> 10_regular.)    Hydroelectric Generation, hourly limited
 <br> 11.)    Pumped Hydroelectric Storage
 <br> 12.)    Battery Energy Storage
 <br> 13.)    Wind, Offshore
@@ -100,7 +101,9 @@ are defined in tech_data.csv within the input/electricity directory and includes
 
 * T_conv: conventional
 * T_re: renewable energy
-* T_hydro: hydroelectric
+* T_hydro: hydroelectric (the union of the two subsets below)
+* T_hydro_seasonal: hydroelectric limited by a seasonal energy budget
+* T_hydro_regular: hydroelectric limited by an hourly capacity factor
 * T_stor: storage
 * T_vre: variable renewable energy
 * T_wind: wind
@@ -108,6 +111,10 @@ are defined in tech_data.csv within the input/electricity directory and includes
 * T_h2: hydrogen
 * T_disp: dispatchable
 * T_gen: generating
+
+Note that T_hydro_seasonal and T_hydro_regular select which of the two hydroelectric upper bounds applies to a given
+technology. That choice used to be made by supply curve step number (step 1 for the seasonal budget, step 2 for the
+hourly bound), which is why the shipped data splits hydro into two technologies rather than two steps.
 
 When capacity_expansion is turned on, a user can select which technologies they want to have expansion and retirement
 capabilities. Turning these switches on allows for builds and/or retirements of a given technology and supply curve
@@ -138,8 +145,8 @@ step. These files are located in the input/electricity directory and are declare
 | $\Theta_{SC}$          | capacity_index                                | Sparse Set | Existing capacity set                                        |
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
-| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
-| $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
+| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric (T_hydro_regular) generation upper bound set   |
+| $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric (T_hydro_seasonal) seasonal upper bound set    |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
 | $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse Set | Buildable capacity set                                       |
 | $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of  capacity costs                                       |
@@ -347,10 +354,11 @@ of water resources seasonally, as specified in the input data. Storage upper bou
 upper bounds on both the charge and discharge of the technology, as well as the operating level in any given time
 segment.
 
-Hydroelectric generation seasonal upper bound:
+Hydroelectric generation seasonal upper bound, where $S_{r,t,y}$ is the set of supply curve steps the seasonal
+hydro technology holds (`hydro_seasonal_steps`):
 
 $$
-\begin{aligned} &\sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{t,y,r,1,h} \times WeightDay_{MHD_{h}}} \leq \mathbf{CAP^{tot}}_{r,seas,t,1,y} \times HCF_{r,seas} \times WHS_{seas}\\ &\forall {t,y,r,seas} \in \Theta_{hs} \end{aligned} \tag{4}
+\begin{aligned} &\sum_{h \in \theta^{HSH}_{seas}}{\sum_{s \in S_{r,t,y}}{\mathbf{GEN}_{t,y,r,s,h}}\times WeightDay_{MHD_{h}}} \leq \sum_{s \in S_{r,t,y}}{\mathbf{CAP^{tot}}_{r,seas,t,s,y}} \times HCF_{r,seas} \times WHS_{seas}\\ &\forall {t,y,r,seas} \in \Theta_{hs} \end{aligned} \tag{4}
 $$
 
 Dispatchable technology generation upper bound:

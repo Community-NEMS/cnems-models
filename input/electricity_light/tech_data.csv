@@ -1,6 +1,7 @@
-tech,T_conv,T_re,T_hydro,T_stor,T_vre,T_wind,T_solar,T_h2,T_disp,T_gen
-NG_Fired_Plant,True,-,-,-,-,-,-,-,True,True
-H2_Fired_Plant,-,-,-,-,-,-,-,True,True,True
-Hydro_Plant,-,True,True,-,-,-,-,-,True,True
-Battery_Storage,-,-,-,True,-,-,-,-,-,-
-Solar,-,-,-,-,True,-,True,-,-,True
+tech,T_conv,T_re,T_hydro,T_hydro_seasonal,T_hydro_regular,T_stor,T_vre,T_wind,T_solar,T_h2,T_disp,T_gen
+NG_Fired_Plant,True,-,-,-,-,-,-,-,-,-,True,True
+H2_Fired_Plant,-,-,-,-,-,-,-,-,-,True,True,True
+Hydro_Plant_seasonal,-,True,True,True,-,-,-,-,-,-,True,True
+Hydro_Plant_regular,-,True,True,-,True,-,-,-,-,-,True,True
+Battery_Storage,-,-,-,-,-,True,-,-,-,-,-,-
+Solar,-,-,-,-,-,-,True,-,True,-,-,True

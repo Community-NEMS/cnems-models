@@ -8,7 +8,8 @@ tech,tech_type,color,hex
 7,Bio,green4,#008B00
 8,Geo,yellow2,#EEEE00
 9,MSW,purple,#A020F0
-10,Hydro,blue,#0000FF
+10_seasonal,Hydro,blue,#0000FF
+10_regular,Hydro,blue,#0000FF
 11,PumpHydro,lightblue,#ADD8E6
 12,Battery,hotpink,#FF69B4
 13,OffWind,dodgerblue,#00008B

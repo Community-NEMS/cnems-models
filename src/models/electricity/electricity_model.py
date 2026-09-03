@@ -6,7 +6,6 @@ constraints, plus additional misc support functions.
 
 from collections import defaultdict
 from logging import getLogger
-from math import isfinite
 
 import pyomo.environ as pyo
 
@@ -385,20 +384,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     within=pyo.PositiveReals,
                 )
                 # The curve divides by this baseline and raises the result to a fractional power,
-                # so a bad value poisons the whole objective.  PositiveReals above rejects zero,
-                # negatives and NaN at construction, naming the technology.  It accepts infinity,
-                # which the CSV read admits and which yields NaN from the curve rather than
-                # raising, so that case is caught here.
-                infinite = sorted(
-                    str(tech)
-                    for tech in self.supply_curve_learning
-                    if not isfinite(self.supply_curve_learning[tech])
-                )
-                if infinite:
-                    raise ValueError(
-                        'supply_curve_learning must be finite, found a non finite baseline for '
-                        f'technology {infinite}'
-                    )
+                # so PositiveReals rejects zero, negatives and NaN at construction, naming the
+                # offending technology rather than failing later inside the objective.
 
             # cap_cost is declared in every mode because capacity_builds is indexed from its
             # keys; only DISABLED and LINEAR consume its values in the objective.

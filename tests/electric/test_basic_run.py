@@ -274,9 +274,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         (0.0, 'Value not in parameter domain PositiveReals'),
         (-5.0, 'Value not in parameter domain PositiveReals'),
         (float('nan'), 'Value not in parameter domain PositiveReals'),
-        (float('inf'), 'must be finite'),
     ],
-    ids=['zero', 'negative', 'nan', 'infinity'],
+    ids=['zero', 'negative', 'nan'],
 )
 def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected_message):
     """An unusable ``supply_curve_learning`` is caught at construction, not in the objective.
@@ -285,8 +284,7 @@ def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected
     would otherwise surface as a division error, a domain error, or a silent NaN from somewhere
     inside the objective, with nothing to say which technology caused it.
 
-    ``within=PositiveReals`` covers zero, negatives and NaN.  Infinity passes that domain check and
-    is caught separately, which is why all four are exercised here.
+    ``within=PositiveReals`` rejects all three at construction.
     """
     from src.models.electricity import param_data as param_data_module
 

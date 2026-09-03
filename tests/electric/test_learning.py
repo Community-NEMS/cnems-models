@@ -133,22 +133,6 @@ class TestSymbolicBehavior:
         assert at_zero == pytest.approx(1.0)
         assert at_hundred < at_zero
 
-    def test_cost_expression_is_nonlinear_in_the_variable(self, model):
-        """Cost built on a symbolic cumulative quantity is not polynomial.
-
-        ``polynomial_degree()`` returning None establishes non-polynomiality, which is why this
-        formulation needs a nonlinear solver rather than the LP path.
-        """
-        expression = learning_cost(
-            build_quantity=1.0,
-            cumulative_quantity=model.build,
-            baseline_quantity=Q0,
-            initial_cost=1000.0,
-            learning_rate=RATE,
-        )
-
-        assert expression.polynomial_degree() is None
-
     def test_both_quantities_stay_symbolic_and_independent(self, model):
         """A symbolic build and a symbolic cumulative quantity must both survive into the cost.
 

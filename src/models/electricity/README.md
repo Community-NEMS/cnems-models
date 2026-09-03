@@ -219,7 +219,7 @@ yet.
 | $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
 | $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
-| $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from.  Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | GW                         |
 
 ### Variables
 
@@ -272,9 +272,41 @@ $$
 Capacity expansion cost:
 
 $$
-\begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}} CAPC0_{r,t,y,s}\\ &\times \left (\frac{ SCL_t + 0.001 \times (y-YR0)
-+ \sum_{{r,t1,s} \in \Theta_{cc0} | t1 = t}{ \sum_{y1 \in Y | y1\lt y}{\mathbf{CAP^{new}}_{r,t1,y1,s}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,y,s} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} = \mathtt{nonlinear} \end{aligned} \tag{4a}
+\begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}} CAPC0_{r,t,s}\\ &\times \left (\frac{ SCL_t
++ \sum_{{r',t',s'} \in \Theta_{cc0} | t' = t}{ \sum_{y' \in Y | y'\lt y}{\mathbf{CAP^{new}}_{r',t,y',s'}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,y,s} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} = \mathtt{nonlinear} \end{aligned} \tag{4a}
 $$
+
+The multiplier is driven solely by cumulative builds in strictly prior years, so a build never
+discounts its own cost. The cumulative term pools that technology's builds across **all**
+regions and steps, written above as $r'$ and $s'$, so experience is national rather than regional.
+
+The curve is computed by `learning_multiplier` in [`learning.py`](learning.py). Only the nonlinear
+objective calls it today; the linear path keeps its own copy of the formula in
+`cost_learning_func`. Consolidating the two is left for later, deliberately, so that reviving the
+nonlinear path does not change linear results.
+
+Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
+**not currently a project dependency**, so this mode will not run without installing it.
+
+Two differences from the linear path are known and **not** addressed here, both pre-existing:
+
+- The linear formula still carries a calendar-time drift term $d \times (y - YR0)$ with
+  $d = 0.0001$ GW/year, which the nonlinear form above omits. It is an absolute quantity divided by
+  a technology-specific $SCL_t$ spanning 0.01 to 264 GW, so its effect varies by roughly four orders
+  of magnitude across technologies. On the reference dataset it produced the entire measurable
+  output of nonlinear learning while endogenous learning contributed nothing, which is why the
+  revived nonlinear form leaves it out.
+- `calculate_cap_growth` in [`sequencer.py`](sequencer.py) assigns rather than accumulates over
+  regions and steps, so the linear path's cumulative capacity is one region's builds rather than the
+  national total. The nonlinear form above pools across all regions and steps.
+
+Neither should be read as settled: both are candidates for reconciliation once the meaning of
+$LR_t$ and the provenance of $SCL_t$ are resolved.
+
+Note $LR_t$ is consumed **directly as the curve exponent**, while the input file names its column
+`rate`. If those values are learning rates meaning fractional reduction per doubling, the exponent
+would instead be $-\ln(1-LR_t)/\ln 2$. That ambiguity is unresolved, so no conversion is applied and
+no quantitative result from this mode should be treated as calibrated until it is settled.
 
 $$
 \begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}}{ CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} \neq \mathtt{nonlinear} \end{aligned} \tag{4b}

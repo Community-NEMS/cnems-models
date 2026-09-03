@@ -9,7 +9,7 @@
 [[property_source]]
 key = "tech_data"
 filename = "tech_data.csv"
-property_cols = ["tech", "T_conv", "T_re", "T_hydro", "T_stor", "T_vre", "T_wind", "T_solar", "T_h2", "T_disp", "T_gen"]
+property_cols = ["tech", "T_conv", "T_re", "T_hydro", "T_hydro_seasonal", "T_hydro_regular", "T_stor", "T_vre", "T_wind", "T_solar", "T_solar_utility", "T_solar_end_use", "T_h2", "T_disp", "T_gen"]
 index_cols = ["tech"]
 
 [[property_source]]

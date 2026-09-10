@@ -76,10 +76,22 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.tech_conv = pyo.Set(initialize=model_sets.tech_conv, within=self.tech)
         self.tech_re = pyo.Set(initialize=model_sets.tech_re, within=self.tech)
         self.tech_hydro = pyo.Set(initialize=model_sets.tech_hydro, within=self.tech)
+        self.tech_hydro_seasonal = pyo.Set(
+            initialize=model_sets.tech_hydro_seasonal, within=self.tech_hydro
+        )
+        self.tech_hydro_regular = pyo.Set(
+            initialize=model_sets.tech_hydro_regular, within=self.tech_hydro
+        )
         self.tech_stor = pyo.Set(initialize=model_sets.tech_stor, within=self.tech)
         self.tech_vre = pyo.Set(initialize=model_sets.tech_vre, within=self.tech)
         self.tech_wind = pyo.Set(initialize=model_sets.tech_wind, within=self.tech)
         self.tech_solar = pyo.Set(initialize=model_sets.tech_solar, within=self.tech)
+        self.tech_solar_utility = pyo.Set(
+            initialize=model_sets.tech_solar_utility, within=self.tech_solar
+        )
+        self.tech_solar_end_use = pyo.Set(
+            initialize=model_sets.tech_solar_end_use, within=self.tech_solar
+        )
         self.tech_h2 = pyo.Set(initialize=model_sets.tech_h2, within=self.tech)
         self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
         self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)
@@ -110,7 +122,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.generation_dispatchable_ub_index
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
-        self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
+        self.seasonal_hydro_index = pyo.Set(initialize=model_sets.seasonal_hydro_index)
         self.reserves_procurement_index = pyo.Set(
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
@@ -229,6 +241,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.year,
             within=self.tech * self.step,
             initialize=idx,
+        )
+
+        # Supply curve steps of each seasonal-hydro tech, so seasonal_hydro_discharge_ub can
+        # bound the tech's whole capacity rather than assuming a particular step
+        self.hydro_seasonal_steps = pyo.Set(
+            self.region_analyze,
+            self.tech_hydro_seasonal,
+            self.year,
+            within=self.step,
+            initialize=model_sets.hydro_seasonal_step_index,
         )
 
         # if capacity expansion is on
@@ -951,16 +973,19 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             idx[season].append(hour)
         self.hour_season_index = pyo.Set(self.season, within=self.hour, initialize=idx)
 
-        @self.Constraint(self.capacity_hydro_ub_index)
-        def capacity_hydro_ub(self, r, t_hydro, y, season):
+        @self.Constraint(self.seasonal_hydro_index)
+        def seasonal_hydro_discharge_ub(self, r, t_hydro, y, season):
             """Hydroelectric generation seasonal upper bound.
 
             Hydo generation <= Hydo capacity * Hydro capacity factor.
 
+            Both sides accumulate over every supply curve step the tech holds, so the seasonal
+            energy budget bounds the technology as a whole rather than one nominated step.
+
             Parameters
             ----------
             t_hydro : pyomo.core.base.set.OrderedScalarSet
-                hydro technology set
+                seasonal hydro technology set
             y : pyomo.core.base.set.OrderedScalarSet
                 year set
             r : pyomo.core.base.set.OrderedScalarSet
@@ -973,13 +998,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             pyomo.core.base.constraint.IndexedConstraint
                 hydroelectric generation seasonal upper bound
             """
+            steps = self.hydro_seasonal_steps[r, t_hydro, y]
             return (
                 sum(
-                    self.generation_total[r, t_hydro, 1, y, hr]  # TODO:  Why the hardcode step=1 ?
+                    self.generation_total[r, t_hydro, step, y, hr]
                     * self.weight_day[self.map_hour_day[hr]]
                     for hr in self.hour_season_index[season]
+                    for step in steps
                 )
-                <= self.capacity_total[r, t_hydro, 1, y]
+                <= sum(self.capacity_total[r, t_hydro, step, y] for step in steps)
                 * self.hydro_cap_factor[r, season]
                 * self.weight_season[season]
             )

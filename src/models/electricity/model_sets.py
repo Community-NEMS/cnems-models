@@ -44,7 +44,6 @@ class ModelSets:
 
     capacity_index: list[tuple]
     """The MASTER capacity index, augmented with Hour"""
-    capacity_hydro_ub_index: list[tuple]
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
     generation_hour_index: defaultdict
@@ -54,11 +53,14 @@ class ModelSets:
     generation_vre_ub_index: list[tuple]
     h2_generation_hour_index: defaultdict
     h2_generation_index: list[tuple]
+    hydro_seasonal_step_index: defaultdict
+    """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
     international_trade_index: list[tuple]
     ramp_first_hour_balance_index: list[tuple]
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
     storage_hour_index: defaultdict
@@ -77,12 +79,25 @@ class ModelSets:
         self.tech_re = td['T_re']
         self.tech_wind = td['T_wind']
         self.tech_solar = td['T_solar']
+        # T_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        # filters on these -- utility-scale and end-use solar face the same constraints and differ
+        # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
+        # are carried so the distinction is addressable in the formulation and in reporting rather
+        # than living implicitly in a supply curve step number.
+        self.tech_solar_utility = td['T_solar_utility']
+        self.tech_solar_end_use = td['T_solar_end_use']
         self.tech_h2 = td['T_h2']
         self.tech_disp = td['T_disp']
         self.tech_gen = td['T_gen']
         self.tech_stor = td['T_stor']
         self.tech_vre = td['T_vre']
         self.tech_hydro = td['T_hydro']
+        # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
+        # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
+        # be a hard-coded supply-curve step number.
+        self.tech_hydro_seasonal = td['T_hydro_seasonal']
+        self.tech_hydro_regular = td['T_hydro_regular']
 
         self.tech_retires = set_data['retireable_techs']['retires']
         self.tech_builds = set_data['buildable_techs']['builds']
@@ -298,21 +313,28 @@ class ModelSets:
         self.generation_hydro_ub_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 2  # TODO: review this hard-code assumption
+            if idx.tech in self.tech_hydro_regular
             for hr in self.hour
         )
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
-        self.capacity_hydro_ub_index = sorted(
-            (idx.region, idx.tech, idx.year, season)
-            for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 1  # TODO: review this hard-code assumption
-            for season in self.season
+        # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
+        # whole supply curve, so seasonal_hydro_discharge_ub sums over hydro_seasonal_step_index
+        # instead.
+        self.seasonal_hydro_index = sorted(
+            {
+                (idx.region, idx.tech, idx.year, season)
+                for idx in supply_curve_index
+                if idx.tech in self.tech_hydro_seasonal
+                for season in self.season
+            }
         )
-        if not self.capacity_hydro_ub_index:
-            logger.warning('capacity_hydro_ub_index is empty')
+        if not self.seasonal_hydro_index:
+            logger.warning('seasonal_hydro_index is empty')
+        self.hydro_seasonal_step_index = defaultdict(list)
+        for idx in supply_curve_index:
+            if idx.tech in self.tech_hydro_seasonal:
+                self.hydro_seasonal_step_index[idx.region, idx.tech, idx.year].append(idx.step)
 
         self.generation_ramp_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)

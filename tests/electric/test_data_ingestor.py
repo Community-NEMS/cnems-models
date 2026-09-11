@@ -1,3 +1,5 @@
+"""Test `data_ingestor`` module."""
+
 import json
 from unittest.mock import MagicMock, patch
 

@@ -14,7 +14,6 @@ Collection of sets used by model.
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Collection, Iterable
-from warnings import deprecated
 
 import pandas as pd
 from pandas import DataFrame
@@ -134,52 +133,16 @@ class ModelSets:
         self.num_hr_day = int(
             self.cw_temporal['Map_hour'].max() / self.cw_temporal['Map_day'].max()
         )
+        if self.num_hr_day < 2:
+            raise ValueError('The number of representative hours in a day must be greater than 1')
+
         # Number of time periods the model solves for: days x number of periods per day
         self.hour = range(1, self.num_days * self.num_hr_day + 1)
         # First time period of the day and all time periods that are not the first hour.
-        # dev note: at num_hr_day == 1 (the d4h1/d8h1 crosswalks) every hour is a first hour,
-        #           so hour_most is empty and the *_most_hours_balance constraints get no rows.
-        #           The *_first_hour_balance rules then wrap an hour onto itself, collapsing to
-        #           `efficiency * inflow == outflow` and `ramp_up == ramp_down`.
         self.hour_first = range(1, self.num_days * self.num_hr_day + 1, self.num_hr_day)
         # sorted() because set difference does not iterate in ascending order for every
         # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
         self.hour_most = sorted(set(self.hour) - set(self.hour_first))
-
-        # Technology Sets
-        @deprecated('currently not used.  Data ingestion makes these tech subsets from the file')
-        def load_and_assign_subsets(df, col):
-            """Create list based on tech subset assignment.
-
-            Parameters
-            ----------
-            df : pd.DataFrame
-                data frame containing tech subsets
-            col : str
-                name of tech subset
-
-            Returns
-            -------
-            list
-                list of techs in subset
-            """
-            # set attributes for the main list
-            main = next(iter(df.columns))
-            df = df.set_index(df[main])
-
-            # return subset of list based on col assignments
-            subset_list = list(df[df[col].notna()].index)
-            # print(col,subset_list)
-
-            return subset_list
-
-        # # read in subset dataframe from inputs
-        # tech_subsets = pd.read_csv(data_root / 'tech_subsets.csv')
-        # self.tech_subset_names = tech_subsets.columns
-        #
-        # for tss in self.tech_subset_names:
-        #     # create the technology subsets based on the tech_subsets input
-        #     setattr(self, tss, load_and_assign_subsets(tech_subsets, tss))
 
         # Misc Inputs
         self.step = range(1, 5)
@@ -213,6 +176,8 @@ class ModelSets:
             logger.warning('capacity_index is empty')
         logger.info(f'Built Capacity Index of size: {len(self.capacity_index)}')
 
+        # TODO:  This structure limits possible retirements to only things currently in
+        #        supply_curve_index.  Review.
         self.retirement_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year)
             for idx in supply_curve_index

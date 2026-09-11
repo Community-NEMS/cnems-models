@@ -44,14 +44,7 @@ key = "fom_cost"
 filename = "FOMCost.csv"
 index_cols = ["region", "tech", "step"]
 value_col = "cost"
-required = false  # capacity_expansion
-
-[[param_source]]
-key = "h2_price"
-filename = "H2Price.csv"
-index_cols = ["region", "tech", "step", "year", "season"]
-value_col = "cost"
-required = true  # no ElecConfig gate found; likely hydrogen-module vestige, kept conservatively required
+required = true
 
 [[param_source]]
 key = "hours_to_buy"

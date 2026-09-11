@@ -84,7 +84,9 @@ class ElecConfig(BaseModel):
             self.expansion_learning_type is not ExpansionLearningType.DISABLED
             and not self.capacity_expansion
         ):
-            raise ValueError('expansion_learning_type requires capacity_expansion')
+            raise ValueError(
+                'expansion_learning_type (other than disabled) requires capacity_expansion'
+            )
         return self
 
     @classmethod

@@ -45,11 +45,15 @@ repos:
   # Formatters: hooks that re-write Python, TOML, YAML, and Markdown files
   ########################################################################################
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.4
+    rev: v0.16.6
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+        # ruff-format covers Python fences inside Markdown as of ruff 0.14, which
+        # reflows the hand-aligned comments in the Claude skill snippets under
+        # .claude/skills/.  Those are prose, not project code -- leave them alone.
+        exclude: ^\.claude/
 
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.6

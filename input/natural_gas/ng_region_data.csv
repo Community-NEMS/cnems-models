@@ -1,0 +1,11 @@
+region,domestic,international,covered_areas,label
+new_england,True,-,"CT, ME, MA, NH, RI, VT",New England
+middle_atlantic,True,-,"NJ, NY, PA",Middle Atlantic
+east_north_central,True,-,"IL, IN, MI, OH, WI",East North Central
+west_north_central,True,-,"IA, KS, MN, MO, NE, ND, SD",West North Central
+south_atlantic,True,-,"DC, DE, FL, GA, MD, NC, SC, VA, WV",South Atlantic
+east_south_central,True,-,"AL, KY, MS, TN",East South Central
+west_south_central,True,-,"AR, LA, OK, TX",West South Central (Gulf Coast)
+mountain,True,-,"AZ, CO, ID, MT, NV, NM, UT, WY",Mountain (Rockies / Permian)
+pacific,True,-,"AK, CA, HI, OR, WA",Pacific
+canada,-,True,Canada,Canada

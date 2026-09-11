@@ -19,7 +19,4 @@ How did you make sure this worked? How can a reviewer verify this?
 
 ## To-do list
 
-- [ ] Run `pixi run lint`
-- [ ] Run `pixi run format`
-- [ ] Run `pixi run test`
 - [ ] Review the PR yourself and call out any questions or issues you have.

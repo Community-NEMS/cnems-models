@@ -6,7 +6,6 @@ from collections.abc import Collection
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
-from warnings import deprecated
 
 import pandas as pd
 
@@ -14,24 +13,6 @@ from src.common.common_config import CommonConfig
 
 # Establish logger
 logger = getLogger(__name__)
-
-
-@deprecated('should be using normal Path functions')
-def make_dir(dir_name):
-    """Generates an output directory to write model results.
-
-    The output directory is the date/time at the time this function executes. It includes subdirs
-    for vars, params, constraints.
-
-    Returns
-    -------
-    string
-        the name of the output directory
-    """
-    if not Path(dir_name).exists():
-        Path(dir_name).mkdir(parents=True)
-    else:
-        logger.info('Asked to make dir that already exists:' + str(dir_name))
 
 
 # Logger Setup
@@ -44,7 +25,7 @@ def setup_logger(settings: CommonConfig, **kwargs):
         output directory path
     """
     # set up root logger
-    output_dir = settings.output_path / settings.scenario_name / 'electricity'
+    output_dir = settings.output_path / settings.scenario_name
     log_path = Path(output_dir)
     if not log_path.is_dir():
         log_path.mkdir(parents=True, exist_ok=True)

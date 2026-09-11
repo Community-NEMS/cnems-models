@@ -59,7 +59,6 @@ class ParamData:
     # # complex Param Data
     # cap_cost : DataFrame
     # cap_factor_VRE : DataFrame
-    # h2_price : DataFrame
     # load_df : DataFrame
     # supply_curve : DataFrame
     # supply_curve_learning : DataFrame

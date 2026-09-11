@@ -16,6 +16,7 @@ from collections.abc import Iterable, Sequence
 from csv import DictReader
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.request import urlopen
 
 import pandas as pd
 from pandas import DataFrame
@@ -88,27 +89,40 @@ class FilterPackage:
 
 
 def load_dataframes_w_datapackage(
-    base_path: UPath, filters: FilterPackage | None = None
+    base_path: UPath,
+    filters: FilterPackage | None = None,
+    tables_to_load: list[str] | None = None,
+    inputs_datapackage_branch: str = 'main',
 ) -> dict[str, pd.DataFrame]:
     """Load dataframes from CSV files and enforce schema.
 
     This method assumes that ``base_path`` points to a directory (either local or
-    remote) that contains a ``datapackage.json`` file and a set of CSVs. It will then
-    loop through all of the resources described in the datapackage, check if there
-    is a corresponding CSV file for each resource, and read the CSV if it exists.
-    While reading CSV files, it will also use pandera to enforce the schema specified
-    in the datapackage.
+    remote) that contains a set of CSVs. It will then loop through all of the resources
+    described in the datapackage, check if there is a corresponding CSV file for each resource,
+    and read the CSV if it exists. While reading CSV files, it will also use pandera to enforce
+    the schema specified in the datapackage.
 
     Optionally, this method can take a ``FilterPackage`` object, which will filter
     the dataframes on a set of region and year columns.
+
+    Args:
+        base_path: fsspec compatible path pointing to directory of CSVs.
+        filters: FilterPackage object to filter on year and region columns.
+        tables_to_load: List of tables to load. If `None` load all columns.
     """
-    datapackage = json.loads((base_path / 'datapackage.json').read_text())
+    datapackage_url = f'https://raw.githubusercontent.com/Community-NEMS/cnems-inputs/{inputs_datapackage_branch}/datapackage.json'
+    with urlopen(datapackage_url) as response:
+        datapackage = json.loads(response.read().decode('utf-8'))
+
     dfs = {}
     for resource in datapackage['resources']:
         # Skip resource if CSV doesn't exist
         csv_path = base_path / resource['path']
         if not csv_path.exists():
             logger.info(f'{csv_path} does not exist. Skipping!')
+            continue
+        if isinstance(tables_to_load, list) and resource['name'] not in tables_to_load:
+            logger.info(f'{resource["name"]} not in list of tables to load. Skipping!')
             continue
 
         # Load a pandera schema from the datapackage
@@ -431,7 +445,9 @@ if __name__ == '__main__':
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     new_dfs = load_dataframes_w_datapackage(
-        base_path=UPath('file://input/electricity/cem_inputs'), filters=param_filter
+        base_path=UPath('file://input/electricity/cem_inputs'),
+        filters=param_filter,
+        inputs_datapackage_branch='datapackage-updates',
     )
     for name, df in new_dfs.items():
         print(name, '\n', df.head())

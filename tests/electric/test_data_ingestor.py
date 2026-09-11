@@ -49,6 +49,7 @@ def _mock_urlopen(datapackage: dict) -> MagicMock:
 
 
 def test_load_dataframes_w_datapackage_applies_filters(tmpdir) -> None:
+    """Test loading input tables with region/year filters."""
     tmpdir.join('test1.csv').write(
         'region,source_region,destination_region,year,value\n'
         'west,west,west,2024,1.0\n'
@@ -93,6 +94,7 @@ def test_load_dataframes_w_datapackage_applies_filters(tmpdir) -> None:
 
 
 def test_load_dataframes_w_datapackage_applies_filters_multiple_region_cols(tmpdir) -> None:
+    """Test loading input tables with multiple region columns in filters."""
     tmpdir.join('test1.csv').write(
         'region,source_region,destination_region,year,value\n'
         'west,west,west,2024,1.0\n'
@@ -137,6 +139,7 @@ def test_load_dataframes_w_datapackage_applies_filters_multiple_region_cols(tmpd
 
 
 def test_load_dataframes_w_datapackage_filters_tables(tmpdir) -> None:
+    """Test loading subset of input tables."""
     tmpdir.join('test1.csv').write(
         'region,source_region,destination_region,year,value\nwest,west,west,2024,1.0\n'
     )

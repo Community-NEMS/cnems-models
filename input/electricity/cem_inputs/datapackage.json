@@ -1,0 +1,917 @@
+{
+  "resources": [
+    {
+      "name": "baseelecprice",
+      "type": "table",
+      "path": "BaseElecPrice.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "price_wt",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "baseload",
+      "type": "table",
+      "path": "BaseLoad.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "Load",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "batteryefficiency",
+      "type": "table",
+      "path": "BatteryEfficiency.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "efficiency",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "capcost",
+      "type": "table",
+      "path": "CapCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "capcostinitial",
+      "type": "table",
+      "path": "CapCostInitial.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "capfactorvre",
+      "type": "table",
+      "path": "CapFactorVRE.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "number"
+          },
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "number"
+          },
+          {
+            "name": "hour",
+            "type": "number"
+          },
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "endusebaseshares",
+      "type": "table",
+      "path": "EnduseBaseShares.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "base_year_share",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "endusescalar",
+      "type": "table",
+      "path": "EnduseScalar.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "increment_annual",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enduseshapes",
+      "type": "table",
+      "path": "EnduseShapes.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "share",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fomcost",
+      "type": "table",
+      "path": "FOMCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "h2price",
+      "type": "table",
+      "path": "H2Price.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hourstobuy",
+      "type": "table",
+      "path": "HourstoBuy.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "hours",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hydrocapfactor",
+      "type": "table",
+      "path": "HydroCapFactor.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "integer"
+          },
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "learningrate",
+      "type": "table",
+      "path": "LearningRate.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "rate",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "loadscalar",
+      "type": "table",
+      "path": "LoadScalar.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "scalar",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rampdowncost",
+      "type": "table",
+      "path": "RampDownCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ramprate",
+      "type": "table",
+      "path": "RampRate.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "rate",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rampupcost",
+      "type": "table",
+      "path": "RampUpCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "regreservescost",
+      "type": "table",
+      "path": "RegReservesCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reservemargin",
+      "type": "table",
+      "path": "ReserveMargin.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "margin",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "restechupperbound",
+      "type": "table",
+      "path": "ResTechUpperBound.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "restype",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "supplycurve",
+      "type": "table",
+      "path": "SupplyCurve.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "capacity",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "supplycurvelearning",
+      "type": "table",
+      "path": "SupplyCurveLearning.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "capacity",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "supplyprice",
+      "type": "table",
+      "path": "SupplyPrice.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "integer"
+          },
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sw_builds",
+      "type": "table",
+      "path": "sw_builds.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "builds",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sw_retires",
+      "type": "table",
+      "path": "sw_retires.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "retires",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tech_subsets",
+      "type": "table",
+      "path": "tech_subsets.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "integer"
+          },
+          {
+            "name": "T_conv",
+            "type": "string"
+          },
+          {
+            "name": "T_re",
+            "type": "string"
+          },
+          {
+            "name": "T_hydro",
+            "type": "string"
+          },
+          {
+            "name": "T_stor",
+            "type": "string"
+          },
+          {
+            "name": "T_vre",
+            "type": "string"
+          },
+          {
+            "name": "T_wind",
+            "type": "string"
+          },
+          {
+            "name": "T_solar",
+            "type": "string"
+          },
+          {
+            "name": "T_h2",
+            "type": "string"
+          },
+          {
+            "name": "T_disp",
+            "type": "string"
+          },
+          {
+            "name": "T_gen",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "testprices",
+      "type": "table",
+      "path": "testPrices.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "Dual",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "trancost",
+      "type": "table",
+      "path": "TranCost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "destination_region",
+            "type": "integer"
+          },
+          {
+            "name": "source_region",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "trancostint",
+      "type": "table",
+      "path": "TranCostInt.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "region_international",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "cost",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tranlimitcapint",
+      "type": "table",
+      "path": "TranLimitCapInt.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "integer"
+          },
+          {
+            "name": "region_international",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "integer"
+          },
+          {
+            "name": "capacity",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tranlimit",
+      "type": "table",
+      "path": "TranLimit.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "destination_region",
+            "type": "number"
+          },
+          {
+            "name": "source_region",
+            "type": "number"
+          },
+          {
+            "name": "season",
+            "type": "number"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "value",
+            "type": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tranlimitgenint",
+      "type": "table",
+      "path": "TranLimitGenInt.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "region_international",
+            "type": "integer"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "integer"
+          },
+          {
+            "name": "generation",
+            "type": "number"
+          }
+        ]
+      }
+    }
+  ]
+}

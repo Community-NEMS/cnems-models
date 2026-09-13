@@ -25,7 +25,7 @@ from src.models.electricity.sequencer import (
 )
 
 # small, easy-to-reason-about dimensions for the mock model
-REGIONS = [1]
+REGIONS = [1, 2]
 TECHS = [2, 3]
 STEPS = [1]
 YEARS = [2030, 2035]
@@ -112,8 +112,8 @@ def test_calculate_cap_growth(mock_model):
     result = calculate_cap_growth(mock_model)
 
     assert result[(2, 2030)] == pytest.approx(0.0)  # no years before 2030
-    assert result[(2, 2035)] == pytest.approx(10.0)  # 2030 build only
-    assert result[(3, 2035)] == pytest.approx(20.0)
+    assert result[(2, 2035)] == pytest.approx(20.0)  # 2030 build for both regions
+    assert result[(3, 2035)] == pytest.approx(40.0)
 
 
 class TestCostLearningFunc:

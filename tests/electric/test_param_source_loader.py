@@ -70,6 +70,7 @@ _REQUIRED_KEYS = {
     'hydro_cap_factor',
     'supply_price',
     'supply_curve',
+    'fom_cost',
 }
 
 

@@ -175,6 +175,7 @@ pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
+zensical = "*"
 
 
 [tool.pixi.tasks]
@@ -195,6 +196,12 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 # C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 
+# Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
+# absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then
+# respawns the process with that as its cwd, so neither the repo root (for `definitions`)
+# nor a relative PYTHONPATH survives into the reloaded child.
+viewer = { cmd = "PYTHONPATH=$PIXI_PROJECT_ROOT python -m analysis_tools.viewer", description = "Serve the Dash output viewer." }
+
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
 # No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`
 # from the config.  Scope comes from `project-includes` under [tool.pyrefly] instead.
@@ -214,7 +221,7 @@ format = { depends-on = [
   "format-yaml",
 ], description = "Run all formatters, modifying files in place." }
 
-#docs = { cmd = "zensical build", description = "Build the documentation with Zensical into site/." }
-#docs-serve = { cmd = "zensical serve", description = "Serve the documentation locally, rebuilding on changes." }
+docs = { cmd = "zensical build --strict", description = "Build the documentation with Zensical into site/." }
+docs-serve = { cmd = "zensical serve", description = "Serve the documentation locally, rebuilding on changes." }
 
 prek-update = { cmd = "prek update", description = "Bump the `rev` pins in .pre-commit-config.yaml to their latest tagged versions. Used by .github/workflows/update-lockfiles.yml; see also `pixi update` for refreshing pixi.lock itself." }

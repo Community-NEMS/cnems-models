@@ -83,3 +83,12 @@ def test_load_property_sources_types():
 def test_data_ingestor_property_sources_matches_loader():
     """data_ingestor.PROPERTY_SOURCES (built at import time) matches a direct load."""
     assert data_ingestor.PROPERTY_SOURCES == load_property_sources(PROPERTY_SOURCES_TOML)
+
+
+def test_tech_data_attribute_cols():
+    """tech_data declares the descriptive columns; the other sources have none."""
+    loaded = load_property_sources(PROPERTY_SOURCES_TOML)
+
+    assert loaded['tech_data'].attribute_cols == ('steps', 'label', 'abbreviation', 'color')
+    for key in ('buildable_techs', 'retireable_techs', 'region_data'):
+        assert loaded[key].attribute_cols == ()

@@ -5,12 +5,18 @@
 #
 # Unlike param_sources.toml, there is no `required` flag here: all property sources are
 # consumed unconditionally in ModelSets.__init__, regardless of ElecConfig switches.
+#
+# `property_cols` are pivoted into truthy-membership sets (the T_* group flags).  The optional
+# `attribute_cols` are instead carried through as raw per-index values -- descriptive data that
+# is not a yes/no membership test.  Sources without any may omit the key.
 
 [[property_source]]
 key = "tech_data"
 filename = "tech_data.csv"
 property_cols = ["tech", "T_conv", "T_re", "T_hydro", "T_hydro_seasonal", "T_hydro_regular", "T_stor", "T_vre", "T_wind", "T_solar", "T_solar_utility", "T_solar_end_use", "T_h2", "T_disp", "T_gen"]
 index_cols = ["tech"]
+# steps: slash-separated supply curve steps valid for the tech, e.g. "1/2/3"
+attribute_cols = ["steps", "label", "abbreviation", "color"]
 
 [[property_source]]
 key = "buildable_techs"

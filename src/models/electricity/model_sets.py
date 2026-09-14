@@ -20,13 +20,50 @@ from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
 from src.integrator.utilities import create_temporal_mapping
-from src.models.electricity.data_ingestor import load_property_data
+from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
 from src.models.electricity.elec_config import ElecConfig, ReserveType
 
 logger = logging.getLogger(__name__)
 
 SCI = namedtuple('SCI', ['region', 'tech', 'step', 'year'])
 """a fixed index type for supply curve entries"""
+
+
+def _parse_steps(raw: str, tech: str) -> list[int]:
+    """Parse a slash-separated supply curve step list into sorted unique ints.
+
+    Tolerates surrounding whitespace, empty segments and stray leading/trailing slashes, so
+    ``'/1/ 2//3 '`` and ``'1/2/3'`` are equivalent.  An empty (or all-empty) cell means the tech
+    declares no steps and yields an empty list.
+
+    Parameters
+    ----------
+    raw : str
+        the raw ``steps`` cell from tech_data.csv, e.g. ``'1/2/3'``.
+    tech : str
+        the owning tech, used only to identify the offender in the error message.
+
+    Returns
+    -------
+    list[int]
+        the declared steps, deduplicated and ascending.
+
+    Raises
+    ------
+    ValueError
+        if any non-empty segment is not an integer.
+    """
+    steps = set()
+    for token in raw.split('/'):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            steps.add(int(token))
+        except ValueError as err:
+            logger.error('Unable to convert step %s of tech %s to int', token, tech)
+            raise ValueError(f'Unable to convert step {token!r} of tech {tech!r} to int') from err
+    return sorted(steps)
 
 
 class ModelSets:
@@ -66,6 +103,8 @@ class ModelSets:
     storage_hour_index: defaultdict
     storage_index: list[tuple]
     storage_most_hours_balance_index: list[tuple]
+    tech_steps: dict[str, list[int]]
+    """tech -> the supply curve steps declared valid for it in tech_data.csv"""
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
@@ -101,6 +140,14 @@ class ModelSets:
 
         self.tech_retires = set_data['retireable_techs']['retires']
         self.tech_builds = set_data['buildable_techs']['builds']
+
+        # descriptive (non-membership) tech columns: the valid supply curve steps plus the
+        # reporting label/abbreviation/color that used to live only in analysis_tools
+        ta = load_attribute_data(common_config.common_data_path)['tech_data']
+        self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
+        self.tech_label: dict[str, str] = ta['label']
+        self.tech_abbreviation: dict[str, str] = ta['abbreviation']
+        self.tech_color: dict[str, str] = ta['color']
 
         # break up the region data into its constituents
         rd = set_data['region_data']
@@ -160,6 +207,7 @@ class ModelSets:
         self.hour_most = sorted(set(self.hour) - set(self.hour_first))
 
         # Misc Inputs
+        # TODO:  replace this blanket 1-4 with the per-tech steps now available in tech_steps
         self.step = range(1, 5)
 
     def build_reserves_index(

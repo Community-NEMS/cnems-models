@@ -1,18 +1,18 @@
-tech,T_conv,T_re,T_hydro,T_hydro_seasonal,T_hydro_regular,T_stor,T_vre,T_wind,T_solar,T_solar_utility,T_solar_end_use,T_h2,T_disp,T_gen
-1,True,-,-,-,-,-,-,-,-,-,-,-,True,True
-2,True,-,-,-,-,-,-,-,-,-,-,-,True,True
-3,True,-,-,-,-,-,-,-,-,-,-,-,True,True
-4,True,-,-,-,-,-,-,-,-,-,-,-,True,True
-5,-,-,-,-,-,-,-,-,-,-,-,True,True,True
-6,True,-,-,-,-,-,-,-,-,-,-,-,True,True
-7,-,True,-,-,-,-,-,-,-,-,-,-,True,True
-8,-,True,-,-,-,-,-,-,-,-,-,-,True,True
-9,-,True,-,-,-,-,-,-,-,-,-,-,True,True
-10_seasonal,-,True,True,True,-,-,-,-,-,-,-,-,True,True
-10_regular,-,True,True,-,True,-,-,-,-,-,-,-,True,True
-11,-,-,-,-,-,True,-,-,-,-,-,-,-,-
-12,-,-,-,-,-,True,-,-,-,-,-,-,-,-
-13,-,-,-,-,-,-,True,True,-,-,-,-,-,True
-14,-,-,-,-,-,-,True,True,-,-,-,-,-,True
-15_utility,-,-,-,-,-,-,True,-,True,True,-,-,-,True
-15_end_use,-,-,-,-,-,-,True,-,True,-,True,-,-,True
+tech,steps,label,abbreviation,color,T_conv,T_re,T_hydro,T_hydro_seasonal,T_hydro_regular,T_stor,T_vre,T_wind,T_solar,T_solar_utility,T_solar_end_use,T_h2,T_disp,T_gen
+1,1/2/3,Coal Steam,COALST,#000000,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+2,1/2/3,Oil Steam,OILSTM,#7F7F7F,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+3,1/2/3,Gas Turbine,GASTUR,#8B4726,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+4,1/2/3,Gas Combined Cycle,GASCCY,#EE7942,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+5,1,Hydrogen Turbine,H2TURB,#00FFFF,-,-,-,-,-,-,-,-,-,-,-,True,True,True
+6,1,Nuclear,NUCLER,#FF0000,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+7,1,Biomass,BIOMAS,#008B00,-,True,-,-,-,-,-,-,-,-,-,-,True,True
+8,1,Geothermal,GEOTHM,#EEEE00,-,True,-,-,-,-,-,-,-,-,-,-,True,True
+9,1,Municipal Waste,MSWAST,#A020F0,-,True,-,-,-,-,-,-,-,-,-,-,True,True
+10_seasonal,1,Seasonal Hydro,HYDSEA,#0000FF,-,True,True,True,-,-,-,-,-,-,-,-,True,True
+10_regular,1,Regular Hydro,HYDREG,#0000FF,-,True,True,-,True,-,-,-,-,-,-,-,True,True
+11,1,Pumped Hydro,PMPHYD,#ADD8E6,-,-,-,-,-,True,-,-,-,-,-,-,-,-
+12,1,Battery Storage,BATTRY,#FF69B4,-,-,-,-,-,True,-,-,-,-,-,-,-,-
+13,1,Offshore Wind,WINDOF,#00008B,-,-,-,-,-,-,True,True,-,-,-,-,-,True
+14,1,Onshore Wind,WINDON,#1E90FF,-,-,-,-,-,-,True,True,-,-,-,-,-,True
+15_utility,1,Utility Solar,SOLRUT,#FFD700,-,-,-,-,-,-,True,-,True,True,-,-,-,True
+15_end_use,1,End-Use Solar,SOLREU,#FFD700,-,-,-,-,-,-,True,-,True,-,True,-,-,True

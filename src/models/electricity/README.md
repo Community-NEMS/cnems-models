@@ -69,24 +69,43 @@ The `[common]` section holds settings that are not specific to the electricity m
 
 ### Technology Settings
 
-The model contains 15 technologies (tech) in its initial layout. Users could change the technology assignments and add
+The model contains 17 technologies (tech) in its initial layout. Users could change the technology assignments and add
 more technology types or remove technology types, but any changes to the code would require updates to the corresponding
-input data. The technologies represented include:
-<br> 1.)    Coal Steam
-<br> 2.)    Oil Steam
-<br> 3.)    Natural Gas Single-Cycle Combustion Turbine
-<br> 4.)    Natural Gas Combined-Cycle
-<br> 5.)    Hydrogen Turbine
-<br> 6.)    Nuclear
-<br> 7.)    Biomass
-<br> 8.)    Geothermal
-<br> 9.)    Municipal-Solid-Waste
-<br> 10.)    Hydroelectric Generation
-<br> 11.)    Pumped Hydroelectric Storage
-<br> 12.)    Battery Energy Storage
-<br> 13.)    Wind, Offshore
-<br> 14.)    Wind, Onshore
-<br> 15.)    Solar (step 1 = utility-scale; step 2 = end-use)
+input data. Hydroelectric generation and solar are each split into two technologies, so their identifiers carry a
+suffix rather than a bare number. The technologies represented are:
+
+| tech        | Technology                                       | label              | abbreviation |
+|:------------|:-------------------------------------------------|:-------------------|:-------------|
+| 1           | Coal Steam                                       | Coal Steam         | COALST       |
+| 2           | Oil Steam                                        | Oil Steam          | OILSTM       |
+| 3           | Natural Gas Single-Cycle Combustion Turbine      | Gas Turbine        | GASTUR       |
+| 4           | Natural Gas Combined-Cycle                       | Gas Combined Cycle | GASCCY       |
+| 5           | Hydrogen Turbine                                 | Hydrogen Turbine   | H2TURB       |
+| 6           | Nuclear                                          | Nuclear            | NUCLER       |
+| 7           | Biomass                                          | Biomass            | BIOMAS       |
+| 8           | Geothermal                                       | Geothermal         | GEOTHM       |
+| 9           | Municipal-Solid-Waste                            | Municipal Waste    | MSWAST       |
+| 10_seasonal | Hydroelectric Generation, seasonally budgeted    | Seasonal Hydro     | HYDSEA       |
+| 10_regular  | Hydroelectric Generation, hourly capacity factor | Regular Hydro      | HYDREG       |
+| 11          | Pumped Hydroelectric Storage                     | Pumped Hydro       | PMPHYD       |
+| 12          | Battery Energy Storage                           | Battery Storage    | BATTRY       |
+| 13          | Wind, Offshore                                   | Offshore Wind      | WINDOF       |
+| 14          | Wind, Onshore                                    | Onshore Wind       | WINDON       |
+| 15_utility  | Solar, utility-scale                             | Utility Solar      | SOLRUT       |
+| 15_end_use  | Solar, end-use                                   | End-Use Solar      | SOLREU       |
+
+The seasonal/regular hydro split selects which hydro bound applies (`T_hydro_seasonal` vs
+`T_hydro_regular`); the utility/end-use solar split (`T_solar_utility` vs `T_solar_end_use`) differs only in data,
+not in constraints. Both replaced supply curve step numbers that used to carry the distinction implicitly.
+
+Each technology also carries descriptive columns in tech_data.csv:
+
+| Data column  | Description                                                                          |
+|:-------------|:-------------------------------------------------------------------------------------|
+| steps        | The supply curve steps valid for the technology, slash-separated, e.g. **1/2/3**.  Parsed into `ModelSets.tech_steps` as a list of ints; an empty cell means the technology has no supply curve entries |
+| label        | Display name for reporting and charts                                                 |
+| abbreviation | Six-character upper-case code for the technology, e.g. **SOLRUT**                     |
+| color        | Hex color used when plotting the technology, e.g. **#FFD700**                         |
 
 The technologies (tech) are also combined into group based on the applicability of different constraints. These groups
 are defined in tech_data.csv within the input/electricity directory and includes:

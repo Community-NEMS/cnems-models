@@ -24,6 +24,11 @@ dependencies = []
 line-length = 100
 extend-exclude = [
   "old_docs",
+  # ruff-format covers Python fences inside Markdown as of ruff 0.14, which reflows the
+  # hand-aligned comments in the Claude skill snippets under .claude/skills/.  Those are
+  # prose, not project code -- leave them alone.  Mirrors the ruff-format pre-commit hook's
+  # own exclude, so `pixi run format` and the hook agree.
+  ".claude",
 ]
 
 [tool.ruff.format]

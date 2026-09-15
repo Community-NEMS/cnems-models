@@ -13,7 +13,7 @@ behavior based on whether a `default` was supplied.
 ```python
 m = pyo.ConcreteModel()
 m.i = pyo.Set(initialize=['a', 'b'])
-m.j = pyo.Set(initialize=[1, 2])                      # declared space = 4
+m.j = pyo.Set(initialize=[1, 2])  # declared space = 4
 m.p = pyo.Param(m.i, m.j, initialize={('a', 1): 10.0, ('b', 2): 20.0}, default=0.0)
 ```
 
@@ -71,7 +71,7 @@ almost always a correctly sparse index set rather than a fabricated value.
 ### Set is always sparse, and has no default
 
 ```python
-SPARSE = {('a', 1): ['x', 'y']}        # 1 of the 4 declared indices
+SPARSE = {('a', 1): ['x', 'y']}  # 1 of the 4 declared indices
 m.s = pyo.Set(m.letter, m.number, initialize=SPARSE)
 ```
 
@@ -173,8 +173,9 @@ the repo.
 from collections import defaultdict
 import pyomo.environ as pyo
 
-LETTERS, NUMBERS = ['a', 'b'], [1, 2]     # declared space = 4
-SPARSE = {('a', 1): ['x', 'y']}           # data for 1 of them
+LETTERS, NUMBERS = ['a', 'b'], [1, 2]  # declared space = 4
+SPARSE = {('a', 1): ['x', 'y']}  # data for 1 of them
+
 
 def build(initialize):
     m = pyo.ConcreteModel()
@@ -183,6 +184,7 @@ def build(initialize):
     m.s = pyo.Set(m.letter, m.number, initialize=initialize)
     return m
 
+
 for label, init in (
     ('plain dict', SPARSE),
     ('defaultdict', defaultdict(list, SPARSE)),
@@ -190,7 +192,7 @@ for label, init in (
     ('bare list', []),
 ):
     m = build(init)
-    built = len(m.s)                      # measure BEFORE touching a missing index
+    built = len(m.s)  # measure BEFORE touching a missing index
     try:
         missing = sorted(m.s['b', 2])
     except Exception as exc:
@@ -219,8 +221,8 @@ m.j = pyo.Set(initialize=[1, 2])
 m.p = pyo.Param(m.i, m.j, initialize={('a', 1): 10.0, ('b', 2): 20.0}, default=0.0)
 m.q = pyo.Param(m.i, m.j, initialize={('a', 1): 10.0})
 
-print(len(m.p), sorted(m.p))       # 4, all four keys
-print(len(m.q))                    # 1
+print(len(m.p), sorted(m.p))  # 4, all four keys
+print(len(m.q))  # 1
 ```
 
 ```python
@@ -278,8 +280,10 @@ show(
     ),
 )
 
-print(f"Enum vs str      {ReserveType.REGULATION == 'regulation'} "
-      f"(.value: {ReserveType.REGULATION.value == 'regulation'})")
+print(
+    f'Enum vs str      {ReserveType.REGULATION == "regulation"} '
+    f'(.value: {ReserveType.REGULATION.value == "regulation"})'
+)
 ```
 
 ```

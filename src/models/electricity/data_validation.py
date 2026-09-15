@@ -33,7 +33,7 @@ SeasonalParam = Literal['supply_price', 'hydro_cap_factor']
 HourlyParam = Literal['tran_limit', 'tran_limit_cap_int', 'tran_limit_gen_int']
 
 
-def validate_all(model_sets: ModelSets, param_data: ParamData) -> None:
+def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = True) -> None:
     """Run all validations on the parameter data.
 
     Every validation is run (fatal ``ValueError``s are caught and logged) so that a single pass
@@ -46,6 +46,8 @@ def validate_all(model_sets: ModelSets, param_data: ParamData) -> None:
         Built model sets; supplies the expected seasons and hours.
     param_data : ParamData
         Fully constructed parameter data to validate.
+    strict : bool
+        True => exit on validation failure
     """
     all_valid = True
     frames = param_data.param_frames
@@ -98,7 +100,8 @@ def validate_all(model_sets: ModelSets, param_data: ParamData) -> None:
 
     if not all_valid:
         sys.stderr.write('Data validation failed.  See log for details.\n')
-        sys.exit(1)
+        if strict:
+            sys.exit(1)
 
 
 def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:

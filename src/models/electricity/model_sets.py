@@ -14,19 +14,57 @@ Collection of sets used by model.
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Collection, Iterable
+from itertools import chain
 
 import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
 from src.integrator.utilities import create_temporal_mapping
-from src.models.electricity.data_ingestor import load_property_data
+from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
 from src.models.electricity.elec_config import ElecConfig, ReserveType
 
 logger = logging.getLogger(__name__)
 
 SCI = namedtuple('SCI', ['region', 'tech', 'step', 'year'])
 """a fixed index type for supply curve entries"""
+
+
+def _parse_steps(raw: str, tech: str) -> list[int]:
+    """Parse a slash-separated supply curve step list into sorted unique ints.
+
+    Tolerates surrounding whitespace, empty segments and stray leading/trailing slashes, so
+    ``'/1/ 2//3 '`` and ``'1/2/3'`` are equivalent.  An empty (or all-empty) cell means the tech
+    declares no steps and yields an empty list.
+
+    Parameters
+    ----------
+    raw : str
+        the raw ``steps`` cell from tech_data.csv, e.g. ``'1/2/3'``.
+    tech : str
+        the owning tech, used only to identify the offender in the error message.
+
+    Returns
+    -------
+    list[int]
+        the declared steps, deduplicated and ascending.
+
+    Raises
+    ------
+    ValueError
+        if any non-empty segment is not an integer.
+    """
+    steps = set()
+    for token in raw.split('/'):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            steps.add(int(token))
+        except ValueError as err:
+            logger.error('Unable to convert step %s of tech %s to int', token, tech)
+            raise ValueError(f'Unable to convert step {token!r} of tech {tech!r} to int') from err
+    return sorted(steps)
 
 
 class ModelSets:
@@ -44,7 +82,6 @@ class ModelSets:
 
     capacity_index: list[tuple]
     """The MASTER capacity index, augmented with Hour"""
-    capacity_hydro_ub_index: list[tuple]
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
     generation_hour_index: defaultdict
@@ -54,16 +91,23 @@ class ModelSets:
     generation_vre_ub_index: list[tuple]
     h2_generation_hour_index: defaultdict
     h2_generation_index: list[tuple]
+    hydro_seasonal_step_index: defaultdict
+    """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
     international_trade_index: list[tuple]
     ramp_first_hour_balance_index: list[tuple]
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
     storage_hour_index: defaultdict
     storage_index: list[tuple]
     storage_most_hours_balance_index: list[tuple]
+    steps: list[int]
+    """All step values used in data"""
+    tech_steps: dict[str, list[int]]
+    """tech -> the supply curve steps declared valid for it in tech_data.csv"""
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
@@ -77,15 +121,37 @@ class ModelSets:
         self.tech_re = td['T_re']
         self.tech_wind = td['T_wind']
         self.tech_solar = td['T_solar']
+        # T_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        # filters on these -- utility-scale and end-use solar face the same constraints and differ
+        # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
+        # are carried so the distinction is addressable in the formulation and in reporting rather
+        # than living implicitly in a supply curve step number.
+        self.tech_solar_utility = td['T_solar_utility']
+        self.tech_solar_end_use = td['T_solar_end_use']
         self.tech_h2 = td['T_h2']
         self.tech_disp = td['T_disp']
         self.tech_gen = td['T_gen']
         self.tech_stor = td['T_stor']
         self.tech_vre = td['T_vre']
         self.tech_hydro = td['T_hydro']
+        # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
+        # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
+        # be a hard-coded supply-curve step number.
+        self.tech_hydro_seasonal = td['T_hydro_seasonal']
+        self.tech_hydro_regular = td['T_hydro_regular']
 
         self.tech_retires = set_data['retireable_techs']['retires']
         self.tech_builds = set_data['buildable_techs']['builds']
+
+        # descriptive (non-membership) tech columns: the valid supply curve steps plus the
+        # reporting label/abbreviation/color that used to live only in analysis_tools
+        ta = load_attribute_data(common_config.common_data_path)['tech_data']
+        self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
+        self.steps = list(chain.from_iterable(self.tech_steps.values()))
+        self.tech_label: dict[str, str] = ta['label']
+        self.tech_abbreviation: dict[str, str] = ta['abbreviation']
+        self.tech_color: dict[str, str] = ta['color']
 
         # break up the region data into its constituents
         rd = set_data['region_data']
@@ -143,9 +209,6 @@ class ModelSets:
         # sorted() because set difference does not iterate in ascending order for every
         # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
         self.hour_most = sorted(set(self.hour) - set(self.hour_first))
-
-        # Misc Inputs
-        self.step = range(1, 5)
 
     def build_reserves_index(
         self,
@@ -298,21 +361,28 @@ class ModelSets:
         self.generation_hydro_ub_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 2  # TODO: review this hard-code assumption
+            if idx.tech in self.tech_hydro_regular
             for hr in self.hour
         )
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
-        self.capacity_hydro_ub_index = sorted(
-            (idx.region, idx.tech, idx.year, season)
-            for idx in supply_curve_index
-            if idx.tech in self.tech_hydro
-            if idx.step == 1  # TODO: review this hard-code assumption
-            for season in self.season
+        # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
+        # whole supply curve, so seasonal_hydro_discharge_ub sums over hydro_seasonal_step_index
+        # instead.
+        self.seasonal_hydro_index = sorted(
+            {
+                (idx.region, idx.tech, idx.year, season)
+                for idx in supply_curve_index
+                if idx.tech in self.tech_hydro_seasonal
+                for season in self.season
+            }
         )
-        if not self.capacity_hydro_ub_index:
-            logger.warning('capacity_hydro_ub_index is empty')
+        if not self.seasonal_hydro_index:
+            logger.warning('seasonal_hydro_index is empty')
+        self.hydro_seasonal_step_index = defaultdict(list)
+        for idx in supply_curve_index:
+            if idx.tech in self.tech_hydro_seasonal:
+                self.hydro_seasonal_step_index[idx.region, idx.tech, idx.year].append(idx.step)
 
         self.generation_ramp_index = sorted(
             (idx.region, idx.tech, idx.step, idx.year, hour)

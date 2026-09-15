@@ -18,6 +18,7 @@ import pytest
 
 from src.models.electricity.data_validation import (
     validate_domestic_network,
+    validate_hourly_coverage,
     validate_seasonal_coverage,
     validate_supply_price_coverage,
 )
@@ -25,6 +26,7 @@ from src.models.electricity.data_validation import (
 VALIDATION_LOGGER = 'src.models.electricity.data_validation'
 
 SEASONS = ('winter', 'spring', 'summer', 'fall')
+HOURS = (1, 2, 3, 4)
 
 
 @pytest.fixture
@@ -133,6 +135,83 @@ def test_seasonal_coverage_integer_seasons(validation_log):
     incomplete = _seasonal_table([('CA', 'NG', 1)], (1, 2, 3), 3)
     assert validate_seasonal_coverage('supply_price', incomplete, 3, (1, 2, 3, 4)) is False
     assert len([r for r in validation_log.records if r.levelno == logging.ERROR]) == 1
+
+
+# ---------------------------------------------------------------------------
+# validate_hourly_coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    'base_indices, hour_idx_loc',
+    [
+        pytest.param([('CA', 'TX', 2030)], 3, id='hour-last'),
+        pytest.param([('CA', 'TX', 2030)], 0, id='hour-first'),
+        pytest.param([('CA', 'TX', 2030)], 2, id='hour-middle'),
+        pytest.param(
+            [('CA', 'TX', 2030), ('TX', 'CA', 2030), ('TX', 'NY', 2040)], 3, id='multi-index'
+        ),
+    ],
+)
+def test_hourly_coverage_complete(validation_log, base_indices, hour_idx_loc):
+    """Full coverage at any hour position, for any number of base indices, logs nothing."""
+    table = _seasonal_table(base_indices, HOURS, hour_idx_loc)
+
+    assert validate_hourly_coverage('tran_limit', table, hour_idx_loc, HOURS) is True
+
+    assert validation_log.records == []
+
+
+def test_hourly_coverage_accepts_range_expectation(validation_log):
+    """Expected hours may be any sequence, e.g. the ``range`` held in ``ModelSets.hour``."""
+    table = _seasonal_table([('CA', 'TX', 2030)], HOURS, 3)
+
+    assert validate_hourly_coverage('tran_limit', table, 3, range(1, 5)) is True
+
+    assert validation_log.records == []
+
+
+def test_hourly_coverage_empty_table_is_silent(validation_log):
+    """An empty table has no base indices to check, so it is vacuously valid."""
+    assert validate_hourly_coverage('tran_limit', {}, 3, HOURS) is True
+
+    assert validation_log.records == []
+
+
+@pytest.mark.parametrize(
+    'table_hours, missing, unexpected',
+    [
+        pytest.param((1, 2, 3), [4], [], id='missing-hour'),
+        pytest.param((1,), [2, 3, 4], [], id='single-hour-only'),
+        pytest.param(HOURS + (5,), [], [5], id='extra-unexpected-hour'),
+        pytest.param((7, 8), [1, 2, 3, 4], [7, 8], id='wholly-different-hours'),
+    ],
+)
+def test_hourly_coverage_incomplete(validation_log, table_hours, missing, unexpected):
+    """Any mismatch is False and logs one error naming the base index and the hour differences."""
+    table = _seasonal_table([('CA', 'TX', 2030)], table_hours, 3)
+
+    assert validate_hourly_coverage('tran_limit', table, 3, HOURS) is False
+
+    errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    message = errors[0].getMessage()
+    assert 'tran_limit' in message
+    assert "('CA', 'TX', 2030)" in message
+    assert f'missing hours {missing}' in message
+    assert f'unexpected hours {unexpected}' in message
+
+
+def test_hourly_coverage_reports_only_the_bad_indices(validation_log):
+    """One bad base index among good ones makes the whole table invalid, but only it is logged."""
+    table = _seasonal_table([('CA', 'TX', 2030), ('TX', 'CA', 2030)], HOURS, 3)
+    table.update(_seasonal_table([('TX', 'NY', 2030)], (1, 2), 3))
+
+    assert validate_hourly_coverage('tran_limit', table, 3, HOURS) is False
+
+    errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "('TX', 'NY', 2030)" in errors[0].getMessage()
 
 
 # ---------------------------------------------------------------------------
@@ -252,17 +331,14 @@ LINKS = (('CA', 'TX'), ('TX', 'CA'), ('TX', 'NY'), ('NY', 'TX'))
 
 
 def _network_tables(
-    links=LINKS, seasons=SEASONS, years=YEARS
+    links=LINKS, hours=HOURS, years=YEARS
 ) -> tuple[dict[tuple, float], dict[tuple, float]]:
     """Build a consistent (tran_limit, tran_cost) pair for the given (destination, source) links.
 
-    ``tran_limit`` is keyed (destination, source, season, year); ``tran_cost`` drops the season.
+    ``tran_limit`` is keyed (destination, source, year, hour); ``tran_cost`` drops the hour.
     """
     limit = {
-        (dest, src, season, year): 5.0
-        for dest, src in links
-        for season in seasons
-        for year in years
+        (dest, src, year, hour): 5.0 for dest, src in links for year in years for hour in hours
     }
     cost = {(dest, src, year): 2.0 for dest, src in links for year in years}
     return limit, cost
@@ -270,7 +346,7 @@ def _network_tables(
 
 def _add_limit_self_loop(limit: dict, cost: dict) -> None:
     """Give CA a transmission limit to itself."""
-    limit[('CA', 'CA', SEASONS[0], YEARS[0])] = 5.0
+    limit[('CA', 'CA', YEARS[0], HOURS[0])] = 5.0
 
 
 def _add_cost_self_loop(limit: dict, cost: dict) -> None:

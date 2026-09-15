@@ -14,6 +14,7 @@ Collection of sets used by model.
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Collection, Iterable
+from itertools import chain
 
 import pandas as pd
 from pandas import DataFrame
@@ -103,6 +104,8 @@ class ModelSets:
     storage_hour_index: defaultdict
     storage_index: list[tuple]
     storage_most_hours_balance_index: list[tuple]
+    steps: list[int]
+    """All step values used in data"""
     tech_steps: dict[str, list[int]]
     """tech -> the supply curve steps declared valid for it in tech_data.csv"""
 
@@ -145,6 +148,7 @@ class ModelSets:
         # reporting label/abbreviation/color that used to live only in analysis_tools
         ta = load_attribute_data(common_config.common_data_path)['tech_data']
         self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
+        self.steps = list(chain.from_iterable(self.tech_steps.values()))
         self.tech_label: dict[str, str] = ta['label']
         self.tech_abbreviation: dict[str, str] = ta['abbreviation']
         self.tech_color: dict[str, str] = ta['color']
@@ -205,10 +209,6 @@ class ModelSets:
         # sorted() because set difference does not iterate in ascending order for every
         # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
         self.hour_most = sorted(set(self.hour) - set(self.hour_first))
-
-        # Misc Inputs
-        # TODO:  replace this blanket 1-4 with the per-tech steps now available in tech_steps
-        self.step = range(1, 5)
 
     def build_reserves_index(
         self,

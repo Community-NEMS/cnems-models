@@ -73,7 +73,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # technology sets
         self.tech = pyo.Set(initialize=model_sets.tech, validate=tech_name_check)
-        self.step = pyo.Set(initialize=model_sets.step)  # TODO:  come back to this
+        self.step = pyo.Set(initialize=model_sets.steps)
         self.steps_for_tech = pyo.Set(
             self.tech, within=pyo.NonNegativeIntegers, initialize=model_sets.tech_steps
         )
@@ -163,11 +163,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
 
-        # international trade indices
+        # international trade indices.  Note:  "step" here is different from "tech" steps and
+        # is represented by an integer value
         self.international_trade_index = pyo.Set(
             dimen=5,
             initialize=model_sets.international_trade_index,
-            within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
+            within=self.region_analyze
+            * self.region_int
+            * pyo.NonNegativeIntegers
+            * self.year
+            * self.hour,
         )
 
         # —————————————  Indexed sets
@@ -410,7 +415,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
 
         self.fom_cost = pyo.Param(
-            self.region_analyze, self.tech, self.step, initialize=all_dicts['fom_cost']
+            self.region_analyze, self.tech_step, initialize=all_dicts['fom_cost']
         )
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -427,8 +432,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.learning_rate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
                 self.cap_cost_initial = pyo.Param(
                     self.region_analyze,
-                    self.tech,
-                    self.step,
+                    self.tech_step,
                     initialize=all_dicts['cap_cost_initial'],
                 )
                 self.supply_curve_learning = pyo.Param(
@@ -453,8 +457,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     mute = True
                 self.cap_cost = pyo.Param(
                     self.region,
-                    self.tech,
-                    self.step,
+                    self.tech_step,
                     self.year,
                     initialize=all_frames['cap_cost'],
                     mutable=mute,
@@ -477,16 +480,18 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
             """destination, source, year, hour"""
 
+            # note:  "steps" in intl transmission are separate from "tech steps" and are just
+            #        non-negative integers.
             self.tran_cost_int = pyo.Param(
                 self.region_analyze,
                 self.region_int,
-                self.step,
+                pyo.NonNegativeIntegers,
                 self.year,
                 initialize=all_frames['tran_cost_int'],
             )
             self.tran_limit_gen_int = pyo.Param(
                 self.region_int,
-                self.step,
+                pyo.NonNegativeIntegers,
                 self.year,
                 self.hour,
                 initialize=all_frames['tran_limit_gen_int'],

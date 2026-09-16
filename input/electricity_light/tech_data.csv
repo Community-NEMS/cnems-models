@@ -1,6 +1,8 @@
-tech,T_conv,T_re,T_hydro,T_stor,T_vre,T_wind,T_solar,T_h2,T_disp,T_gen
-NG_Fired_Plant,True,-,-,-,-,-,-,-,True,True
-H2_Fired_Plant,-,-,-,-,-,-,-,True,True,True
-Hydro_Plant,-,True,True,-,-,-,-,-,True,True
-Battery_Storage,-,-,-,True,-,-,-,-,-,-
-Solar,-,-,-,-,True,-,True,-,-,True
+tech,steps,label,abbreviation,color,T_conv,T_re,T_hydro,T_hydro_seasonal,T_hydro_regular,T_stor,T_vre,T_wind,T_solar,T_solar_utility,T_solar_end_use,T_h2,T_disp,T_gen
+NG_Fired_Plant,1/2/3,Gas Fired Plant,NGFIRE,#EE7942,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+H2_Fired_Plant,1,Hydrogen Fired Plant,H2FIRE,#00FFFF,-,-,-,-,-,-,-,-,-,-,-,True,True,True
+Hydro_Plant_seasonal,1,Seasonal Hydro,HYDSEA,#0000FF,-,True,True,True,-,-,-,-,-,-,-,-,True,True
+Hydro_Plant_regular,1,Regular Hydro,HYDREG,#0000FF,-,True,True,-,True,-,-,-,-,-,-,-,True,True
+Battery_Storage,1,Battery Storage,BATTRY,#FF69B4,-,-,-,-,-,True,-,-,-,-,-,-,-,-
+Solar_utility,1,Utility Solar,SOLRUT,#FFD700,-,-,-,-,-,-,True,-,True,True,-,-,-,True
+Solar_end_use,1,End-Use Solar,SOLREU,#FFD700,-,-,-,-,-,-,True,-,True,-,True,-,-,True

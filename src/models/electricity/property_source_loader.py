@@ -8,7 +8,8 @@ Created on:  7/5/26
 Loader for property-source schema metadata from property_sources.toml.
 
 Reads the fixed, developer-owned mapping of PROPERTY_SOURCES keys to their backing CSV filename,
-the property columns to pivot into truthy-membership sets, and the basis/index columns.
+the property columns to pivot into truthy-membership sets, the basis/index columns, and any
+attribute columns carried through as raw values.
 """
 
 import tomllib
@@ -33,12 +34,16 @@ class PropertySource(BaseModel):
         Columns to pivot into truthy-membership sets (see ``read_property_csv``).
     index_cols : tuple[str, ...]
         Basis/index column(s) identifying each row.
+    attribute_cols : tuple[str, ...]
+        Columns carried through as raw per-index values rather than pivoted into
+        truthy-membership sets (see ``read_attribute_csv``).  Empty for sources with none.
     """
 
     key: str
     filename: str
     property_cols: tuple[str, ...]
     index_cols: tuple[str, ...]
+    attribute_cols: tuple[str, ...] = ()
 
 
 class _PropertySourceFile(BaseModel):

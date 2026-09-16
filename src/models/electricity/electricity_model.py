@@ -31,6 +31,7 @@ from src.models.electricity.param_data import ParamData
 from src.models.electricity.validators import (
     reserve_procurement_check,
     reserve_tech_check,
+    tech_hydro_seasonal_check,
     tech_name_check,
 )
 
@@ -72,32 +73,77 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # technology sets
         self.tech = pyo.Set(initialize=model_sets.tech, validate=tech_name_check)
-        self.step = pyo.Set(initialize=model_sets.step)  # TODO:  come back to this
+        self.step = pyo.Set(initialize=model_sets.steps)
+        self.steps_for_tech = pyo.Set(
+            self.tech, within=pyo.NonNegativeIntegers, initialize=model_sets.tech_steps
+        )
+        self.tech_step = pyo.Set(
+            dimen=2,
+            within=self.tech * self.step,
+            initialize=[(t, s) for t, steps in self.steps_for_tech.items() for s in steps],
+        )
         self.tech_conv = pyo.Set(initialize=model_sets.tech_conv, within=self.tech)
         self.tech_re = pyo.Set(initialize=model_sets.tech_re, within=self.tech)
         self.tech_hydro = pyo.Set(initialize=model_sets.tech_hydro, within=self.tech)
+        self.tech_hydro_seasonal = pyo.Set(
+            initialize=model_sets.tech_hydro_seasonal, within=self.tech_hydro
+        )
+        self.tech_hydro_regular = pyo.Set(
+            initialize=model_sets.tech_hydro_regular, within=self.tech_hydro
+        )
         self.tech_stor = pyo.Set(initialize=model_sets.tech_stor, within=self.tech)
+        self.tech_stor_step = pyo.Set(
+            dimen=2,
+            within=self.tech_stor * self.step,
+            initialize=[(t, s) for t in self.tech_stor for s in self.steps_for_tech[t]],
+        )
         self.tech_vre = pyo.Set(initialize=model_sets.tech_vre, within=self.tech)
         self.tech_wind = pyo.Set(initialize=model_sets.tech_wind, within=self.tech)
+        self.tech_wind_step = pyo.Set(
+            dimen=2,
+            within=self.tech_wind * self.step,
+            initialize=[(t, s) for t in self.tech_wind for s in self.steps_for_tech[t]],
+        )
         self.tech_solar = pyo.Set(initialize=model_sets.tech_solar, within=self.tech)
+        self.tech_solar_step = pyo.Set(
+            dimen=2,
+            within=self.tech_solar * self.step,
+            initialize=[(t, s) for t in self.tech_solar for s in self.steps_for_tech[t]],
+        )
+        self.tech_solar_utility = pyo.Set(
+            initialize=model_sets.tech_solar_utility, within=self.tech_solar
+        )
+        self.tech_solar_end_use = pyo.Set(
+            initialize=model_sets.tech_solar_end_use, within=self.tech_solar
+        )
         self.tech_h2 = pyo.Set(initialize=model_sets.tech_h2, within=self.tech)
+        self.tech_h2_step = pyo.Set(
+            dimen=2,
+            within=self.tech_h2 * self.step,
+            initialize=[(t, s) for t in self.tech_h2 for s in self.steps_for_tech[t]],
+        )
         self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
         self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)
+        self.tech_gen_step = pyo.Set(
+            dimen=2,
+            within=self.tech_gen * self.step,
+            initialize=[(t, s) for t in self.tech_gen for s in self.steps_for_tech[t]],
+        )
         self.tech_buildable = pyo.Set(
-            dimen=2, initialize=model_sets.tech_builds, within=self.tech * self.step
+            dimen=2, initialize=model_sets.tech_builds, within=self.tech_step
         )
         self.tech_retireable = pyo.Set(
-            dimen=2, initialize=model_sets.tech_retires, within=self.tech * self.step
+            dimen=2, initialize=model_sets.tech_retires, within=self.tech_step
         )
 
         # CONSTRAINT INDEXING SETS
         self.storage_most_hours_balance_index = pyo.Set(
             initialize=model_sets.storage_most_hours_balance_index,
-            within=self.region_analyze * self.tech_stor * self.step * self.year * self.hour_most,
+            within=self.region_analyze * self.tech_stor_step * self.year * self.hour_most,
         )
         self.storage_first_hour_balance_index = pyo.Set(
             initialize=model_sets.storage_first_hour_balance_index,
-            within=self.region_analyze * self.tech_stor * self.step * self.year * self.hour_first,
+            within=self.region_analyze * self.tech_stor_step * self.year * self.hour_first,
         )
         self.ramp_most_hours_balance_index = pyo.Set(
             initialize=model_sets.ramp_most_hours_balance_index
@@ -110,18 +156,23 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.generation_dispatchable_ub_index
         )
         self.generation_ramp_index = pyo.Set(initialize=model_sets.generation_ramp_index)
-        self.capacity_hydro_ub_index = pyo.Set(initialize=model_sets.capacity_hydro_ub_index)
+        self.seasonal_hydro_index = pyo.Set(initialize=model_sets.seasonal_hydro_index)
         self.reserves_procurement_index = pyo.Set(
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
 
         self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
 
-        # international trade indices
+        # international trade indices.  Note:  "step" here is different from "tech" steps and
+        # is represented by an integer value
         self.international_trade_index = pyo.Set(
             dimen=5,
             initialize=model_sets.international_trade_index,
-            within=self.region_analyze * self.region_int * self.step * self.year * self.hour,
+            within=self.region_analyze
+            * self.region_int
+            * pyo.NonNegativeIntegers
+            * self.year
+            * self.hour,
         )
 
         # —————————————  Indexed sets
@@ -142,8 +193,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             self.associated_reserve_types = pyo.Set(
                 self.region_analyze,
-                self.tech,
-                self.step,
+                self.tech_step,
                 self.year,
                 self.hour,
                 within=ReserveType,
@@ -166,21 +216,21 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 ReserveType,
                 self.year,
                 self.hour,
-                within=self.tech * self.step,
+                within=self.tech_step,
                 initialize=idx,
             )
             self.wind_reserves = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
-                within=self.tech_wind * self.step,
+                within=self.tech_wind_step,
                 initialize=wind_members,
             )
             self.solar_reserves = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
-                within=self.tech_solar * self.step,
+                within=self.tech_solar_step,
                 initialize=solar_members,
             )
 
@@ -188,20 +238,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.storage_hour_index = pyo.Set(
             self.hour,
             initialize=model_sets.storage_hour_index,
-            within=self.region_analyze * self.tech_stor * self.step * self.year,
+            within=self.region_analyze * self.tech_stor_step * self.year,
         )
 
         # Generation sources indexed by hour
         self.generation_hour_index = pyo.Set(
             self.hour,
-            within=self.region_analyze * self.tech_gen * self.step * self.year,
+            within=self.region_analyze * self.tech_gen_step * self.year,
             initialize=model_sets.generation_hour_index,
         )
 
         # Generation sources indexed by hour for H2 technologies
         self.h2_generation_hour_index = pyo.Set(
             self.hour,
-            within=self.region_analyze * self.tech_h2 * self.step * self.year,
+            within=self.region_analyze * self.tech_h2_step * self.year,
             initialize=model_sets.h2_generation_hour_index,
         )
 
@@ -209,14 +259,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.region_analyze,
             self.year,
             self.hour,
-            within=self.tech_gen * self.step,
+            within=self.tech_gen_step,
             initialize=model_sets.generation_demand_index,
         )
         self.storage_demand_balance = pyo.Set(
             self.region_analyze,
             self.year,
             self.hour,
-            within=self.tech_stor * self.step,
+            within=self.tech_stor_step,
             initialize=model_sets.storage_demand_index,
         )
 
@@ -227,8 +277,19 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.capacity_sources = pyo.Set(
             self.region_analyze,
             self.year,
-            within=self.tech * self.step,
+            within=self.tech_step,
             initialize=idx,
+        )
+
+        # This further refinement of steps for seasonal hydro is necessary because it can
+        # differ by region & year
+        self.hydro_seasonal_steps = pyo.Set(
+            self.region_analyze,
+            self.tech_hydro_seasonal,
+            self.year,
+            within=self.step,
+            initialize=model_sets.hydro_seasonal_step_index,
+            validate=tech_hydro_seasonal_check,
         )
 
         # if capacity expansion is on
@@ -310,8 +371,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #           which is OK as it probably indicates a true error.
         self.supply_price = pyo.Param(
             self.region_analyze,
-            self.tech,
-            self.step,
+            self.tech_step,
             self.year,
             self.season,
             initialize=all_frames['supply_price'],
@@ -322,8 +382,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #           param keys where needed
         self.supply_curve = pyo.Param(
             self.region_analyze,
-            self.tech,
-            self.step,
+            self.tech_step,
             self.year,
             initialize=all_frames['supply_curve'],
             within=pyo.NonNegativeReals,
@@ -356,14 +415,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
 
         self.fom_cost = pyo.Param(
-            self.region_analyze, self.tech, self.step, initialize=all_dicts['fom_cost']
+            self.region_analyze, self.tech_step, initialize=all_dicts['fom_cost']
         )
         # if capacity expansion is on
         if elec_config.capacity_expansion:
             self.capacity_credit = pyo.Param(
                 self.region_analyze,
-                self.tech,
-                self.step,
+                self.tech_step,
                 self.year,
                 self.hour,
                 initialize=all_frames['capacity_credit'],
@@ -374,8 +432,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.learning_rate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
                 self.cap_cost_initial = pyo.Param(
                     self.region_analyze,
-                    self.tech,
-                    self.step,
+                    self.tech_step,
                     initialize=all_dicts['cap_cost_initial'],
                 )
                 self.supply_curve_learning = pyo.Param(
@@ -400,8 +457,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     mute = True
                 self.cap_cost = pyo.Param(
                     self.region,
-                    self.tech,
-                    self.step,
+                    self.tech_step,
                     self.year,
                     initialize=all_frames['cap_cost'],
                     mutable=mute,
@@ -424,16 +480,18 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
             """destination, source, year, hour"""
 
+            # note:  "steps" in intl transmission are separate from "tech steps" and are just
+            #        non-negative integers.
             self.tran_cost_int = pyo.Param(
                 self.region_analyze,
                 self.region_int,
-                self.step,
+                pyo.NonNegativeIntegers,
                 self.year,
                 initialize=all_frames['tran_cost_int'],
             )
             self.tran_limit_gen_int = pyo.Param(
                 self.region_int,
-                self.step,
+                pyo.NonNegativeIntegers,
                 self.year,
                 self.hour,
                 initialize=all_frames['tran_limit_gen_int'],
@@ -951,16 +1009,19 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             idx[season].append(hour)
         self.hour_season_index = pyo.Set(self.season, within=self.hour, initialize=idx)
 
-        @self.Constraint(self.capacity_hydro_ub_index)
-        def capacity_hydro_ub(self, r, t_hydro, y, season):
+        @self.Constraint(self.seasonal_hydro_index)
+        def seasonal_hydro_discharge_ub(self, r, t_hydro, y, season):
             """Hydroelectric generation seasonal upper bound.
 
             Hydo generation <= Hydo capacity * Hydro capacity factor.
 
+            Both sides accumulate over every supply curve step the tech holds, so the seasonal
+            energy budget bounds the technology as a whole rather than one nominated step.
+
             Parameters
             ----------
             t_hydro : pyomo.core.base.set.OrderedScalarSet
-                hydro technology set
+                seasonal hydro technology set
             y : pyomo.core.base.set.OrderedScalarSet
                 year set
             r : pyomo.core.base.set.OrderedScalarSet
@@ -973,13 +1034,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             pyomo.core.base.constraint.IndexedConstraint
                 hydroelectric generation seasonal upper bound
             """
+            steps = self.hydro_seasonal_steps[r, t_hydro, y]
             return (
                 sum(
-                    self.generation_total[r, t_hydro, 1, y, hr]  # TODO:  Why the hardcode step=1 ?
+                    self.generation_total[r, t_hydro, step, y, hr]
                     * self.weight_day[self.map_hour_day[hr]]
                     for hr in self.hour_season_index[season]
+                    for step in steps
                 )
-                <= self.capacity_total[r, t_hydro, 1, y]
+                <= sum(self.capacity_total[r, t_hydro, step, y] for step in steps)
                 * self.hydro_cap_factor[r, season]
                 * self.weight_season[season]
             )

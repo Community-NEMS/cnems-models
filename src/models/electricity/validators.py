@@ -11,10 +11,14 @@ Basic validators for pyomo (and other) objects
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from pyomo.core import ConcreteModel
 
 from src.models.electricity.elec_config import ReserveType
+
+if TYPE_CHECKING:
+    from src.models.electricity.electricity_model import PowerModel
 
 logger = logging.getLogger(__name__)
 
@@ -60,5 +64,37 @@ def reserve_tech_check(model: ConcreteModel, value: float, *idx) -> bool:
             value,
             idx,
         )
+        return False
+    return True
+
+
+# PowerModel must stay quoted: pyomo inspects this signature at runtime and, on py3.14, an
+# unquoted TYPE_CHECKING-only name raises NameError there
+def tech_hydro_seasonal_check(model: 'PowerModel', value: int, *idx) -> bool:  # noqa: UP037
+    """Validate a seasonal-hydro supply curve step against the tech's declared steps.
+
+    Parameters
+    ----------
+    model : PowerModel
+        Model under construction; ``steps_for_tech`` must already be built.
+    value : int
+        Candidate step for the ``hydro_seasonal_steps`` member at ``idx``.
+    *idx
+        Index of the ``hydro_seasonal_steps`` member: ``(region, tech, year)``.
+
+    Returns
+    -------
+    bool
+        True if ``value`` is one of the steps declared for the tech.
+    """
+    _, tech, _ = idx
+    # pyrefly: ignore[bad-index]  - pyomo Sets attached at runtime read as SetData
+    valid_steps = model.steps_for_tech[tech]
+    if not valid_steps:
+        logger.error('No valid steps for tech: %s', tech)
+        return False
+    # pyrefly: ignore[not-iterable]  - pyomo Set membership is untyped
+    if value not in valid_steps:
+        logger.error('Step value %s is not valid for tech: %s', value, tech)
         return False
     return True

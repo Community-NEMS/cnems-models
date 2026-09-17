@@ -6,6 +6,10 @@ site_dir = "site"
 repo_url = "https://github.com/Community-NEMS/cnems-models"
 repo_name = "Community-NEMS/cnems-models"
 watch = ["src"]
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+]
 
 nav = [
   { "Home" = "index.md" },

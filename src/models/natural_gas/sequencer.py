@@ -7,6 +7,7 @@ Created on:  8/14/26
 """
 
 import logging
+import sys
 from collections.abc import Sequence
 
 from pyomo.common.numeric_types import value
@@ -262,7 +263,12 @@ if __name__ == '__main__':
     sequencer = NGSequencer()
     sequencer.build_model(common_config, ng_config)
     _, status = sequencer.solve_model()
+
+    if status is IterationStatus.ERROR:
+        logger.error('C-NGMM: solve failed with status %s, no results written', status)
+        sys.exit(1)
+
     logger.info('Solved with status: %s', status)
-    obj_value = value(sequencer.model.total_cost)
+    obj_value = sequencer.get_objective_value()
     logger.info('Objective value: %0.2f', obj_value)
     sequencer.full_postprocess()

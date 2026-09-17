@@ -35,7 +35,6 @@ PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
 TIME_BASED_DFS = (
     'cap_cost',
     'cap_factor_vre',
-    'h2_price',
     'hydro_cap_factor',
     'supply_curve',
     'supply_price',
@@ -261,6 +260,52 @@ def read_property_csv(
     return res
 
 
+def read_attribute_csv(
+    file_path: Path, attribute_cols: Iterable[str], index_cols: Iterable[str]
+) -> dict[str, dict]:
+    """Read descriptive (non-membership) columns of a property csv into per-index lookups.
+
+    The counterpart to ``read_property_csv``: instead of pivoting truthy cells into membership
+    lists, each named column is carried through verbatim, keyed by the row's index.
+
+    Parameters
+    ----------
+    file_path : Path
+        the csv to read.
+    attribute_cols : Iterable[str]
+        columns to carry through as raw values.
+    index_cols : Iterable[str]
+        index column(s) identifying each row; a singleton index is de-tupled, matching
+        ``read_property_csv``.
+
+    Returns
+    -------
+    dict[str, dict]
+        attribute name -> {index: raw cell value}.
+    """
+    res: dict[str, dict] = {label: {} for label in attribute_cols}
+    with open(file_path) as f:
+        reader = DictReader(f)
+        for row in reader:
+            try:
+                idx = tuple(row[col] for col in index_cols)
+                # de-tuple any singletons
+                if len(idx) == 1:
+                    idx = idx[0]
+            except KeyError:
+                logger.error('Expecting index columns %s in csv file: %s', index_cols, file_path)
+                raise
+            for col_label in attribute_cols:
+                try:
+                    res[col_label][idx] = row[col_label]
+                except KeyError:
+                    logger.error(
+                        'Expecting attribute column %s in csv file: %s', col_label, file_path
+                    )
+                    raise
+    return res
+
+
 def load_param_data(
     input_dir: Path,
     param_filter: FilterPackage | None = None,
@@ -315,6 +360,27 @@ def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
     return {
         k: read_property_csv(input_dir / source.filename, source.property_cols, source.index_cols)
         for k, source in PROPERTY_SOURCES.items()
+    }
+
+
+def load_attribute_data(input_dir: Path) -> dict[str, dict[str, dict]]:
+    """Read the attribute columns of every ``PROPERTY_SOURCES`` entry that declares any.
+
+    Parameters
+    ----------
+    input_dir : Path
+        directory holding the property CSVs named by ``PROPERTY_SOURCES``.
+
+    Returns
+    -------
+    dict[str, dict[str, dict]]
+        one entry per property source with ``attribute_cols``, mapping each attribute name to
+        its {index: raw value} lookup.  Sources declaring none are absent.
+    """
+    return {
+        k: read_attribute_csv(input_dir / source.filename, source.attribute_cols, source.index_cols)
+        for k, source in PROPERTY_SOURCES.items()
+        if source.attribute_cols
     }
 
 

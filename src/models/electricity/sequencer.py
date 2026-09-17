@@ -263,9 +263,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
         logger.info('dispatch cost value = %.2f', pyo.value(instance.dispatch_cost))
         logger.info('unmet load cost value = %.2f', pyo.value(instance.unmet_load_cost))
+        logger.info('fixed om cost value = %.2f', pyo.value(instance.fixed_om_cost))
         if self.elec_config.capacity_expansion:
             logger.info('cap expansion value = %.2f', pyo.value(instance.capacity_expansion_cost))
-            logger.info('fixed om cost value = %.2f', pyo.value(instance.fixed_om_cost))
         if self.elec_config.spinning_reserve_required:
             logger.info('op res value = %.2f', pyo.value(instance.operating_reserves_cost))
         if self.elec_config.ramping_required:
@@ -378,7 +378,7 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for r, tech, step, y in instance.cap_cost:
         # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
-        result[(tech, y)] = sum(
+        result[(tech, y)] += sum(
             value(instance.capacity_builds[r, tech, step, year])
             for year in instance.year
             if year < y

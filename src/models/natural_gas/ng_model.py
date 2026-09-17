@@ -1304,12 +1304,15 @@ class NGModel(ConcreteModel, IntegratedModel):
             for y in self.year:
                 try:
                     # Dual of the demand_balance constraint.
-                    # The LP sign of the dual depends on which side of the
-                    # equality is binding (supply-abundant vs demand-deficit
-                    # regions get opposite signs in the degenerate dual
-                    # solution).  The absolute value recovers the correct
-                    # locational marginal price: price spreads between
-                    # adjacent regions equal pipeline tariffs exactly.
+                    # The absolute value normalises the solver's sign convention. Note the
+                    # justification originally recorded here was wrong twice over: an equality
+                    # constraint is always active, so "which side is binding" is not a
+                    # distinction, and the claim that adjacent price spreads equal pipeline
+                    # tariffs exactly ignores both the delivery loss and the piecewise tariff
+                    # (see the price section of README.md for the relation that does hold).
+                    # Whether abs() is the right normalisation is unresolved and tracked
+                    # separately; postprocessor._extract_prices carries the same call, and any
+                    # policy has to cover both sites together.
                     p = self.dual[self.demand_balance[r, y]]
                     prices[GI(region=r, year=y)] = abs(p) / value(self.bcf_to_mmbtu)
                 except KeyError:

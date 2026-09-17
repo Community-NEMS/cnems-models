@@ -9,7 +9,7 @@ import pytest
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.model_sets import ModelSets
+from src.models.electricity.model_sets import ModelSets, _parse_steps
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.utilities import annual_count
 
@@ -62,13 +62,78 @@ def test_hours_set():
         tot_load1.loc[:, 'tot_load'] = tot_load1['Load'] * tot_load1['weight_day']
         return sum(tot_load1.tot_load)
 
-    # total load for 4 days, 1 hour per day
-    tot_load_d4h1 = get_tot_load('d4h1')
+    # total load for 4 days, 24 hours per day
+    tot_load_d4h24 = get_tot_load('d4h24')
     # total load for 8 days, 12 hours per day
     tot_load_d8h12 = get_tot_load('d8h12')
 
     # check that sum of load matches regardless of hours per day
-    assert tot_load_d4h1 > 0.0, 'no load discovered.  check test setup'
-    assert tot_load_d4h1 == pytest.approx(tot_load_d8h12), (
+    assert tot_load_d4h24 > 0.0, 'no load discovered.  check test setup'
+    assert tot_load_d4h24 == pytest.approx(tot_load_d8h12), (
         'some diff in load calculated via different hour mappings'
+    )
+
+
+@pytest.mark.parametrize(
+    'raw, expected',
+    [
+        ('1/2/3', [1, 2, 3]),
+        ('1', [1]),
+        ('/1/2/', [1, 2]),  # stray leading/trailing slashes
+        ('1//2', [1, 2]),  # empty interior segment
+        (' 1 / 2 ', [1, 2]),  # padding around the values
+        ('2/1/2', [1, 2]),  # unsorted + duplicated
+        ('', []),  # tech with no supply curve entries
+        ('  ', []),
+        ('/', []),
+    ],
+)
+def test_parse_steps(raw: str, expected: list[int]):
+    """Slash-separated step lists parse to sorted unique ints, tolerating slack formatting."""
+    assert _parse_steps(raw, 'test_tech') == expected
+
+
+@pytest.mark.parametrize('raw', ['1/x', '1/2.5', 'one'])
+def test_parse_steps_rejects_non_integers(raw: str):
+    """A non-integer segment is an error, not a silently dropped step."""
+    with pytest.raises(ValueError, match='test_tech'):
+        _parse_steps(raw, 'test_tech')
+
+
+def test_tech_steps_matches_supply_curve(config_set):
+    """Every tech's declared steps match the steps actually present in SupplyCurve.csv."""
+    common_config, elec_config = config_set
+    model_sets = ModelSets(common_config, elec_config)
+
+    supply_curve = pd.read_csv(
+        Path(PROJECT_ROOT, 'input/electricity/cem_inputs/SupplyCurve.csv'),
+        dtype={'tech': str},
+    )
+    observed = {
+        tech: sorted(set(grp['step'])) for tech, grp in supply_curve.groupby('tech', sort=False)
+    }
+
+    assert model_sets.tech_steps, 'no tech steps parsed.  check test setup'
+    assert model_sets.tech_steps == observed
+
+
+def test_tech_descriptors_cover_every_tech(config_set):
+    """label/abbreviation/color are populated for every tech, with 6-char upper-case codes."""
+    common_config, elec_config = config_set
+    model_sets = ModelSets(common_config, elec_config)
+
+    techs = set(model_sets.tech)
+    for descriptor in (
+        model_sets.tech_label,
+        model_sets.tech_abbreviation,
+        model_sets.tech_color,
+    ):
+        assert set(descriptor) == techs
+        assert all(value for value in descriptor.values()), 'blank descriptor found'
+
+    assert all(
+        len(abbr) == 6 and abbr.isupper() for abbr in model_sets.tech_abbreviation.values()
+    ), 'abbreviations must be 6 upper-case characters'
+    assert len(set(model_sets.tech_abbreviation.values())) == len(techs), (
+        'abbreviations must be unique'
     )

@@ -88,7 +88,19 @@ def load_ng_region_map(path: str | Path | None = None) -> dict[str, str]:
         reader = csv.DictReader(fh)
         if reader.fieldnames:
             reader.fieldnames = [name.strip() for name in reader.fieldnames]
+        # Validate the header before reading rows. DictReader takes whatever the first line is
+        # as the header, so a file carrying a leading '#' note yields a KeyError naming a
+        # column that is plainly present in the file. This reader has no comment support.
+        missing = sorted({'elec_region', 'ng_region'}.difference(reader.fieldnames or ()))
+        if missing:
+            raise ValueError(
+                f'{p} is missing required column(s) {missing}; header reads '
+                f'{list(reader.fieldnames or [])}. This file must be plain CSV with no '
+                f'comment rows, since a leading "#" line is parsed as the header.'
+            )
         out = {row['elec_region'].strip(): row['ng_region'].strip() for row in reader}
+    if not out:
+        raise ValueError(f'{p} has a valid header but no region rows')
     logger.info('Loaded electricity->gas region map: %d electricity regions', len(out))
     return out
 

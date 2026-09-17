@@ -18,7 +18,8 @@ from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
+from src.common.integrated_model_sequencer import IterationResult, IterationStatus
+from src.common.models_modes import ModelType
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -61,6 +62,31 @@ configs = [
     ('basic_config', -480902641083.88, 1476, 1530),
     ('partial_regions', -319146064790.54, 342, 342),
 ]
+
+# the same captured objective values, keyed by case name, so the full_run tests below pin to the
+# numbers this table already locks in rather than to a second copy of them
+expected_costs = {name: cost for name, cost, _, _ in configs}
+
+# the three census divisions the 'partial_regions' case runs; also used by the full_run tests,
+# which want the cheapest build that still exercises the real data path
+PARTIAL_REGIONS = ['west_south_central', 'mountain', 'pacific']
+
+
+@pytest.fixture
+def partial_config_set() -> tuple[CommonConfig, NGConfig]:
+    """A ``(CommonConfig, NGConfig)`` pair filtered down to :data:`PARTIAL_REGIONS`.
+
+    Returns
+    -------
+    tuple[CommonConfig, NGConfig]
+        The test TOML, with the NG config's ``region_filter`` narrowed to three divisions.
+    """
+    config_path = Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    # note the TOML section is [natural_gas], not [ng_config]
+    ng_config = NGConfig(**remainder.pop('natural_gas'))
+    ng_config.region_filter = PARTIAL_REGIONS
+    return common_config, ng_config
 
 
 class TestNGBasicRun:
@@ -127,3 +153,62 @@ class TestNGBasicRun:
         assert ng_model.nconstraints() == expected_nconstraints, (
             f'found {ng_model.nconstraints()} constraints'
         )
+
+
+class TestSequencerFullRun:
+    """``full_run()`` must not present a failed solve as a successful run.
+
+    ``full_run`` is the entry point the integrator's pool workers call
+    (``src/integrator/combine.py::driver``), and its only channel back to the caller is the
+    :class:`~src.common.integrated_model_sequencer.IterationResult` it returns.  A failed solve
+    leaves no solution loaded, so reading the objective off the model would report a garbage
+    number as if it were a price; these tests pin the contract that the failure path reports
+    ``ERROR`` with no objective instead.  (``full_run`` writes no result CSVs at all --
+    postprocessing is a separate call -- so the old concern about a failed solve leaving output
+    indistinguishable from a good run is now structural rather than a check made here.)
+    """
+
+    def test_reports_usable_on_success(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """A good solve returns a fully populated ``IterationResult``."""
+        common_config, ng_config = partial_config_set
+        sequencer = NGSequencer()
+        result = sequencer.full_run(common_config, ng_config)
+
+        assert isinstance(result, IterationResult)
+        assert result.model_type is ModelType.NATURAL_GAS
+        assert result.status is IterationStatus.USABLE
+        assert result.objective_value == pytest.approx(
+            expected_costs['partial_regions'], rel=1e-4
+        ), f'found {result.objective_value} total cost'
+        # C-NGMM emits nothing onward yet, so an entry here means get_outbound_updates() grew a
+        # sender without this test being revisited
+        assert result.update_packages == []
+        # the integrator logs results with pprint(), so a broken render breaks the run report
+        assert 'natural_gas' in result.pprint()
+
+    def test_no_objective_read_on_solve_error(
+        self, partial_config_set: tuple[CommonConfig, NGConfig], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An ERROR status yields ``objective_value=None`` without touching the objective."""
+        common_config, ng_config = partial_config_set
+        monkeypatch.setattr(
+            NGSequencer,
+            'solve_model',
+            lambda self, **kwargs: (ModelType.NATURAL_GAS, IterationStatus.ERROR),
+        )
+        # patch the objective read so its absence is observed, not merely assumed
+        touched: list[str] = []
+        monkeypatch.setattr(
+            NGSequencer, 'get_objective_value', lambda self: touched.append('objective')
+        )
+
+        sequencer = NGSequencer()
+        result = sequencer.full_run(common_config, ng_config)
+
+        assert result.status is IterationStatus.ERROR
+        assert result.objective_value is None
+        assert touched == [], f'failed solve still did: {touched}'
+        # a failed solve still has to render, since that is how the failure gets reported
+        assert 'ERROR' in result.pprint()

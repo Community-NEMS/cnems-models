@@ -180,6 +180,21 @@ def main() -> None:
     # belong to the workers, not here
     setup_control_loop_logging(log_path(common_config.scenario_name, 'MAIN'))
     logger.info('Starting run for scenario "%s"', common_config.scenario_name)
+    if elec_cfg.region_filter:
+        logger.warning(
+            'The electricity model is filtered to regions %s.  Packages it sends cover only the '
+            'gas regions those touch, and the natural gas model holds the rest at base-year '
+            'values, so excluding regions may lead to odd results in the integrated run',
+            elec_cfg.region_filter,
+        )
+    if ng_cfg.region_filter:
+        logger.warning(
+            'The natural gas model is filtered to regions %s.  Prices it sends cover only the '
+            'electricity regions those touch (averaged over partial coverage), and demand it '
+            'receives for other regions is ignored, so excluding regions may lead to odd results '
+            'in the integrated run',
+            ng_cfg.region_filter,
+        )
 
     # set up iterative solve
     iteration = 1

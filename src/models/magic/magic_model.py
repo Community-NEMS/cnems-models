@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 class MagicModel(IntegratedModel):
     """Testing Implement."""
 
+    @property
+    def label(self) -> str:
+        """Display name."""
+        return 'Magic'
+
     def __init__(self):
         super().__init__()
         sleep(3)
@@ -145,8 +150,8 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         centered on 1.0 so the scaler stays positive: SupplyPrice is NonNegativeReals, and a
         bare cosine goes negative for sequence numbers 3-5, 11-13, ...
         """
-        # TODO:  Temp patch for isolating NG updates
-        return []
+        # # TODO:  Temp patch for isolating NG updates
+        # return []
         cycle_point = self._sequence_number * math.pi / 4
         scale = 2 * 2 ** (-self._sequence_number / 3)
         scalar = 1 + scale * math.cos(cycle_point)

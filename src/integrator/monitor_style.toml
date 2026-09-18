@@ -1,0 +1,38 @@
+# Colour scheme for the iteration monitor (src/integrator/iteration_monitor.py).
+#
+# Every value is a rich style string:  a colour name ("cyan", "grey50", "bright_yellow"),
+# optionally with modifiers ("bold cyan", "italic grey70").  Standard names are listed at
+# https://rich.readthedocs.io/en/stable/appendix/colors.html .  A key the file omits falls
+# back to the monitor's built-in default, so a section can be trimmed to the entries that
+# matter.
+
+[model]
+# keyed by ModelType value; "default" covers any model not named here
+default = "bold grey78"
+electricity = "bold dark_cyan"
+natural_gas = "bold dark_green"
+magic = "bold dark_magenta"
+
+[package]
+# keyed by the package's label; "default" covers any package not named here
+default = "dark_goldenrod"
+"NG Demand" = "dark_goldenrod"
+"NG Prices" = "gold3"
+"Trans Cost" = "dark_orange3"
+"Elec Price Scaler" = "deep_pink3"
+"NG Demand Scaler" = "indian_red1"
+
+[connector]
+lifeline = "grey35"   # the vertical rails under each model
+ray = "grey50"        # the horizontal package rays, their tails and arrowheads
+box = "grey50"        # the borders of the model name boxes in the header
+
+[objective]
+start = "bold grey39"    # the starting value shown on the first iteration
+increase = "dark_red"    # objective went up (a cost model got more expensive)
+decrease = "dark_green"  # objective went down
+unchanged = "grey46"     # no change
+none = "grey35"          # the model reports no objective
+
+[iteration]
+number = "bold grey39"

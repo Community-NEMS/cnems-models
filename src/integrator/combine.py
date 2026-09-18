@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from multiprocessing import Pool
 
 from matplotlib import pyplot as plt
+from rich.console import Console
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
@@ -22,6 +23,7 @@ from src.common.integrated_model_sequencer import IterationResult
 from src.common.log_setup import _scenario_log, log_path, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
+from src.integrator.iteration_monitor import DeltaMode, IterationMonitor
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
@@ -169,8 +171,14 @@ def driver(iter_call: IterationCall) -> IterationResult:
                 raise NotImplementedError()
 
 
-def main() -> None:
-    """Run the electricity, natural gas, and magic models in parallel until iteration-capped."""
+def main(iter_limit: int = 15) -> None:
+    """Run the electricity, natural gas, and magic models in parallel until iteration-capped.
+
+    Parameters
+    ----------
+    iter_limit : int, default 15
+        Number of iterations to run; convergence is not yet measured, so this is the run length.
+    """
     common_config, remainder = parse_config_file(common_config_path)
     elec_cfg = ElecConfig(**remainder.pop('elec_config'))
     ng_cfg = NGConfig(**remainder.pop('natural_gas'))
@@ -198,7 +206,6 @@ def main() -> None:
 
     # set up iterative solve
     iteration = 1
-    iter_limit = 15
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
@@ -208,6 +215,9 @@ def main() -> None:
         ModelType.ELECTRICITY: [],
         ModelType.NATURAL_GAS: [],
     }
+    # the text monitor of objective deltas and package traffic, one block per iteration
+    monitor = IterationMonitor(CIRCUIT, delta_mode=DeltaMode.ABSOLUTE)
+    console = Console()
 
     # one pool for the whole run; spawning workers per iteration re-imports the world each time
     with Pool(processes=6) as worker_pool:
@@ -244,14 +254,17 @@ def main() -> None:
                 obj_value = result.objective_value
                 if result.model_type in obj_vals and obj_value is not None:
                     obj_vals[result.model_type].append(obj_value)
+            # show this iteration's objective deltas and package traffic
+            block = monitor.record(iteration, results)
+            logger.info('\n%s', block.plain)
+            console.print(block, highlight=False)
             # route each model's outbound packages to their receivers for the next iteration
             outbound = [pkg for result in results for pkg in result.update_packages]
             routed_updates = route_updates(outbound, CIRCUIT)
 
             # TODO:  compute a real convergence measure; eps is never updated, so this loop
             #        currently always runs the full iter_limit
-            logger.info('Done with iteration %d', iteration)
-            print(f'Done with iteration {iteration}/{iter_limit}')
+            logger.info('Done with iteration %d/%d', iteration, iter_limit)
             iteration += 1
 
     # the two objectives are orders of magnitude apart (and NG's is negative), so each model

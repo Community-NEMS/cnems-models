@@ -42,6 +42,11 @@ logger = getLogger(__name__)
 class PowerModel(pyo.ConcreteModel, IntegratedModel):
     """A PowerModel instance."""
 
+    @property
+    def label(self) -> str:
+        """Display name."""
+        return 'Electricity'
+
     def __init__(
         self,
         model_sets: ModelSets,

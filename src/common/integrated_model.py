@@ -9,6 +9,14 @@ A model that conforms to the "integration standards"
 
 """
 
+from abc import ABC, abstractmethod
 
-class IntegratedModel:
-    """Marker base class for models that conform to the integration standards."""
+
+class IntegratedModel(ABC):
+    """Base class for models that conform to the integration standards."""
+
+    @property
+    @abstractmethod
+    def label(self) -> str:
+        """Short human-readable name of the model, for run monitors and logs."""
+        raise NotImplementedError()

@@ -54,6 +54,18 @@ class UpdatePackage(ABC):
         """The models this package is intended for."""
         raise NotImplementedError()
 
+    @property
+    @abstractmethod
+    def label(self) -> str:
+        """Short human-readable name of the payload, for run monitors and logs."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def size(self) -> int:
+        """Number of entries the payload carries, for run monitors and logs."""
+        raise NotImplementedError()
+
 
 # Dev Note:  This will move later after some experimentation
 @dataclass(frozen=True)
@@ -77,6 +89,12 @@ class ElectricityPriceScaler(UpdatePackage):
     techs: tuple[str, ...]
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
     scalar: float = 1.0
+    label: str = 'Elec Price Scaler'
+
+    @property
+    def size(self) -> int:
+        """One entry per tech scaled."""
+        return len(self.techs)
 
     def __post_init__(self) -> None:
         """Reject a scalar that would drive supply prices out of ``NonNegativeReals``.
@@ -114,6 +132,12 @@ class NGDemandPackage(UpdatePackage):
 
     receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
     scalar: float = 1.0
+    label: str = 'NG Demand Scaler'
+
+    @property
+    def size(self) -> int:
+        """A single scalar."""
+        return 1
 
     def __post_init__(self) -> None:
         """Reject a scalar that would drive demand non-positive.
@@ -151,6 +175,12 @@ class TransCostUpdate(UpdatePackage):
 
     elements: pd.DataFrame
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+    label: str = 'Trans Cost'
+
+    @property
+    def size(self) -> int:
+        """One entry per (destination, source, year) row."""
+        return len(self.elements)
 
 
 def make_trans_update(new_cost: float, year: int) -> TransCostUpdate:
@@ -239,6 +269,12 @@ class NGPricePackage(UpdatePackage):
 
     elements: pd.DataFrame
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+    label: str = 'NG Prices'
+
+    @property
+    def size(self) -> int:
+        """One entry per (region, year) row."""
+        return len(self.elements)
 
     def __post_init__(self) -> None:
         """Reject a frame the recipient could not apply.
@@ -280,6 +316,12 @@ class NGElectricalDemandPackage(UpdatePackage):
 
     elements: pd.DataFrame
     receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+    label: str = 'NG Demand'
+
+    @property
+    def size(self) -> int:
+        """One entry per (region, year) row."""
+        return len(self.elements)
 
     def __post_init__(self) -> None:
         """Reject a frame the recipient could not apply.

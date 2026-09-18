@@ -181,6 +181,7 @@ prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
 zensical = "*"
+rich = "*"
 
 
 [tool.pixi.tasks]
@@ -200,6 +201,11 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
+
+# The integrated control loop:  electricity, natural gas and magic in parallel, exchanging
+# update packages each iteration, with the iteration monitor on the console.
+# TODO:  This is for development work only and the main loop in combine will migrate soon
+combine = { cmd = "python -m src.integrator.combine", description = "Run the integrated model loop using run_configs/basic_elec_config.toml." }
 
 # Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
 # absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then

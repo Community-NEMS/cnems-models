@@ -157,6 +157,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         Regional annual electric-power gas demand from the electricity model.
     """
 
+    @property
+    def label(self) -> str:
+        """Display name."""
+        return 'Natural Gas'
+
     # Added `regions` (default None = all nine, so every
     def __init__(
         self,

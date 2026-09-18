@@ -44,12 +44,20 @@ class IterationResult:
         The solved objective value, or ``None`` for models that have no objective.
     update_packages : list of UpdatePackage
         The packages this model wants routed onward to its receivers.
+    label : str
+        The model's display name (``IntegratedModel.label``); falls back to the model type.
     """
 
     model_type: ModelType
     status: IterationStatus
     objective_value: float | None
     update_packages: list[UpdatePackage]
+    label: str = ''
+
+    def __post_init__(self) -> None:
+        """Default the label to the model type's value when the sequencer supplied none."""
+        if not self.label:
+            self.label = self.model_type.value
 
     def pprint(self, indent: int = 0) -> str:
         """Render a 4-line summary: model, status, objective value, and update package types.
@@ -163,4 +171,5 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](AB
             status=status,
             objective_value=objective_value,
             update_packages=self.get_outbound_updates(),
+            label=self.model.label,
         )

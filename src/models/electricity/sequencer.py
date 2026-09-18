@@ -27,7 +27,7 @@ from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.postprocessor import export_variables_to_csv
+from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
 
 logger = getLogger(__name__)
 
@@ -258,6 +258,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             self.common_config.output_path / self.common_config.scenario_name / 'electricity'
         )
         export_variables_to_csv(instance, output_dir=scenario_dir / 'variables', core_only=True)
+        logger.info('Transferring tech data (ids, labels, colors) to %s', scenario_dir)
+        transfer_tech_data(self.common_config.common_data_path, scenario_dir)
 
 
 def calculate_tolerance(

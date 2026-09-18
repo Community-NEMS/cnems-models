@@ -12,11 +12,14 @@ import pandas as pd
 import pyomo.environ as pyo
 import pytest
 
+from src.models.electricity.data_ingestor import load_attribute_data
 from src.models.electricity.postprocessor import (
     core_variable_indices,
     export_variables_to_csv,
     extract_all_variables,
     get_known_column_names,
+    tech_data_columns,
+    transfer_tech_data,
     variable_to_dataframe,
 )
 
@@ -139,3 +142,22 @@ def test_export_variables_to_csv_writes_files(solved_model, tmp_path):
         assert csv_path.exists()
         reloaded = pd.read_csv(csv_path)
         assert len(reloaded) == len(df)
+
+
+@pytest.mark.parametrize('fixture_name', ['config_set', 'learning_config_set'])
+def test_transfer_tech_data_writes_file(request, fixture_name, tmp_path):
+    """Tech data export writes id/label/abbreviation/hex-color rows covering every input tech."""
+    common_config, _ = request.getfixturevalue(fixture_name)
+
+    df = transfer_tech_data(common_config.common_data_path, tmp_path)
+
+    csv_path = tmp_path / 'tech_data.csv'
+    assert csv_path.exists()
+    reloaded = pd.read_csv(csv_path, dtype=str)
+    assert list(reloaded.columns) == tech_data_columns
+    assert len(reloaded) == len(df)
+
+    expected_techs = load_attribute_data(common_config.common_data_path)['tech_data']['label']
+    assert set(reloaded['tech']) == {str(t) for t in expected_techs}
+    assert reloaded['color'].str.fullmatch(r'#[0-9A-Fa-f]{6}').all()
+    assert reloaded['label'].notna().all()

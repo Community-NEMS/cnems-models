@@ -4,6 +4,7 @@
 # Setup
 
 import base64
+import logging
 import os
 from pathlib import Path
 
@@ -12,6 +13,8 @@ import plotly.express as px
 from dash import Dash, Input, Output, dcc, html
 
 from definitions import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 # setting up directories
 dir_output = PROJECT_ROOT / 'output'  # Path(__file__).parent
@@ -24,8 +27,15 @@ _header_bg_data_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
 
 
 # add a new index using a mapping dataframe and return a dataframe with the input index
-def mapping(df, mapdf, col, indexes):
-    """Merge ``mapdf`` onto ``df`` by ``col`` and return only ``indexes``, dropping empty rows."""
+def mapping(df: pd.DataFrame, mapdf: pd.DataFrame, col: str, indexes: list[str]) -> pd.DataFrame:
+    """Merge ``mapdf`` onto ``df`` by ``col`` and return only ``indexes``, dropping empty rows.
+
+    ``col`` is cast to ``str`` on both sides first: a run's ``tech_data.csv`` may carry sub-tech
+    ids such as ``10_seasonal``, so it reads as ``str`` while output CSVs holding only plain ids
+    read as ``int64``, and pandas refuses to merge the two.
+    """
+    df = df.assign(**{col: df[col].astype(str)})
+    mapdf = mapdf.assign(**{col: mapdf[col].astype(str)})
     df = pd.merge(df, mapdf, on=col, how='outer')
     df = df[indexes]
     df = df.dropna(how='any', axis=0)
@@ -70,6 +80,7 @@ df_storageoutflow = []
 df_trade = []
 df_tradecan = []
 df_unmetload = []
+df_techdata = []
 
 # a loop for reading each .csv of each run folder and appending them into the dataframe
 # and adding the a column for their run name
@@ -134,6 +145,12 @@ for i in range(len(all_runs)):
     except FileNotFoundError:
         pass
 
+    # tech descriptors (id, label, hex color) exported by the run's postprocessor
+    try:
+        df_techdata = read_run_csv(Path(run_output, 'tech_data.csv'), runname, df_techdata)
+    except FileNotFoundError:
+        pass
+
 # concat all the runs into one table, there a try statements here due to whether the
 # dataframe has values in them
 try:
@@ -177,16 +194,29 @@ try:
 except ValueError:
     print('Unmet load dataframe is empty.')
 
-# swithcing directory to inmport the tech mapping to tech_type and color
+# merge the tech descriptors (tech -> label, color) discovered across all runs.  Runs built
+# from different input sets contribute different tech ids; the first run to describe a tech wins.
 os.chdir(dir_output)
-df_color = pd.read_csv(PROJECT_ROOT / 'analysis_tools' / 'tech_colors.csv')
+try:
+    df_color = pd.concat(df_techdata)
+    df_color = df_color.drop(columns='run').drop_duplicates(subset='tech', keep='first')
+except ValueError:
+    print('No tech_data.csv found in any run; techs will be unlabeled and uncolored.')
+    df_color = pd.DataFrame(columns=['tech', 'label', 'abbreviation', 'color'])
 
-# loop to create a dictionary for inputting into dash plotly
-colorsetting = {}
-for i in range(len(df_color)):
-    tech_type = df_color['tech_type'][i]
-    color = df_color['hex'][i]
-    colorsetting[tech_type] = color
+# label -> hex color dictionary for plotly; first-seen wins, disagreements are logged
+colorsetting: dict[str, str] = {}
+for label, color in zip(df_color['label'], df_color['color'], strict=True):
+    if label in colorsetting and colorsetting[label] != color:
+        logger.warning(
+            "Label '%s' has conflicting colors %s and %s across runs; keeping %s",
+            label,
+            colorsetting[label],
+            color,
+            colorsetting[label],
+        )
+        continue
+    colorsetting.setdefault(label, color)
 
 # sum the steps in the generation table
 try:
@@ -200,7 +230,7 @@ try:
         df_generation,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'hour', 'generation_total'],
+        ['run', 'label', 'region', 'year', 'hour', 'generation_total'],
     )
 except TypeError:
     print('generation_total dataframe is empty.')
@@ -217,7 +247,7 @@ try:
         df_storagelevel,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'hour', 'storage_level'],
+        ['run', 'label', 'region', 'year', 'hour', 'storage_level'],
     )
 except TypeError:
     print('Storage level dataframe is empty.')
@@ -233,7 +263,7 @@ try:
         df_storageinflow,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'hour', 'storage_inflow'],
+        ['run', 'label', 'region', 'year', 'hour', 'storage_inflow'],
     )
     df_storageinflow['Storage_flow'] = df_storageinflow['storage_inflow'] * -1
 except TypeError:
@@ -252,16 +282,16 @@ try:
         df_storageoutflow,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'hour', 'storage_outflow'],
+        ['run', 'label', 'region', 'year', 'hour', 'storage_outflow'],
     )
     df_storageoutflow['Storage_flow'] = df_storageoutflow['storage_outflow']
 except TypeError:
     print('Storage outflow dataframe is empty.')
 
 df_storagecharge = pd.concat([df_storageinflow, df_storageoutflow])
-df_storagecharge = df_storagecharge[['run', 'tech_type', 'region', 'year', 'hour', 'Storage_flow']]
+df_storagecharge = df_storagecharge[['run', 'label', 'region', 'year', 'hour', 'Storage_flow']]
 df_storagecharge = (
-    df_storagecharge.groupby(['run', 'tech_type', 'region', 'year', 'hour'])
+    df_storagecharge.groupby(['run', 'label', 'region', 'year', 'hour'])
     .Storage_flow.sum()
     .reset_index()
 )
@@ -278,7 +308,7 @@ try:
         df_capacitybuilds,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'capacity_builds'],
+        ['run', 'label', 'region', 'year', 'capacity_builds'],
     )
 except TypeError:
     print('Capacity build dataframe is empty.')
@@ -294,7 +324,7 @@ try:
         df_capacityretire,
         df_color,
         'tech',
-        ['run', 'tech_type', 'region', 'year', 'capacity_retirements'],
+        ['run', 'label', 'region', 'year', 'capacity_retirements'],
     )
 except TypeError:
     print('Capacity retirement dataframe is empty.')
@@ -314,7 +344,7 @@ try:
         .reset_index()
     )
     df_capacitytotal = mapping(
-        df_capacitytotal, df_color, 'tech', ['run', 'tech_type', 'region', 'year', 'capacity_total']
+        df_capacitytotal, df_color, 'tech', ['run', 'label', 'region', 'year', 'capacity_total']
     )
 except TypeError:
     print('Capacity total dataframe is empty.')
@@ -333,9 +363,9 @@ except TypeError:
     print('Canada trade dataframe is empty.')
 
 # create unique list of indexes
-s_regions = pd.unique(df_generation['region'])
-s_regions.sort()
-s_technologies = pd.unique(df_capacitytotal['tech_type'])
+# regions may mix int ids (input/electricity) and str ids (input/electricity_light) across runs
+s_regions = sorted(pd.unique(df_generation['region']), key=str)
+s_technologies = pd.unique(df_capacitytotal['label'])
 s_years = pd.unique(df_generation['year'])
 s_years.sort()
 # s_canregions = pd.unique(df_tradecan['region_international'])
@@ -649,22 +679,22 @@ def update_gen_area_figure(region, genyear, run, gentech):
 
     if region:
         filtered_df_gen = filtered_df_gen[filtered_df_gen['region'].isin(region)]
-        filtered_df_gen = filtered_df_gen[['run', 'tech_type', 'year', 'hour', 'generation_total']]
+        filtered_df_gen = filtered_df_gen[['run', 'label', 'year', 'hour', 'generation_total']]
         filtered_df_gen = (
-            filtered_df_gen.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_gen.groupby(['run', 'label', 'year', 'hour'])
             .generation_total.sum()
             .reset_index()
         )
     else:
-        filtered_df_gen = filtered_df_gen[['run', 'tech_type', 'year', 'hour', 'generation_total']]
+        filtered_df_gen = filtered_df_gen[['run', 'label', 'year', 'hour', 'generation_total']]
         filtered_df_gen = (
-            filtered_df_gen.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_gen.groupby(['run', 'label', 'year', 'hour'])
             .generation_total.sum()
             .reset_index()
         )
 
     if gentech:
-        filtered_df_gen = filtered_df_gen[filtered_df_gen['tech_type'].isin(gentech)]
+        filtered_df_gen = filtered_df_gen[filtered_df_gen['label'].isin(gentech)]
 
     if run:
         filtered_df_gen = filtered_df_gen[filtered_df_gen['run'].isin(run)]
@@ -673,7 +703,7 @@ def update_gen_area_figure(region, genyear, run, gentech):
         filtered_df_gen,
         x='hour',
         y='generation_total',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,
@@ -697,19 +727,19 @@ def update_storage_level_area_figure(region, genyear, run):
             filtered_df_storagelevel['region'].isin(region)
         ]
         filtered_df_storagelevel = filtered_df_storagelevel[
-            ['run', 'tech_type', 'year', 'hour', 'storage_level']
+            ['run', 'label', 'year', 'hour', 'storage_level']
         ]
         filtered_df_storagelevel = (
-            filtered_df_storagelevel.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_storagelevel.groupby(['run', 'label', 'year', 'hour'])
             .storage_level.sum()
             .reset_index()
         )
     else:
         filtered_df_storagelevel = filtered_df_storagelevel[
-            ['run', 'tech_type', 'year', 'hour', 'storage_level']
+            ['run', 'label', 'year', 'hour', 'storage_level']
         ]
         filtered_df_storagelevel = (
-            filtered_df_storagelevel.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_storagelevel.groupby(['run', 'label', 'year', 'hour'])
             .storage_level.sum()
             .reset_index()
         )
@@ -723,7 +753,7 @@ def update_storage_level_area_figure(region, genyear, run):
         filtered_df_storagelevel,
         x='hour',
         y='storage_level',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,
@@ -747,19 +777,19 @@ def update_storage_flow_area_figure(region, genyear, run):
             filtered_df_storagecharge['region'].isin(region)
         ]
         filtered_df_storagecharge = filtered_df_storagecharge[
-            ['run', 'tech_type', 'year', 'hour', 'Storage_flow']
+            ['run', 'label', 'year', 'hour', 'Storage_flow']
         ]
         filtered_df_storagecharge = (
-            filtered_df_storagecharge.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_storagecharge.groupby(['run', 'label', 'year', 'hour'])
             .Storage_flow.sum()
             .reset_index()
         )
     else:
         filtered_df_storagecharge = filtered_df_storagecharge[
-            ['run', 'tech_type', 'year', 'hour', 'Storage_flow']
+            ['run', 'label', 'year', 'hour', 'Storage_flow']
         ]
         filtered_df_storagecharge = (
-            filtered_df_storagecharge.groupby(['run', 'tech_type', 'year', 'hour'])
+            filtered_df_storagecharge.groupby(['run', 'label', 'year', 'hour'])
             .Storage_flow.sum()
             .reset_index()
         )
@@ -773,7 +803,7 @@ def update_storage_flow_area_figure(region, genyear, run):
         filtered_df_storagecharge,
         x='hour',
         y='Storage_flow',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,
@@ -823,7 +853,7 @@ def update_unmet_area_figure(region, genyear, run):
 def update_gen_line_figure(region, genyear, run, gentech2):
     """Build the line generation figure for a single tech across the selected regions/year/runs."""
     filtered_df_gen = df_generation[
-        (df_generation.year == genyear) & (df_generation.tech_type == gentech2)
+        (df_generation.year == genyear) & (df_generation.label == gentech2)
     ]
 
     if region:
@@ -855,7 +885,7 @@ def update_gen_line_figure(region, genyear, run, gentech2):
 def update_storage_level_line_figure(region, genyear, run, gentech2):
     """Build the line storage-level figure for one tech across the selected regions/year/runs."""
     filtered_df_storagelevel = df_storagelevel[
-        (df_storagelevel.year == genyear) & (df_storagelevel.tech_type == gentech2)
+        (df_storagelevel.year == genyear) & (df_storagelevel.label == gentech2)
     ]
 
     if region:
@@ -891,7 +921,7 @@ def update_storage_level_line_figure(region, genyear, run, gentech2):
 def update_storage_flow_line_figure(region, genyear, run, gentech2):
     """Build the line storage flow figure for one tech across the selected regions/year/runs."""
     filtered_df_storagecharge = df_storagecharge[
-        (df_storagecharge.year == genyear) & (df_storagecharge.tech_type == gentech2)
+        (df_storagecharge.year == genyear) & (df_storagecharge.label == gentech2)
     ]
 
     if region:
@@ -958,26 +988,26 @@ def update_cap_bar_figure(region, run, captech):
     if region:
         filtered_df_capacitytotal = df_capacitytotal[df_capacitytotal['region'].isin(region)]
         filtered_df_capacitytotal = filtered_df_capacitytotal[
-            ['run', 'tech_type', 'year', 'capacity_total']
+            ['run', 'label', 'year', 'capacity_total']
         ]
         filtered_df_capacitytotal = (
-            filtered_df_capacitytotal.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacitytotal.groupby(['run', 'label', 'year'])
             .capacity_total.sum()
             .reset_index()
         )
     else:
         filtered_df_capacitytotal = filtered_df_capacitytotal[
-            ['run', 'tech_type', 'year', 'capacity_total']
+            ['run', 'label', 'year', 'capacity_total']
         ]
         filtered_df_capacitytotal = (
-            filtered_df_capacitytotal.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacitytotal.groupby(['run', 'label', 'year'])
             .capacity_total.sum()
             .reset_index()
         )
 
     if captech:
         filtered_df_capacitytotal = filtered_df_capacitytotal[
-            filtered_df_capacitytotal['tech_type'].isin(captech)
+            filtered_df_capacitytotal['label'].isin(captech)
         ]
 
     if run:
@@ -989,7 +1019,7 @@ def update_cap_bar_figure(region, run, captech):
         filtered_df_capacitytotal,
         x='year',
         y='capacity_total',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,
@@ -1011,26 +1041,26 @@ def update_cap_build_bar_figure(region, run, captech):
     if region:
         filtered_df_capacitybuilds = df_capacitybuilds[df_capacitybuilds['region'].isin(region)]
         filtered_df_capacitybuilds = filtered_df_capacitybuilds[
-            ['run', 'tech_type', 'year', 'capacity_builds']
+            ['run', 'label', 'year', 'capacity_builds']
         ]
         filtered_df_capacitybuilds = (
-            filtered_df_capacitybuilds.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacitybuilds.groupby(['run', 'label', 'year'])
             .capacity_builds.sum()
             .reset_index()
         )
     else:
         filtered_df_capacitybuilds = filtered_df_capacitybuilds[
-            ['run', 'tech_type', 'year', 'capacity_builds']
+            ['run', 'label', 'year', 'capacity_builds']
         ]
         filtered_df_capacitybuilds = (
-            filtered_df_capacitybuilds.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacitybuilds.groupby(['run', 'label', 'year'])
             .capacity_builds.sum()
             .reset_index()
         )
 
     if captech:
         filtered_df_capacitybuilds = filtered_df_capacitybuilds[
-            filtered_df_capacitybuilds['tech_type'].isin(captech)
+            filtered_df_capacitybuilds['label'].isin(captech)
         ]
 
     if run:
@@ -1042,7 +1072,7 @@ def update_cap_build_bar_figure(region, run, captech):
         filtered_df_capacitybuilds,
         x='year',
         y='capacity_builds',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,
@@ -1064,26 +1094,26 @@ def update_cap_retire_bar_figure(region, run, captech):
     if region:
         filtered_df_capacityretire = df_capacityretire[df_capacityretire['region'].isin(region)]
         filtered_df_capacityretire = filtered_df_capacityretire[
-            ['run', 'tech_type', 'year', 'capacity_retirements']
+            ['run', 'label', 'year', 'capacity_retirements']
         ]
         filtered_df_capacityretire = (
-            filtered_df_capacityretire.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacityretire.groupby(['run', 'label', 'year'])
             .capacity_retirements.sum()
             .reset_index()
         )
     else:
         filtered_df_capacityretire = filtered_df_capacityretire[
-            ['run', 'tech_type', 'year', 'capacity_retirements']
+            ['run', 'label', 'year', 'capacity_retirements']
         ]
         filtered_df_capacityretire = (
-            filtered_df_capacityretire.groupby(['run', 'tech_type', 'year'])
+            filtered_df_capacityretire.groupby(['run', 'label', 'year'])
             .capacity_retirements.sum()
             .reset_index()
         )
 
     if captech:
         filtered_df_capacityretire = filtered_df_capacityretire[
-            filtered_df_capacityretire['tech_type'].isin(captech)
+            filtered_df_capacityretire['label'].isin(captech)
         ]
 
     if run:
@@ -1095,7 +1125,7 @@ def update_cap_retire_bar_figure(region, run, captech):
         filtered_df_capacityretire,
         x='year',
         y='capacity_retirements',
-        color='tech_type',
+        color='label',
         facet_col='run',
         color_discrete_map=colorsetting,
         width=1600,

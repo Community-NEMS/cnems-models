@@ -22,6 +22,7 @@ import pyomo.environ as pyo
 from pyomo.core.base.indexed_component import IndexedComponent
 
 from definitions import PROJECT_ROOT
+from src.models.electricity.data_ingestor import load_attribute_data
 
 # Establish logger
 logger = getLogger(__name__)
@@ -226,3 +227,45 @@ def export_variables_to_csv(
         df.to_csv(csv_path, index=False)
         logger.info('Wrote %s', csv_path)
     return dfs
+
+
+tech_data_columns = ['tech', 'label', 'abbreviation', 'color']
+
+
+def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.DataFrame:
+    """Copy the tech descriptors (id, label, abbreviation, hex color) into a run's output dir.
+
+    Reads the attribute columns of the input ``tech_data.csv`` through the same
+    :func:`load_attribute_data` loader ``ModelSets`` uses, so the exported ids match the model's
+    tech set (including string ids such as ``10_seasonal``), and writes them as
+    ``<output_dir>/tech_data.csv`` for downstream tools such as the results viewer.
+
+    Parameters
+    ----------
+    input_dir : Path | str
+        Directory holding the input property CSVs (``CommonConfig.common_data_path``).
+    output_dir : Path | str
+        Directory to write ``tech_data.csv`` into (created if missing).
+
+    Returns
+    -------
+    pd.DataFrame
+        The exported frame, columns ``tech, label, abbreviation, color``.
+    """
+    attrs = load_attribute_data(Path(input_dir))['tech_data']
+    df = pd.DataFrame(
+        {
+            'tech': list(attrs['label']),
+            'label': list(attrs['label'].values()),
+            'abbreviation': [attrs['abbreviation'][t] for t in attrs['label']],
+            'color': [attrs['color'][t] for t in attrs['label']],
+        },
+        columns=tech_data_columns,
+    )
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / 'tech_data.csv'
+    df.to_csv(csv_path, index=False)
+    logger.info('Wrote %s', csv_path)
+    return df

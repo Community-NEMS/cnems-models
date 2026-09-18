@@ -5,7 +5,8 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  8/11/26
 
-Tests for detecting index mismatches in updates to param_data dataframes
+Tests for detecting index mismatches in updates to param_data dataframes, and for the
+natural gas price update applied to supply_price.
 
 """
 
@@ -14,6 +15,15 @@ import logging
 import pandas as pd
 import pytest
 
+from src.common.common_config import CommonConfig
+from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
+from src.models.electricity.constants import (
+    INITIAL_NG_PRICE,
+    NG_PRICE_LINKED_TECHS,
+    PRICE_COST_PROPORTION,
+)
+from src.models.electricity.elec_config import ElecConfig
+from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
 LOGGER_NAME = 'src.models.electricity.param_data'
@@ -86,3 +96,111 @@ def test_report_index_gaps_name_mismatch_warns_and_compares(caplog) -> None:
 
     assert list(missing) == [('7', 2030)]
     assert any('level names' in r.getMessage() for r in caplog.records)
+
+
+@pytest.fixture
+def param_data(config_set: tuple[CommonConfig, ElecConfig]) -> ParamData:
+    """Loaded (un-updated) parameter data for the basic test config."""
+    common_config, elec_config = config_set
+    return ParamData(common_config, elec_config, ModelSets(common_config, elec_config))
+
+
+def make_price_package(keys: list[tuple[str, int]], price: float) -> NGPricePackage:
+    """An ``NGPricePackage`` carrying one price for every ``(region, year)`` in ``keys``."""
+    index = pd.MultiIndex.from_tuples(keys, names=NG_PRICE_INDEX)
+    return NGPricePackage(elements=pd.DataFrame({NG_PRICE_VALUE: price}, index=index))
+
+
+def held_region_years(prices: pd.DataFrame) -> list[tuple[str, int]]:
+    """The distinct ``(region, year)`` pairs a ``supply_price`` frame holds."""
+    keys = zip(
+        prices.index.get_level_values('region'),
+        prices.index.get_level_values('year'),
+        strict=True,
+    )
+    return sorted(set(keys))
+
+
+@pytest.mark.parametrize(
+    'price_ratio, expected_factor',
+    [
+        pytest.param(1.5, 1 + PRICE_COST_PROPORTION * 0.5, id='price_up'),
+        pytest.param(1.0, 1.0, id='price_unchanged'),
+        pytest.param(0.5, 1 - PRICE_COST_PROPORTION * 0.5, id='price_down'),
+    ],
+)
+def test_ng_price_package_scales_linked_techs(
+    param_data: ParamData, price_ratio: float, expected_factor: float
+) -> None:
+    """Gas-linked tech rows scale with the relative gas price move; other techs are untouched."""
+    before = param_data.param_frames['supply_price'].copy()
+    package = make_price_package(held_region_years(before), INITIAL_NG_PRICE * price_ratio)
+
+    param_data.apply_update_package(package)
+
+    after = param_data.param_frames['supply_price']
+    linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
+    assert linked.any(), 'test data holds no gas-linked tech rows'
+    pd.testing.assert_frame_equal(after[~linked], before[~linked])
+    pd.testing.assert_frame_equal(after[linked], before[linked] * expected_factor)
+
+
+def test_ng_price_package_uncovered_rows_retained(param_data: ParamData, caplog) -> None:
+    """Held (region, year) pairs the package omits keep their loaded values and are warned about."""
+    before = param_data.param_frames['supply_price'].copy()
+    years = sorted(set(before.index.get_level_values('year')))
+    assert len(years) > 1, 'test config needs at least two years'
+    covered_year = years[0]
+    keys = [(r, y) for r, y in held_region_years(before) if y == covered_year]
+    package = make_price_package(keys, INITIAL_NG_PRICE * 2)
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
+        param_data.apply_update_package(package)
+
+    after = param_data.param_frames['supply_price']
+    in_year = after.index.get_level_values('year') == covered_year
+    linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
+    pd.testing.assert_frame_equal(after[~in_year], before[~in_year])
+    pd.testing.assert_frame_equal(
+        after[in_year & linked], before[in_year & linked] * (1 + PRICE_COST_PROPORTION)
+    )
+    assert any('does not cover' in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    'frame',
+    [
+        pytest.param(
+            pd.DataFrame(
+                {NG_PRICE_VALUE: [-1.0]},
+                index=pd.MultiIndex.from_tuples([('7', 2025)], names=NG_PRICE_INDEX),
+            ),
+            id='negative_price',
+        ),
+        pytest.param(
+            pd.DataFrame(
+                {'cost': [3.0]},
+                index=pd.MultiIndex.from_tuples([('7', 2025)], names=NG_PRICE_INDEX),
+            ),
+            id='wrong_value_column',
+        ),
+        pytest.param(
+            pd.DataFrame(
+                {NG_PRICE_VALUE: [3.0]},
+                index=pd.MultiIndex.from_tuples([('7', 2025)], names=['reg', 'yr']),
+            ),
+            id='wrong_index_names',
+        ),
+        pytest.param(
+            pd.DataFrame(
+                {NG_PRICE_VALUE: [3.0, 4.0]},
+                index=pd.MultiIndex.from_tuples([('7', 2025), ('7', 2025)], names=NG_PRICE_INDEX),
+            ),
+            id='duplicate_rows',
+        ),
+    ],
+)
+def test_ng_price_package_rejects_bad_frames(frame: pd.DataFrame) -> None:
+    """A frame the recipient could not apply is rejected at construction."""
+    with pytest.raises(ValueError):
+        NGPricePackage(elements=frame)

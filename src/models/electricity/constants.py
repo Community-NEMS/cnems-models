@@ -32,3 +32,15 @@ SOLAR_REGULATION_RESERVE_PROPORTION = 0.003
 
 WIND_FLEX_RESERVE_PROPORTION = 0.1
 SOLAR_FLEX_RESERVE_PROPORTION = 0.04
+
+#########  Natural Gas Price Linkage ###########
+
+# $/MMBtu, the gas price the SupplyPrice.csv data is assumed to embed
+INITIAL_NG_PRICE = 4.0  # TODO:  Confirm against the source of the supply price data
+# share of a gas-linked tech's supply_price that moves with the natural gas price
+PRICE_COST_PROPORTION = 0.5  # TODO:  Confirm against source of tech operating costs
+
+# TODO:  May need to further refine cost proportion to be indexed by tech if multiple techs
+#        And they have (meaningful) different proportions
+# techs whose supply_price is linked to the natural gas price; see input/electricity/tech_data.csv
+NG_PRICE_LINKED_TECHS: tuple[str, ...] = ('3',)  # Gas Turbine

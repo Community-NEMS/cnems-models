@@ -20,8 +20,20 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
-from src.common.update_package import ElectricityPriceScaler, TransCostUpdate, UpdatePackage
+from src.common.update_package import (
+    NG_PRICE_INDEX,
+    NG_PRICE_VALUE,
+    ElectricityPriceScaler,
+    NGPricePackage,
+    TransCostUpdate,
+    UpdatePackage,
+)
 from src.common.utilities import scale_load, scale_load_with_enduses
+from src.models.electricity.constants import (
+    INITIAL_NG_PRICE,
+    NG_PRICE_LINKED_TECHS,
+    PRICE_COST_PROPORTION,
+)
 from src.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
     FilterPackage,
@@ -481,6 +493,62 @@ class ParamData:
             len(old) - len(missing),
             len(old),
             len(missing),
+        )
+
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_update_package.register  # type: ignore[no-matching-overload]
+    def _(self, ng_price_update: NGPricePackage) -> None:
+        """Move the supply price of the gas-linked techs with the received natural gas price.
+
+        A share ``PRICE_COST_PROPORTION`` of each ``NG_PRICE_LINKED_TECHS`` row of ``supply_price``
+        is taken to be fuel cost embedding a gas price of ``INITIAL_NG_PRICE``, so the row is
+        scaled by ``1 + PRICE_COST_PROPORTION * (price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE``
+        using the price received for its ``(region, year)``.  Held rows the package does not
+        cover keep their loaded values and are reported as warnings; package entries beyond the
+        held regions/years (filtered out of this run) are ignored.
+
+        Parameters
+        ----------
+        ng_price_update : NGPricePackage
+            Gas prices in $/MMBtu indexed by electricity ``(region, year)``.
+
+        Notes
+        -----
+        The adjustment is a ratio, so it is indifferent to the x1000 price hack in ``__init__``.
+        ``SupplyPrice`` is a dense pyomo Param with no default, which is why uncovered rows are
+        retained rather than dropped.
+        """
+        # locate the NG-based techs in the parameter data for supply prices...
+        prices = self.param_frames['supply_price']
+        tech_mask = prices.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
+        if not tech_mask.any():
+            logger.warning(
+                'No supply_price rows matched gas-linked techs %s; prices unchanged',
+                NG_PRICE_LINKED_TECHS,
+            )
+            return
+        new_price = ng_price_update.elements[NG_PRICE_VALUE]
+        factor = 1 + PRICE_COST_PROPORTION * (new_price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE
+        held_keys = pd.MultiIndex.from_arrays(
+            [prices.index.get_level_values('region'), prices.index.get_level_values('year')],
+            names=NG_PRICE_INDEX,
+        )
+        self._report_index_gaps(
+            held_keys[tech_mask].unique(), new_price.index, name='supply_price (NG price)'
+        )
+        row_factor = pd.Series(factor.reindex(held_keys).to_numpy(), index=prices.index)
+        covered = tech_mask & row_factor.notna().to_numpy()
+        if not covered.any():
+            logger.warning('Received NG prices cover no held gas-linked rows; prices unchanged')
+            return
+        prices.loc[covered, 'cost'] *= row_factor[covered]
+        logger.info(
+            'Scaled supply_price for %d of %d gas-linked rows (techs %s) by factors %0.3f to %0.3f',
+            covered.sum(),
+            tech_mask.sum(),
+            NG_PRICE_LINKED_TECHS,
+            row_factor[covered].min(),
+            row_factor[covered].max(),
         )
 
     @staticmethod

@@ -1,0 +1,26 @@
+elec_region,elec_region_name,ng_region,weight
+1,TRE (Texas Reliability Entity),west_south_central,0.5893
+2,FRCC (Florida Reliability Coordinating Council),south_atlantic,0.3466
+3,MISW (Midcontinent ISO/West),west_north_central,0.5965
+4,MISC (Midcontinent ISO/Central),east_north_central,0.2236
+5,MISE (Midcontinent ISO/East),east_north_central,0.1689
+6,MISS (Midcontinent ISO/South),west_south_central,0.2450
+7,ISNE (NPCC/New England),new_england,1.0000
+8,NYCW (NPCC/NYC & Long Island),middle_atlantic,0.2860
+9,NYUP (NPCC/Upstate NY),middle_atlantic,0.1680
+10,PJME (PJM/East),middle_atlantic,0.5460
+11,PJMW (PJM/West),east_north_central,0.4524
+12,PJMC (PJM/Commonwealth Edison),east_north_central,0.1551
+13,PJMD (PJM/Dominion),south_atlantic,0.1493
+14,SRCA (SERC Reliability Corporation/East),south_atlantic,0.2458
+15,SRSE (SERC Reliability Corporation/Southeast),south_atlantic,0.2583
+16,SRCE (SERC Reliability Corporation/Central),east_south_central,1.0000
+17,SPPS (Southwest Power Pool/South),west_south_central,0.1657
+18,SPPC (Southwest Power Pool/Central),west_north_central,0.2350
+19,SPPN (Southwest Power Pool/North),west_north_central,0.1685
+20,SRSG (WECC/Southwest),mountain,0.4229
+21,CANO (WECC/CA North),pacific,0.2591
+22,CASO (WECC/CA South),pacific,0.4811
+23,NWPP (WECC/Northwest Power Pool),pacific,0.2598
+24,RMRG (WECC/Rockies),mountain,0.2593
+25,BASN (WECC/Basin),mountain,0.3178

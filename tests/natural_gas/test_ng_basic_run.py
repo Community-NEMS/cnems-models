@@ -20,6 +20,7 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IterationResult, IterationStatus
 from src.common.models_modes import ModelType
+from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -182,9 +183,20 @@ class TestSequencerFullRun:
         assert result.objective_value == pytest.approx(
             expected_costs['partial_regions'], rel=1e-4
         ), f'found {result.objective_value} total cost'
-        # C-NGMM emits nothing onward yet, so an entry here means get_outbound_updates() grew a
-        # sender without this test being revisited
-        assert result.update_packages == []
+        # C-NGMM sends its solved gas price onward, crosswalked to electricity regions
+        assert len(result.update_packages) == 1
+        package = result.update_packages[0]
+        assert isinstance(package, NGPricePackage)
+        assert package.source is ModelType.NATURAL_GAS
+        assert list(package.elements.index.names) == NG_PRICE_INDEX
+        prices = package.elements[NG_PRICE_VALUE]
+        assert set(prices.index.get_level_values('year')) == set(common_config.summary_years)
+        assert (prices > 0).all(), 'a zero price means a demand_balance dual was not read'
+        regions = set(prices.index.get_level_values('region'))
+        # TRE ('1') sits wholly inside west_south_central, one of PARTIAL_REGIONS; ISNE ('7')
+        # sits wholly inside new_england, which this run does not solve
+        assert '1' in regions
+        assert '7' not in regions
         # the integrator logs results with pprint(), so a broken render breaks the run report
         assert 'natural_gas' in result.pprint()
 
@@ -209,6 +221,8 @@ class TestSequencerFullRun:
 
         assert result.status is IterationStatus.ERROR
         assert result.objective_value is None
+        # no duals to read after a failed solve, so nothing is sent onward
+        assert result.update_packages == []
         assert touched == [], f'failed solve still did: {touched}'
         # a failed solve still has to render, since that is how the failure gets reported
         assert 'ERROR' in result.pprint()

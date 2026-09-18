@@ -10,6 +10,7 @@ import logging
 import sys
 from collections.abc import Sequence
 
+import pandas as pd
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
 
@@ -17,8 +18,9 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
+from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage, UpdatePackage
 from src.common.utilities import setup_logger
+from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
 from src.models.natural_gas.data import apply_update_package, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
@@ -35,6 +37,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         self._model = None
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
+        self._last_status: IterationStatus | None = None
 
     @property
     def model(self) -> NGModel:
@@ -215,6 +218,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
 
         if not check_optimal_termination(results):
             logger.error('C-NGMM: non-optimal solve! Results:\n%s', results)
+            self._last_status = IterationStatus.ERROR
             return ModelType.NATURAL_GAS, IterationStatus.ERROR
 
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
@@ -227,6 +231,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         # m.results_prices = postprocessor._extract_prices(m)
         # m.results_storage = postprocessor._extract_storage(m)
         # m.results_balance = postprocessor._extract_balance(m)
+        self._last_status = IterationStatus.USABLE
         return ModelType.NATURAL_GAS, IterationStatus.USABLE
 
     def full_postprocess(self, **kwargs):
@@ -246,8 +251,41 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
     def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Get the outbound update packages.  C-NGMM produces none yet."""
-        return []
+        """Package the solved gas prices for the electricity model.
+
+        The regional prices from :meth:`NGModel.poll_gas_price` (duals of ``demand_balance``,
+        $/MMBtu) are averaged into electricity regions with the population-weighted crosswalk and
+        sent as one :class:`NGPricePackage`.
+
+        Returns
+        -------
+        list[UpdatePackage]
+            A single ``NGPricePackage``, or nothing if the last solve was not usable -- a failed
+            solve leaves no duals to read.
+        """
+        if self._last_status is not IterationStatus.USABLE:
+            logger.warning(
+                'C-NGMM: no usable solve (status %s); sending no updates', self._last_status
+            )
+            return []
+        ng_prices = self.model.poll_gas_price()
+        series = pd.Series(
+            {(gi.region, gi.year): price for gi, price in ng_prices.items()}, name=NG_PRICE_VALUE
+        )
+        series.index = series.index.set_names(NG_PRICE_INDEX)
+        elec_prices = crosswalk_values(
+            series, ModelType.NATURAL_GAS, ModelType.ELECTRICITY, QuantityKind.INTENSIVE
+        )
+        by_year = elec_prices.groupby(level='year').agg(['min', 'max'])
+        for year, row in by_year.iterrows():
+            logger.info(
+                'C-NGMM: %d gas price to electricity regions:  %0.2f to %0.2f $/MMBtu',
+                year,
+                row['min'],
+                row['max'],
+            )
+        package = NGPricePackage(elements=elec_prices.to_frame(), source=ModelType.NATURAL_GAS)
+        return [package]
 
     def get_objective_value(self) -> float | None:
         """Get the solved objective value (``total_cost``, in dollars)."""

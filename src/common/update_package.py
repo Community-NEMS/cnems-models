@@ -176,3 +176,57 @@ def make_trans_update(new_cost: float, year: int) -> TransCostUpdate:
     df = pd.DataFrame(costs, columns=[*TRANS_COST_INDEX, 'cost'])
     df = df.set_index(TRANS_COST_INDEX)
     return TransCostUpdate(elements=df)
+
+
+# index/value labels of an NGPricePackage frame:  electricity region id (str) and model year (int)
+NG_PRICE_INDEX = ['region', 'year']
+NG_PRICE_VALUE = 'price'
+
+
+@dataclass(frozen=True)
+class NGPricePackage(UpdatePackage):
+    """Solved natural gas prices, already crosswalked to electricity regions.
+
+    Handled by ``ParamData.apply_update_package``, which moves the supply price of the gas-linked
+    techs with the received price.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Prices in $/MMBtu indexed by ``NG_PRICE_INDEX`` with a single ``NG_PRICE_VALUE`` column.
+        Entries the recipient does not hold are ignored; held entries this frame omits keep their
+        existing values and are logged as warnings.
+    receivers : tuple of ModelType
+        Fixed to the electricity model.
+    """
+
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+
+    def __post_init__(self) -> None:
+        """Reject a frame the recipient could not apply.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``NG_PRICE_INDEX`` or has duplicates, the ``NG_PRICE_VALUE`` column
+            is absent, or any price is missing or negative.
+        """
+        if list(self.elements.index.names) != NG_PRICE_INDEX:
+            raise ValueError(
+                f'{type(self).__name__} elements must be indexed by {NG_PRICE_INDEX}; got '
+                f'{list(self.elements.index.names)}.'
+            )
+        if self.elements.index.has_duplicates:
+            raise ValueError(f'{type(self).__name__} elements carry duplicate (region, year) rows.')
+        if NG_PRICE_VALUE not in self.elements.columns:
+            raise ValueError(
+                f'{type(self).__name__} elements need a {NG_PRICE_VALUE!r} column; got '
+                f'{list(self.elements.columns)}.'
+            )
+        prices = self.elements[NG_PRICE_VALUE]
+        if prices.isna().any() or (prices < 0).any():
+            raise ValueError(
+                f'{type(self).__name__} requires finite, non-negative prices; a negative price '
+                'can drive SupplyPrice out of its NonNegativeReals domain.'
+            )

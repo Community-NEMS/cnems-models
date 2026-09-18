@@ -178,8 +178,45 @@ def make_trans_update(new_cost: float, year: int) -> TransCostUpdate:
     return TransCostUpdate(elements=df)
 
 
+# index labels shared by the region-and-year packages below:  region id (str) and model year (int)
+REGION_YEAR_INDEX = ['region', 'year']
+
+
+def _check_region_year_frame(package: UpdatePackage, frame: pd.DataFrame, value_col: str) -> None:
+    """Reject a ``(region, year)`` frame a recipient could not apply.
+
+    Parameters
+    ----------
+    package : UpdatePackage
+        The package being constructed, named in the error.
+    frame : pd.DataFrame
+        Its payload.
+    value_col : str
+        The single value column the frame must carry.
+
+    Raises
+    ------
+    ValueError
+        If the index is not ``REGION_YEAR_INDEX`` or has duplicates, ``value_col`` is absent, or
+        any value is missing or negative.
+    """
+    name = type(package).__name__
+    if list(frame.index.names) != REGION_YEAR_INDEX:
+        raise ValueError(
+            f'{name} elements must be indexed by {REGION_YEAR_INDEX}; '
+            f'got {list(frame.index.names)}.'
+        )
+    if frame.index.has_duplicates:
+        raise ValueError(f'{name} elements carry duplicate (region, year) rows.')
+    if value_col not in frame.columns:
+        raise ValueError(f'{name} elements need a {value_col!r} column; got {list(frame.columns)}.')
+    values = frame[value_col]
+    if values.isna().any() or (values < 0).any():
+        raise ValueError(f'{name} requires finite, non-negative values in {value_col!r}.')
+
+
 # index/value labels of an NGPricePackage frame:  electricity region id (str) and model year (int)
-NG_PRICE_INDEX = ['region', 'year']
+NG_PRICE_INDEX = REGION_YEAR_INDEX
 NG_PRICE_VALUE = 'price'
 
 
@@ -210,23 +247,47 @@ class NGPricePackage(UpdatePackage):
         ------
         ValueError
             If the index is not ``NG_PRICE_INDEX`` or has duplicates, the ``NG_PRICE_VALUE`` column
-            is absent, or any price is missing or negative.
+            is absent, or any price is missing or negative (which could drive SupplyPrice out of
+            its NonNegativeReals domain).
         """
-        if list(self.elements.index.names) != NG_PRICE_INDEX:
-            raise ValueError(
-                f'{type(self).__name__} elements must be indexed by {NG_PRICE_INDEX}; got '
-                f'{list(self.elements.index.names)}.'
-            )
-        if self.elements.index.has_duplicates:
-            raise ValueError(f'{type(self).__name__} elements carry duplicate (region, year) rows.')
-        if NG_PRICE_VALUE not in self.elements.columns:
-            raise ValueError(
-                f'{type(self).__name__} elements need a {NG_PRICE_VALUE!r} column; got '
-                f'{list(self.elements.columns)}.'
-            )
-        prices = self.elements[NG_PRICE_VALUE]
-        if prices.isna().any() or (prices < 0).any():
-            raise ValueError(
-                f'{type(self).__name__} requires finite, non-negative prices; a negative price '
-                'can drive SupplyPrice out of its NonNegativeReals domain.'
-            )
+        _check_region_year_frame(self, self.elements, NG_PRICE_VALUE)
+
+
+# index/value labels of an NGElectricalDemandPackage frame:  natural gas region name (str) and
+# model year (int)
+NG_ELEC_DEMAND_INDEX = REGION_YEAR_INDEX
+NG_ELEC_DEMAND_VALUE = 'demand_bcf'
+
+
+@dataclass(frozen=True)
+class NGElectricalDemandPackage(UpdatePackage):
+    """Gas burned by the electricity model's generators, already crosswalked to gas regions.
+
+    Handled by ``src.models.natural_gas.data.apply_update_package``, which replaces the projected
+    ``electric_power`` sector demand for every ``(region, year)`` the frame carries.  The natural
+    gas sequencer also gates off that sector's growth projection when one of these is inbound,
+    so the package, not the AEO growth rate, sets the sector's demand.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Demand in Bcf/yr indexed by ``NG_ELEC_DEMAND_INDEX`` with a single ``NG_ELEC_DEMAND_VALUE``
+        column.  Entries the recipient does not hold are ignored; held entries this frame omits
+        keep their (ungrown) base-year values and are logged as warnings.
+    receivers : tuple of ModelType
+        Fixed to the natural gas model.
+    """
+
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+
+    def __post_init__(self) -> None:
+        """Reject a frame the recipient could not apply.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``NG_ELEC_DEMAND_INDEX`` or has duplicates, the
+            ``NG_ELEC_DEMAND_VALUE`` column is absent, or any demand is missing or negative.
+        """
+        _check_region_year_frame(self, self.elements, NG_ELEC_DEMAND_VALUE)

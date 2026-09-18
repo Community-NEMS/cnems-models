@@ -13,6 +13,7 @@ so that unintended changes to the formulation or the input data show up as a fai
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from pyomo.common.numeric_types import value
 
@@ -20,7 +21,15 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IterationResult, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
+from src.common.update_package import (
+    NG_ELEC_DEMAND_INDEX,
+    NG_ELEC_DEMAND_VALUE,
+    NG_PRICE_INDEX,
+    NG_PRICE_VALUE,
+    NGElectricalDemandPackage,
+    NGPricePackage,
+)
+from src.models.natural_gas.data import load_base_demand
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -82,6 +91,8 @@ def partial_config_set() -> tuple[CommonConfig, NGConfig]:
     tuple[CommonConfig, NGConfig]
         The test TOML, with the NG config's ``region_filter`` narrowed to three divisions.
     """
+    # TODO:  Bring the test data into the test folder when data format changes stabilize
+    #        This currently relies on data outside the test environment
     config_path = Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
     # note the TOML section is [natural_gas], not [ng_config]
@@ -183,10 +194,11 @@ class TestSequencerFullRun:
         assert result.objective_value == pytest.approx(
             expected_costs['partial_regions'], rel=1e-4
         ), f'found {result.objective_value} total cost'
-        # C-NGMM sends its solved gas price onward, crosswalked to electricity regions
-        assert len(result.update_packages) == 1
-        package = result.update_packages[0]
-        assert isinstance(package, NGPricePackage)
+        # C-NGMM sends its solved gas price onward, crosswalked to electricity regions.  Select
+        # by type:  the outbound list may carry other package kinds in future
+        price_packages = [p for p in result.update_packages if isinstance(p, NGPricePackage)]
+        assert len(price_packages) == 1, result.update_packages
+        package = price_packages[0]
         assert package.source is ModelType.NATURAL_GAS
         assert list(package.elements.index.names) == NG_PRICE_INDEX
         prices = package.elements[NG_PRICE_VALUE]
@@ -226,3 +238,34 @@ class TestSequencerFullRun:
         assert touched == [], f'failed solve still did: {touched}'
         # a failed solve still has to render, since that is how the failure gets reported
         assert 'ERROR' in result.pprint()
+
+
+class TestInboundDemandPackage:
+    """An ``NGElectricalDemandPackage`` sets the electric_power demand the model is built with."""
+
+    def test_build_applies_package_and_gates_growth(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """Covered entries take the package value; uncovered ones sit at base year, ungrown."""
+        common_config, ng_config = partial_config_set
+        index = pd.MultiIndex.from_tuples(
+            [('west_south_central', 2030)], names=NG_ELEC_DEMAND_INDEX
+        )
+        package = NGElectricalDemandPackage(
+            elements=pd.DataFrame({NG_ELEC_DEMAND_VALUE: [123.4]}, index=index)
+        )
+        base = load_base_demand(ng_config.input_path)
+
+        model = NGSequencer().build_model(common_config, ng_config, update_packages=[package])
+
+        assert value(model.demand['west_south_central', 'electric_power', 2030]) == pytest.approx(
+            123.4
+        )
+        # not covered by the package:  held flat at the 2025 base, growth gated off
+        assert value(model.demand['mountain', 'electric_power', 2030]) == pytest.approx(
+            base['mountain']['electric_power']
+        )
+        # a sector no package supersedes still grows
+        assert value(model.demand['mountain', 'industrial', 2030]) != pytest.approx(
+            base['mountain']['industrial']
+        )

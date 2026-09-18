@@ -21,7 +21,7 @@ from src.common.models_modes import ModelType
 from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage, UpdatePackage
 from src.common.utilities import setup_logger
 from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
-from src.models.natural_gas.data import apply_update_package, load_all
+from src.models.natural_gas.data import apply_update_package, load_all, superseded_sectors
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
@@ -77,7 +77,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         update_packages : Sequence[UpdatePackage], optional
             Inbound data updates, applied to the loaded data (via
             :func:`src.models.natural_gas.data.apply_update_package`) before the model is
-            built.  A package type with no registered handler raises.
+            built.  A package type with no registered handler raises.  A package that
+            supersedes a demand sector (``data.SECTOR_SUPERSEDED_BY``) also gates off that
+            sector's growth projection in ``load_all``.
 
         Returns
         -------
@@ -91,8 +93,13 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         """
         self._common_config = common_config
         self._ng_config = model_config
-        data = load_all(common_config=common_config, ng_config=model_config)
-        for package in update_packages or []:
+        update_packages = list(update_packages or [])
+        data = load_all(
+            common_config=common_config,
+            ng_config=model_config,
+            superseded=superseded_sectors(update_packages),
+        )
+        for package in update_packages:
             logger.info('Applying update package: %s', type(package).__name__)
             apply_update_package(package, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)

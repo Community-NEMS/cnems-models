@@ -174,7 +174,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     2.  the values captured here for test were generated from run of legacy code and are *assumed*
         good for this test and dataset
     """
-    # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
+    # TODO:  Bring the test data into the test folder when data format changes stabilize
+    #        This currently relies on data outside the test environment
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
 

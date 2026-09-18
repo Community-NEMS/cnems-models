@@ -17,13 +17,21 @@ reads the real file, which is what catches an edit to the shipped data that the 
 fixtures would never see.
 """
 
+import logging
 from itertools import pairwise
 from pathlib import Path
 from typing import ClassVar
 
+import pandas as pd
 import pytest
 
 from definitions import PROJECT_ROOT
+from src.common.update_package import (
+    NG_ELEC_DEMAND_INDEX,
+    NG_ELEC_DEMAND_VALUE,
+    NGDemandPackage,
+    NGElectricalDemandPackage,
+)
 from src.models.natural_gas import data as ng_data
 from src.models.natural_gas.data import load_region_data
 from src.models.natural_gas.ng_config import NGConfig
@@ -661,3 +669,101 @@ class TestSectorElasticityCoverage:
 
         with pytest.raises(ValueError, match=r"no entry for sector\(s\): \['transportation'\]"):
             ng_data.load_all(ng_config, common_config)
+
+
+class TestDemandGrowthGating:
+    """An inbound demand package supersedes a sector.
+
+    Its growth is gated off and its values are replaced for every ``(region, year)`` the package
+    carries.
+    """
+
+    BASE: ClassVar[dict] = {
+        'mountain': {'electric_power': 100.0, 'industrial': 50.0},
+        'pacific': {'electric_power': 80.0, 'industrial': 40.0},
+    }
+    GROWTH: ClassVar[dict] = {'electric_power': 0.10, 'industrial': 0.05}
+    YEARS: ClassVar[list[int]] = [2025, 2030]
+    SECTORS: ClassVar[list[str]] = ['electric_power', 'industrial']
+
+    @staticmethod
+    def demand_package(entries: dict[tuple[str, int], float]) -> NGElectricalDemandPackage:
+        """An ``NGElectricalDemandPackage`` carrying ``entries`` as Bcf by (region, year)."""
+        index = pd.MultiIndex.from_tuples(list(entries), names=NG_ELEC_DEMAND_INDEX)
+        frame = pd.DataFrame({NG_ELEC_DEMAND_VALUE: list(entries.values())}, index=index)
+        return NGElectricalDemandPackage(elements=frame)
+
+    def test_superseded_sectors_named_by_package_type(self) -> None:
+        """Only a package type in ``SECTOR_SUPERSEDED_BY`` supersedes anything."""
+        elec = self.demand_package({('mountain', 2030): 1.0})
+        assert ng_data.superseded_sectors([elec]) == {'electric_power'}
+        assert ng_data.superseded_sectors([NGDemandPackage(scalar=1.2)]) == frozenset()
+        assert ng_data.superseded_sectors([]) == frozenset()
+
+    def test_superseded_sector_is_held_flat(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Growth applies to the other sectors and is skipped for the superseded one."""
+        with caplog.at_level(logging.INFO, logger='src.models.natural_gas.data'):
+            demand = ng_data.project_demand(
+                self.BASE,
+                self.GROWTH,
+                self.YEARS,
+                ['mountain', 'pacific'],
+                self.SECTORS,
+                superseded={'electric_power'},
+            )
+        assert demand[('mountain', 'electric_power', 2030)] == pytest.approx(100.0)
+        assert demand[('mountain', 'industrial', 2030)] == pytest.approx(50.0 * 1.05**5)
+        assert any('gated off' in r.getMessage() for r in caplog.records)
+
+    def test_no_supersession_grows_every_sector(self) -> None:
+        """The default keeps the original projection."""
+        demand = ng_data.project_demand(
+            self.BASE, self.GROWTH, self.YEARS, ['mountain'], self.SECTORS
+        )
+        assert demand[('mountain', 'electric_power', 2030)] == pytest.approx(100.0 * 1.10**5)
+
+    def test_handler_replaces_covered_entries_only(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Covered entries take the package value.
+
+        Uncovered ones are kept and warned about; entries beyond the held index are ignored.
+        """
+        demand = ng_data.project_demand(
+            self.BASE,
+            self.GROWTH,
+            self.YEARS,
+            ['mountain', 'pacific'],
+            self.SECTORS,
+            superseded={'electric_power'},
+        )
+        data = {'demand': demand}
+        package = self.demand_package(
+            {('mountain', 2030): 42.0, ('mountain', 2025): 41.0, ('new_england', 2030): 7.0}
+        )
+        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.data'):
+            ng_data.apply_update_package(package, data)  # type: ignore[arg-type]
+
+        assert demand[('mountain', 'electric_power', 2030)] == 42.0
+        assert demand[('mountain', 'electric_power', 2025)] == 41.0
+        assert demand[('pacific', 'electric_power', 2030)] == pytest.approx(80.0)  # flat, kept
+        assert demand[('mountain', 'industrial', 2030)] == pytest.approx(50.0 * 1.05**5)
+        assert ('new_england', 'electric_power', 2030) not in demand
+        warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert any('does not cover 2 of 4' in msg for msg in warned), warned
+
+    def test_unknown_superseded_sector_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A superseded sector absent from the sector list is reported, not silently ignored."""
+        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.data'):
+            demand = ng_data.project_demand(
+                self.BASE,
+                self.GROWTH,
+                self.YEARS,
+                ['mountain'],
+                self.SECTORS,
+                superseded={'electric_power', 'hydrogen'},
+            )
+        # the known sector is still gated; the unknown one is named in a warning
+        assert demand[('mountain', 'electric_power', 2030)] == pytest.approx(100.0)
+        warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("['hydrogen']" in msg and 'not among the sectors' in msg for msg in warned), (
+            warned
+        )

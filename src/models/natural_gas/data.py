@@ -6,6 +6,7 @@ Reads all numerical parameters from CSV files. Every file listed below
 
 import csv
 import logging
+from collections.abc import Collection
 from functools import singledispatch
 from pathlib import Path
 from typing import TypedDict
@@ -13,10 +14,43 @@ from typing import TypedDict
 import pandas as pd
 
 from src.common.common_config import CommonConfig
-from src.common.update_package import NGDemandPackage, UpdatePackage
+from src.common.update_package import (
+    NG_ELEC_DEMAND_VALUE,
+    NGDemandPackage,
+    NGElectricalDemandPackage,
+    UpdatePackage,
+)
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
+
+# Which inbound update package supersedes which demand sector of ng_sector_data.csv.  When a
+# package type listed here is inbound, the sector's AEO growth projection is gated off (see
+# ``project_demand``) and the package's handler sets the sector's demand instead.  Grows as more
+# models feed sector demand back.
+SECTOR_SUPERSEDED_BY: dict[type[UpdatePackage], str] = {
+    NGElectricalDemandPackage: 'electric_power',
+}
+
+
+def superseded_sectors(update_packages: Collection[UpdatePackage]) -> frozenset[str]:
+    """Name the demand sectors that inbound update packages supersede.
+
+    Parameters
+    ----------
+    update_packages : Collection[UpdatePackage]
+        The packages about to be applied.
+
+    Returns
+    -------
+    frozenset[str]
+        Sectors from ``SECTOR_SUPERSEDED_BY`` whose package type is among the inbound packages.
+    """
+    return frozenset(
+        sector
+        for package_type, sector in SECTOR_SUPERSEDED_BY.items()
+        if any(isinstance(package, package_type) for package in update_packages)
+    )
 
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
@@ -804,11 +838,14 @@ def project_demand(
     years: list[int],
     regions: list[str],
     sectors: list[str],
+    superseded: Collection[str] = (),
 ) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
     Applies ``base * (1 + growth) ** (year - 2025)`` per region and sector, so 2025 returns the
-    base-year value unchanged.
+    base-year value unchanged.  A sector in ``superseded`` is held flat at its base-year value
+    instead:  an inbound update package is about to set it, so growing it first would only put a
+    misleading number under any ``(region, year)`` the package fails to cover.
 
     Parameters
     ----------
@@ -823,6 +860,8 @@ def project_demand(
         Regions to project. Required; every one must appear in ``demand_table``.
     sectors : list[str]
         Sectors to project. Every one must appear in ``growth_rate_table``.
+    superseded : Collection[str], optional
+        Sectors whose growth is gated off; see :func:`superseded_sectors`.
 
     Returns
     -------
@@ -831,10 +870,24 @@ def project_demand(
     """
     base_year = 2025
     demand: dict[tuple[str, str, int], float] = {}
+    gated = [sector for sector in sectors if sector in superseded]
+    if gated:
+        logger.info(
+            'Demand growth gated off for sector(s) %s:  an inbound update package sets them', gated
+        )
+    unknown = sorted(set(superseded).difference(sectors))
+    if unknown:
+        logger.warning(
+            'Superseded sector(s) %s are not among the sectors being projected %s; the inbound '
+            'update package will have nothing to replace.  Check ng_sector_data.csv and the '
+            'growth table against SECTOR_SUPERSEDED_BY',
+            unknown,
+            list(sectors),
+        )
     for region in regions:
         for sector in sectors:
             base = demand_table[region][sector]
-            g = growth_rate_table[sector]
+            g = 0.0 if sector in superseded else growth_rate_table[sector]
             for year in years:
                 dt = year - base_year
                 demand[(region, sector, year)] = base * ((1 + g) ** dt)
@@ -881,7 +934,9 @@ class NGData(TypedDict):
     qp_scalars: dict[str, float]
 
 
-def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
+def load_all(
+    ng_config: NGConfig, common_config: CommonConfig, superseded: Collection[str] = ()
+) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
@@ -890,6 +945,9 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
     common_config : CommonConfig
         Supplies ``summary_years``, the years demand is projected over.
+    superseded : Collection[str], optional
+        Demand sectors an inbound update package will set, whose growth projection is therefore
+        gated off; see :func:`superseded_sectors` and :func:`project_demand`.
 
     Raises
     ------
@@ -913,6 +971,7 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         years=common_config.summary_years,
         regions=region_data['regions_analyze'],
         sectors=sectors,
+        superseded=superseded,
     )
 
     # Sectors and elasticities come from two separate files with no shared key, so a sector
@@ -1003,6 +1062,55 @@ def _(update_package: NGDemandPackage, data: NGData) -> None:
         'Scaled NG demand by factor %0.3f (%d region-sector-year entries)',
         update_package.scalar,
         len(demand),
+    )
+
+
+@apply_update_package.register
+def _(update_package: NGElectricalDemandPackage, data: NGData) -> None:
+    """Replace the ``electric_power`` sector demand with the electricity model's gas burn.
+
+    Every ``(region, year)`` the package carries overwrites the held demand for the sector named
+    by ``SECTOR_SUPERSEDED_BY``.  Held entries the package omits keep their loaded values and are
+    reported as warnings -- with growth gated off they sit at the base-year value.  Package
+    entries beyond the held regions/years (filtered out of this run) are ignored.
+
+    Parameters
+    ----------
+    update_package : NGElectricalDemandPackage
+        Gas demand in Bcf/yr indexed by natural gas ``(region, year)``.
+    data : NGData
+        The loaded data; ``data['demand']`` is modified in place.
+    """
+    sector = SECTOR_SUPERSEDED_BY[NGElectricalDemandPackage]
+    demand = data['demand']
+    received = update_package.elements[NG_ELEC_DEMAND_VALUE]
+    held = {(r, y) for (r, s, y) in demand if s == sector}
+    replaced = 0
+    for (region, year), bcf in zip(received.index.to_list(), received.to_list(), strict=True):
+        if (region, year) not in held:
+            continue
+        demand[(region, sector, year)] = float(bcf)
+        replaced += 1
+    missing = sorted(held.difference(received.index))
+    if missing:
+        logger.warning(
+            'Received %s demand does not cover %d of %d held (region, year) entries; those keep '
+            'their base-year values.  Missing (up to 10 shown):  %s',
+            sector,
+            len(missing),
+            len(held),
+            missing[:10],
+        )
+    overage = len(received) - replaced
+    if overage:
+        logger.debug(
+            'Received %s demand holds %d entries beyond the held index (ignored)', sector, overage
+        )
+    logger.info(
+        'Replaced %s demand for %d of %d held (region, year) entries from the electricity model',
+        sector,
+        replaced,
+        len(held),
     )
 
 

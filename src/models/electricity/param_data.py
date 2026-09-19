@@ -14,6 +14,7 @@ held in pandas dataframes.
 
 import logging
 from collections.abc import Collection
+from typing import TypedDict
 
 import pandas as pd
 from pandas import DataFrame
@@ -31,6 +32,58 @@ from src.models.electricity.model_sets import SCI, ModelSets
 from src.models.electricity.param_utilities import add_season_index, avg_by_group, time_map
 
 logger = logging.getLogger(__name__)
+
+
+class ParamFrames(TypedDict, total=False):
+    """Keys of ``ParamData.param_frames``.  All are populated by ``ParamData.__init__``.
+
+    ``total=False`` only because the dict is filled incrementally during construction.
+    """
+
+    # temporal maps / weights
+    weight_year: DataFrame
+    weight_season: DataFrame
+    weight_day: DataFrame
+    weight_hour: DataFrame
+    map_hour_day: DataFrame
+    map_hour_season: DataFrame
+    map_day_season: DataFrame
+
+    # constructed
+    elec_load: DataFrame
+    capacity_credit: DataFrame
+
+    # loaded (TIME_BASED_DFS); empty DataFrame if no data survives filtering
+    cap_cost: DataFrame
+    cap_factor_vre: DataFrame
+    hydro_cap_factor: DataFrame
+    supply_curve: DataFrame
+    supply_price: DataFrame
+    tran_cost: DataFrame
+    tran_cost_int: DataFrame
+    tran_limit: DataFrame  # expanded season -> hour
+    tran_limit_cap_int: DataFrame  # expanded season -> hour
+    tran_limit_gen_int: DataFrame  # expanded season -> hour
+
+
+class ParamDicts(TypedDict, total=False):
+    """Keys of ``ParamData.param_dicts``: every ``PARAM_SOURCES`` key not in ``TIME_BASED_DFS``.
+
+    Values are keyed by the source's ``index_cols`` tuple (1-tuples for single-column indexes).
+    """
+
+    battery_efficiency: dict[tuple, float]
+    cap_cost_initial: dict[tuple, float]
+    fom_cost: dict[tuple, float]
+    hours_to_buy: dict[tuple, float]
+    learning_rate: dict[tuple, float]
+    ramp_down_cost: dict[tuple, float]
+    ramp_rate: dict[tuple, float]
+    ramp_up_cost: dict[tuple, float]
+    reg_reserves_cost: dict[tuple, float]
+    reserve_margin: dict[tuple, float]
+    res_tech_upper_bound: dict[tuple[ReserveType, str], float]
+    supply_curve_learning: dict[tuple, float]
 
 
 class ParamData:
@@ -53,36 +106,8 @@ class ParamData:
     elec_load: DataFrame
 
     # loaded frames and dicts
-    param_frames: dict[str, DataFrame]
-    param_dicts: dict[str, dict]
-
-    # # complex Param Data
-    # cap_cost : DataFrame
-    # cap_factor_VRE : DataFrame
-    # load_df : DataFrame
-    # supply_curve : DataFrame
-    # supply_curve_learning : DataFrame
-    # supply_price : DataFrame
-    # tran_cost : DataFrame
-    # tran_cost_int : DataFrame
-    # tran_limit : DataFrame
-    # tran_limit_cap_int : DataFrame
-    # tran_limit_gen_int : DataFrame
-    #
-    # # basic Param Data
-    # battery_efficiency : dict
-    # cap_cost_initial : dict
-    # cap_factor_vre : dict
-    # fom_cost : dict
-    # hours_to_buy : dict
-    # hydro_cap_factor : dict
-    # learning_rate : dict
-    # ramp_down_cost : dict
-    # ramp_rate : dict
-    # ramp_up_cost : dict
-    # reg_reserves_cost : dict
-    # reserve_margin : dict
-    # res_tech_upper_bound : dict
+    param_frames: ParamFrames
+    param_dicts: ParamDicts
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig, model_sets: ModelSets):
         self.param_frames = {}
@@ -100,7 +125,7 @@ class ParamData:
         param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
         logger.info('Read in %d parameter elements', len(param_data))
 
-        # TEMP HACK:  Adjust prices by factor of x1000 in select params to match the old values
+        # TEMP HACK:  Adjust prices by factor of x in select params to match the old values
         # TODO:  Remove this segment and force this on the DATA!!!!
         names_to_adjust = [
             'supply_price',
@@ -133,6 +158,7 @@ class ParamData:
             df = self.aggregate_time(df)
             # set the index properly
             df = df.set_index(list(df.columns[:-1]))
+            # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
             self.param_frames[name] = df
 
         # augment cap_factor_vre with year.... ugh
@@ -214,6 +240,7 @@ class ParamData:
                 logger.warning(
                     'No data found for %s in the parameter data.  Using empty dict', name
                 )
+            # pyrefly: ignore[unsupported-operation]  - remaining PARAM_SOURCES keys, in ParamDicts
             self.param_dicts[name] = data
 
         # Convert the res-tech upper bound entries to Enum values for validation

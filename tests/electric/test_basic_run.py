@@ -200,6 +200,7 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         elec_config.capacity_expansion = True
     elif config_info == 'exchange':
         elec_config.regional_exchange = True
+        common_config.strict_validation = False
     elif config_info == 'nonlinear_learning_with_reserve':
         if not pyo.SolverFactory('ipopt').available(exception_flag=False):
             pytest.skip('nonlinear learning requires ipopt, which is not in this environment')

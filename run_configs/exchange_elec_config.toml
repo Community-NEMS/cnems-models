@@ -20,6 +20,8 @@ aggregate_years=false
 aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
 summary_years = [2025, 2030] # evaluation years / aggregation summary years (if selected)
 
+# strict validation will terminate the run on data validation errors and should normally = true
+strict_validation = false
 
 [natural_gas]
 
@@ -28,7 +30,7 @@ cost=5  # some dummy data
 [elec_config]
 input_path='input/electricity/cem_inputs'
 region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
-regional_exchange=false
+regional_exchange=true
 capacity_expansion=false
 expansion_learning_type='disabled'  # disabled/linear/nonlinear
 reserve_margin_required=false

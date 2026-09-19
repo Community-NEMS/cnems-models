@@ -1,8 +1,5 @@
 """Dash viewer for browsing and comparing electricity model run outputs."""
 
-####################################################################################################################
-# Setup
-
 import base64
 import logging
 import os
@@ -18,8 +15,7 @@ from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
-# setting up directories
-dir_output = PROJECT_ROOT / 'output'  # Path(__file__).parent
+dir_output = PROJECT_ROOT / 'output'
 
 # header background image, embedded as a data URI so it renders without Dash asset serving
 _header_bg_svg = PROJECT_ROOT / 'app_images' / 'energy_tech_background_pattern.svg'
@@ -27,7 +23,7 @@ _header_bg_data_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
     _header_bg_svg.read_bytes()
 ).decode('ascii')
 
-####################################################################################################################
+
 # Theme: dark surfaces, IBM Plex Sans for UI text and IBM Plex Mono for tick labels / values.
 # Page chrome lives in assets/viewer.css (same tokens); this block themes the plotly figures.
 
@@ -203,7 +199,7 @@ except ValueError:
     print('there are no electricity outputs to review, try running the model')
 
 
-# empty dataframes for the variarables output
+# empty dataframes for the variables output
 df_generation = []
 df_capacitybuilds = []
 df_capacityretire = []
@@ -322,7 +318,7 @@ except ValueError:
 try:
     df_tradecan = pd.concat(df_tradecan)
 except ValueError:
-    print('Canada trade dataframe is empty.')
+    print('International trade dataframe is empty.')
 try:
     df_unmetload = pd.concat(df_unmetload)
 except ValueError:
@@ -483,7 +479,7 @@ try:
 except TypeError:
     print('Capacity total dataframe is empty.')
 
-# sum th steps in the trade to Canada
+# sum th steps in the trade to International
 try:
     df_tradecan = df_tradecan[
         ['run', 'region_domestic', 'region_international', 'year', 'hour', 'trade_international']
@@ -494,7 +490,7 @@ try:
         .reset_index()
     )
 except TypeError:
-    print('Canada trade dataframe is empty.')
+    print('International trade dataframe is empty.')
 
 # create unique list of indexes
 # regions may mix int ids (input/electricity) and str ids (input/electricity_light) across runs
@@ -511,8 +507,7 @@ s_storage_techs = [tech for tech in s_technologies if tech in _storage_labels]
 s_generation_techs = [tech for tech in s_technologies if tech not in _storage_labels]
 s_years = pd.unique(df_generation['year'])
 s_years.sort()
-# s_canregions = pd.unique(df_tradecan['region_international'])
-# s_canregions.sort(key=lambda x: str(x))
+
 s_runs = sorted(pd.unique(df_generation['run']))
 
 # change directory back to the scripts folder (This is for the batch file to work.)

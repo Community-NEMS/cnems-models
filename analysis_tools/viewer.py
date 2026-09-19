@@ -57,6 +57,9 @@ REGION_COLORWAY = [
 ]
 CHART_HEIGHT = 340
 LEGEND_ROW_PX = 20
+# unmet load is normally zero, so hold the axis open to at least this many MWh rather
+# than letting plotly autorange onto a sliver of near-zero slack
+UNMET_LOAD_MIN_SCALE = 1.0
 
 _axis_style = {
     'gridcolor': THEME['grid'],
@@ -113,6 +116,29 @@ pio.templates.default = 'cnems_dark'
 def pretty(name: str) -> str:
     """Turn a snake_case column name into a sentence-case axis label."""
     return name.replace('_', ' ').strip().capitalize()
+
+
+def floor_unmet_load(df: pd.DataFrame) -> pd.DataFrame:
+    """Return ``df`` with negative ``unmet_load`` values clipped to zero.
+
+    A negative shortfall is solver noise. Clipping runs per region, before any summing, so the
+    noise cannot accumulate across regions.
+    """
+    return df.assign(unmet_load=df.unmet_load.clip(lower=0.0))
+
+
+def style_unmet_yaxis(fig: go.Figure, values: pd.Series) -> go.Figure:
+    """Force a plain linear y axis on ``fig``, spanning at least :data:`UNMET_LOAD_MIN_SCALE`.
+
+    ``values`` is the plotted series; when its peak falls below the minimum scale the axis is
+    pinned so a small positive delta is not magnified to full height, otherwise plotly
+    autoranges as usual.
+    """
+    fig.update_yaxes(type='linear', exponentformat='none')
+    peak = values.max() if not values.empty else 0.0
+    if pd.isna(peak) or peak < UNMET_LOAD_MIN_SCALE:
+        fig.update_yaxes(range=[0, UNMET_LOAD_MIN_SCALE])
+    return fig
 
 
 def selected_runs(run: list[str] | None) -> list[str]:
@@ -895,7 +921,7 @@ def update_storage_flow_area_figure(region, storyear, run, stortech):
 )
 def update_unmet_area_figure(region, genyear, run):
     """Build the stacked-area unmet-load figure for the selected regions/year/runs."""
-    filtered_df_unmetload = df_unmetload[(df_unmetload.year == genyear)]
+    filtered_df_unmetload = floor_unmet_load(df_unmetload[(df_unmetload.year == genyear)])
 
     if region:
         filtered_df_unmetload = filtered_df_unmetload[filtered_df_unmetload['region'].isin(region)]
@@ -919,6 +945,7 @@ def update_unmet_area_figure(region, genyear, run):
         facet_col='run',
         category_orders={'run': selected_runs(run)},
     )
+    style_unmet_yaxis(fig_unmetload, filtered_df_unmetload['unmet_load'])
     return finish_figure(fig_unmetload, pretty('unmet_load'))
 
 
@@ -1031,7 +1058,7 @@ def update_storage_flow_line_figure(region, storyear, run, stortech2):
 )
 def update_unmet_line_figure(region, genyear, run):
     """Build the line unmet-load figure for the selected regions/year/runs."""
-    filtered_df_unmetload = df_unmetload[(df_unmetload.year == genyear)]
+    filtered_df_unmetload = floor_unmet_load(df_unmetload[(df_unmetload.year == genyear)])
 
     if region:
         filtered_df_unmetload = filtered_df_unmetload[filtered_df_unmetload['region'].isin(region)]
@@ -1047,6 +1074,7 @@ def update_unmet_line_figure(region, genyear, run):
         facet_col='run',
         category_orders={'run': selected_runs(run)},
     )
+    style_unmet_yaxis(fig_unmetload, filtered_df_unmetload['unmet_load'])
     return finish_figure(fig_unmetload, pretty('unmet_load'))
 
 

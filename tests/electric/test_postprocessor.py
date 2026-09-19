@@ -19,6 +19,7 @@ from src.models.electricity.postprocessor import (
     extract_all_variables,
     get_known_column_names,
     tech_data_columns,
+    tech_property_columns,
     transfer_tech_data,
     variable_to_dataframe,
 )
@@ -153,9 +154,17 @@ def test_transfer_tech_data_writes_file(request, fixture_name, tmp_path):
 
     csv_path = tmp_path / 'tech_data.csv'
     assert csv_path.exists()
-    reloaded = pd.read_csv(csv_path, dtype=str)
-    assert list(reloaded.columns) == tech_data_columns
+    reloaded = pd.read_csv(csv_path)
+    assert list(reloaded.columns[: len(tech_data_columns)]) == tech_data_columns
+    assert set(tech_property_columns()) <= set(reloaded.columns)
     assert len(reloaded) == len(df)
+
+    # membership flags round-trip as booleans, and every dataset has at least one storage tech
+    flags = reloaded[tech_property_columns()]
+    assert (flags.dtypes == 'bool').all()
+    assert reloaded['T_stor'].any()
+
+    reloaded = reloaded.astype(str)
 
     expected_techs = load_attribute_data(common_config.common_data_path)['tech_data']['label']
     assert set(reloaded['tech']) == {str(t) for t in expected_techs}

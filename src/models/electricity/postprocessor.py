@@ -22,7 +22,11 @@ import pyomo.environ as pyo
 from pyomo.core.base.indexed_component import IndexedComponent
 
 from definitions import PROJECT_ROOT
-from src.models.electricity.data_ingestor import load_attribute_data
+from src.models.electricity.data_ingestor import (
+    PROPERTY_SOURCES,
+    load_attribute_data,
+    load_property_data,
+)
 
 # Establish logger
 logger = getLogger(__name__)
@@ -232,13 +236,27 @@ def export_variables_to_csv(
 tech_data_columns = ['tech', 'label', 'abbreviation', 'color']
 
 
-def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.DataFrame:
-    """Copy the tech descriptors (id, label, abbreviation, hex color) into a run's output dir.
+def tech_property_columns() -> list[str]:
+    """Names of the ``tech_data`` membership columns (``T_conv``, ``T_stor``, ...), in file order.
 
-    Reads the attribute columns of the input ``tech_data.csv`` through the same
-    :func:`load_attribute_data` loader ``ModelSets`` uses, so the exported ids match the model's
+    Returns
+    -------
+    list[str]
+        The declared property columns minus the index column.
+    """
+    source = PROPERTY_SOURCES['tech_data']
+    return [col for col in source.property_cols if col not in source.index_cols]
+
+
+def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.DataFrame:
+    """Copy the tech descriptors and membership flags into a run's output dir.
+
+    Reads the input ``tech_data.csv`` through the same :func:`load_attribute_data` /
+    :func:`load_property_data` loaders ``ModelSets`` uses, so the exported ids match the model's
     tech set (including string ids such as ``10_seasonal``), and writes them as
-    ``<output_dir>/tech_data.csv`` for downstream tools such as the results viewer.
+    ``<output_dir>/tech_data.csv`` for downstream tools such as the results viewer. The
+    ``T_*`` membership columns are written as booleans, letting a consumer tell (for example)
+    a storage tech from a generator without re-reading the model inputs.
 
     Parameters
     ----------
@@ -250,17 +268,25 @@ def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.Data
     Returns
     -------
     pd.DataFrame
-        The exported frame, columns ``tech, label, abbreviation, color``.
+        The exported frame: ``tech, label, abbreviation, color`` plus one boolean column per
+        ``T_*`` property.
     """
-    attrs = load_attribute_data(Path(input_dir))['tech_data']
+    input_dir = Path(input_dir)
+    attrs = load_attribute_data(input_dir)['tech_data']
+    props = load_property_data(input_dir)['tech_data']
+    techs = list(attrs['label'])
     df = pd.DataFrame(
         {
-            'tech': list(attrs['label']),
-            'label': list(attrs['label'].values()),
-            'abbreviation': [attrs['abbreviation'][t] for t in attrs['label']],
-            'color': [attrs['color'][t] for t in attrs['label']],
-        },
-        columns=tech_data_columns,
+            'tech': techs,
+            'label': [attrs['label'][t] for t in techs],
+            'abbreviation': [attrs['abbreviation'][t] for t in techs],
+            'color': [attrs['color'][t] for t in techs],
+            **{
+                col: [t in set(props[col]) for t in techs]
+                for col in tech_property_columns()
+                if col in props
+            },
+        }
     )
 
     out_dir = Path(output_dir)

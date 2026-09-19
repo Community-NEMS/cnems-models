@@ -1,0 +1,304 @@
+/* Dark theme for the C-NEMS electricity results viewer (analysis_tools/viewer.py).
+   Dash auto-serves everything in this assets/ folder.  Component chrome (dropdowns, tabs)
+   is themed by overriding Dash 4's --Dash-* design tokens; the page layout is below. */
+
+:root {
+  --page: #0f1115;
+  --panel: #171a1f;
+  --panel-2: #1c2026;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --ink: #e8eaed;
+  --ink-2: #aab0b8;
+  --muted: #7a8290;
+  --accent: #58a6ff;
+  --accent-weak: rgba(88, 166, 255, 0.14);
+  --font-ui: 'IBM Plex Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+
+/* Dash component tokens, set on body so they win over the :root defaults the bundle injects. */
+body {
+  --Dash-Spacing: 4px;
+  --Dash-Stroke-Strong: var(--hairline-strong);
+  --Dash-Stroke-Weak: var(--hairline);
+  --Dash-Fill-Interactive-Strong: var(--accent);
+  --Dash-Fill-Interactive-Weak: var(--accent-weak);
+  --Dash-Fill-Inverse-Strong: var(--panel-2);
+  --Dash-Fill-Disabled: rgba(255, 255, 255, 0.08);
+  --Dash-Fill-Primary-Hover: rgba(255, 255, 255, 0.05);
+  --Dash-Fill-Primary-Active: rgba(255, 255, 255, 0.09);
+  --Dash-Shading-Strong: rgba(0, 0, 0, 0.55);
+  --Dash-Shading-Weak: rgba(0, 0, 0, 0.35);
+  --Dash-Text-Primary: var(--ink);
+  --Dash-Text-Strong: var(--ink);
+  --Dash-Text-Weak: var(--ink-2);
+  --Dash-Text-Disabled: var(--muted);
+  --Dash-Tooltip-Background-Color: var(--panel-2);
+  --Dash-Tooltip-Border-Color: var(--hairline-strong);
+
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+/* ---- top bar: title + global filters in one row -------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--hairline);
+  background-color: var(--panel);
+  background-size: cover;
+  background-position: center;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.brand-sub {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.global-filters {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.global-filters .filter {
+  min-width: 220px;
+  max-width: 340px;
+  flex: 1 1 220px;
+}
+
+/* ---- filter blocks ------------------------------------------------------------------ */
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Dash 4 dropdown */
+.dash-dropdown {
+  background: var(--panel-2);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  border-radius: var(--radius);
+}
+
+.dash-dropdown-trigger {
+  min-height: 30px;
+}
+
+.dash-dropdown-content {
+  background: var(--panel-2);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 12.5px;
+}
+
+.dash-dropdown-option {
+  padding: 6px 10px;
+  box-shadow: none;
+}
+
+.dash-dropdown-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dash-dropdown-value-item {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* checklist */
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.check-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+}
+
+.check-input {
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  accent-color: var(--accent);
+  flex: none;
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  flex: none;
+}
+
+/* ---- tabs --------------------------------------------------------------------------- */
+.tabs-parent {
+  padding: 0 20px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--panel);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  width: auto !important;
+}
+
+/* Dash's defaults give every tab `flex: 1 1 0` (so two tabs split the page), a top accent
+   border and an inverse background on the selected one; undo all of that. */
+.tabs .tab,
+.tabs .tab--selected {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  padding: 10px 12px !important;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+
+.tabs .tab:hover {
+  color: var(--ink) !important;
+}
+
+.tabs .tab--active,
+.tabs .tab--selected {
+  color: var(--ink) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* ---- tab body: narrow control rail + chart column ----------------------------------- */
+.tab-body {
+  display: flex;
+  gap: 16px;
+  padding: 16px 20px 32px;
+  align-items: flex-start;
+}
+
+.controls {
+  flex: 0 0 220px;
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.charts {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-title {
+  margin: 12px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 10px 12px 4px;
+}
+
+.card-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.chart {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tab-body {
+    flex-direction: column;
+  }
+
+  .controls {
+    position: static;
+    flex-basis: auto;
+  }
+}

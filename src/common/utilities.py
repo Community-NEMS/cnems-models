@@ -50,6 +50,16 @@ def setup_logger(settings: CommonConfig, **kwargs):
     logging.getLogger('pandas').setLevel(logging.WARNING)
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
+    # the scenario rename happens while the config is parsed, before this run.log exists, so
+    # repeat the warning here to record it in the log of the run it actually applies to
+    if settings.original_scenario_name:
+        logger.warning(
+            'Scenario %r was renamed to %r because %s already held results from an earlier run.',
+            settings.original_scenario_name,
+            settings.scenario_name,
+            settings.output_path / settings.original_scenario_name,
+        )
+
 
 def get_args():
     """Parses args.

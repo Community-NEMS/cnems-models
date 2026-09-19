@@ -23,6 +23,7 @@ from pyomo.util.infeasible import log_infeasible_constraints
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.integrator.utilities import select_solver
+from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
@@ -123,10 +124,13 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         logger.debug('Model set inputs produced')
         model_params = ParamData(common_config, model_config, model_sets)
         logger.debug(
-            'Model parameter inputs produced with %d dictionaries and %d dataframes',
+            'Model parameter inputs produced with %d dataframes and %d dictionaries',
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
+
+        logger.info('Validating input data')
+        validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
 
         logger.info('Building model')
         instance = PowerModel(

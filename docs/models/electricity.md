@@ -434,3 +434,47 @@ Operating reserve procurement upper bound:
 $$
 \begin{aligned} \mathbf{ORP}_{o,t,y,r,s,h} \leq &RTUB_{o,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}\\ &\forall {o,t,y,r,s,h} \in \Theta_{proc} \\ &\quad \text{if } \mathtt{spinning\_reserve\_required}\\ \end{aligned} \tag{26}
 $$
+
+## Data Validation
+
+The raw input data is checked before the pyomo model is built. `ElectricitySequencer.build_model`
+constructs the `ModelSets` and `ParamData` as usual and then calls
+`validate_all(model_sets, param_data)` from `src/models/electricity/data_validation.py`. Validation
+therefore sees the ingested parameter tables — after region/year filtering and the season-to-hour
+expansions performed by `ParamData`, but before the data is handed to the model — so coverage gaps
+and structural problems in the input CSVs are reported against the data the model will actually use,
+rather than surfacing later as an obscure `KeyError` or an unexpectedly infeasible solve.
+
+Each validation is independent and every one runs on each pass, so a single build reports all of the
+problems found rather than stopping at the first. Findings are written to the log: recoverable
+issues as warnings, showstoppers as errors.
+
+### Strict validation
+
+The `strict_validation` switch in the `[common]` section of the run configuration
+(`CommonConfig.strict_validation`, default `true`) controls what happens when validation fails:
+
+- `strict_validation = true` — a failed validation writes a notice to `stderr` and terminates the
+  run. This is the normal setting.
+- `strict_validation = false` — failures are logged and the run continues with the data as read.
+  Useful when working with known-incomplete input data, at the risk of a downstream failure or a
+  silently mis-specified model.
+
+### Validations performed
+
+- **Seasonal coverage** (`validate_seasonal_coverage`) — for `supply_price` and `hydro_cap_factor`,
+  every base index (the index with the season removed) must carry exactly the model's expected set
+  of seasons: no gaps and no strays.
+- **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
+  transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_int`,
+  `tran_limit_gen_int`), reporting the missing and unexpected hours for each offending base index.
+- **Supply curve vs. supply price coverage** (`validate_supply_price_coverage`) — the supply curve
+  and the supply price tables must cover each other. A price with no matching supply entry is a
+  warning; a supply entry with no price is fatal.
+- **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
+  `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
+  same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
+  warnings; a limit without a matching cost is fatal.
+
+The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
+enabled, since the transmission tables are otherwise unused.

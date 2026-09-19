@@ -111,7 +111,10 @@ def main(
 
 if __name__ == '__main__':
     # run a default and default + exchange model to enable viewing of results
+
+    # TODO: Repeated main() calls will all log to the first logger setup.  A planned change
+    #       to setup_logger will alleviate this issue in future.
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'))
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/exchange_elec_config.toml'))
-    # reduced string-named input set (input/electricity_light) with regional exchange
-    main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))
+    # # reduced string-named input set (input/electricity_light) with regional exchange
+    # main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))

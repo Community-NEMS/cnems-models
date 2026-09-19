@@ -20,6 +20,8 @@ aggregate_years=false
 aggregate_start_year = 2030 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
 summary_years = [2030, 2033] # evaluation years / aggregation summary years (if selected)
 
+# strict validation will terminate the run on data validation errors and should normally = true
+strict_validation = false
 
 [natural_gas]
 

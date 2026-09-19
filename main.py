@@ -117,4 +117,5 @@ if __name__ == '__main__':
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/basic_elec_config.toml'))
     main(common_config_path=Path(PROJECT_ROOT, 'run_configs/exchange_elec_config.toml'))
     # # reduced string-named input set (input/electricity_light) with regional exchange
-    # main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))
+    main(common_config_path=Path(PROJECT_ROOT, 'run_configs/reduced_elec_config.toml'))
+    main(common_config_path=Path(PROJECT_ROOT, 'run_configs/expandable_elec_config.toml'))

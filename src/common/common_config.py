@@ -37,6 +37,7 @@ class CommonConfig(BaseModel):
     aggregate_years: bool
     aggregate_start_year: int | None
     summary_years: list[int]
+    strict_validation: bool = True
 
     @model_validator(mode='after')
     def check_year_aggregation(self):

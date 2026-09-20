@@ -1,6 +1,6 @@
 ---
 name: pyomo
-description: Working with pyomo models — indexed Sets/Params/Vars, sparse vs dense index semantics, initializers, domain validation, and type-checking pyomo code. Use when building or debugging a pyomo formulation, when a KeyError/ValueError appears during model or constraint construction, when choosing an `initialize=` form, or when pyrefly/mypy reports spurious errors on pyomo access.
+description: Working with pyomo models — indexed Sets/Params/Vars, sparse vs dense index semantics, initializers, domain validation, solver selection and termination checking, and type-checking pyomo code. Use when building or debugging a pyomo formulation, when a KeyError/ValueError appears during model or constraint construction, when choosing an `initialize=` form, when picking or configuring a solver (HiGHS/APPSI/persistent interfaces) or handling a non-optimal solve, or when pyrefly/mypy reports spurious errors on pyomo access.
 ---
 
 # Working with pyomo
@@ -14,6 +14,13 @@ rediscovered.
 
 Verified against **pyomo 6.10.1**. Re-verify before trusting any of it on a different
 version — pyomo's initializer machinery has changed across 6.x.
+
+**If pyomo is 7.0 or later, stop and re-verify the solver material.** Pyomo has signalled that
+7.0 revisits the solver interfaces: `pyomo.contrib.solver` is expected to become mainline and
+the legacy `pyomo.opt` / APPSI layers are candidates for removal or relocation. Check with
+`python -c "import pyomo; print(pyomo.version.version)"` (or `pixi list | grep pyomo`) before
+trusting `references/solvers.md` or the pattern below, and revise them rather than working
+around them.
 
 ## Ground rule: prove it, don't recall it
 
@@ -32,6 +39,9 @@ Read on demand rather than inlining:
 - `references/indexed-components.md` — sparse vs dense semantics for Set and Param, every
   `initialize=` form and what it does, domain validation, and the runnable proofs behind
   the table below.
+- `references/solvers.md` — which HiGHS interface to use and why, the check-then-load
+  pattern, persistence (what APPSI was for), the APPSI→current translation table, and how
+  this repo is wired.
 
 ## The one table to remember
 
@@ -80,6 +90,33 @@ Two consequences that have each caused a real bug here:
    declared over a wide index set (e.g. `self.elec_load.index_set()`) that reach into a
    narrowly-populated Set will `KeyError` during *constraint* construction — not at the
    `Set` declaration, which succeeds quietly.
+
+## Solving: check *before* you load
+
+The one pattern to reproduce at every solve site:
+
+```python
+results = opt.solve(model, load_solutions=False)
+if not check_optimal_termination(results):
+    logger.error('non-optimal solve: %s', results.solver.termination_condition)
+    return IterationStatus.ERROR
+model.solutions.load_from(results)      # variable values *and* duals/suffixes
+```
+
+`load_solutions=False` is load-bearing, not hygiene. Left at its default, `solve()` raises
+while trying to load a solution an infeasible run never produced — `NoFeasibleSolutionError`
+from `highs`, a bare `RuntimeError` from `appsi_highs` — so the termination check below it is
+unreachable and a failed solve becomes a traceback instead of a logged status.
+
+Use `SolverFactory('highs')`, not `appsi_highs`: same persistent machinery, and it handles a
+quadratic objective, which the APPSI wrapper refuses. In this repo,
+`src/integrator/utilities.py::select_solver` hands it out already configured.
+
+`pyo.check_optimal_termination` is correct on both the legacy and the current interface — it
+branches on the results type internally, so no version check is needed at the call site.
+
+Details, including the native (non-`SolverFactory`) API and the persistence rules that an
+iteration loop depends on, are in `references/solvers.md`.
 
 ## Reading the error location
 
@@ -139,8 +176,6 @@ Keep `SKILL.md` to things worth knowing *before* you start writing, and push det
 different task. Likely next splits:
 
 - `references/type-checking.md` — when the pyrefly section outgrows the summary above.
-- `references/solvers.md` — solver selection, `select_solver`, termination-condition
-  handling, duals/suffixes.
 - `references/debugging.md` — inspecting a built or solved model; this repo already has
   `analysis_tools/model_diagnostics.py` for that and it should be cross-referenced.
 

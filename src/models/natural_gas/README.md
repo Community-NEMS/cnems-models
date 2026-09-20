@@ -48,12 +48,12 @@ which Pyomo interface can carry it:
 
 | Interface | Quadratic objective | Use for this model |
 |---|---|---|
-| `SolverFactory('highs')`, pyomo ≥ 6.10 | yes, builds a Hessian | **yes** |
-| `SolverFactory('appsi_highs')` | **no**, `generate_standard_repn(quadratic=False)`, raises `DegreeError` | no |
+| `SolverFactory('highs')`, the `pyomo.contrib.solver` interface | yes, builds a Hessian | **yes** |
+| `SolverFactory('appsi_highs')`, superseded by the above | **no**, `generate_standard_repn(quadratic=False)`, raises `DegreeError` | no |
 | Gurobi interfaces | yes | optional, faster |
 
-`solve()` tries `appsi_gurobi, gurobi_direct, gurobi, highs, appsi_highs` in that order, so a
-Gurobi-free environment lands on `highs` rather than the interface that raises. **Verified with
+`solve()` tries `appsi_gurobi, gurobi_direct, gurobi, highs` in that order, so a
+Gurobi-free environment lands on `highs`; `appsi_highs` is not probed at all. **Verified with
 pyomo 6.10.1 + highspy 1.15.1 and no Gurobi present:**
 
 ```

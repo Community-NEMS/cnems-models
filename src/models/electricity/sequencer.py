@@ -34,6 +34,7 @@ from src.common.update_package import (
 from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
 from src.integrator.utilities import select_solver
 from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH
+from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
@@ -146,7 +147,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         logger.debug('Model set inputs produced')
         model_params = ParamData(common_config, model_config, model_sets)
         logger.debug(
-            'Model parameter inputs produced with %d dictionaries and %d dataframes',
+            'Model parameter inputs produced with %d dataframes and %d dictionaries',
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
@@ -156,6 +157,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 model_params.apply_update_package(pkg)
         else:
             logger.info('Received no update_packages')
+
+        logger.info('Validating input data')
+        validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
 
         logger.info('Building model')
         instance = PowerModel(
@@ -218,8 +222,14 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 # update learning costs in model
                 update_expansion_cost(instance, new_cap=cap_growth)
 
-                # solve model
-                results = self._opt.solve(instance)
+                # solve model.  Solutions are loaded explicitly after the termination
+                # check:  the 'highs' interface raises NoFeasibleSolutionError from inside
+                # solve() if asked to load a solution that does not exist, and the values are
+                # needed by calculate_cap_growth() below.
+                results = self._opt.solve(instance, load_solutions=False)
+                if not check_optimal_termination(results):
+                    break  # leave the failed results for the common check below
+                instance.solutions.load_from(results)
 
                 # set new capacities and measure convergence
                 new_cap_growth = calculate_cap_growth(instance)
@@ -238,7 +248,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             if results is None:  # pragma: no cover - the loop always runs at least once
                 raise RuntimeError('Linear learning loop exited without solving the model.')
         else:
-            results = self._opt.solve(instance)
+            results = self._opt.solve(instance, load_solutions=False)
+            if check_optimal_termination(results):
+                instance.solutions.load_from(results)
 
         # Check results
         if not check_optimal_termination(results):

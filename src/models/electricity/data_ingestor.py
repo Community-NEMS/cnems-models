@@ -108,7 +108,8 @@ def load_dataframes_w_datapackage(
     Args:
         base_path: fsspec compatible path pointing to directory of CSVs.
         filters: FilterPackage object to filter on year and region columns.
-        tables_to_load: List of tables to load. If `None` load all columns.
+        tables_to_load: List of tables to load. If `None` load all defined tables.
+        input_datapackage_branch: which branch of `cnems-inputs` repo to pull the datapackage from
     """
     datapackage_url = f'https://raw.githubusercontent.com/Community-NEMS/cnems-inputs/{inputs_datapackage_branch}/datapackage.json'
     with urlopen(datapackage_url) as response:

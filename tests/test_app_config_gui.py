@@ -41,6 +41,16 @@ def _find_value(input_ids: list[dict], input_values: list, section: str, field: 
     raise KeyError((section, field))
 
 
+# every CommonConfig construction reserves a fresh scenario directory, so a rebuilt config
+# legitimately differs from its source in these fields alone
+SCENARIO_FIELDS = {'scenario_name', 'original_scenario_name'}
+
+
+def _without_scenario(config: CommonConfig) -> dict:
+    """Dump ``config`` minus the fields set by scenario-directory reservation."""
+    return config.model_dump(exclude=SCENARIO_FIELDS)
+
+
 def _to_ids_and_values(
     common_config: CommonConfig, elec_config: ElecConfig
 ) -> tuple[list[dict], list]:
@@ -90,13 +100,13 @@ def test_save_load_json_roundtrip(config_pair, tmp_path):
 
     target = tmp_path / 'last_app_config.json'
     saved_common, saved_elec = save_configs(common_raw, elec_raw, path=target)
-    assert saved_common == common_config
+    assert _without_scenario(saved_common) == _without_scenario(common_config)
     assert saved_elec == elec_config
 
     reloaded_common, remainder = parse_config_file(target)
     reloaded_elec = ElecConfig(**remainder.pop('elec_config'))
 
-    assert reloaded_common == common_config
+    assert _without_scenario(reloaded_common) == _without_scenario(common_config)
     assert reloaded_elec == elec_config
 
 

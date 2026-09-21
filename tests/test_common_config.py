@@ -42,11 +42,34 @@ def config_kwargs(tmp_path):
 
 
 def test_unused_scenario_name_is_kept(config_kwargs):
-    """An unclaimed scenario name is left alone."""
+    """An unclaimed scenario name is left alone, and its directory is reserved."""
     config = CommonConfig(**config_kwargs)
 
     assert config.scenario_name == BASE_SCENARIO
     assert config.original_scenario_name is None
+    assert (config.output_path / BASE_SCENARIO).is_dir()
+
+
+def test_back_to_back_configs_reserve_distinct_dirs(config_kwargs):
+    """Each construction claims its own dir, so a second config never reuses the first's."""
+    first = CommonConfig(**config_kwargs)
+    second = CommonConfig(**config_kwargs)
+
+    assert first.scenario_name == BASE_SCENARIO
+    assert second.scenario_name == f'{BASE_SCENARIO}_1'
+    assert second.original_scenario_name == BASE_SCENARIO
+
+
+def test_non_directory_occupant_is_skipped(config_kwargs):
+    """A plain file holding the scenario name also counts as taken."""
+    output_path = config_kwargs['output_path']
+    output_path.mkdir(parents=True)
+    (output_path / BASE_SCENARIO).touch()
+
+    config = CommonConfig(**config_kwargs)
+
+    assert config.scenario_name == f'{BASE_SCENARIO}_1'
+    assert (output_path / BASE_SCENARIO).is_file()
 
 
 @pytest.mark.parametrize('taken', [1, 2, 3])
@@ -64,7 +87,7 @@ def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, taken):
     assert config.scenario_name == f'{BASE_SCENARIO}_{taken}'
     assert any(record.levelno == logging.WARNING for record in caplog.records)
     assert config.original_scenario_name == BASE_SCENARIO
-    # the chosen directory is unused, and every earlier run is left intact
-    assert not (config.output_path / config.scenario_name).exists()
+    # the chosen directory is reserved but empty, and every earlier run is left intact
+    assert not any((config.output_path / config.scenario_name).iterdir())
     for name in existing:
         assert (output_path / name / 'electricity' / 'stale.csv').is_file()

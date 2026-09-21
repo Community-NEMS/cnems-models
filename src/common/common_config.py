@@ -75,7 +75,7 @@ class CommonConfig(BaseModel):
 
     @model_validator(mode='after')
     def ensure_unused_scenario_dir(self):
-        """Suffix ``scenario_name`` with the next free integer if its output dir already exists.
+        """Reserve an unused output dir, suffixing ``scenario_name`` with the next free integer.
 
         Results are written per-variable into ``<output_path>/<scenario_name>/``, and the
         exporters overwrite only the files they produce -- they never clear the directory. Reusing
@@ -83,27 +83,34 @@ class CommonConfig(BaseModel):
         different switches. Redirecting to a new directory keeps each run's output self-consistent
         and leaves prior runs intact.
 
+        Each candidate (``<base>``, then ``<base>_1``, ``<base>_2``, ...) is claimed with a plain
+        ``mkdir``, which fails if the path exists, so concurrent runs sharing a scenario name can
+        never select the same directory. The chosen directory therefore exists on return.
+
         Runs after :meth:`check_paths` (which resolves ``output_path``) and
         :meth:`check_scenario_name` (which bounds the characters used), so the suffixed name is
         still a valid scenario name.
         """
-        if not (self.output_path / self.scenario_name).exists():
-            return self
-
         base = self.scenario_name
-        suffix = 1
-        while (self.output_path / f'{base}_{suffix}').exists():
-            suffix += 1
-        self.original_scenario_name = base
-        self.scenario_name = f'{base}_{suffix}'
-        logger.warning(
-            'Output directory for scenario %r already exists in %s; this run will write to '
-            'scenario %r instead, leaving the earlier results untouched.',
-            base,
-            self.output_path,
-            self.scenario_name,
-        )
-        return self
+        suffix = 0
+        while True:
+            candidate = f'{base}_{suffix}' if suffix else base
+            try:
+                (self.output_path / candidate).mkdir()
+            except FileExistsError:
+                suffix += 1
+                continue
+            if suffix:
+                self.original_scenario_name = base
+                self.scenario_name = candidate
+                logger.warning(
+                    'Output directory for scenario %r already exists in %s; this run will write '
+                    'to scenario %r instead, leaving the earlier results untouched.',
+                    base,
+                    self.output_path,
+                    self.scenario_name,
+                )
+            return self
 
     @classmethod
     def from_toml(cls, path: Path) -> tuple[CommonConfig, dict]:

@@ -193,8 +193,14 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 # update learning costs in model
                 update_expansion_cost(instance, new_cap=cap_growth)
 
-                # solve model
-                results = self._opt.solve(instance)
+                # solve model.  Solutions are loaded explicitly after the termination
+                # check:  the 'highs' interface raises NoFeasibleSolutionError from inside
+                # solve() if asked to load a solution that does not exist, and the values are
+                # needed by calculate_cap_growth() below.
+                results = self._opt.solve(instance, load_solutions=False)
+                if not check_optimal_termination(results):
+                    break  # leave the failed results for the common check below
+                instance.solutions.load_from(results)
 
                 # set new capacities and measure convergence
                 new_cap_growth = calculate_cap_growth(instance)
@@ -213,7 +219,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             if results is None:  # pragma: no cover - the loop always runs at least once
                 raise RuntimeError('Linear learning loop exited without solving the model.')
         else:
-            results = self._opt.solve(instance)
+            results = self._opt.solve(instance, load_solutions=False)
+            if check_optimal_termination(results):
+                instance.solutions.load_from(results)
 
         # Check results
         if not check_optimal_termination(results):

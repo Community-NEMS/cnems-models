@@ -110,15 +110,14 @@ class NGSequencer(IntegratedModelSequencer):
         -----
         Left to itself, the method takes the first available of, in order::
 
-            appsi_gurobi, gurobi_direct, gurobi, highs, appsi_highs
+            appsi_gurobi, gurobi_direct, gurobi, highs
 
-        The ordering is load-bearing and is explained in full in the comments below.  In short:
-        the three Gurobi entries lead purely for speed (in-memory, no LP-file round trip), while
-        the last two are the correctness-critical pair.  ``appsi_highs`` calls
+        The three Gurobi entries lead purely for speed (in-memory, no LP-file round trip);
+        ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and handles
+        the convex QP properly, so a Gurobi-free environment still solves.  ``appsi_highs`` is
+        not a candidate and ``solver_name='appsi_highs'`` will not work:  it calls
         ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on
-        this model's quadratic objective (still true in pyomo 6.10.1); ``highs`` is the
-        newer interface (pyomo >= 6.10) that builds a Hessian and handles a convex QP properly.
-        ``highs`` therefore must precede it, and ``solver_name='appsi_highs'`` will not work.
+        this model's quadratic objective (still true in pyomo 6.10.1).
 
         Gurobi is additionally pinned to the barrier method with duals requested and
         ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
@@ -127,35 +126,22 @@ class NGSequencer(IntegratedModelSequencer):
         solver_name = kwargs.pop('solver_name', None)
         logger.debug('Requested solver: %s', solver_name)
         if solver_name is None:
-            # Note ordering:
-            #   1. appsi_gurobi: Pyomo's APPSI interface to Gurobi (used by unified.py
-            #      already; supports QP and warm starts).
-            #   2. gurobi_direct: direct Pyomo→Gurobi interface, fall-through if
-            #      APPSI is unavailable.
-            # 3. highs: the standalone HiGHS interface, supports convex QP since
-            #      HiGHS 1.5.  We use this NOT appsi_highs because Pyomo's APPSI
-            #      HiGHS wrapper rejects degree-2 expressions (Pyomo bug, fix not
-            #      backported as of v6.10).
-            # The original list is all-unavailable
-            # in the current `bsky` env (appsi_gurobi/gurobi_direct bindings absent; the ASL
-            # 'highs' executable is not installed). Added the classic 'gurobi' interface first
-            # (QP-capable and the only working Gurobi binding here) and 'appsi_highs' as a
-            # Gurobipy 12.0.1 now installed; prefer in-memory
-            # appsi_gurobi for the QP (no LP-file I/O, fast). Old gurobi-first order preserved:
-            # candidates = ['gurobi', 'appsi_gurobi', 'gurobi_direct', 'highs', 'appsi_highs']
-            # ORDERING MATTERS, do not reorder. The two Gurobi entries lead purely for
-            # speed. The critical pair is the last two: 'highs' MUST precede 'appsi_highs'.
+            # Ordering:
+            #   1-3. the Gurobi bindings, which lead purely for speed -- in-memory
+            #        appsi_gurobi first (no LP-file I/O), then gurobi_direct, then the classic
+            #        'gurobi' shell interface. All three handle a QP; gurobipy 12.0.1 is
+            #        installed here, earlier envs had none of them.
+            #   4.   'highs': the current pyomo.contrib.solver interface (also what
+            #        select_solver() hands the electricity path), which builds a Hessian and
+            #        handles a convex QP properly, so a Gurobi-free env still solves.
             #
-            # 'appsi_highs' calls generate_standard_repn(quadratic=False) internally, so it raises
-            # DegreeError on any quadratic objective, still true in pyomo 6.10.1. 'highs' is the
-            # new-generation interface (pyomo >= 6.10) that builds a Hessian and handles a convex
-            # QP properly. With this ordering a Gurobi-free environment lands on the interface
-            # that works rather than the one that raises, which is why 'appsi_highs' is kept at
-            # the end as a last resort rather than removed outright.
+            # 'appsi_highs' is deliberately NOT a candidate: it calls
+            # generate_standard_repn(quadratic=False) internally and so raises DegreeError on any
+            # quadratic objective, still true in pyomo 6.10.1.
             #
             # Confirm which was chosen from the log line below, or from HiGHS's own output under
             # tee, which reports "1476 Hessian nonzeros" for the full model.
-            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs', 'appsi_highs']
+            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs']
         else:
             candidates = [solver_name]
 
@@ -190,14 +176,18 @@ class NGSequencer(IntegratedModelSequencer):
 
         logger.info('C-NGMM: solving with %s (QP) …', chosen)
         # No tee= here, so the solver's own output is not shown, and `results` is used for the
-        # termination check below and then discarded rather than returned.
-        results = opt.solve(self.model)
+        # termination check below and then discarded rather than returned.  load_solutions=False
+        # keeps that check reachable:  'highs' raises from inside solve() when asked to load a
+        # solution that an infeasible run never produced.  Variable values and duals land on the
+        # model at load_from() instead.
+        results = opt.solve(self.model, load_solutions=False)
 
         if not check_optimal_termination(results):
             logger.error('C-NGMM: non-optimal solve! Results:\n%s', results)
             return IterationStatus.ERROR
             # raise RuntimeError('NGModel solve did not reach an optimal solution.')
 
+        self.model.solutions.load_from(results)
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
 
         # ── attach result tables to the model for reporting ──────────────────────

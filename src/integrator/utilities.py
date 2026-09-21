@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pandas as pd
 import pyomo.opt as pyo
-from pyomo.environ import ConcreteModel
+from pyomo.contrib.solver.common.base import LegacySolverWrapper
+from pyomo.environ import ConcreteModel, SolverFactory
 from pyomo.opt import OptSolver
 
 # Import python modules
@@ -35,36 +36,48 @@ logger = getLogger(__name__)
 # TODO:  This might be a good use case for a persistent solver (1-each) for both the
 #        elec & hyd...  hmm
 def simple_solve(m: ConcreteModel):
-    """A simple solve routine."""
+    """A simple solve routine.
+
+    Solutions are loaded only after the termination check:  the ``highs`` interface raises
+    ``NoFeasibleSolutionError`` from inside ``solve()`` when asked to load a solution that does
+    not exist, which would pre-empt the check below.
+    """
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
     # TODO:  experiment with pyomo's persistent solver interface, one for each ELEC, H2
     opt = select_solver(m)
-    res = opt.solve(m)
+    res = opt.solve(m, load_solutions=False)
     if pyo.check_optimal_termination(res):
+        m.solutions.load_from(res)
         return
     raise RuntimeError('failed solve in iterator')
 
 
-def simple_solve_no_opt(m: ConcreteModel, opt: OptSolver):
+def simple_solve_no_opt(m: ConcreteModel, opt: OptSolver | LegacySolverWrapper):
     """Solve concrete model using solver factory object.
+
+    The solution is loaded after the termination check rather than by ``solve()`` itself; see
+    :func:`simple_solve`.
 
     Parameters
     ----------
     m : ConcreteModel
         Pyomo model
-    opt: OptSolver
+    opt : OptSolver | LegacySolverWrapper
         Solver object initiated prior to solve
     """
     # Note:  this is a prime candidate to split into 2 persistent solvers!!
     # TODO:  experiment with pyomo's persistent solver interface, one for each ELEC, H2
     logger.info('solving w/ solver-factory object instantiated outside of loop')
-    res = opt.solve(m)
+    res = opt.solve(m, load_solutions=False)
     if pyo.check_optimal_termination(res):
+        m.solutions.load_from(res)
         return
     raise RuntimeError('failed solve in iterator')
 
 
-def select_solver(instance: ConcreteModel, nonlinear: bool = False) -> OptSolver:
+def select_solver(
+    instance: ConcreteModel, nonlinear: bool = False
+) -> OptSolver | LegacySolverWrapper:
     """Select solver based on learning method.
 
     Parameters
@@ -77,16 +90,20 @@ def select_solver(instance: ConcreteModel, nonlinear: bool = False) -> OptSolver
 
     Returns
     -------
-    solver type (?)
-        The pyomo solver
+    OptSolver | LegacySolverWrapper
+        The pyomo solver.  ``highs`` for the linear case -- the current
+        ``pyomo.contrib.solver`` interface, which supersedes ``appsi_highs`` and is likewise
+        persistent:  re-solving the *same* model object with the *same* solver object pushes
+        only the diff instead of rebuilding, so callers that iterate should hold onto this
+        object.  ``ipopt`` for the nonlinear case.
     """
     # default = linear solver
-    solver_name = 'appsi_highs'
-    opt = pyo.SolverFactory(solver_name)
+    solver_name = 'highs'
+    opt: OptSolver | LegacySolverWrapper = SolverFactory(solver_name)
 
     if nonlinear:  # if nonlinear learning, set to ipopt
         solver_name = 'ipopt'
-        opt = pyo.SolverFactory(solver_name, tee=True)  # , tee=True
+        opt = SolverFactory(solver_name, tee=True)  # , tee=True
         # Select options. The prefix "OF_" tells pyomo to create an options file
         opt.options['OF_mu_strategy'] = 'adaptive'
         opt.options['OF_num_linear_variables'] = 100000

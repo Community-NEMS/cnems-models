@@ -19,10 +19,15 @@ logger = getLogger(__name__)
 def setup_logger(settings: CommonConfig, **kwargs):
     """Initiates logging, sets up logger in the output directory specified.
 
+    Reconfigures the root logger on every call, so repeated calls within one process retarget
+    logging at the new scenario's ``run.log``.
+
     Parameters
     ----------
-    output_dir : path
-        output directory path
+    settings : CommonConfig
+        common config supplying ``output_path`` and ``scenario_name``
+    **kwargs
+        ``debug`` (bool) selects DEBUG over INFO level; other keys are ignored
     """
     # set up root logger
     output_dir = settings.output_path / settings.scenario_name
@@ -36,7 +41,9 @@ def setup_logger(settings: CommonConfig, **kwargs):
     else:
         loglevel = logging.INFO
 
-    # logger configs
+    # logger configs.  force=True closes/removes any handlers a previous call installed on the
+    # root logger, so sequential runs in one process each log to their own run.log instead of
+    # all appending to the first run's file (basicConfig is a no-op when handlers exist).
     logging.basicConfig(
         filename=f'{output_dir}/run.log',
         encoding='utf-8',
@@ -45,6 +52,7 @@ def setup_logger(settings: CommonConfig, **kwargs):
         format='%(asctime)s | %(name)s | %(levelname)s :: %(message)s',
         datefmt='%d-%b-%y %H:%M:%S',
         level=loglevel,
+        force=True,
     )
     logging.getLogger('pyomo').setLevel(logging.WARNING)
     logging.getLogger('pandas').setLevel(logging.WARNING)

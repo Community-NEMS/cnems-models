@@ -164,9 +164,11 @@ def test_transfer_tech_data_writes_file(request, fixture_name, tmp_path):
     assert (flags.dtypes == 'bool').all()
     assert reloaded['T_stor'].any()
 
+    # check for missing labels before the string cast turns NaN into the string 'nan'
+    assert reloaded['label'].notna().all()
+
     reloaded = reloaded.astype(str)
 
     expected_techs = load_attribute_data(common_config.common_data_path)['tech_data']['label']
     assert set(reloaded['tech']) == {str(t) for t in expected_techs}
     assert reloaded['color'].str.fullmatch(r'#[0-9A-Fa-f]{6}').all()
-    assert reloaded['label'].notna().all()

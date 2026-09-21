@@ -189,10 +189,15 @@ def mapping(df: pd.DataFrame, mapdf: pd.DataFrame, col: str, indexes: list[str])
     ``col`` is cast to ``str`` on both sides first: a run's ``tech_data.csv`` may carry sub-tech
     ids such as ``10_seasonal``, so it reads as ``str`` while output CSVs holding only plain ids
     read as ``int64``, and pandas refuses to merge the two.
+
+    Rows whose ``col`` value has no entry in ``mapdf`` keep the raw ``col`` value as their
+    ``label`` rather than being dropped, so techs missing from ``tech_data.csv`` still plot.
     """
     df = df.assign(**{col: df[col].astype(str)})
     mapdf = mapdf.assign(**{col: mapdf[col].astype(str)})
     df = pd.merge(df, mapdf, on=col, how='left')
+    if 'label' in df.columns:
+        df['label'] = df['label'].fillna(df[col])
     df = df[indexes]
     df = df.dropna(how='any', axis=0)
 
@@ -359,6 +364,9 @@ try:
 except ValueError:
     print('No tech_data.csv found in any run; techs will be unlabeled and uncolored.')
     df_color = pd.DataFrame(columns=['tech', 'label', 'abbreviation', 'color'])
+
+# techs listed in tech_data.csv with an empty color cell fall back to the muted theme gray
+df_color['color'] = df_color['color'].fillna('').astype(str).str.strip().replace('', THEME['muted'])
 
 # label -> hex color dictionary for plotly; first-seen wins, disagreements are logged
 colorsetting: dict[str, str] = {}

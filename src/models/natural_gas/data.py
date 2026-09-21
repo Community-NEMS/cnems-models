@@ -28,9 +28,16 @@ logger = logging.getLogger(__name__)
 # package type listed here is inbound, the sector's AEO growth projection is gated off (see
 # ``project_demand``) and the package's handler sets the sector's demand instead.  Grows as more
 # models feed sector demand back.
+# TODO:  This presupposes that the sector labels are fixed, but they are in "data" folders.
+#        Determine if we want to lock these and if so, put the sector listing in some
+#        /properties folder or such
 SECTOR_SUPERSEDED_BY: dict[type[UpdatePackage], str] = {
     NGElectricalDemandPackage: 'electric_power',
 }
+
+# Fractional change (either direction) in a received (region, year) demand, relative to the held
+# value it replaces, above which a warning is logged.
+DEMAND_CHANGE_WARN_FRACTION = 0.5
 
 
 def superseded_sectors(update_packages: Collection[UpdatePackage]) -> frozenset[str]:
@@ -1086,11 +1093,28 @@ def _(update_package: NGElectricalDemandPackage, data: NGData) -> None:
     received = update_package.elements[NG_ELEC_DEMAND_VALUE]
     held = {(r, y) for (r, s, y) in demand if s == sector}
     replaced = 0
+    big_moves: list[tuple[str, int, float, float]] = []
     for (region, year), bcf in zip(received.index.to_list(), received.to_list(), strict=True):
         if (region, year) not in held:
             continue
-        demand[(region, sector, year)] = float(bcf)
+        prior = demand[(region, sector, year)]
+        new = float(bcf)
+        # screen for large swings; a zero prior counts as a large swing unless new is also zero
+        if (prior == 0.0 and new != 0.0) or (
+            prior != 0.0 and abs(new - prior) / abs(prior) > DEMAND_CHANGE_WARN_FRACTION
+        ):
+            big_moves.append((region, year, prior, new))
+        demand[(region, sector, year)] = new
         replaced += 1
+    if big_moves:
+        logger.warning(
+            'Received %s demand changed by more than %d%% for %d (region, year) entries.  '
+            '(region, year, prior, new) (up to 10 shown):  %s',
+            sector,
+            round(DEMAND_CHANGE_WARN_FRACTION * 100),
+            len(big_moves),
+            big_moves[:10],
+        )
     missing = sorted(held.difference(received.index))
     if missing:
         logger.warning(

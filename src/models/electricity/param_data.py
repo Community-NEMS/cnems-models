@@ -34,6 +34,7 @@ from src.models.electricity.constants import (
     INITIAL_NG_PRICE,
     NG_PRICE_LINKED_TECHS,
     PRICE_COST_PROPORTION,
+    SUPPLY_PRICE_CHANGE_WARN_FRACTION,
 )
 from src.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
@@ -568,7 +569,28 @@ class ParamData:
         if not covered.any():
             logger.warning('Received NG prices cover no held gas-linked rows; prices unchanged')
             return
+        prior = prices.loc[covered, 'cost'].copy()
         prices.loc[covered, 'cost'] *= row_factor[covered]
+        # screen for large swings; the scaling is multiplicative, so the relative change is the
+        # row factor less one (a zero prior stays zero and cannot swing)
+        big_moves = (row_factor[covered] - 1).abs() >= SUPPLY_PRICE_CHANGE_WARN_FRACTION
+        if big_moves.any():
+            flagged = list(
+                zip(
+                    prior.index[big_moves].to_list(),
+                    prior[big_moves].to_list(),
+                    prices.loc[covered, 'cost'][big_moves].to_list(),
+                    strict=True,
+                )
+            )
+            logger.warning(
+                'Received NG prices changed supply_price by %d%% or more for %d gas-linked rows.  '
+                '(%s, prior, new) (up to 10 shown):  %s',
+                round(SUPPLY_PRICE_CHANGE_WARN_FRACTION * 100),
+                len(flagged),
+                prices.index.names,
+                flagged[:10],
+            )
         logger.info(
             'Scaled supply_price for %d of %d gas-linked rows (techs %s) by factors %0.3f to %0.3f',
             covered.sum(),

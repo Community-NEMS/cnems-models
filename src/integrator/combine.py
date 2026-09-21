@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Attaching to these trees rather than to the root logger keeps the run from hijacking a host
 # application's logging, at the cost of having to name what to capture.
 
-common_config_path = PROJECT_ROOT / 'run_configs/basic_elec_config.toml'
+common_config_path = PROJECT_ROOT / 'run_configs/full_combo.toml'
 
 # the models participating in this run; order here fixes the order packages are routed in
 CIRCUIT: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC)

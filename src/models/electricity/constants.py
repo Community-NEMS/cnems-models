@@ -41,6 +41,9 @@ INITIAL_NG_PRICE = 4.0  # TODO:  Confirm against the source of the supply price 
 # TODO:  May need to further refine cost proportion to be indexed by tech if multiple techs
 #        And they have (meaningful) different proportions
 PRICE_COST_PROPORTION = 0.5  # TODO:  Confirm against source of tech operating costs
+# fractional change (either direction) in a gas-linked supply_price row, relative to the held
+# value it replaces, at or above which a warning is logged
+SUPPLY_PRICE_CHANGE_WARN_FRACTION = 0.5
 
 # TODO:  The table/dict below should be a data file to avoid hard-coding them.  This is a temp
 #        fixture until the mechanics of feedback are ironed out!

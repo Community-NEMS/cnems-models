@@ -180,6 +180,9 @@ pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
+frictionless = "*"
+pandera = "*"
+universal-pathlib = "*"
 zensical = "*"
 rich = "*"
 

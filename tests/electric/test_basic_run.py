@@ -178,6 +178,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     #        This currently relies on data outside the test environment
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
+    # run_elec_model postprocesses into the config's output folder
+    common_config.make_scenario_dir()
 
     # introduce the ElecConfig
     elec_config = ElecConfig(**remainder.pop('elec_config'))

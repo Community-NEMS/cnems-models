@@ -12,7 +12,7 @@ import tomllib
 from logging import getLogger
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
 from src.common.models_modes import ModelType, RunMode
@@ -38,6 +38,8 @@ class CommonConfig(BaseModel):
     aggregate_start_year: int | None
     summary_years: list[int]
     strict_validation: bool = True
+    # the claimed ``<output_path>/<scenario_name>[_<n>]`` folder; set by ``make_scenario_dir``
+    _output_folder: Path | None = PrivateAttr(default=None)
 
     @model_validator(mode='after')
     def check_year_aggregation(self):
@@ -74,6 +76,87 @@ class CommonConfig(BaseModel):
                 'scenario_name must contain only alphanumeric characters and underscores'
             )
         return self
+
+    @model_validator(mode='after')
+    def check_output_path_exists(self):
+        """Require the (resolved) ``output_path`` to be an existing directory.
+
+        Only the base output path is checked; the per-scenario subdirectory is not created or
+        inspected here -- see :meth:`make_scenario_dir`.
+        """
+        if not self.output_path.is_dir():
+            raise ValueError(f'Output path {self.output_path} is not a directory')
+        return self
+
+    @property
+    def output_folder(self) -> Path:
+        """Scenario output folder for this run, as claimed by :meth:`make_scenario_dir`.
+
+        Writers (e.g. ``full_postprocess``) should save beneath this rather than joining
+        ``output_path`` and ``scenario_name``, since the folder may carry a ``_<n>`` suffix.
+
+        Raises
+        ------
+        RuntimeError
+            If :meth:`make_scenario_dir` has not been called on this config.
+        """
+        if self._output_folder is None:
+            raise RuntimeError(
+                f'Output folder for scenario {self.scenario_name!r} has not been created; '
+                'call make_scenario_dir() on the config first.'
+            )
+        return self._output_folder
+
+    def make_scenario_dir(self) -> Path:
+        """Claim an unused ``<output_path>/<scenario_name>`` folder, suffixing it if taken.
+
+        Results are written per-variable into the scenario folder, and the exporters overwrite
+        only the files they produce -- they never clear the directory. Reusing a folder therefore
+        mixes fresh results with stale files left by an earlier run under different switches.
+        Redirecting to a new folder keeps each run's output self-consistent and leaves prior runs
+        intact.
+
+        Each candidate (``<scenario_name>``, then ``<scenario_name>_1``, ``_2``, ...) is claimed
+        with a plain ``mkdir``, which fails if the path exists, so concurrent runs sharing a
+        scenario name can never select the same folder. The claimed folder is stored in
+        ``_output_folder`` (see :attr:`output_folder`); ``scenario_name`` is never modified.
+
+        Returns
+        -------
+        Path
+            The newly created scenario folder.
+
+        Raises
+        ------
+        RuntimeError
+            If this config has already claimed an output folder.
+        """
+        if self._output_folder is not None:
+            raise RuntimeError(
+                f'Output folder already created for this config at {self._output_folder}; '
+                'make_scenario_dir() should be called once per run.'
+            )
+        suffix = 0
+        while True:
+            candidate = f'{self.scenario_name}_{suffix}' if suffix else self.scenario_name
+            folder = self.output_path / candidate
+            try:
+                # parents=True tolerates an output_path reassigned after validation; the leaf
+                # still raises FileExistsError, so the claim stays atomic
+                folder.mkdir(parents=True)
+            except FileExistsError:
+                suffix += 1
+                continue
+            if suffix:
+                logger.warning(
+                    'Output folder for scenario %r already exists in %s; this run will write to '
+                    '%s instead, leaving the earlier results untouched.',
+                    self.scenario_name,
+                    self.output_path,
+                    folder,
+                )
+            self._output_folder = folder
+            return folder
 
     @classmethod
     def from_toml(cls, path: Path) -> tuple[CommonConfig, dict]:

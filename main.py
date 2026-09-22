@@ -63,7 +63,8 @@ def main(
     if run_mode := kwargs.get('run_mode'):
         common_config.mode = run_mode
 
-    # Establish the logger
+    # Claim a fresh scenario output dir, then establish the logger in it
+    common_config.make_scenario_dir()
     setup_logger(common_config, **args.__dict__)
     logger = logging.getLogger(__name__)
 

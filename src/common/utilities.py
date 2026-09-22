@@ -25,12 +25,12 @@ def setup_logger(settings: CommonConfig, **kwargs):
     Parameters
     ----------
     settings : CommonConfig
-        common config supplying ``output_path`` and ``scenario_name``
+        common config whose ``make_scenario_dir`` has been called (supplies ``output_folder``)
     **kwargs
         ``debug`` (bool) selects DEBUG over INFO level; other keys are ignored
     """
     # set up root logger
-    output_dir = settings.output_path / settings.scenario_name
+    output_dir = settings.output_folder
     log_path = Path(output_dir)
     if not log_path.is_dir():
         log_path.mkdir(parents=True, exist_ok=True)
@@ -58,14 +58,14 @@ def setup_logger(settings: CommonConfig, **kwargs):
     logging.getLogger('pandas').setLevel(logging.WARNING)
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
-    # the scenario rename happens while the config is parsed, before this run.log exists, so
-    # repeat the warning here to record it in the log of the run it actually applies to
-    if settings.original_scenario_name:
+    # the folder is suffixed in ``make_scenario_dir``, before this run.log exists, so repeat
+    # the warning here to record it in the log of the run it actually applies to
+    if output_dir.name != settings.scenario_name:
         logger.warning(
-            'Scenario %r was renamed to %r because %s already held results from an earlier run.',
-            settings.original_scenario_name,
+            'Scenario %r is writing to %s because %s already held results from an earlier run.',
             settings.scenario_name,
-            settings.output_path / settings.original_scenario_name,
+            output_dir,
+            settings.output_path / settings.scenario_name,
         )
 
 

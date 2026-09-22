@@ -15,27 +15,22 @@ import pytest
 
 from src.common.common_config import CommonConfig
 
-_init = CommonConfig.__init__
-
 
 @pytest.fixture(autouse=True)
 def redirect_run_output(tmp_path, monkeypatch):
-    """Send every config built with a relative ``output_path`` to a per-test output directory.
+    """Send every config parsed from a TOML to a per-test output directory.
 
     The test config files declare ``output_path='output'``, which resolves to the repo's real
     output root: a solving test that postprocesses would otherwise write its results into the
     same ``output/<scenario>/`` directory a production run uses, mixing test artifacts with real
-    results. The redirect must land before validation, because
-    :meth:`CommonConfig.ensure_unused_scenario_dir` reserves the scenario directory on
-    construction. Wrapping ``__init__`` covers :meth:`CommonConfig.from_toml` (direct callers and
-    the config fixtures) and direct construction; absolute output paths (e.g. tests that pass
-    their own ``tmp_path``) are left alone. ``model_validate`` bypasses ``__init__`` and is not
-    redirected.
+    results. Patching the parse (rather than a fixture) covers the tests that call
+    :meth:`CommonConfig.from_toml` directly as well as those that take the config fixtures.
     """
+    original = CommonConfig.from_toml
 
-    def __init__(self, **data) -> None:
-        if 'output_path' in data and not Path(data['output_path']).is_absolute():
-            data['output_path'] = tmp_path / 'output'
-        _init(self, **data)
+    def from_toml(cls, path: Path) -> tuple[CommonConfig, dict]:
+        config, remainder = original(path)
+        config.output_path = tmp_path / 'output'
+        return config, remainder
 
-    monkeypatch.setattr(CommonConfig, '__init__', __init__)
+    monkeypatch.setattr(CommonConfig, 'from_toml', classmethod(from_toml))

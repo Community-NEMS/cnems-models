@@ -53,6 +53,8 @@ def main(
 
     # Build the common config
     common_config, remainder = parse_config_file(common_config_path)
+    # Claim a fresh scenario output dir, then establish the logger in it
+    common_config.make_scenario_dir()
     if not elec_config_path:
         # expect the elec_config to be in the remainder of a "unified" config file
         elec_config = ElecConfig(**remainder.pop('elec_config'))
@@ -66,8 +68,7 @@ def main(
 
     # Standalone runs solve in this process with no per-model scenario log, so the run log is
     # the complete record -- solver output included -- while the console stays project-only
-    log_file = common_config.output_path / common_config.scenario_name / 'run.log'
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file = common_config.output_folder / 'run.log'
     setup_control_loop_logging(log_file, level=logging.DEBUG if args.debug else logging.INFO)
     logger = logging.getLogger(__name__)
 

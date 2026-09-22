@@ -97,7 +97,7 @@ def test_non_directory_occupant_is_skipped(config_kwargs):
 
 
 @pytest.mark.parametrize('taken', [1, 2, 3])
-def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, taken):
+def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, capsys, taken):
     """A taken scenario folder pushes the run to the next free ``<base>_<n>`` folder."""
     output_path = config_kwargs['output_path']
     existing = [BASE_SCENARIO] + [f'{BASE_SCENARIO}_{n}' for n in range(1, taken)]
@@ -106,12 +106,14 @@ def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, taken):
         (output_path / name / 'electricity' / 'stale.csv').touch()
 
     config = CommonConfig(**config_kwargs)
-    with caplog.at_level(logging.WARNING, logger='src.common.common_config'):
+    with caplog.at_level(logging.DEBUG, logger='src.common.common_config'):
         config.make_scenario_dir()
 
     assert config.scenario_name == BASE_SCENARIO
     assert config.output_folder == output_path / f'{BASE_SCENARIO}_{taken}'
-    assert any(record.levelno == logging.WARNING for record in caplog.records)
+    # the redirect is announced on stderr only, never logged
+    assert f'{BASE_SCENARIO}_{taken}' in capsys.readouterr().err
+    assert not caplog.records
     # the chosen folder is created empty, and every earlier run is left intact
     assert not any(config.output_folder.iterdir())
     for name in existing:

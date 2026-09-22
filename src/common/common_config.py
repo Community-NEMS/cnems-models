@@ -8,6 +8,7 @@ Created on:  6/16/26
 
 import json
 import re
+import sys
 import tomllib
 from logging import getLogger
 from pathlib import Path
@@ -148,12 +149,12 @@ class CommonConfig(BaseModel):
                 suffix += 1
                 continue
             if suffix:
-                logger.warning(
-                    'Output folder for scenario %r already exists in %s; this run will write to '
-                    '%s instead, leaving the earlier results untouched.',
-                    self.scenario_name,
-                    self.output_path,
-                    folder,
+                # stderr, not the log:  no run log exists yet, so a record here would land in
+                # the previous run's log (or nowhere) rather than this run's
+                print(
+                    f'Output folder for scenario {self.scenario_name!r} already exists; writing '
+                    f'to {folder} instead.',
+                    file=sys.stderr,
                 )
             self._output_folder = folder
             return folder

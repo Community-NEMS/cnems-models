@@ -63,13 +63,33 @@ python main.py
 3. `src/models/electricity/param_data.py::ParamData(common_config, elec_config, model_sets)` reads and
    shapes the parameter data (supply curves, capacity factors, costs, transmission limits, etc.). Simple
    params are kept as plain dicts; params still needing manipulation are kept as DataFrames. Some helpers
-   still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`).
+   still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`). Inbound update
+   packages are then applied to it in place by `ElecUpdateReader` (see *Update packages* below).
 4. `sequencer.py::ElectricitySequencer` implements the `IntegratedModelSequencer` ABC
    (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
    `full_postprocess` / `iteration_postprocess`). `solve_model` returns an `IterationStatus`. Tests build
    models by calling `ElectricitySequencer().build_model(common_config, elec_config)` directly.
 5. `sequencer.py::run_elec_model(common_config, elec_config, solve=True)` is a thin wrapper over the
    sequencer: build → (optionally) solve → postprocess, returning the `PowerModel`.
+
+### Update packages (inter-model data exchange)
+
+`src/common/update_package/` holds the frozen, picklable `UpdatePackage` dataclasses
+(`update_package.py`, all re-exported from the package `__init__`, so import from
+`src.common.update_package`) and two ABCs that every model implements in its own
+`update_reader.py` / `update_writer.py`:
+
+- `UpdatePackageReader[DataT]` (`reader.py`) — `read(packages, data)` applies inbound packages in
+  place to the model's loaded data *before* the model is built. Subclasses implement `apply_package`
+  as a `singledispatchmethod` (one `.register` handler per package type; the base case raises
+  `NotImplementedError`). pyrefly mis-types this, so the override carries
+  `# type: ignore[bad-override]` and each `.register` carries `# type: ignore[no-matching-overload]`.
+- `UpdatePackageWriter[ModelT]` (`writer.py`) — `write(model)` builds the outbound packages from a
+  solved model.
+
+`IntegratedModelSequencer[ModelT, ConfigT, DataT]` requires `reader` / `writer` / `last_status`
+properties. Its concrete `get_outbound_updates` calls `writer.write(model)` only when `last_status`
+is in the class's `OUTBOUND_STATUSES` (default `{BEST, USABLE}`; override per model if needed).
 
 ### Electricity model structure
 
@@ -82,6 +102,9 @@ python main.py
   sets/params/variables/constraints reference (includes the LaTeX formulation of the objective and
   constraints) — read it before modifying model formulation, not just the code.
 - `param_data.py` — `ParamData`: loads/shapes parameters. `data_ingestor.py` does the raw CSV reads.
+- `update_reader.py` / `update_writer.py` — `ElecUpdateReader` (applies inbound packages to
+  `ParamData.param_frames`) and `ElecUpdateWriter` (sends the solved gas burn to the NG model as an
+  `NGElectricalDemandPackage`; `gas_demand_by_region` lives here).
 - Input CSVs are declared, not hard-coded: `param_sources.toml` / `property_sources.toml` are parsed by
   `param_source_loader.py` / `property_source_loader.py` into the `PARAM_SOURCES` / `PROPERTY_SOURCES`
   dicts in `data_ingestor.py`. To add an input file, add a TOML entry (`key`, `filename`, `index_cols`,

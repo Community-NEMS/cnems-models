@@ -7,58 +7,15 @@ Reads all numerical parameters from CSV files. Every file listed below
 import csv
 import logging
 from collections.abc import Collection
-from functools import singledispatch
 from pathlib import Path
 from typing import TypedDict
 
 import pandas as pd
 
 from src.common.common_config import CommonConfig
-from src.common.update_package import (
-    NG_ELEC_DEMAND_VALUE,
-    NGDemandPackage,
-    NGElectricalDemandPackage,
-    UpdatePackage,
-)
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
-
-# Which inbound update package supersedes which demand sector of ng_sector_data.csv.  When a
-# package type listed here is inbound, the sector's AEO growth projection is gated off (see
-# ``project_demand``) and the package's handler sets the sector's demand instead.  Grows as more
-# models feed sector demand back.
-# TODO:  This presupposes that the sector labels are fixed, but they are in "data" folders.
-#        Determine if we want to lock these and if so, put the sector listing in some
-#        /properties folder or such
-SECTOR_SUPERSEDED_BY: dict[type[UpdatePackage], str] = {
-    NGElectricalDemandPackage: 'electric_power',
-}
-
-# Fractional change (either direction) in a received (region, year) demand, relative to the held
-# value it replaces, above which a warning is logged.
-DEMAND_CHANGE_WARN_FRACTION = 0.5
-
-
-def superseded_sectors(update_packages: Collection[UpdatePackage]) -> frozenset[str]:
-    """Name the demand sectors that inbound update packages supersede.
-
-    Parameters
-    ----------
-    update_packages : Collection[UpdatePackage]
-        The packages about to be applied.
-
-    Returns
-    -------
-    frozenset[str]
-        Sectors from ``SECTOR_SUPERSEDED_BY`` whose package type is among the inbound packages.
-    """
-    return frozenset(
-        sector
-        for package_type, sector in SECTOR_SUPERSEDED_BY.items()
-        if any(isinstance(package, package_type) for package in update_packages)
-    )
-
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
@@ -868,7 +825,7 @@ def project_demand(
     sectors : list[str]
         Sectors to project. Every one must appear in ``growth_rate_table``.
     superseded : Collection[str], optional
-        Sectors whose growth is gated off; see :func:`superseded_sectors`.
+        Sectors whose growth is gated off; see ``NGUpdateReader.superseded_sectors``.
 
     Returns
     -------
@@ -954,7 +911,7 @@ def load_all(
         Supplies ``summary_years``, the years demand is projected over.
     superseded : Collection[str], optional
         Demand sectors an inbound update package will set, whose growth projection is therefore
-        gated off; see :func:`superseded_sectors` and :func:`project_demand`.
+        gated off; see ``NGUpdateReader.superseded_sectors`` and :func:`project_demand`.
 
     Raises
     ------
@@ -1021,121 +978,6 @@ def load_all(
         'pipe_loss': load_pipe_loss(data_path),
         'qp_scalars': load_qp_scalars(data_path),
     }
-
-
-# ---------------------------------------------------------------------------
-# Update package handlers
-# ---------------------------------------------------------------------------
-# Single-dispatch on the package type, mirroring the electricity model's
-# ParamData.apply_update_package.  Loaded data here is a plain NGData dict rather than a
-# class, so this is a module-level singledispatch on the package (the first argument)
-# instead of a singledispatchmethod.
-
-
-@singledispatch
-def apply_update_package(update_package: UpdatePackage, data: NGData) -> None:
-    """Apply an inbound update package to the loaded data, dispatching on package type.
-
-    Parameters
-    ----------
-    update_package : UpdatePackage
-        The package to apply; must have a registered handler below.
-    data : NGData
-        The loaded data from :func:`load_all`, modified in place.
-
-    Raises
-    ------
-    NotImplementedError
-        If no handler is registered for the package type.
-    """
-    raise NotImplementedError(f'Missing single dispatch handler for type: {type(update_package)}')
-
-
-@apply_update_package.register
-def _(update_package: NGDemandPackage, data: NGData) -> None:
-    """Scale every entry of the projected ``demand`` table by the package scalar.
-
-    Parameters
-    ----------
-    update_package : NGDemandPackage
-        Carries the multiplier to apply.
-    data : NGData
-        The loaded data; ``data['demand']`` is modified in place.
-    """
-    demand = data['demand']
-    for key in demand:
-        demand[key] *= update_package.scalar
-    logger.info(
-        'Scaled NG demand by factor %0.3f (%d region-sector-year entries)',
-        update_package.scalar,
-        len(demand),
-    )
-
-
-@apply_update_package.register
-def _(update_package: NGElectricalDemandPackage, data: NGData) -> None:
-    """Replace the ``electric_power`` sector demand with the electricity model's gas burn.
-
-    Every ``(region, year)`` the package carries overwrites the held demand for the sector named
-    by ``SECTOR_SUPERSEDED_BY``.  Held entries the package omits keep their loaded values and are
-    reported as warnings -- with growth gated off they sit at the base-year value.  Package
-    entries beyond the held regions/years (filtered out of this run) are ignored.
-
-    Parameters
-    ----------
-    update_package : NGElectricalDemandPackage
-        Gas demand in Bcf/yr indexed by natural gas ``(region, year)``.
-    data : NGData
-        The loaded data; ``data['demand']`` is modified in place.
-    """
-    sector = SECTOR_SUPERSEDED_BY[NGElectricalDemandPackage]
-    demand = data['demand']
-    received = update_package.elements[NG_ELEC_DEMAND_VALUE]
-    held = {(r, y) for (r, s, y) in demand if s == sector}
-    replaced = 0
-    big_moves: list[tuple[str, int, float, float]] = []
-    for (region, year), bcf in zip(received.index.to_list(), received.to_list(), strict=True):
-        if (region, year) not in held:
-            continue
-        prior = demand[(region, sector, year)]
-        new = float(bcf)
-        # screen for large swings; a zero prior counts as a large swing unless new is also zero
-        if (prior == 0.0 and new != 0.0) or (
-            prior != 0.0 and abs(new - prior) / abs(prior) > DEMAND_CHANGE_WARN_FRACTION
-        ):
-            big_moves.append((region, year, prior, new))
-        demand[(region, sector, year)] = new
-        replaced += 1
-    if big_moves:
-        logger.warning(
-            'Received %s demand changed by more than %d%% for %d (region, year) entries.  '
-            '(region, year, prior, new) (up to 10 shown):  %s',
-            sector,
-            round(DEMAND_CHANGE_WARN_FRACTION * 100),
-            len(big_moves),
-            big_moves[:10],
-        )
-    missing = sorted(held.difference(received.index))
-    if missing:
-        logger.warning(
-            'Received %s demand does not cover %d of %d held (region, year) entries; those keep '
-            'their base-year values.  Missing (up to 10 shown):  %s',
-            sector,
-            len(missing),
-            len(held),
-            missing[:10],
-        )
-    overage = len(received) - replaced
-    if overage:
-        logger.debug(
-            'Received %s demand holds %d entries beyond the held index (ignored)', sector, overage
-        )
-    logger.info(
-        'Replaced %s demand for %d of %d held (region, year) entries from the electricity model',
-        sector,
-        replaced,
-        len(held),
-    )
 
 
 # ---------------------------------------------------------------------------

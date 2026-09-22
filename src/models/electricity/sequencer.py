@@ -11,52 +11,40 @@ only need to repoint their import at this module.
 """
 
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import datetime
 from logging import getLogger
 
-import pandas as pd
 import pyomo.environ as pyo
 from pyomo.common.numeric_types import value
 from pyomo.common.timing import TicTocTimer
 from pyomo.opt import check_optimal_termination
 from pyomo.util.infeasible import log_infeasible_constraints
 
-from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
 from src.common.update_package import (
-    NG_ELEC_DEMAND_INDEX,
-    NG_ELEC_DEMAND_VALUE,
-    NGElectricalDemandPackage,
     UpdatePackage,
 )
-from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
 from src.integrator.utilities import select_solver
-from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH
 from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.postprocessor import export_variables_to_csv
-from src.models.natural_gas.data import load_qp_scalars
+from src.models.electricity.update_reader import ElecUpdateReader
+from src.models.electricity.update_writer import ElecUpdateWriter
 
 logger = getLogger(__name__)
-
-# where the natural gas model's scalars live; the gas burn sent back is denominated in Bcf, so
-# the MMBtu-per-Bcf heat content is read from the gas model's own input rather than duplicated
-NG_INPUT_DIR = PROJECT_ROOT / 'input' / 'natural_gas'
-# the heat content itself, filled by ng_mmbtu_per_bcf() on first use and then reused; None until
-# then, so a run that never sends a demand package never reads the gas model's inputs
-_MMBTU_PER_BCF: float | None = None
 
 # convergence controls for the linear-learning outer iteration
 _LEARNING_TOLERANCE = 0.1
 _LEARNING_MAX_ITER = 20
 
 
-class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
+class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, ParamData]):
     """Build/solve orchestration for the electricity :class:`PowerModel`.
 
     Ports the functionality formerly held by ``runner.py`` into the
@@ -72,6 +60,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         self._common_config: CommonConfig | None = None
         self._opt = None
         self._last_status: IterationStatus | None = None
+        self._reader = ElecUpdateReader()
+        self._writer = ElecUpdateWriter()
 
     @property
     def model(self) -> PowerModel:
@@ -90,6 +80,21 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
     def model(self, value: PowerModel):
         """Set the model instance.  Caution:  Alignment with config settings not checked."""
         self._model = value
+
+    @property
+    def reader(self) -> ElecUpdateReader:
+        """Applies inbound packages to ``ParamData``."""
+        return self._reader
+
+    @property
+    def writer(self) -> ElecUpdateWriter:
+        """Writes the gas-burn package for the natural gas model."""
+        return self._writer
+
+    @property
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        return self._last_status
 
     @property
     def elec_config(self) -> ElecConfig:
@@ -118,7 +123,11 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         return self._common_config
 
     def build_model(
-        self, common_config: CommonConfig, model_config: ElecConfig, update_packages=None, **kwargs
+        self,
+        common_config: CommonConfig,
+        model_config: ElecConfig,
+        update_packages: Sequence[UpdatePackage] | None = None,
+        **kwargs,
     ) -> PowerModel:
         """Preprocess inputs and build (but do not solve) the electricity model.
 
@@ -131,8 +140,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             Common run configuration.
         model_config : ElecConfig
             Electricity configuration
-        update_packages : list[UpdatePackage], optional
-            Update Packages to pass to update read-in data.
+        update_packages : Sequence[UpdatePackage], optional
+            Update Packages applied to the read-in data by :class:`ElecUpdateReader`.
 
         Returns
         -------
@@ -151,12 +160,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
-        if update_packages:
-            logger.info('Received %s update_packages', len(update_packages))
-            for pkg in update_packages:
-                model_params.apply_update_package(pkg)
-        else:
-            logger.info('Received no update_packages')
+        self._reader.read(update_packages, model_params)
 
         logger.info('Validating input data')
         validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
@@ -268,38 +272,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         self._last_status = IterationStatus.BEST
         return ModelType.ELECTRICITY, IterationStatus.BEST
 
-    def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Package the solved gas burn for the natural gas model.
-
-        The annual gas demand of the gas-fired techs (:func:`gas_demand_by_region`, Bcf/yr by
-        electricity region) is allocated onto natural gas regions with the population-weighted
-        crosswalk and sent as one :class:`NGElectricalDemandPackage`.
-
-        Returns
-        -------
-        list[UpdatePackage]
-            A single ``NGElectricalDemandPackage``, or nothing if the last solve was not usable
-            -- a failed solve leaves no generation values to read.
-        """
-        if self._last_status is not IterationStatus.BEST:
-            logger.warning('No usable solve (status %s); sending no updates', self._last_status)
-            return []
-        elec_demand = gas_demand_by_region(self.model)
-        ng_demand = crosswalk_values(
-            elec_demand, ModelType.ELECTRICITY, ModelType.NATURAL_GAS, QuantityKind.EXTENSIVE
-        )
-        for year, total in ng_demand.groupby(level='year').sum().items():
-            logger.info(
-                '%d gas burn sent to natural gas regions:  %0.1f Bcf over %d region(s)',
-                year,
-                total,
-                ng_demand.xs(year, level='year').shape[0],
-            )
-        package = NGElectricalDemandPackage(
-            elements=ng_demand.to_frame(), source=ModelType.ELECTRICITY
-        )
-        return [package]
-
     def get_objective_value(self) -> float | None:
         """Get the solved total cost -- the electricity model's objective."""
         return pyo.value(self.model.total_cost)
@@ -398,74 +370,6 @@ def run_elec_model(
     )
 
     return instance
-
-
-def ng_mmbtu_per_bcf() -> float:
-    """The gas model's MMBtu-per-Bcf heat content, read once from its ``ng_scalars.csv``.
-
-    The first call reads the file under ``NG_INPUT_DIR`` and stores the value in the module-level
-    ``_MMBTU_PER_BCF``; later calls return that without touching the file again.
-
-    Returns
-    -------
-    float
-        ``mmbtu_per_bcf`` as the natural gas model itself reads it.
-    """
-    global _MMBTU_PER_BCF  # a lazily filled module cache, by design
-    if _MMBTU_PER_BCF is None:
-        _MMBTU_PER_BCF = load_qp_scalars(NG_INPUT_DIR)['mmbtu_per_bcf']
-        logger.info('Read mmbtu_per_bcf = %0.4g from %s', _MMBTU_PER_BCF, NG_INPUT_DIR)
-    return _MMBTU_PER_BCF
-
-
-def gas_demand_by_region(instance: PowerModel) -> pd.Series:
-    """Annual natural gas burned by the gas-fired techs of a solved model, by region and year.
-
-    Sums the solved ``generation_total`` of every tech in ``NG_HEAT_RATE_MMBTU_PER_MWH`` over
-    the representative hours, weighting each hour by the days its representative day stands for
-    (the same ``weight_day`` the objective applies), and converts with the tech's heat rate::
-
-        Bcf = GWh x 1000 MWh/GWh x MMBtu/MWh / mmbtu_per_bcf
-
-    with ``mmbtu_per_bcf`` taken from the gas model's ``ng_scalars.csv`` via
-    :func:`ng_mmbtu_per_bcf`.
-
-    Parameters
-    ----------
-    instance : PowerModel
-        A solved model; ``generation_total`` must hold values.
-
-    Returns
-    -------
-    pd.Series
-        Demand in Bcf/yr named ``NG_ELEC_DEMAND_VALUE``, indexed by ``NG_ELEC_DEMAND_INDEX``
-        (electricity region id, model year), sorted.  A region with no gas-fired generation
-        appears with 0.0 as long as it holds a gas-fired tech.
-    """
-    mmbtu: dict[tuple[str, int], float] = defaultdict(float)
-    # pyrefly sees the pyomo components declared on PowerModel as None; they are Var/Param
-    # instances on a built model, and value() of a solved Var is a float
-    for region, tech, step, year, hour in instance.generation_total:  # pyrefly: ignore[not-iterable]
-        heat_rate = NG_HEAT_RATE_MMBTU_PER_MWH.get(tech)
-        if heat_rate is None:
-            continue
-        gen_gwh = value(instance.generation_total[region, tech, step, year, hour])
-        days = value(instance.weight_day[instance.map_hour_day[hour]])
-        # pyrefly: ignore[unsupported-operation]
-        # TODO:  review this x1000 multiplier after we get the generation units squared away!
-        mmbtu[(region, int(year))] += gen_gwh * days * 1000.0 * heat_rate
-    mmbtu_per_bcf = ng_mmbtu_per_bcf()
-    series = pd.Series({k: v / mmbtu_per_bcf for k, v in mmbtu.items()}, name=NG_ELEC_DEMAND_VALUE)
-    if series.empty:
-        logger.warning(
-            'No generation rows for gas-fired techs %s; gas demand is empty',
-            list(NG_HEAT_RATE_MMBTU_PER_MWH),
-        )
-        series.index = pd.MultiIndex.from_tuples([], names=NG_ELEC_DEMAND_INDEX)
-        return series
-    series.index = series.index.set_names(NG_ELEC_DEMAND_INDEX)
-    logger.debug('Polled gas demand for %d (region, year) pairs', len(series))
-    return series.sort_index()
 
 
 def init_old_cap(instance: PowerModel) -> dict[tuple, float]:

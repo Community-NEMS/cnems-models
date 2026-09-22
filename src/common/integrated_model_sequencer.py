@@ -9,15 +9,19 @@ A rough framework for sequencers (runners) that build & solve models to common-i
 
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import ClassVar
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
+from src.common.update_package import UpdatePackage, UpdatePackageReader, UpdatePackageWriter
+
+logger = logging.getLogger(__name__)
 
 
 class IterationStatus(Enum):
@@ -81,12 +85,13 @@ class IterationResult:
         )
 
 
-class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](ABC):
+class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, DataT](ABC):
     """A sequencer for a model that may be subject to integrated runs.
 
-    Generic in the model and config types so an implementation can name the concrete pair it
-    handles (e.g. ``IntegratedModelSequencer[PowerModel, ElecConfig]``) without narrowing an
-    inherited parameter type, which would be a Liskov violation.
+    Generic in the model, config, and loaded-data types so an implementation can name the
+    concrete types it handles (e.g. ``IntegratedModelSequencer[PowerModel, ElecConfig,
+    ParamData]``) without narrowing an inherited parameter type, which would be a Liskov
+    violation.
 
     Type Parameters
     ---------------
@@ -94,7 +99,19 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](AB
         The concrete :class:`~src.common.integrated_model.IntegratedModel` this sequencer builds.
     ConfigT
         The model-specific pydantic config that :meth:`build_model` consumes.
+    DataT
+        The loaded-data object that :attr:`reader` applies inbound update packages to.
+
+    Attributes
+    ----------
+    OUTBOUND_STATUSES : frozenset of IterationStatus
+        Solve statuses the :attr:`writer` can read results from; any other :attr:`last_status`
+        sends no updates.  Override per model.
     """
+
+    OUTBOUND_STATUSES: ClassVar[frozenset[IterationStatus]] = frozenset(
+        {IterationStatus.BEST, IterationStatus.USABLE}
+    )
 
     @property
     @abstractmethod
@@ -133,10 +150,41 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig](AB
         """Perform postprocessing of the model results for each iteration."""
         ...
 
+    @property
     @abstractmethod
+    def reader(self) -> UpdatePackageReader[DataT]:
+        """Applies inbound update packages to this model's loaded data."""
+        ...
+
+    @property
+    @abstractmethod
+    def writer(self) -> UpdatePackageWriter[ModelT]:
+        """Builds this model's outbound update packages from the solved model."""
+        ...
+
+    @property
+    @abstractmethod
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        ...
+
     def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Get the outbound update packages."""
-        return []
+        """Get the outbound update packages written by :attr:`writer`.
+
+        Returns
+        -------
+        list[UpdatePackage]
+            The writer's packages, or nothing if :attr:`last_status` is not among
+            ``OUTBOUND_STATUSES`` -- an unusable solve leaves no results to read.
+        """
+        if self.last_status not in self.OUTBOUND_STATUSES:
+            logger.warning(
+                '%s: no usable solve (status %s); sending no updates',
+                type(self).__name__,
+                self.last_status,
+            )
+            return []
+        return self.writer.write(self.model)
 
     @abstractmethod
     def get_objective_value(self) -> float | None:

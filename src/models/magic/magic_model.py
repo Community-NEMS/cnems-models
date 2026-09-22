@@ -59,7 +59,7 @@ class MagicConfig(ModelConfig):
         logger.info('MagicConfig initialized with %s', kwargs)
 
 
-class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
+class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig, None]):
     """Testing Implement."""
 
     def __init__(self):
@@ -68,6 +68,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         self._model: MagicModel | None = None
         self._reader = MagicUpdateReader()
         self._writer = MagicUpdateWriter()
+        self._last_status: IterationStatus | None = None
 
     @property
     def model(self) -> MagicModel:
@@ -81,6 +82,21 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
         if self._model is None:
             raise RuntimeError('MagicModel was not initialized')
         return self._model
+
+    @property
+    def reader(self) -> MagicUpdateReader:
+        """The no-handler reader shell."""
+        return self._reader
+
+    @property
+    def writer(self) -> MagicUpdateWriter:
+        """Writes the mock updates."""
+        return self._writer
+
+    @property
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        return self._last_status
 
     def build_model(
         self,
@@ -131,8 +147,8 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
             :attr:`ModelType.MAGIC` paired with the solve status, always
             :attr:`IterationStatus.BEST`.
         """
-        status = self.model.solve()
-        return ModelType.MAGIC, status
+        self._last_status = self.model.solve()
+        return ModelType.MAGIC, self._last_status
 
     def full_postprocess(self, **kwargs):
         """No-op; the magic model has no results to write."""
@@ -145,10 +161,3 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig]):
     def get_objective_value(self) -> float | None:
         """Get ``None``; the magic model has no objective to report."""
         return None
-
-    def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Get outbound updates, written by :class:`MagicUpdateWriter`.
-
-        No status gate:  the magic model always solves to :attr:`IterationStatus.BEST`.
-        """
-        return self._writer.write(self.model)

@@ -10,7 +10,6 @@ import logging
 import sys
 from collections.abc import Sequence
 
-import pandas as pd
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
 
@@ -18,18 +17,19 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage, UpdatePackage
+from src.common.update_package import UpdatePackage
 from src.common.utilities import setup_logger
-from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
-from src.models.natural_gas.data import apply_update_package, load_all, superseded_sectors
+from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
+from src.models.natural_gas.update_reader import NGUpdateReader
+from src.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
 
 
-class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
+class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
     """Sequencer for Natural Gas models."""
 
     def __init__(self):
@@ -38,6 +38,8 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
         self._last_status: IterationStatus | None = None
+        self._reader = NGUpdateReader()
+        self._writer = NGUpdateWriter()
 
     @property
     def model(self) -> NGModel:
@@ -45,6 +47,21 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         if self._model is None:
             raise RuntimeError('Model has not been built yet; call build_model() first.')
         return self._model
+
+    @property
+    def reader(self) -> NGUpdateReader:
+        """Applies inbound packages to the loaded ``NGData``."""
+        return self._reader
+
+    @property
+    def writer(self) -> NGUpdateWriter:
+        """Writes the gas-price package for the electricity model."""
+        return self._writer
+
+    @property
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        return self._last_status
 
     @property
     def common_config(self) -> CommonConfig:
@@ -76,9 +93,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
             The ``[natural_gas]`` settings.
         update_packages : Sequence[UpdatePackage], optional
             Inbound data updates, applied to the loaded data (via
-            :func:`src.models.natural_gas.data.apply_update_package`) before the model is
+            :class:`NGUpdateReader`) before the model is
             built.  A package type with no registered handler raises.  A package that
-            supersedes a demand sector (``data.SECTOR_SUPERSEDED_BY``) also gates off that
+            supersedes a demand sector (``update_reader.SECTOR_SUPERSEDED_BY``) also gates off that
             sector's growth projection in ``load_all``.
 
         Returns
@@ -97,11 +114,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
         data = load_all(
             common_config=common_config,
             ng_config=model_config,
-            superseded=superseded_sectors(update_packages),
+            superseded=self._reader.superseded_sectors(update_packages),
         )
-        for package in update_packages:
-            logger.info('Applying update package: %s', type(package).__name__)
-            apply_update_package(package, data)
+        self._reader.read(update_packages, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 
@@ -246,43 +261,6 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig]):
 
     def iteration_postprocess(self, **kwargs):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
-
-    def get_outbound_updates(self) -> list[UpdatePackage]:
-        """Package the solved gas prices for the electricity model.
-
-        The regional prices from :meth:`NGModel.poll_gas_price` (duals of ``demand_balance``,
-        $/MMBtu) are averaged into electricity regions with the population-weighted crosswalk and
-        sent as one :class:`NGPricePackage`.
-
-        Returns
-        -------
-        list[UpdatePackage]
-            A single ``NGPricePackage``, or nothing if the last solve was not usable -- a failed
-            solve leaves no duals to read.
-        """
-        if self._last_status is not IterationStatus.USABLE:
-            logger.warning(
-                'C-NGMM: no usable solve (status %s); sending no updates', self._last_status
-            )
-            return []
-        ng_prices = self.model.poll_gas_price()
-        series = pd.Series(
-            {(gi.region, gi.year): price for gi, price in ng_prices.items()}, name=NG_PRICE_VALUE
-        )
-        series.index = series.index.set_names(NG_PRICE_INDEX)
-        elec_prices = crosswalk_values(
-            series, ModelType.NATURAL_GAS, ModelType.ELECTRICITY, QuantityKind.INTENSIVE
-        )
-        by_year = elec_prices.groupby(level='year').agg(['min', 'max'])
-        for year, row in by_year.iterrows():
-            logger.info(
-                'C-NGMM: %d gas price to electricity regions:  %0.2f to %0.2f $/MMBtu',
-                year,
-                row['min'],
-                row['max'],
-            )
-        package = NGPricePackage(elements=elec_prices.to_frame(), source=ModelType.NATURAL_GAS)
-        return [package]
 
     def get_objective_value(self) -> float | None:
         """Get the solved objective value (``total_cost``, in dollars)."""

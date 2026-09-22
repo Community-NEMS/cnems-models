@@ -35,6 +35,7 @@ from src.common.update_package import (
 from src.models.natural_gas import data as ng_data
 from src.models.natural_gas.data import load_region_data
 from src.models.natural_gas.ng_config import NGConfig
+from src.models.natural_gas.update_reader import NGUpdateReader
 
 HEADER = 'region,domestic,international,covered_areas,label'
 
@@ -696,9 +697,10 @@ class TestDemandGrowthGating:
     def test_superseded_sectors_named_by_package_type(self) -> None:
         """Only a package type in ``SECTOR_SUPERSEDED_BY`` supersedes anything."""
         elec = self.demand_package({('mountain', 2030): 1.0})
-        assert ng_data.superseded_sectors([elec]) == {'electric_power'}
-        assert ng_data.superseded_sectors([NGDemandPackage(scalar=1.2)]) == frozenset()
-        assert ng_data.superseded_sectors([]) == frozenset()
+        reader = NGUpdateReader()
+        assert reader.superseded_sectors([elec]) == {'electric_power'}
+        assert reader.superseded_sectors([NGDemandPackage(scalar=1.2)]) == frozenset()
+        assert reader.superseded_sectors([]) == frozenset()
 
     def test_superseded_sector_is_held_flat(self, caplog: pytest.LogCaptureFixture) -> None:
         """Growth applies to the other sectors and is skipped for the superseded one."""
@@ -739,8 +741,8 @@ class TestDemandGrowthGating:
         package = self.demand_package(
             {('mountain', 2030): 42.0, ('mountain', 2025): 41.0, ('new_england', 2030): 7.0}
         )
-        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.data'):
-            ng_data.apply_update_package(package, data)  # type: ignore[arg-type]
+        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.update_reader'):
+            NGUpdateReader().apply_package(package, data)  # type: ignore[arg-type]
 
         assert demand[('mountain', 'electric_power', 2030)] == 42.0
         assert demand[('mountain', 'electric_power', 2025)] == 41.0

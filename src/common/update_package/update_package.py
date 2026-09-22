@@ -72,7 +72,7 @@ class UpdatePackage(ABC):
 class ElectricityPriceScaler(UpdatePackage):
     """Multiply the electricity model's supply prices for a set of techs by a scalar.
 
-    Handled by ``ParamData.apply_update_package``, which scales the matching rows of the
+    Handled by ``ElecUpdateReader.apply_package``, which scales the matching rows of the
     ``supply_price`` frame in place.
 
     Attributes
@@ -118,8 +118,8 @@ my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # mult
 class NGDemandPackage(UpdatePackage):
     """Multiply the natural gas model's demand values by a scalar.
 
-    Handled by ``src.models.natural_gas.data.apply_update_package``, which scales every entry
-    of the loaded ``demand`` table in place before the model is built.
+    Handled by ``NGUpdateReader.apply_package``, which scales every entry of the loaded
+    ``demand`` table in place before the model is built.
 
     Attributes
     ----------
@@ -254,7 +254,7 @@ NG_PRICE_VALUE = 'price'
 class NGPricePackage(UpdatePackage):
     """Solved natural gas prices, already crosswalked to electricity regions.
 
-    Handled by ``ParamData.apply_update_package``, which moves the supply price of the gas-linked
+    Handled by ``ElecUpdateReader.apply_package``, which moves the supply price of the gas-linked
     techs with the received price.
 
     Attributes
@@ -299,7 +299,7 @@ NG_ELEC_DEMAND_VALUE = 'demand_bcf'
 class NGElectricalDemandPackage(UpdatePackage):
     """Gas burned by the electricity model's generators, already crosswalked to gas regions.
 
-    Handled by ``src.models.natural_gas.data.apply_update_package``, which replaces the projected
+    Handled by ``NGUpdateReader.apply_package``, which replaces the projected
     ``electric_power`` sector demand for every ``(region, year)`` the frame carries.  The natural
     gas sequencer also gates off that sector's growth projection when one of these is inbound,
     so the package, not the AEO growth rate, sets the sector's demand.

@@ -26,11 +26,8 @@ from src.integrator.region_crosswalk import load_region_weights
 from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH, NG_PRICE_LINKED_TECHS
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import (
-    ElectricitySequencer,
-    gas_demand_by_region,
-    ng_mmbtu_per_bcf,
-)
+from src.models.electricity.sequencer import ElectricitySequencer
+from src.models.electricity.update_writer import gas_demand_by_region, ng_mmbtu_per_bcf
 
 
 def independent_gas_demand(model: PowerModel) -> pd.Series:

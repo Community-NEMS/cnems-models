@@ -25,8 +25,9 @@ from src.models.electricity.constants import (
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
+from src.models.electricity.update_reader import ElecUpdateReader
 
-LOGGER_NAME = 'src.models.electricity.param_data'
+LOGGER_NAME = 'src.models.electricity.update_reader'
 
 
 def make_index(entries: list[tuple], names: tuple[str, ...] = ('region', 'year')) -> pd.MultiIndex:
@@ -68,7 +69,7 @@ def test_report_index_gaps(
 ) -> None:
     """Missing held entries are returned and warned about; overages are not."""
     with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
-        missing = ParamData._report_index_gaps(
+        missing = ElecUpdateReader._report_index_gaps(
             make_index(old_entries), make_index(new_entries), name='test_frame'
         )
 
@@ -84,7 +85,7 @@ def test_report_index_gaps_level_mismatch_raises() -> None:
     old = make_index([('7', 2025)])
     new = make_index([('7', 2025, 'x')], names=('region', 'year', 'extra'))
     with pytest.raises(ValueError, match='level'):
-        ParamData._report_index_gaps(old, new, name='test_frame')
+        ElecUpdateReader._report_index_gaps(old, new, name='test_frame')
 
 
 def test_report_index_gaps_name_mismatch_warns_and_compares(caplog) -> None:
@@ -92,7 +93,7 @@ def test_report_index_gaps_name_mismatch_warns_and_compares(caplog) -> None:
     old = make_index([('7', 2025), ('7', 2030)])
     new = make_index([('7', 2025)], names=('destination', 'yr'))
     with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
-        missing = ParamData._report_index_gaps(old, new, name='test_frame')
+        missing = ElecUpdateReader._report_index_gaps(old, new, name='test_frame')
 
     assert list(missing) == [('7', 2030)]
     assert any('level names' in r.getMessage() for r in caplog.records)
@@ -136,7 +137,7 @@ def test_ng_price_package_scales_linked_techs(
     before = param_data.param_frames['supply_price'].copy()
     package = make_price_package(held_region_years(before), INITIAL_NG_PRICE * price_ratio)
 
-    param_data.apply_update_package(package)
+    ElecUpdateReader().apply_package(package, param_data)
 
     after = param_data.param_frames['supply_price']
     linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
@@ -155,7 +156,7 @@ def test_ng_price_package_uncovered_rows_retained(param_data: ParamData, caplog)
     package = make_price_package(keys, INITIAL_NG_PRICE * 2)
 
     with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
-        param_data.apply_update_package(package)
+        ElecUpdateReader().apply_package(package, param_data)
 
     after = param_data.param_frames['supply_price']
     in_year = after.index.get_level_values('year') == covered_year

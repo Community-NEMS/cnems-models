@@ -19,7 +19,6 @@ class ModelType(Enum):
     ALL = 'all'  # indicator implying all models
     ELECTRICITY = 'electricity'
     NATURAL_GAS = 'natural_gas'
-    # INTEGRATOR = 'integrator'
     MAGIC = 'magic'  # for testing/dev
 
 
@@ -28,4 +27,5 @@ class RunMode(Enum):
     """Defines the different modes that the model can be run in."""
 
     STANDALONE = 'standalone'
-    INTEGRATED = 'integrated'
+    INTEGRATED_JACOBI = 'integrated jacobi'
+    INTEGRATED_GS = 'integrated gs'

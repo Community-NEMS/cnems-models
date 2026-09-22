@@ -1,5 +1,5 @@
 tech,steps,label,abbreviation,color,T_conv,T_re,T_hydro,T_hydro_seasonal,T_hydro_regular,T_stor,T_vre,T_wind,T_solar,T_solar_utility,T_solar_end_use,T_h2,T_disp,T_gen
-1,1/2/3,Coal Steam,COALST,#000000,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+1,1/2/3,Coal Steam,COALST,#00FFD7,True,-,-,-,-,-,-,-,-,-,-,-,True,True
 2,1/2/3,Oil Steam,OILSTM,#7F7F7F,True,-,-,-,-,-,-,-,-,-,-,-,True,True
 3,1/2/3,Gas Turbine,GASTUR,#8B4726,True,-,-,-,-,-,-,-,-,-,-,-,True,True
 4,1/2/3,Gas Combined Cycle,GASCCY,#EE7942,True,-,-,-,-,-,-,-,-,-,-,-,True,True

@@ -204,13 +204,11 @@ class NGSequencer(IntegratedModelSequencer):
         """Write the result CSVs for the solved model.
 
         Extracts production, pipeline flows, prices, storage and the regional balance, and
-        writes them to ``<output_path>/<scenario_name>/natural_gas/``. ``report`` derives the
+        writes them to ``<output_folder>/natural_gas/``. ``report`` derives the
         tables itself, so this does not depend on the extraction calls commented out in
         ``solve_model``.
         """
-        scenario_dir = (
-            self.common_config.output_path / self.common_config.scenario_name / 'natural_gas'
-        )
+        scenario_dir = self.common_config.output_folder / 'natural_gas'
         report(m=self.model, output_dir=scenario_dir)
 
     def iteration_postprocess(self, **kwargs):
@@ -230,6 +228,7 @@ def main() -> int:
     logger.info('Trial run from sequencer')
     config_path = PROJECT_ROOT / 'run_configs/basic_ng_config.toml'
     common_config, remainder = parse_config_file(config_path)
+    common_config.make_scenario_dir()
     setup_logger(common_config)
     ng_config = NGConfig(**remainder.pop('natural_gas'))
     sequencer = NGSequencer()

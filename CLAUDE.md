@@ -148,3 +148,5 @@ correct, not verified against an independent source).
 - When editing or adding code, use type hints.  The project is poorly type-hinted and this will help.
 - New modules get the standard header docstring (`Created as part of the C-NEMS Project.` plus
   author/contact/date) — copy the form from an existing file such as `param_source_loader.py`.
+  When a model assisted in writing the file, credit it on a `Written with:  <model> (<vendor>)`
+  line placed between `Written by:` and `Contact:`, e.g. `Written with:  Claude Opus 5 (Anthropic)`.

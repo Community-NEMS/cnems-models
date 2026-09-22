@@ -28,7 +28,7 @@ from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.postprocessor import export_variables_to_csv
+from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
 
 logger = getLogger(__name__)
 
@@ -266,10 +266,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             logger.info('trade cost value = %.2f', pyo.value(instance.trade_cost))
         logger.info('Obj complete')
 
-        scenario_dir = (
-            self.common_config.output_path / self.common_config.scenario_name / 'electricity'
-        )
+        scenario_dir = self.common_config.output_folder / 'electricity'
         export_variables_to_csv(instance, output_dir=scenario_dir / 'variables', core_only=True)
+        logger.info('Transferring tech data (ids, labels, colors) to %s', scenario_dir)
+        transfer_tech_data(self.common_config.common_data_path, scenario_dir)
 
 
 def calculate_tolerance(
@@ -295,7 +295,11 @@ def calculate_tolerance(
 
 
 def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
-    """Build the electricity model (and solve + postprocess if ``solve``), returning the model."""
+    """Build the electricity model (and solve + postprocess if ``solve``), returning the model.
+
+    When ``solve`` is set, ``common_config.make_scenario_dir()`` must already have been called,
+    since postprocessing writes to ``common_config.output_folder``.
+    """
     start_time = datetime.now().astimezone()
     timer = TicTocTimer(logger=logger)
     timer.tic('start')

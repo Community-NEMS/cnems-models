@@ -16,9 +16,9 @@ from pyomo.opt import SolverFactory, check_optimal_termination
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
+from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
-from src.common.utilities import setup_logger
 from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     config_path = PROJECT_ROOT / 'run_configs/basic_ng_config.toml'
     common_config, remainder = parse_config_file(config_path)
     common_config.make_scenario_dir()
-    setup_logger(common_config)
+    setup_control_loop_logging(common_config.output_folder / 'run.log')
     ng_config = NGConfig(**remainder.pop('natural_gas'))
     sequencer = NGSequencer()
     sequencer.build_model(common_config, ng_config)

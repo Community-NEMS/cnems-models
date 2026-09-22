@@ -1,7 +1,7 @@
 """A gathering of utility functions for dealing with model interconnectivity."""
 
 import argparse
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
@@ -12,46 +12,33 @@ import pandas as pd
 logger = getLogger(__name__)
 
 
-def get_args():
-    """Parses args.
+def get_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse the command-line arguments for ``main.py``.
+
+    Parameters
+    ----------
+    argv : Sequence[str] | None, optional
+        Arguments to parse; ``None`` (default) parses ``sys.argv[1:]``.
 
     Returns
     -------
-    args: Namespace
-        Contains arguments pass to main.py executable
+    argparse.Namespace
+        ``config_path`` (``Path | None``) and ``debug`` (``bool``).
     """
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter,
-        description='description:\n'
-        '\tBuilds and runs models based on user inputs set in src/common/run_config.toml\n'
-        '\tMode argument determines which models are run and how they are integrated and solved\n'
-        '\tUniversal and module-specific options contained within run_config.toml\n'
-        '\tUser can specify regions, time periods, solver options, and mode in run_config\n'
-        '\tUsers can also specify the mode via command line argument or run_config.toml',
+        description="Build and run the models as set in a run config file.  The config's "
+        '[common] mode selects standalone or integrated runs, and models_to_run selects the '
+        'models run standalone.',
     )
     parser.add_argument(
-        '--mode',
-        choices=['unified-combo', 'gs-combo', 'standalone', 'elec', 'h2', 'residential'],
-        dest='op_mode',
-        help='The mode to run:\n\n'
-        'unified-combo:  run unified optimization method, iteratively solves modules '
-        'turned on in the run_congif file\n'
-        'gs-combo:  run gauss-seidel method, iteratively solves modules turned on in the '
-        'run_congif file\n'
-        'standalone: runs in standalone the modules that are turned on in the run_config file\n'
-        'elec:  run the electricity module standalone\n'
-        'h2:  run the hydrogen module standalone\n'
-        'residential: run the residential module standalone, solves updated load based on '
-        'new given prices\n\n'
-        'Mode can be set either via --mode command or in run_config.toml.\n'
-        'If no --mode option is provided, default_mode in run_config.toml is used.',
+        'config_path',
+        type=Path,
+        nargs='?',
+        default=None,
+        help='path to the run config file (TOML or JSON)',
     )
-    parser.add_argument('--debug', action='store_true', help='set logging level to DEBUG')
-
-    # parsing arguments
-    args = parser.parse_args()
-
-    return args
+    parser.add_argument('--debug', action='store_true', help='run in debug mode')
+    return parser.parse_args(argv)
 
 
 def scale_load(data_root):

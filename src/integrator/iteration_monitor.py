@@ -25,6 +25,9 @@ cascade down the page as iterations complete::
                       |                          |                          |
                       |<---- NG Prices [50] -----+                          |
 
+A model whose solve status is outside ``COMMUNICATION_ACCEPTABLE`` shows its status name in
+place of the objective change, and its rail runs dashed (``╎``) down to its next solve.
+
 Output is a ``rich`` ``Text`` coloured by the scheme in the adjacent ``monitor_style.toml``;
 its ``.plain`` attribute is the uncoloured string for log files.
 """
@@ -40,7 +43,7 @@ from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
 
-from src.common.integrated_model_sequencer import IterationResult
+from src.common.integrated_model_sequencer import COMMUNICATION_ACCEPTABLE, IterationResult
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 
@@ -48,19 +51,28 @@ logger = logging.getLogger(__name__)
 
 # the value shown for a model that reports no objective ("not computed")
 NO_OBJECTIVE = '(N/C)'
+# the rails:  solid under a usable solve, dashed under one whose packages were not accepted
+LIFELINE = '|'
+BROKEN_LIFELINE = '╎'
 DEFAULT_STYLE_PATH = Path(__file__).with_name('monitor_style.toml')
 
 # built-in styles, used for any section or key the TOML omits
 _DEFAULT_STYLES: dict[str, dict[str, str]] = {
     'model': {'default': 'bold white'},
     'package': {'default': 'bold yellow'},
-    'connector': {'lifeline': 'grey50', 'ray': 'grey70', 'box': 'grey70'},
+    'connector': {
+        'lifeline': 'grey50',
+        'broken_lifeline': 'red',
+        'ray': 'grey70',
+        'box': 'grey70',
+    },
     'objective': {
         'start': 'bold white',
         'increase': 'red',
         'decrease': 'green',
         'unchanged': 'grey62',
         'none': 'grey50',
+        'rejected': 'bold red',
     },
     'iteration': {'number': 'bold white'},
 }
@@ -192,6 +204,8 @@ class IterationMonitor:
         self.column_width = column_width
         self._labels: dict[ModelType, str] = {m: m.value for m in self.circuit}
         self._previous: dict[ModelType, float | None] = {}
+        # columns whose last solve was not acceptable; their rails run dashed to the next solve
+        self._broken: frozenset[int] = frozenset()
         self._header_done = False
 
     # ------------------------------------------------------------------ geometry
@@ -204,12 +218,22 @@ class IterationMonitor:
         """Character position of the lifeline of model column ``column``."""
         return self.ITER_WIDTH + column * self.column_width + self.column_width // 2
 
+    def _put_lifeline(self, line: _Line, column: int) -> None:
+        """Write column ``column``'s rail glyph on ``line``, dashed if its last solve was broken."""
+        if column in self._broken:
+            line.put(
+                self._center(column),
+                BROKEN_LIFELINE,
+                self.style.get('connector', 'broken_lifeline'),
+            )
+        else:
+            line.put(self._center(column), LIFELINE, self.style.get('connector', 'lifeline'))
+
     def _blank(self) -> _Line:
         """A line holding only the lifelines."""
         line = _Line(self.width)
-        lifeline = self.style.get('connector', 'lifeline')
         for i in range(len(self.circuit)):
-            line.put(self._center(i), '|', lifeline)
+            self._put_lifeline(line, i)
         return line
 
     # ------------------------------------------------------------------ pieces
@@ -256,17 +280,21 @@ class IterationMonitor:
             line.put(r + 1, '<' + '-' * (s - r - 2) + '+', ray)
         text = f' {package.label} [{package.size}] '
         line.put((s + r) // 2 - len(text) // 2, text, self.style.get('package', package.label))
-        line.put(r, '|', self.style.get('connector', 'lifeline'))
+        self._put_lifeline(line, r)
 
     def _deliveries(
         self, results: Iterable[IterationResult]
     ) -> list[tuple[int, int, UpdatePackage]]:
-        """List ``(source column, receiver column, package)`` for every delivery this iteration."""
+        """List ``(source column, receiver column, package)`` for every delivery this iteration.
+
+        Packages from a result whose status is outside ``COMMUNICATION_ACCEPTABLE`` are left
+        out, matching the screening the control loop applies before routing.
+        """
         index = {m: i for i, m in enumerate(self.circuit)}
         rows: list[tuple[int, int, UpdatePackage]] = []
         for result in results:
             src = index.get(result.model_type)
-            if src is None:
+            if src is None or result.status not in COMMUNICATION_ACCEPTABLE:
                 continue
             for package in result.update_packages:
                 receivers = set(package.receivers)
@@ -292,6 +320,12 @@ class IterationMonitor:
         Text
             The coloured block, preceded by the header on the first call.  ``.plain`` is the
             uncoloured string.
+
+        Notes
+        -----
+        A model whose status is outside ``COMMUNICATION_ACCEPTABLE`` shows the status name in
+        place of its objective change and keeps its previous objective as the delta baseline;
+        its rail is dashed from this row to its next solve, and none of its packages are drawn.
         """
         results = list(results)
         by_model = {result.model_type: result for result in results}
@@ -303,18 +337,25 @@ class IterationMonitor:
             lines.extend(self.header())
             self._header_done = True
 
+        # the rail into this solve still reflects the previous iteration's statuses
         lines.append(self._blank().render())
         delta = self._blank()
+        broken: set[int] = set()
         delta.put(
             0, str(iteration).rjust(self.ITER_WIDTH - 2), self.style.get('iteration', 'number')
         )
         for i, model in enumerate(self.circuit):
             result = by_model.get(model)
-            objective = result.objective_value if result is not None else None
-            text, kind = self._delta(model, objective)
+            if result is not None and result.status not in COMMUNICATION_ACCEPTABLE:
+                text, kind = f'({result.status.name})', 'rejected'
+                broken.add(i)
+            else:
+                objective = result.objective_value if result is not None else None
+                text, kind = self._delta(model, objective)
+                self._previous[model] = objective
             delta.put(self._center(i) - len(text) // 2, text, self.style.get('objective', kind))
-            self._previous[model] = objective
         lines.append(delta.render())
+        self._broken = frozenset(broken)
         lines.append(self._blank().render())
 
         for n, (src, dst, package) in enumerate(self._deliveries(results)):

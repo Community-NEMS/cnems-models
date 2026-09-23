@@ -32,6 +32,12 @@ class IterationStatus(Enum):
     ERROR = 3
 
 
+# solve statuses whose outbound packages are trusted enough to route onward
+COMMUNICATION_ACCEPTABLE: frozenset[IterationStatus] = frozenset(
+    {IterationStatus.BEST, IterationStatus.USABLE}
+)
+
+
 @dataclass
 class IterationResult:
     """One model's worth of finished work for a single iteration, returned from a pool worker.

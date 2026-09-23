@@ -26,7 +26,9 @@ from src.common.update_package import (
     NGPricePackage,
 )
 from src.integrator.iteration_monitor import (
+    BROKEN_LIFELINE,
     DEFAULT_STYLE_PATH,
+    LIFELINE,
     NO_OBJECTIVE,
     DeltaMode,
     IterationMonitor,
@@ -45,12 +47,16 @@ def region_year_frame(value_col: str, n: int, region: str = 'r') -> pd.DataFrame
 
 
 def result(
-    model: ModelType, objective: float | None, packages=(), label: str = ''
+    model: ModelType,
+    objective: float | None,
+    packages=(),
+    label: str = '',
+    status: IterationStatus = IterationStatus.BEST,
 ) -> IterationResult:
     """A result for ``model`` carrying ``packages``."""
     return IterationResult(
         model_type=model,
-        status=IterationStatus.BEST,
+        status=status,
         objective_value=objective,
         update_packages=list(packages),
         label=label,
@@ -231,3 +237,45 @@ def test_rays_are_separated_by_a_blank_lifeline_row(monitor: IterationMonitor) -
     assert second == first + 2
     assert set(lines[first + 1].strip()) == {'|', ' '}
     assert lines[-1] is lines[second]
+
+
+def test_unacceptable_status_shows_name_and_dashes_rail_to_next_solve(
+    monitor: IterationMonitor,
+) -> None:
+    """A rejected solve shows its status name and a dashed rail until that model's next solve."""
+    monitor.record(1, [result(ModelType.NATURAL_GAS, -500.0)])
+    failed = monitor.record(2, [result(ModelType.NATURAL_GAS, -1.0, status=IterationStatus.ERROR)])
+    recovered = monitor.record(3, [result(ModelType.NATURAL_GAS, -600.0)])
+    ng = monitor._center(1)
+
+    failed_lines = failed.plain.splitlines()
+    delta_row = next(i for i, line in enumerate(failed_lines) if '(ERROR)' in line)
+    assert failed_lines[delta_row - 1][ng] == LIFELINE  # the rail into the failed solve
+    assert all(line[ng] == BROKEN_LIFELINE for line in failed_lines[delta_row + 1 :])
+    assert monitor.style.get('connector', 'broken_lifeline') in {
+        str(span.style) for span in failed.spans
+    }
+
+    recovered_lines = recovered.plain.splitlines()
+    assert recovered_lines[0][ng] == BROKEN_LIFELINE  # dashed down to the next solve...
+    assert recovered_lines[-1][ng] == LIFELINE  # ...and solid again after a good one
+    assert '(-100.00)' in recovered.plain  # the failed solve's objective is not the baseline
+
+
+def test_packages_from_unacceptable_solve_are_not_drawn(monitor: IterationMonitor) -> None:
+    """Only packages the control loop would route get a ray."""
+    demand = NGElectricalDemandPackage(
+        elements=region_year_frame(NG_ELEC_DEMAND_VALUE, 4), source=ModelType.ELECTRICITY
+    )
+    price = NGPricePackage(
+        elements=region_year_frame(NG_PRICE_VALUE, 50), source=ModelType.NATURAL_GAS
+    )
+    block = monitor.record(
+        1,
+        [
+            result(ModelType.ELECTRICITY, 1.0, [demand]),
+            result(ModelType.NATURAL_GAS, 2.0, [price], status=IterationStatus.ERROR),
+        ],
+    ).plain
+    assert 'NG Demand [4]' in block
+    assert 'NG Prices' not in block

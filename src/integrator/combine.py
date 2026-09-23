@@ -19,7 +19,7 @@ from rich.console import Console
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
-from src.common.integrated_model_sequencer import IterationResult
+from src.common.integrated_model_sequencer import COMMUNICATION_ACCEPTABLE, IterationResult
 from src.common.log_setup import _scenario_log, log_path, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
@@ -258,8 +258,20 @@ def main(iter_limit: int = 15) -> None:
             block = monitor.record(iteration, results)
             logger.info('\n%s', block.plain)
             console.print(block, highlight=False)
-            # route each model's outbound packages to their receivers for the next iteration
-            outbound = [pkg for result in results for pkg in result.update_packages]
+            # route each model's outbound packages to their receivers for the next iteration,
+            # screening out packages from any model whose solve status isn't acceptable
+            outbound: list[UpdatePackage] = []
+            for result in results:
+                if result.status in COMMUNICATION_ACCEPTABLE:
+                    outbound.extend(result.update_packages)
+                elif result.update_packages:
+                    logger.warning(
+                        'Iteration %d: rejected %d update package(s) from %s (status %s)',
+                        iteration,
+                        len(result.update_packages),
+                        result.model_type.value,
+                        result.status.name,
+                    )
             routed_updates = route_updates(outbound, CIRCUIT)
 
             # TODO:  compute a real convergence measure; eps is never updated, so this loop

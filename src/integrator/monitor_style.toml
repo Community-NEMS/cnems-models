@@ -24,6 +24,7 @@ default = "dark_goldenrod"
 
 [connector]
 lifeline = "grey35"   # the vertical rails under each model
+broken_lifeline = "red"  # a rail under a solve whose packages were not accepted
 ray = "grey50"        # the horizontal package rays, their tails and arrowheads
 box = "grey50"        # the borders of the model name boxes in the header
 
@@ -33,6 +34,7 @@ increase = "dark_red"    # objective went up (a cost model got more expensive)
 decrease = "dark_green"  # objective went down
 unchanged = "grey46"     # no change
 none = "grey35"          # the model reports no objective
+rejected = "bold red"    # the solve status was not acceptable; its name replaces the change
 
 [iteration]
 number = "bold grey39"

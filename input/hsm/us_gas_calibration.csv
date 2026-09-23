@@ -1,0 +1,17 @@
+# Calibration of US gas capacity. C-HSM multiplies capacity by k * (1+g)^x * exp(c*x^2),
+# x = year - 2025, by census division. (k, g, c) are fitted so that capacity at the AEO2026
+# reference price path matches C-NGMM's supply anchors: Q0 = the sum of the cost tier
+# capacities in input/natural_gas/ng_supply_cost_tiers.csv x q0_mult in ng_supply_anchors.csv
+# (both built from AEO2026Results/sup_ogc.xlsx, Tables 59 and 62). c captures the rise and fall of
+# production in the regions that set the price. Refit if either C-NGMM file changes. If this
+# file is missing, k = 1, g = 0 and c = 0.
+region,k,g,c
+new_england,0.779409,-0.021845,0.00064412
+middle_atlantic,0.835358,0.021147,-1.372e-05
+east_north_central,0.846579,0.020752,7.54e-06
+west_north_central,0.787641,-0.022056,0.00142422
+south_atlantic,0.871153,0.020231,5.405e-05
+east_south_central,0.924466,-0.029963,0.00087986
+west_south_central,0.949826,-0.02435,0.00102842
+mountain,0.888692,-0.048562,0.00181968
+pacific,0.819018,-0.098554,0.00245773

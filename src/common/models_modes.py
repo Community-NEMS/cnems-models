@@ -18,6 +18,7 @@ class ModelType(Enum):
 
     ELECTRICITY = 'electricity'
     NATURAL_GAS = 'natural_gas'
+    HSM = 'hsm'
     INTEGRATOR = 'integrator'
 
 

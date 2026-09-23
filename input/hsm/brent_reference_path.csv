@@ -1,0 +1,33 @@
+# AEO2026 reference Brent spot price, 1987 $/bbl: AEO2026Results/sup_ogc.xlsx, Table 57
+# (Brent Spot Price, $/gallon x 42 = $/bbl, nominal), divided by the GDP deflator in
+# module.py (1987 = 1.0). C-HSM uses it when it is given no Brent prices, and as the
+# reference Brent for the NA/AD split.
+year,brent_1987_per_bbl
+2023,32.9775
+2024,32.2808
+2025,31.6857
+2026,24.1851
+2027,26.1848
+2028,27.5109
+2029,28.1643
+2030,28.3409
+2031,27.9497
+2032,27.7055
+2033,27.8823
+2034,27.9783
+2035,27.8154
+2036,27.7153
+2037,27.7295
+2038,27.6111
+2039,27.375
+2040,27.0532
+2041,26.9425
+2042,26.6924
+2043,26.6143
+2044,26.5389
+2045,26.5937
+2046,26.5115
+2047,26.4107
+2048,26.3197
+2049,26.1553
+2050,26.1358

@@ -25,6 +25,8 @@ repos:
         # The default 500 KB limit is smaller than pixi.lock ends up being with this
         # many conda + PyPI dependencies resolved across 5 platforms.
         args: ["--maxkb=2048"]
+        # A NEMS input that C-HSM reads is over the limit.
+        exclude: ^input/hsm/onshore/on_projects_producing_oil\.csv$
       - id: check-merge-conflict # Watch for lingering merge markers.
       - id: check-yaml # Validate all YAML files.
       - id: check-toml # Validate all TOML files.

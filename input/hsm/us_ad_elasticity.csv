@@ -1,0 +1,20 @@
+# Brent elasticity of associated-dissolved (AD) gas by census division. elas_up applies when
+# Brent is above its reference and elas_down when it is below (the NEMS Canada high/low
+# convention). National values come from the AEO2025 High and Low Oil Price cases (crude
+# response to Brent, 2030-2050 mean; AEO2026 has no oil price cases):
+#   tight oil:    up 0.5456 (sd 0.1395), down 0.7276 (sd 0.0819)
+#   conventional: up 0.1225 (sd 0.1486), down 0.5795 (sd 0.0941)
+#   mean Brent ratio: high 1.67, low 0.53
+# Each division mixes the two by its tight oil share of AD gas (w_tight), from the NEMS project
+# decks in models/hsm/input/onshore/ (https://github.com/EIAgov/NEMS, AEO2026-Public-Release;
+# first projection year, as in us_ad_gas_share.csv). ad_gp1_bcf is the division's AD gas in that year, BCF, for reference.
+region,w_tight,ad_gp1_bcf,elas_up,elas_down
+new_england,0.0,0.0,0.0,0.0
+middle_atlantic,1.0,2.4,0.5456,0.7276
+east_north_central,0.9909,128.5,0.5418,0.7262
+west_north_central,0.9937,923.8,0.543,0.7266
+south_atlantic,0.1027,7.6,0.1659,0.5947
+east_south_central,0.3342,9.2,0.2639,0.629
+west_south_central,0.8619,4310.4,0.4872,0.7071
+mountain,0.9427,2348.6,0.5214,0.7191
+pacific,0.0,31.6,0.1225,0.5795

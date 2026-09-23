@@ -1,0 +1,16 @@
+# Calibration of US gas capacity for the optional well-level engine (used when [hsm]
+# calibration_file names this file, together with onshore_engine_file). Same form as
+# us_gas_calibration.csv: capacity x k * (1+g)^x * exp(c*x^2), x = year - 2025, by census division.
+# This fit was made with an earlier set of engine settings. With the shipped settings and the
+# AEO2026 reference prices it matches C-NGMM's supply anchors to within about 3% nationally and 13%
+# regionally (East North Central, 2030). Refit it before using engine results (ENGINE_PLAN.md).
+region,k,g,c
+new_england,0.779409,-0.021845,0.00064412
+middle_atlantic,1.695858,0.007606,0.0014559
+east_north_central,6.642845,0.131449,-0.00173061
+west_north_central,3.784085,0.088255,-0.00118161
+south_atlantic,0.642146,0.043217,0.00033796
+east_south_central,24.769849,0.060707,-0.0012622
+west_south_central,1.174066,0.024436,0.00056232
+mountain,1.084976,-2e-06,0.00117919
+pacific,1.388358,0.001417,-9.048e-05

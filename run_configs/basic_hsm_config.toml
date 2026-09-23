@@ -1,0 +1,30 @@
+[common]
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['hsm']
+
+common_data_path='input/common'  # currently unused
+residential_data_path='input/residential'
+output_path='output'
+scenario_name = "hsm_baseline"
+
+# C-HSM is annual and always runs every year from 2023 to 2050 (set in input/hsm/setup.csv).
+# The temporal settings below are required by [common] but C-HSM does not read them.
+temporal_resolution = "default"
+aggregate_years=false
+aggregate_start_year = 2023
+summary_years = [2025, 2030, 2035, 2040, 2045, 2050]
+
+
+[hsm]
+
+input_path = 'input/hsm'
+# C-HSM reads the supply regions and the base capacity of each cost tier from C-NGMM's inputs
+ng_input_path = 'input/natural_gas'
+# AEO2026 reference Henry Hub path, 1987 $/MMBtu. Leave out to use hh_reference_path.csv.
+henry_hub_file = 'henry_hub_path_aeo2026_1987usd.csv'
+# brent_multiplier = 1.0  # scales the Brent path for oil price scenarios
+# The optional well-level engine (src/models/hsm/ENGINE_PLAN.md). It needs its own calibration.
+# onshore_engine_file = 'us_onshore_engine.csv'
+# calibration_file = 'us_gas_calibration_engine.csv'

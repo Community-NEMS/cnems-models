@@ -1,0 +1,26 @@
+# Settings for the optional well-level engine (src/models/hsm/us_onshore.py, OnshoreEngine).
+# Used only when [hsm] onshore_engine_file names this file; otherwise C-HSM runs the reduced form.
+# Set for C-HSM; see src/models/hsm/ENGINE_PLAN.md for the status and source of each value.
+#   base_gas_price_2023   wellhead base gas price, 2023 $/MMBtu (same as the reduced form's 2.50)
+#   ramp_up_years         years a project takes to reach its full drilling rate
+#   drill_predecline      share of a project's wells drilled before its drilling rate declines
+#   low_price_flag        1 softens the drilling cut when prices fall below their base
+#   discount_rate         real discount rate for the per-well cash flow test
+#   rig_wells_cap_oil/gas most new oil-directed / gas-directed wells a year, nationally
+#   rig_growth_rate       yearly growth of those caps (0: constant)
+#   capex_deflator_1987_to_2023  scales the 1987 $ drilling cost regression to 2023 $
+#   royalty_rate, severance_rate  shares of revenue taken off in the cash flow test
+#   apply_decline_overrides  1 reshapes the existing-well decline curves as NEMS does on load
+parameter,value
+base_gas_price_2023,2.50
+ramp_up_years,5
+drill_predecline,0.70
+low_price_flag,0
+discount_rate,0.10
+rig_wells_cap_oil,11000
+rig_wells_cap_gas,9000
+capex_deflator_1987_to_2023,2.17
+royalty_rate,0.1875
+severance_rate,0.06
+apply_decline_overrides,1
+rig_growth_rate,0.0

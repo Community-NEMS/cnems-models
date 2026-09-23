@@ -90,6 +90,13 @@ project-excludes = [
   # both of the main "model" files have typing issues related to pyomo that predate this work
   "src/integrator/gaussseidel.py",  # not in upgrade scope yet
   "src/integrator/unified.py",  # not in upgrade scope yet
+  # C-HSM files built on pandas DataFrame arithmetic, which pyrefly cannot type; the wrappers stay checked
+  "src/models/hsm/canada.py",
+  "src/models/hsm/common.py",
+  "src/models/hsm/module.py",
+  "src/models/hsm/submodule.py",
+  "src/models/hsm/us_gas.py",
+  "src/models/hsm/us_onshore.py",
 ]
 # The project has no [build-system] and is run from the repo root, so `definitions` and the
 # `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic
@@ -203,6 +210,8 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
+# C-HSM, the hydrocarbon supply model.
+hsm = { cmd = "python -m src.models.hsm.sequencer", description = "Run C-HSM using run_configs/basic_hsm_config.toml." }
 
 # Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
 # absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then

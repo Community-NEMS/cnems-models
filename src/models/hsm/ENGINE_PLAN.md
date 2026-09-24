@@ -78,9 +78,16 @@ third affects only the first model year and the shape of the results.
 
 1. **Drilling cost ignores the project's details.** `OnshoreEngine.__init__` keeps only a few columns
    of `on_projects_continuous.csv` (`us_onshore.py:569-573`) and drops `state`, `Latlen` and
-   `drill_depth_ft`, which the deck has. The cost regression (`us_onshore.py:669-699`) then uses an
-   empty state and zero lateral length and depth for every project, so drilling cost comes from the
-   intercept and the basin term alone. Fix: keep the three columns.
+   `drill_depth_ft`, which the deck has. The basin term is found from `play_name`, which is empty
+   for every project in the deck, so no basin matches either. The cost regression
+   (`us_onshore.py:669-699`) therefore uses no basin, an empty state and zero lateral length and
+   depth for every project, and drilling cost is the intercept alone: one value for all tight oil
+   projects and one for all gas projects. The empty `play_name` also gives every project the
+   default base oil price of \$50/bbl, since `base_oil_prc_by_play.csv` is keyed by play name. Fix:
+   keep the three columns, and find each project's basin and play from a column the deck fills. Its
+   numeric `play` code appears to begin with the USGS province number that the regression's basin
+   rows are keyed on (`usgs_province_num_merge`: 31 Williston, 44 Permian, 67 Appalachian); check
+   this against the NEMS cost code before relying on it.
 2. **New-well technology ignores `on_tech_levers.csv`.** `us_onshore.py:613-632` looks for a
    column whose name contains `rate` or `value`; the file has `tier_1_eur_tech` and others, so the
    fixed rates (1% a year for tight oil and shale, 0.25% for coalbed methane) always apply and the
@@ -108,7 +115,7 @@ Each step says what to do, where, and how to know it is done. Steps 1 to 4 make 
 5 to 8 bring it closer to NEMS; 9 and 10 decide whether it becomes the default.
 
 1. **Fix the known bugs** above. *Done when* the fast engine tests pass and a short test checks that
-   drilling cost varies with lateral length and depth, that the shale technology rate is the
+   drilling cost varies with basin, lateral length and depth, that the shale technology rate is the
    file's value, and that an engine run has 1,008 rows and the same 2023 capacity as a reduced-form
    run (unless step 2 moves the engine to start in 2023).
 

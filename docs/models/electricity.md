@@ -167,28 +167,20 @@ The multiplier is driven solely by cumulative builds in strictly prior years, so
 discounts its own cost. The cumulative term pools that technology's builds across **all**
 regions and steps, written above as $r'$ and $s'$, so experience is national rather than regional.
 
-The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Only the nonlinear
-objective calls it today; the linear path keeps its own copy of the formula in
-`cost_learning_func`. Consolidating the two is left for later, deliberately, so that reviving the
-nonlinear path does not change linear results.
+The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
+modes use it: the nonlinear objective directly, and the linear iteration through
+`cost_learning_func` in the same file, which also holds the linear mode's other helpers.
 
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.
 
-Two differences from the linear path are known and **not** addressed here, both pre-existing:
-
-- The linear formula still carries a calendar-time drift term $d \times (y - YR0)$ with
-  $d = 0.0001$ GW/year, which the nonlinear form above omits. It is an absolute quantity divided by
-  a technology-specific $SCL_t$ spanning 0.01 to 264 GW, so its effect varies by roughly four orders
-  of magnitude across technologies. On the reference dataset it produced the entire measurable
-  output of nonlinear learning while endogenous learning contributed nothing, which is why the
-  revived nonlinear form leaves it out.
-- `calculate_cap_growth` in `src/models/electricity/sequencer.py` assigns rather than accumulates over
-  regions and steps, so the linear path's cumulative capacity is one region's builds rather than the
-  national total. The nonlinear form above pools across all regions and steps.
-
-Neither should be read as settled: both are candidates for reconciliation once the meaning of
-$LR_t$ and the provenance of $SCL_t$ are resolved.
+One difference from the linear path is known and **not** addressed here. The linear formula still
+carries a calendar-time drift term $d \times (y - YR0)$ with $d = 0.0001$ GW/year, which the
+nonlinear form above omits. It is an absolute quantity divided by a technology-specific $SCL_t$
+spanning 0.01 to 264 GW, so its effect varies by roughly four orders of magnitude across
+technologies. On the reference dataset it produced the entire measurable output of nonlinear
+learning while endogenous learning contributed nothing, which is why the revived nonlinear form
+leaves it out.
 
 Note $LR_t$ is consumed **directly as the curve exponent**, while the input file names its column
 `rate`. If those values are learning rates meaning fractional reduction per doubling, the exponent

@@ -10,12 +10,10 @@ integrated run. It replaces the procedural helpers previously in ``runner.py``; 
 only need to repoint their import at this module.
 """
 
-from collections import defaultdict
 from datetime import datetime
 from logging import getLogger
 
 import pyomo.environ as pyo
-from pyomo.common.numeric_types import value
 from pyomo.common.timing import TicTocTimer
 from pyomo.opt import check_optimal_termination
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -26,13 +24,20 @@ from src.integrator.utilities import select_solver
 from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
+from src.models.electricity.learning import (
+    calculate_cap_growth,
+    calculate_tolerance,
+    init_old_cap,
+    update_expansion_cost,
+)
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
 
 logger = getLogger(__name__)
 
-# convergence controls for the linear-learning outer iteration
+# convergence controls for the linear-learning outer iteration.  The tolerance is on the largest
+# change in cumulative builds for any (tech, year) between iterations, in GW.
 _LEARNING_TOLERANCE = 0.1
 _LEARNING_MAX_ITER = 20
 
@@ -204,11 +209,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
                 # set new capacities and measure convergence
                 new_cap_growth = calculate_cap_growth(instance)
-                eps = calculate_tolerance(
-                    cap_growth=cap_growth,
-                    new_cap_growth=new_cap_growth,
-                    year_weights=instance.weight_year.extract_values(),
-                )
+                eps = calculate_tolerance(cap_growth=cap_growth, new_cap_growth=new_cap_growth)
 
                 # update the cap growth for potential next iteration
                 cap_growth = new_cap_growth
@@ -272,28 +273,6 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         transfer_tech_data(self.common_config.common_data_path, scenario_dir)
 
 
-def calculate_tolerance(
-    cap_growth: dict[tuple, float],
-    new_cap_growth: dict[tuple, float],
-    year_weights: dict[int, int],
-    **kwargs,
-) -> float:
-    """Check the summation of growth between the old and new capacities.
-
-    Returns
-    -------
-    float
-        The OBJ value (total cost).
-    """
-    if not set(cap_growth.keys()) == set(new_cap_growth.keys()):
-        raise ValueError('cap_growth and new_cap_growth must have the same keys')
-
-    return sum(
-        abs(cap_growth[tech, y] - new_cap_growth[tech, y]) * year_weights[y]
-        for (tech, y) in cap_growth
-    )
-
-
 def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=True) -> PowerModel:
     """Build the electricity model (and solve + postprocess if ``solve``), returning the model.
 
@@ -333,96 +312,3 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     )
 
     return instance
-
-
-def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
-    """Initialize capacity growth for 0th iteration.
-
-    Parameters
-    ----------
-    instance : PowerModel
-        unsolved electricity model
-    """
-    initial_growth = {}
-    # instance.cap_set = []
-    # instance.old_cap_wt = {}
-
-    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for _r, tech, _step, y in instance.cap_cost:
-        if (tech, y) not in initial_growth:
-            # each tech will increase cap by 1 GW per year. reasonable starting point.
-            # TODO:  come back to this assumption after better understanding of process
-            initial_growth[tech, y] = (y - instance.y0_learning) * 1
-            # instance.old_cap_wt[(tech, y)] = instance.weight_year[y] * instance.old_cap[(tech, y)]
-    return initial_growth
-
-
-def set_new_cap(instance: PowerModel):
-    """Currently no-op.
-
-    This legacy approach added instance variables to the model.  See the design pattern in
-    the control loop above.  All that should be needed is to calculate the growth where needed
-    """
-    raise NotImplementedError('see docstring')
-
-
-def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
-    """Calculate the current capacity of all buildable tech by year."""
-    result = defaultdict(float)
-    # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for r, tech, step, y in instance.cap_cost:
-        # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
-        result[(tech, y)] += sum(
-            value(instance.capacity_builds[r, tech, step, year])
-            for year in instance.year
-            if year < y
-        )
-    return result
-
-
-def cost_learning_func(instance: PowerModel, tech, y, new_cap: float) -> float:
-    """Function for updating learning costs by technology and year.
-
-    Parameters
-    ----------
-    instance : PowerModel
-        electricity pyomo model
-    tech : int
-        technology type
-    y : int
-        year
-
-    Returns
-    -------
-    int
-        updated capital cost based on learning calculation
-    """
-    cost = (
-        (instance.supply_curve_learning[tech] + 0.0001 * (y - instance.y0_learning) + new_cap)
-        / instance.supply_curve_learning[tech]
-        # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
-    ) ** (-1.0 * instance.learning_rate[tech])
-    return cost
-
-
-def update_expansion_cost(instance, new_cap: dict[tuple, float]):
-    """Update capital cost based on new capacity learning."""
-    new_multiplier = {}
-    for key in new_cap:
-        tech, y = key
-        new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
-
-    # Assign new cost
-    for r, tech, step, y in instance.cap_cost:
-        new_cost = instance.cap_cost_initial[r, tech, step] * new_multiplier[tech, y]
-        old_value = value(instance.cap_cost[r, tech, step, y])
-        instance.cap_cost[r, tech, step, y] = new_cost
-        logger.debug(
-            'Reduced cap_cost[%s, %s, %s, %s] from %0.2f to %0.2f',
-            r,
-            tech,
-            step,
-            y,
-            old_value,
-            new_cost,
-        )

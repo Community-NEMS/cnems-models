@@ -177,9 +177,6 @@ class NGModel(ConcreteModel, IntegratedModel):
         """
         ConcreteModel.__init__(self, *args, **kwargs)
 
-        # Region subsetting. `region_list` is the single
-        # source of truth from here down.
-
         if common_config.mode not in {RunMode.STANDALONE}:
             raise NotImplementedError('Only standalone mode is implemented.')
 

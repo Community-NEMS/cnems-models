@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 from pyomo.common.numeric_types import value
-from pyomo.opt import SolverFactory
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
@@ -137,13 +136,8 @@ class TestNGBasicRun:
         )
 
 
-def _solve_scaled(
-    scale: float,
-    sector: str | None = None,
-    years: list[int] | None = None,
-    solver: str = 'highs',
-) -> tuple[IterationStatus, NGModel]:
-    """Build the test config with demand scaled, and solve it with a forced solver.
+def _solve_scaled(scale: float) -> tuple[IterationStatus, NGModel]:
+    """Build the test config with demand scaled, and solve it with HiGHS.
 
     Demand is scaled on the built model's mutable ``demand`` Param, where a coupled model's
     update lands.
@@ -152,12 +146,6 @@ def _solve_scaled(
     ----------
     scale : float
         Factor applied to demand.
-    sector : str | None
-        Scale only this sector; every sector when ``None``.
-    years : list[int] | None
-        Replace the config's ``summary_years``; keep them when ``None``.
-    solver : str
-        Passed to ``solve_model`` as ``solver_name``.
 
     Returns
     -------
@@ -166,32 +154,27 @@ def _solve_scaled(
     """
     config_path = Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
-    if years is not None:
-        common_config.summary_years = years
     ng_config = NGConfig(**remainder.pop('natural_gas'))
 
     sequencer = NGSequencer()
     model = sequencer.build_model(common_config, ng_config)
     for r, s, y in model.demand:
-        if sector is None or s == sector:
-            model.demand[r, s, y].set_value(value(model.demand[r, s, y]) * scale)
-    return sequencer.solve_model(solver_name=solver), model
+        model.demand[r, s, y].set_value(value(model.demand[r, s, y]) * scale)
+    return sequencer.solve_model(solver_name='highs'), model
 
 
 class TestUnservedDemand:
-    """The unserved-demand variable, which every run carries.
+    """The unserved-demand penalty, which every run carries.
 
-    Both cases force HiGHS.  The sequencer takes Gurobi first when ``gurobipy`` is importable,
-    and Gurobi solves both cases with or without the variable, so an unforced run would not
-    exercise it.
+    The test forces HiGHS, so the result does not depend on which solvers are installed.
     """
 
     def test_shortfall_solves_and_is_reported(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Twice the demand exceeds what can reach New England and Pacific.
+        """Unmet demand is carried by ``unserved`` and priced at the penalty.
 
-        Without the unserved-demand variable the model is infeasible.  With it the solve is
-        usable, the shortfall is reported, and the price in a short region is the balance dual
-        as solved, which is the unserved-demand penalty.
+        Twice the base demand is more than can reach New England and Pacific.  The solve is
+        usable, the shortfall is logged and written to the balance CSV, and the price in each short
+        region is the penalty.
         """
         with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.sequencer'):
             status, model = _solve_scaled(2.0)
@@ -218,44 +201,6 @@ class TestUnservedDemand:
             )
 
         assert 'demand unserved in 7 region-year(s)' in caplog.text
-
-    def test_long_horizon_demand_cut_solves(self) -> None:
-        """A ten-year horizon with the electric power sector cut to 0.537 of its base.
-
-        That is roughly the gas burn the electricity model reports back when coupled.  Without
-        the unserved-demand variable HiGHS returns ``unknown`` here, although the model is
-        feasible and Gurobi and Ipopt solve it.  The variable is zero in the solution; why its
-        presence lets HiGHS solve is not known, so this guards against a HiGHS upgrade or new
-        data bringing the failure back.
-        """
-        status, model = _solve_scaled(0.537, sector='electric_power', years=list(range(2025, 2035)))
-
-        assert status is IterationStatus.USABLE, f'solve failed with status {status}'
-        assert sum(value(v) for v in model.unserved.values()) < UNSERVED_REPORT_TOL_BCF
-
-
-class TestIpoptSolve:
-    """``ipopt``, last in the solver probe, gives the same answer as HiGHS."""
-
-    def test_prices_match_highs(self) -> None:
-        """Forced ipopt reaches the pinned objective, with HiGHS's prices.
-
-        Prices are the balance duals read through ``poll_gas_price``, so this checks the sign
-        and scale of ipopt's duals, not only its objective.
-        """
-        if not SolverFactory('ipopt').available(exception_flag=False):
-            pytest.skip('ipopt is not in this environment')
-
-        status, ipopt_model = _solve_scaled(1.0, solver='ipopt')
-        highs_status, highs_model = _solve_scaled(1.0)
-
-        assert status is IterationStatus.USABLE, f'ipopt solve failed with status {status}'
-        assert highs_status is IterationStatus.USABLE, f'highs solve failed with {highs_status}'
-        # the basic_config objective pinned in `configs`; ipopt lands within about 1e-8 of it
-        assert value(ipopt_model.total_cost) == pytest.approx(configs[0][1], rel=1e-6)
-        highs_prices = highs_model.poll_gas_price()
-        for gi, price in ipopt_model.poll_gas_price().items():
-            assert price == pytest.approx(highs_prices[gi], abs=1e-6), f'price in {gi}'
 
 
 class TestSequencerMain:

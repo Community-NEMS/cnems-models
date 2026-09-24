@@ -51,9 +51,11 @@ which Pyomo interface can carry it:
 | `SolverFactory('highs')`, the `pyomo.contrib.solver` interface | yes, builds a Hessian | **yes** |
 | `SolverFactory('appsi_highs')`, superseded by the above | **no**, `generate_standard_repn(quadratic=False)`, raises `DegreeError` | no |
 | Gurobi interfaces | yes | optional, faster |
+| `SolverFactory('ipopt')`, not a project dependency | yes, a nonlinear solver | optional, last in the probe |
 
-`solve()` tries `appsi_gurobi, gurobi_direct, gurobi, highs` in that order, so a
-Gurobi-free environment lands on `highs`; `appsi_highs` is not probed at all. **Verified with
+`solve()` tries `appsi_gurobi, gurobi_direct, gurobi, highs, ipopt` in that order, so a
+Gurobi-free environment lands on `highs`, and `ipopt` is reached only when HiGHS is missing or
+when forced with `solver_name='ipopt'`; `appsi_highs` is not probed at all. **Verified with
 pyomo 6.10.1 + highspy 1.15.1 and no Gurobi present:**
 
 ```
@@ -75,8 +77,8 @@ interface that accepts a quadratic objective.
 | Years | 6 representative years in 5-year increments, 2025-2050 (configurable) |
 | Sectors | residential, commercial, industrial, electric power, transportation |
 | Within-year time | none an annual-rate market for now, will move to seasons later |
-| Size | 1,476 variables, 1,530 constraints at full resolution |
-| Solver | any convex-QP solver Pyomo reaches; Gurobi preferred, HiGHS works |
+| Size | 1,530 variables, 1,530 constraints at full resolution |
+| Solver | any convex-QP solver Pyomo reaches; Gurobi preferred; HiGHS solves the shipped configuration but is less robust on long horizons (see `NGSequencer.solve_model`) |
 
 ---
 

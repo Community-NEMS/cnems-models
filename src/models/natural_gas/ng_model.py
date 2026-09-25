@@ -39,17 +39,6 @@ After solving, shadow prices on the regional demand-balance constraints
 (self.demand_balance) serve as regional citygate gas prices, the GS integrator
 extracts them via poll_gas_price().
 
-This module only builds the model. Solving is done by
-``sequencer.py::NGSequencer``, and result extraction / reporting by
-``postprocessor.py``.
-
-Usage (standalone):
-    python -m src.models.natural_gas.sequencer
-
-That entry point reads ``run_configs/basic_ng_config.toml``; the years, the region
-subset, and the output location are set there rather than on a command line. The
-solver is probed for convex-QP capability at solve time, or forced with
-``NGSequencer.solve_model(solver_name=...)``.
 
 References
 ----------
@@ -86,7 +75,6 @@ from pyomo.environ import (
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
-from src.common.models_modes import RunMode
 from src.common.validators import region_check
 from src.models.natural_gas.data import (
     NGData,
@@ -115,14 +103,6 @@ GI = namedtuple('GI', ['region', 'year'])
 # BCF x $/MMBtu lands in dollars, and poll_gas_price() divides it back out of the
 # demand-balance duals so prices come back as $/MMBtu.
 #
-# It was previously 1e3, a scaling constant rather than a conversion, which left
-# total_cost about 1036x smaller than dollars while prices were unaffected. The
-# objective scales exactly linearly with this factor -- every term carries it --
-# so changing it moved no quantity, flow, or price: production and prices matched
-# to solver tolerance across the change, and variable and constraint counts were
-# identical. Only the reported objective moved.
-#
-# Input provenance lives in input/natural_gas/ng_data_pedigree.md.
 ###############################################################################
 
 
@@ -142,23 +122,24 @@ class NGModel(ConcreteModel, IntegratedModel):
       - Demand satisfaction in every region and year (with optional LNG backstop, and
         unserved demand at a penalty when a region cannot be supplied)
 
-    Shadow prices on the demand-balance constraints are the regional gas prices
-    returned to coupled models (electricity, hydrogen).
 
     Parameters
     ----------
-    years : list[int]
-        Planning years to include in the optimisation.
-    mode : str
-        'standard', standalone with built-in demand projections.
-        'integrated', mutable demand/price params updated by the integrator.
-    demand_override : dict[(region, sector, year), float] | None
-        If provided, replaces internal demand projections.
+    model_data : NGData
+        Loaded input data (regions, years, demand, supply/tariff/LNG curve shapes,
+        losses, scalars); see ``data.py``.
+    common_config : CommonConfig
+        Shared run configuration. Only ``RunMode.STANDALONE`` is currently supported.
+    ng_config : NGConfig
+        Gas-model configuration (e.g. ``region_filter``).
+    demand_override : dict[tuple[str, str, int], float] | None
+        ``(region, sector, year) -> BCF/yr`` entries that replace the matching
+        projected demands; unlisted keys keep their projected values.
     elec_demand_override : dict[GI, float] | None
-        Regional annual electric-power gas demand from the electricity model.
+        ``GI(region, year) -> BCF/yr`` electric-power gas demand from the electricity
+        model; replaces the ``'electric_power'`` sector demand for that region/year.
     """
 
-    # Added `regions` (default None = all nine, so every
     def __init__(
         self,
         model_data: NGData,
@@ -177,14 +158,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         """
         ConcreteModel.__init__(self, *args, **kwargs)
 
-        if common_config.mode not in {RunMode.STANDALONE}:
-            raise NotImplementedError('Only standalone mode is implemented.')
-
         # ── SUPPORTING DATA ───────────────────────────────────────────────────
 
         analysis_regions = model_data['regions_analyze']
         self.region_labels = model_data['region_labels']
-        LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = model_data['lng_export']
+        regional_export_demands: dict[str, dict[int, float]] = model_data['lng_export']
         self.demand_price_elasticity: dict[str, float] = model_data['demand_elasticity']
         # ── Pipeline Network ─────────────────────────────────────────────────────────
         pipeline_arcs_raw = model_data['pipeline_arcs']
@@ -225,7 +203,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # $/MMBtu penalty on unserved demand (see the backstop block below). Set ~100x any
         # plausible gas price so the backstop is never economic and only relieves a genuine
         # shortfall: demand above what a region can deliver, or a subset whose supplying
-        # neighbours were dropped.
+        # neighbors were dropped.
         unserved_penalty = 1000.0
 
         self.supply_break_ids = [1, 2, 3, 4, 5, 6]
@@ -271,11 +249,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         arc_cap = {(o, d): cap for o, d, cap, _ in _arcs_raw}
         arc_tariff = {(o, d): tar for o, d, _, tar in _arcs_raw}
 
-        # LNG export regions: only those listed in LNG_EXPORT_DEMAND_BCF carry an
+        # LNG export regions: only those listed in regional_export_demands carry an
         # endogenous LNG demand curve (NGMM Fig 3.6).  All other regions still
         # have lng_export[r, y] but it is bounded at zero.
         # Intersect with the active regions.
-        lng_regions_list = [r for r in LNG_EXPORT_DEMAND_BCF if r in _active]
+        exporting_regions = [r for r in regional_export_demands if r in _active]
 
         # -
 
@@ -308,7 +286,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.tariff_breaks = Set(
             initialize=list(range(1, len(tariff_curve_shape['util_break']) + 1)), ordered=True
         )
-        self.lng_regions = Set(initialize=lng_regions_list)
+        self.exporting_region = Set(initialize=exporting_regions, within=self.region)
         self.lng_segs = Set(initialize=lng_segments, ordered=True)
         self.lng_breaks = Set(
             initialize=list(range(1, len(lng_demand_curve_shape['q_frac']) + 1)), ordered=True
@@ -463,23 +441,23 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export demand curve (NGMM Fig 3.6).  Per LNG export region and year,
         # PLNG / QLNG breakpoints span a linear demand curve from world price up
         # to max_factor × world price at zero export volume.  The QLNG anchor is
-        # the legacy LNG_EXPORT_DEMAND_BCF capacity for that (region, year).
+        # the legacy regional_export_demands capacity for that (region, year).
         lng_q_frac = lng_demand_curve_shape['q_frac']
         lng_p_factor = lng_demand_curve_shape['p_factor']
         lng_world_p = lng_demand_curve_shape['world_price']
 
         def _qlng_init(m, r, k, y):
-            cap = interp_lng_export(LNG_EXPORT_DEMAND_BCF, r, y)
+            cap = interp_lng_export(regional_export_demands, r, y)
             return cap * lng_q_frac[k - 1]
 
         def _plng_init(m, r, k, y):
             return lng_world_p * lng_p_factor[k - 1]
 
         self.q_lng = Param(
-            self.lng_regions, self.lng_breaks, self.year, initialize=_qlng_init, mutable=True
+            self.exporting_region, self.lng_breaks, self.year, initialize=_qlng_init, mutable=True
         )
         self.p_lng = Param(
-            self.lng_regions, self.lng_breaks, self.year, initialize=_plng_init, mutable=True
+            self.exporting_region, self.lng_breaks, self.year, initialize=_plng_init, mutable=True
         )
 
         # Storage
@@ -597,7 +575,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export per-step volume (NGMM Eq 14): price-responsive variable on
         # the LNG demand curve.  Indexed by LNG region × segment × year.
         self.lng_export_step = Var(
-            self.lng_regions,
+            self.exporting_region,
             self.lng_segs,
             self.year,
             within=NonNegativeReals,
@@ -605,7 +583,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Total LNG export per (region, year), derived from segments.
         def _lng_export_total_rule(m, r, y):
-            if r in m.lng_regions:
+            if r in m.exporting_region:
                 return quicksum(m.lng_export_step[r, k, y] for k in m.lng_segs)
             return 0.0
 
@@ -658,6 +636,8 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # (NGMM Eq 18) Supply-curve segment range: 0 ≤ SSTEP_k ≤ QBASE_{k+1} − QBASE_k
         def supply_step_cap_rule(m, r, t, y):
+            # TODO:  This could be "tidied up" by making steps universally either "step<x>"
+            #        or just an integer as we are constructing it two ways now...
             k = int(t.replace('step', ''))  # segment index 1..5
             seg_width = m.q_base[r, k + 1, y] - m.q_base[r, k, y]
             return m.sstep[r, t, y] <= seg_width
@@ -734,7 +714,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             return m.lng_export_step[r, k, y] <= m.q_lng[r, k + 1, y] - m.q_lng[r, k, y]
 
         self.lng_step_cap_con = Constraint(
-            self.lng_regions,
+            self.exporting_region,
             self.lng_segs,
             self.year,
             rule=lng_step_cap_rule,
@@ -820,6 +800,10 @@ class NGModel(ConcreteModel, IntegratedModel):
             inj = m.stor_inject[r, y]
 
             sector_demand = quicksum(m.demand[r, s, y] for s in m.sectors)
+            # TODO:  We need to either remove this hard-coding and make a subset of sectors
+            #        that are subject to losses (more generic) in the data files or make an
+            #        enumeration of sectors and brutally enforce it rather than read
+            #        them from data and expect a match
             res_comm = m.demand[r, 'residential', y] + m.demand[r, 'commercial', y]
             dist_loss_term = m.distribution_loss[r] * res_comm
             plant_fuel = m.plant_fuel_frac[r] * sector_demand
@@ -938,10 +922,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         #    SUBTRACT from total_cost.
         # Skip zero-width LNG segments
         # for (region, year) pairs with no LNG capacity (e.g. pacific 2025,
-        # whose LNG_EXPORT_DEMAND_BCF entry is 0).  Without the guard, all
+        # whose regional_export_demands entry is 0).  Without the guard, all
         # QLNG[k] = 0 → /0 in slope computation.
         lng_consumer_surplus = 0
-        for r in self.lng_regions:
+        for r in self.exporting_region:
             for y in self.year:
                 for k_seg in self.lng_segs:
                     ql_k_v = value(self.q_lng[r, k_seg, y])
@@ -1112,6 +1096,10 @@ class NGModel(ConcreteModel, IntegratedModel):
             if gi.region not in valid_regions:
                 logger.debug('C-NGMM.update_demand: unknown region %s, skipped', gi.region)
                 continue
+            if sector not in self.sectors:
+                logger.warning('C-NGMM.update_demand: unknown sector %s', sector)
+            if gi.year not in self.year:
+                logger.warning('C-NGMM.update_demand: received non-analysis year %s', gi.year)
             if alpha < 1.0:
                 current = value(self.demand[gi.region, sector, gi.year])
                 qty = alpha * qty + (1.0 - alpha) * current
@@ -1130,6 +1118,8 @@ class NGModel(ConcreteModel, IntegratedModel):
             if gi.region not in valid_regions:
                 logger.debug('C-NGMM.update_canada_supply: unknown region %s, skipped', gi.region)
                 continue
+            if gi.year not in self.year:
+                logger.warning('C-NGMM.update_demand: received non-analysis year %s', gi.year)
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
     def _supply_qbase_at(self, q0: float, k: int) -> float:
@@ -1350,11 +1340,3 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.results_prices = _extract_prices(self)
         self.results_storage = _extract_storage(self)
         self.results_balance = _extract_balance(self)
-
-
-###############################################################################
-# Solve & Report
-###############################################################################
-
-# dev note:  the solve procedure is now resident in the NGSequencer, and result
-# extraction / reporting now lives in postprocessor.py

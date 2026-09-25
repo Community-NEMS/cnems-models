@@ -516,18 +516,22 @@ Aggregation touches the model data in two ways.
 
 **Input averaging.** `ParamData.aggregate_time` uses `year_map` to average any year-indexed table
 over the calendar years mapped to each representative year (`avg_by_group` in
-`param_utilities.py`). It is applied to:
+`param_utilities.py`). So that every year in a block is available, `ParamData` reads the parameter
+CSVs with a year filter of all the years in `year_map`: `aggregate_start_year` through the last
+summary year when aggregating, and `summary_years` alone otherwise. Averaging is applied to:
 
-- `elec_load` — the load is built for every calendar year, so the load for a representative year
-  is the mean load over its block of calendar years.
+- `elec_load` — the load for a representative year is the mean load over its block of calendar
+  years.
 - The year-indexed time-based tables: `supply_curve`, `supply_price`, `cap_cost`, `tran_cost`,
   `tran_cost_int`, `tran_limit`, `tran_limit_cap_int`, and `tran_limit_gen_int`.
 
-The parameter CSVs, however, are read with a year filter of `summary_years`, so the time-based tables
-reach the averaging step holding only the representative years. For them the "average" is just
-the representative year's own value; only the load is averaged in practice. `cap_factor_vre` and
-`hydro_cap_factor` have no year index and are not aggregated. Neither are the parameters loaded
-as plain dictionaries, such as `fom_cost` and `cap_cost_initial`.
+If a table lacks any year (or, for the hourly aggregation in the same step, any hour) that the map
+expects, `avg_by_group` logs a warning naming the table and the missing values. The run
+continues, and the affected averages are formed from the years present only. An empty table is
+not reported.
+
+`cap_factor_vre` and `hydro_cap_factor` have no year index and are not aggregated. Neither are the
+parameters loaded as plain dictionaries, such as `fom_cost` and `cap_cost_initial`.
 
 **Cost weighting.** $WY_y$ multiplies the recurring, per-year costs in the objective so that each
 representative year is charged for every calendar year it stands in for:

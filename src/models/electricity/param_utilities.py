@@ -10,25 +10,35 @@ construction.  Largely drawn from elements of the old "preprocessor.py" file
 
 """
 
+from logging import getLogger
+
 import pandas as pd
 from pandas import DataFrame
 
+logger = getLogger(__name__)
 
-def avg_by_group(df, set_name, map_frame):
+
+def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) -> DataFrame:
     """Takes in a dataframe and groups it by the set specified and then averages the data.
+
+    Logs a warning if ``df`` lacks any ``set_name`` values that ``map_frame`` maps (a "gap");
+    the affected averages are then formed from the values present only.  An empty ``df`` is not
+    checked.
 
     Parameters
     ----------
-    df : dataframe
+    df : DataFrame
         parameter data to be modified
     set_name : str
         name of the column/set to average the data by
-    map_frame : dataframe
+    map_frame : DataFrame
         data that maps the set name to the new grouping for that set
+    name : str
+        name of the source data, used to identify it in the gap warning
 
     Returns
     -------
-    dataframe
+    DataFrame
         parameter data that is averaged by specified set mapping
     """
     # location of y column and list of cols needed for the groupby
@@ -37,6 +47,17 @@ def avg_by_group(df, set_name, map_frame):
     # check that the "map_frame" is compatible
     if map_name not in map_frame.columns:
         raise ValueError(f'The mapping dataframe does not contain the column: {map_name}')
+
+    # warn on values the map expects but the source data does not carry
+    missing = set(map_frame[set_name]) - set(df[set_name])
+    if missing and not df.empty:
+        logger.warning(
+            '%s is missing %s value(s) %s expected by the aggregation map; aggregate averages '
+            'are not informed by them',
+            name,
+            set_name,
+            sorted(missing),
+        )
 
     groupby_cols = list(df.columns[:-1]) + [map_name]
     groupby_cols.remove(set_name)
@@ -50,6 +71,7 @@ def avg_by_group(df, set_name, map_frame):
 
     # move back to original position
     y_col = df.pop(set_name)
+    # pyrefly: ignore[bad-argument-type]  - get_loc returns an int for a unique column name
     df.insert(pos, set_name, y_col)
 
     # sort by every index column (i.e. all but the trailing value column)

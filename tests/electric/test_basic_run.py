@@ -122,6 +122,12 @@ _GATED_BY_SWITCH = {
 # configs are unchanged -- they already carried the term -- and no variable or constraint count
 # moves, since `fixed_om_cost` is an Expression over `capacity_total`, which every config already
 # constructed.
+# Note: the agg_years expected total cost was re-captured (14203013438.65 -> 14564553802.5, ~+2.5%)
+# when the parameter read's year filter was widened from `summary_years` to every year in
+# `year_map`.  Previously the non-summary years were filtered out before aggregation, so the
+# year-indexed tables were "averaged" over their representative year alone; they are now averaged
+# over every year each summary year represents.  Only input data changed -- not the formulation --
+# and the variable and constraint counts are unchanged.  The other configs do not aggregate years.
 configs = [
     ('basic', 3669432143.12, 17430, 19182),
     ('exchange', 2586014294.54, 20886, 22830),
@@ -136,7 +142,7 @@ configs = [
         51588,
         56748,
     ),
-    ('agg_years', 14203013438.65, 17430, 19182),  # <-- no good starting value
+    ('agg_years', 14564553802.5, 17430, 19182),  # <-- no good starting value
     # Nonlinear learning is paired with the reserve margin deliberately.  Without it the optimum
     # builds nothing, the learning term multiplies zero, and the case would pin solver tolerance
     # noise rather than model behavior.  Counts match the reserve/expansion case above because

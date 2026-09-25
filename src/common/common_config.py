@@ -42,6 +42,10 @@ class CommonConfig(BaseModel):
         """Require ``aggregate_start_year`` whenever ``aggregate_years`` is set."""
         if self.aggregate_years and self.aggregate_start_year is None:
             raise ValueError('aggregate_start_year must be set when aggregate_years is True')
+        if self.aggregate_start_year and self.aggregate_start_year > min(self.summary_years):
+            raise ValueError(
+                'Aggregate start year must precede or be equal to the first summary_year'
+            )
         return self
 
     @model_validator(mode='after')

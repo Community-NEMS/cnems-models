@@ -477,9 +477,14 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
         assert not PARAM_SOURCES[key].required
         assert hasattr(elec_model, key), f'{key} missing with learning enabled'
 
-    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table
+    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table.  The
+    # iteration log comes from the sequencer and the cap_cost updates from learning.py, so both
+    # loggers are raised.
     capture_level = logging.DEBUG if verbose else logging.INFO
-    with caplog.at_level(capture_level, logger='src.models.electricity.sequencer'):
+    with (
+        caplog.at_level(capture_level, logger='src.models.electricity.sequencer'),
+        caplog.at_level(capture_level, logger='src.models.electricity.learning'),
+    ):
         status = sequencer.solve_model()
     assert status is IterationStatus.BEST, f'solve failed with status {status}'
 
@@ -513,7 +518,42 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     assert final_eps < _LEARNING_TOLERANCE, (
         f'learning did not converge: final eps {final_eps} >= tolerance {_LEARNING_TOLERANCE}'
     )
+    # The load forces the same builds whatever the cost, so the second solve repeats the first and
+    # the loop stops there.  A change to the stopping rule that moved this count would show here.
+    assert len(tolerance_records) == 2
 
     # the load design must force expansion builds (step 3), otherwise learning has nothing to do
     total_builds = sum(value(elec_model.capacity_builds[idx]) for idx in elec_model.capacity_builds)
     assert total_builds > 0, 'expected capacity builds; dataset failed to force expansion'
+
+
+def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
+    """Pin what linear learning does on the micro dataset, where the curve changes the answer.
+
+    The load forces builds in every year from 2030 to 2035, so every year after the first is priced
+    from real prior experience.  Each final ``cap_cost`` is checked against the curve written out
+    from the solved builds, and the expansion cost is pinned tightly enough that a change to the
+    drift term or to the exponent moves it.
+    """
+    common_config, elec_config = learning_config_set
+    sequencer = ElectricitySequencer()
+    model = sequencer.build_model(common_config, elec_config)
+    assert sequencer.solve_model() is IterationStatus.BEST
+
+    y0 = value(model.y0_learning)
+    for r, tech, step, y in model.cap_cost:
+        prior = sum(
+            value(model.capacity_builds[idx])
+            for idx in model.capacity_builds
+            if idx[1] == tech and idx[3] < y
+        )
+        baseline = value(model.supply_curve_learning[tech])
+        exponent = value(model.learning_rate[tech])
+        multiplier = ((baseline + 0.0001 * (y - y0) + prior) / baseline) ** (-exponent)
+        expected = value(model.cap_cost_initial[r, tech, step]) * multiplier
+        assert value(model.cap_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
+
+    # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
+    # cannot see a change of the size the drift term makes.  It is pinned on its own, tighter.
+    assert value(model.capacity_expansion_cost) == pytest.approx(2525036.478238987, rel=1e-9)
+    assert value(model.total_cost) == pytest.approx(9512542826.514479)

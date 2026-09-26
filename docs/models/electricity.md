@@ -470,3 +470,87 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
+
+## Model Features
+
+### Year Aggregation
+
+The model solves only the years listed in `summary_years`. Year aggregation lets each of those
+solved years stand in for a *block* of calendar years, so that a run with a handful of solved years
+still accounts for costs over the full horizon. It is controlled by three fields in the `[common]`
+section of the run configuration (`CommonConfig`):
+
+| Field                  | Type          | Role                                                                                    |
+|:-----------------------|:--------------|:----------------------------------------------------------------------------------------|
+| `summary_years`        | `list[int]`   | The representative (solved) years. These are the only members of the model's year set. |
+| `aggregate_years`      | `bool`        | Turns aggregation on. When `false`, each summary year represents only itself.          |
+| `aggregate_start_year` | `int`, optional | The first calendar year covered by aggregation.                                         |
+
+`CommonConfig` requires `aggregate_start_year` whenever `aggregate_years = true`, and rejects an
+`aggregate_start_year` later than the earliest summary year.
+
+#### Year mapping and weights
+
+`ModelSets` builds two dictionaries from these settings:
+
+- `year_map` maps every calendar year from `aggregate_start_year` through the last summary year onto
+  a representative year: each year maps to the **first summary year at or after it**, so a summary
+  year represents itself and the years since the previous summary year.
+- `year_agg_weights` counts the calendar years mapped onto each representative year. It becomes the
+  `weight_year` parameter ($WY_y$).
+
+For example, with `aggregate_start_year = 2023` and `summary_years = [2025, 2030, 2035]`:
+
+| Representative year | Calendar years aggregated | Weight ($WY_y$) |
+|:--------------------|:--------------------------|:---------------:|
+| 2025                | 2023 – 2025               |        3        |
+| 2030                | 2026 – 2030               |        5        |
+| 2035                | 2031 – 2035               |        5        |
+
+Years before `aggregate_start_year` and after the last summary year are not represented at all.
+With `aggregate_years = false`, `year_map` is the identity on `summary_years` and every weight is 1.
+
+#### What is aggregated
+
+Aggregation touches the model data in two ways.
+
+**Input averaging.** `ParamData.aggregate_time` uses `year_map` to average any year-indexed table
+over the calendar years mapped to each representative year (`avg_by_group` in
+`param_utilities.py`). So that every year in a block is available, `ParamData` reads the parameter
+CSVs with a year filter of all the years in `year_map`: `aggregate_start_year` through the last
+summary year when aggregating, and `summary_years` alone otherwise. Averaging is applied to:
+
+- `elec_load` — the load for a representative year is the mean load over its block of calendar
+  years.
+- The year-indexed time-based tables: `supply_curve`, `supply_price`, `cap_cost`, `tran_cost`,
+  `tran_cost_int`, `tran_limit`, `tran_limit_cap_int`, and `tran_limit_gen_int`.
+
+If a table lacks any year (or, for the hourly aggregation in the same step, any hour) that the map
+expects, `avg_by_group` logs a warning naming the table and the missing values. The run
+continues, and the affected averages are formed from the years present only. An empty table is
+not reported.
+
+`cap_factor_vre` and `hydro_cap_factor` have no year index and are not aggregated. Neither are the
+parameters loaded as plain dictionaries, such as `fom_cost` and `cap_cost_initial`.
+
+**Cost weighting.** $WY_y$ multiplies the recurring, per-year costs in the objective so that each
+representative year is charged for every calendar year it stands in for:
+
+- dispatch cost ($C_{disp}$, eq. 2)
+- unmet load cost ($C_{unload}$, eq. 3)
+- fixed O&M cost ($C_{fom}$, eq. 5)
+- trade cost ($C_{tra}$, eq. 6)
+- ramping cost ($C_{ramp}$, eq. 7)
+- operating reserve cost ($C_{op}$, eq. 8)
+
+The capacity expansion cost ($C_{exp}$, eq. 4a/4b) is **not** weighted: a build is a one-time
+cost, incurred once whichever year it is placed in. The constraints do not use $WY_y$; each
+representative year is operated as a single typical year.
+
+Outside the objective, the linear-learning loop in `sequencer.py` passes `weight_year` to
+`calculate_tolerance`, which weights each year's change in capacity growth by $WY_y$ when testing
+for convergence.
+
+!!! note
+    `y0_learning` ($YR0$) is initialized from `aggregate_start_year` even when aggregation is off.
+    The coupling is flagged in `electricity_model.py` for separation.

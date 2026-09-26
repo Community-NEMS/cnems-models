@@ -118,9 +118,10 @@ class ParamData:
         self.common_config = common_config
         self.model_sets = model_sets
 
-        # load all of the param data using a filter
+        # load all of the param data using a filter.  The year filter takes every year in the
+        # year map so that aggregation (if on) averages over all the years each summary year covers
         param_filter = FilterPackage(
-            region_filter=elec_config.region_filter, year_filter=common_config.summary_years
+            region_filter=elec_config.region_filter, year_filter=list(model_sets.year_map)
         )
         param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
         logger.info('Read in %d parameter elements', len(param_data))
@@ -145,7 +146,7 @@ class ParamData:
 
         # make the Load dataframe
         load_df = self.build_load_dataframe()
-        aggregated_load_df = self.aggregate_time(load_df)
+        aggregated_load_df = self.aggregate_time(load_df, 'elec_load')
         self.param_frames['elec_load'] = self.apply_hourly_weights(
             self.param_frames['weight_hour'], aggregated_load_df
         )
@@ -155,7 +156,7 @@ class ParamData:
         for name, df in all_frames.items():
             param_data.pop(name)  # remove from param_data so we don't try to load it again below
             # aggregate the time in the dataframe
-            df = self.aggregate_time(df)
+            df = self.aggregate_time(df, name)
             # set the index properly
             df = df.set_index(list(df.columns[:-1]))
             # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
@@ -323,14 +324,27 @@ class ParamData:
             .rename(columns={'Map_s': 'season'})
         ).set_index('season')
 
-    def aggregate_time(self, df: DataFrame):
-        """Aggregate a time-based dataframe at yearly and hourly levels."""
+    def aggregate_time(self, df: DataFrame, name: str) -> DataFrame:
+        """Aggregate a time-based dataframe at yearly and hourly levels.
+
+        Parameters
+        ----------
+        df : DataFrame
+            time-based data with ``year`` and/or ``hour`` columns
+        name : str
+            name of the data, passed to ``avg_by_group`` for its gap warning
+
+        Returns
+        -------
+        DataFrame
+            data averaged onto the representative years/hours
+        """
         # average values in years/hours used
 
         if 'year' in df.columns:
-            df = avg_by_group(df, 'year', self.model_sets.year_map_df)
+            df = avg_by_group(df, 'year', self.model_sets.year_map_df, name)
         if 'hour' in df.columns:
-            df = avg_by_group(df, 'hour', self.model_sets.cw_temporal[['hour', 'Map_hour']])
+            df = avg_by_group(df, 'hour', self.model_sets.cw_temporal[['hour', 'Map_hour']], name)
         return df
 
     def apply_hourly_weights(self, hour_weight: DataFrame, target: DataFrame) -> DataFrame:

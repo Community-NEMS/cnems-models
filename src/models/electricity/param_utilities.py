@@ -23,7 +23,11 @@ def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) 
 
     Logs a warning if ``df`` lacks any ``set_name`` values that ``map_frame`` maps (a "gap");
     the affected averages are then formed from the values present only.  An empty ``df`` is not
-    checked.
+    checked.  Rows whose ``set_name`` value is absent from ``map_frame`` are dropped.
+
+    With a trivial 1:1 map (e.g. the year map of a run without year aggregation) and unique index
+    rows, no averaging occurs:  values pass through unchanged, but missing data is still logged,
+    unmapped rows are still dropped, and the output is still sorted by the index columns.
 
     Parameters
     ----------
@@ -63,8 +67,18 @@ def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) 
     groupby_cols.remove(set_name)
 
     # group df by year map data and update y col
-
-    df = pd.merge(df, map_frame, how='left', on=[set_name])
+    # inner join drops unmapped rows here, keeping the map column's dtype (a left join's NaN
+    # would recast it to float)
+    n_rows = len(df)
+    df = pd.merge(df, map_frame, how='inner', on=[set_name])
+    if len(df) < n_rows:
+        logger.debug(
+            '%s: dropped %d of %d rows whose %s is not in the aggregation map',
+            name,
+            n_rows - len(df),
+            n_rows,
+            set_name,
+        )
     df = df.groupby(by=groupby_cols, as_index=False).mean()
     df[set_name] = df[map_name]
     df = df.drop(columns=[map_name]).reset_index(drop=True)

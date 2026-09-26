@@ -14,7 +14,7 @@ constraint.
 | Symbol | Code | Description | Count |
 |---|---|---|---|
 | r | `regions` | census divisions, the market nodes | 9 |
-| ℓ | `exporting_region` | divisions with LNG export capability, a subset of r | 3 |
+| ℓ | `lng_exporting_region` | divisions with LNG export capability, a subset of r | 3 |
 | y | `year` | representative model years | 6 |
 | s | `sectors` | demand sectors | 5 |
 | o, d | `regions` | origin and destination of an arc |  |

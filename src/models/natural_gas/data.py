@@ -217,7 +217,7 @@ def load_supply_anchors(
 def load_lng_import(
     data_dir: Path,
 ) -> dict[str, tuple[float, float]]:
-    """Load LNG_IMPORT from ng_lng_import.csv."""
+    """Load LNG imports from ng_lng_import.csv."""
     df = _csv('ng_lng_import.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -229,14 +229,14 @@ def load_lng_import(
     }
     if not result:
         raise ValueError(f'ng_lng_import.csv in {data_dir} yielded no rows')
-    logger.info('LNG_IMPORT loaded from CSV (%d terminals)', len(result))
+    logger.info('LNG imports loaded from CSV (%d terminals)', len(result))
     return result
 
 
 def load_lng_export(
     data_dir: Path,
 ) -> dict[str, dict[int, float]]:
-    """Load LNG_EXPORT_DEMAND_BCF from ng_lng_export.csv."""
+    """Load LNG export demands [BCF] from ng_lng_export.csv."""
     df = _csv('ng_lng_export.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -249,7 +249,7 @@ def load_lng_export(
     if not result:
         raise ValueError(f'ng_lng_export.csv in {data_dir} yielded no rows')
     logger.info(
-        'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
+        'LNG export demand loaded from CSV (%d region-year pairs)',
         sum(len(v) for v in result.values()),
     )
     return result

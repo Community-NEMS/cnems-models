@@ -129,7 +129,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         Loaded input data (regions, years, demand, supply/tariff/LNG curve shapes,
         losses, scalars); see ``data.py``.
     common_config : CommonConfig
-        Shared run configuration. Only ``RunMode.STANDALONE`` is currently supported.
+        Shared run configuration.
     ng_config : NGConfig
         Gas-model configuration (e.g. ``region_filter``).
     demand_override : dict[tuple[str, str, int], float] | None
@@ -162,7 +162,8 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         analysis_regions = model_data['regions_analyze']
         self.region_labels = model_data['region_labels']
-        regional_export_demands: dict[str, dict[int, float]] = model_data['lng_export']
+        lng_export_demand: dict[str, dict[int, float]] = model_data['lng_export']
+        """Demand in BCF in region[year] format"""
         self.demand_price_elasticity: dict[str, float] = model_data['demand_elasticity']
         # ── Pipeline Network ─────────────────────────────────────────────────────────
         pipeline_arcs_raw = model_data['pipeline_arcs']
@@ -249,11 +250,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         arc_cap = {(o, d): cap for o, d, cap, _ in _arcs_raw}
         arc_tariff = {(o, d): tar for o, d, _, tar in _arcs_raw}
 
-        # LNG export regions: only those listed in regional_export_demands carry an
+        # LNG export regions: only those listed in lng_export_demand carry an
         # endogenous LNG demand curve (NGMM Fig 3.6).  All other regions still
         # have lng_export[r, y] but it is bounded at zero.
         # Intersect with the active regions.
-        exporting_regions = [r for r in regional_export_demands if r in _active]
+        lng_exporting_regions = [r for r in lng_export_demand if r in _active]
 
         # -
 
@@ -286,7 +287,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.tariff_breaks = Set(
             initialize=list(range(1, len(tariff_curve_shape['util_break']) + 1)), ordered=True
         )
-        self.exporting_region = Set(initialize=exporting_regions, within=self.region)
+        self.lng_exporting_region = Set(initialize=lng_exporting_regions, within=self.region)
         self.lng_segs = Set(initialize=lng_segments, ordered=True)
         self.lng_breaks = Set(
             initialize=list(range(1, len(lng_demand_curve_shape['q_frac']) + 1)), ordered=True
@@ -441,23 +442,32 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export demand curve (NGMM Fig 3.6).  Per LNG export region and year,
         # PLNG / QLNG breakpoints span a linear demand curve from world price up
         # to max_factor × world price at zero export volume.  The QLNG anchor is
-        # the legacy regional_export_demands capacity for that (region, year).
+        # the legacy lng_export_demand capacity for that (region, year),
+        # previously labeled as LNG_EXPORT_DEMAND_BCF in reference models.
         lng_q_frac = lng_demand_curve_shape['q_frac']
         lng_p_factor = lng_demand_curve_shape['p_factor']
         lng_world_p = lng_demand_curve_shape['world_price']
 
         def _qlng_init(m, r, k, y):
-            cap = interp_lng_export(regional_export_demands, r, y)
+            cap = interp_lng_export(lng_export_demand, r, y)
             return cap * lng_q_frac[k - 1]
 
         def _plng_init(m, r, k, y):
             return lng_world_p * lng_p_factor[k - 1]
 
         self.q_lng = Param(
-            self.exporting_region, self.lng_breaks, self.year, initialize=_qlng_init, mutable=True
+            self.lng_exporting_region,
+            self.lng_breaks,
+            self.year,
+            initialize=_qlng_init,
+            mutable=True,
         )
         self.p_lng = Param(
-            self.exporting_region, self.lng_breaks, self.year, initialize=_plng_init, mutable=True
+            self.lng_exporting_region,
+            self.lng_breaks,
+            self.year,
+            initialize=_plng_init,
+            mutable=True,
         )
 
         # Storage
@@ -575,7 +585,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export per-step volume (NGMM Eq 14): price-responsive variable on
         # the LNG demand curve.  Indexed by LNG region × segment × year.
         self.lng_export_step = Var(
-            self.exporting_region,
+            self.lng_exporting_region,
             self.lng_segs,
             self.year,
             within=NonNegativeReals,
@@ -583,7 +593,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Total LNG export per (region, year), derived from segments.
         def _lng_export_total_rule(m, r, y):
-            if r in m.exporting_region:
+            if r in m.lng_exporting_region:
                 return quicksum(m.lng_export_step[r, k, y] for k in m.lng_segs)
             return 0.0
 
@@ -714,7 +724,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             return m.lng_export_step[r, k, y] <= m.q_lng[r, k + 1, y] - m.q_lng[r, k, y]
 
         self.lng_step_cap_con = Constraint(
-            self.exporting_region,
+            self.lng_exporting_region,
             self.lng_segs,
             self.year,
             rule=lng_step_cap_rule,
@@ -922,10 +932,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         #    SUBTRACT from total_cost.
         # Skip zero-width LNG segments
         # for (region, year) pairs with no LNG capacity (e.g. pacific 2025,
-        # whose regional_export_demands entry is 0).  Without the guard, all
+        # whose lng_export_demand entry is 0).  Without the guard, all
         # QLNG[k] = 0 → /0 in slope computation.
         lng_consumer_surplus = 0
-        for r in self.exporting_region:
+        for r in self.lng_exporting_region:
             for y in self.year:
                 for k_seg in self.lng_segs:
                     ql_k_v = value(self.q_lng[r, k_seg, y])
@@ -1119,7 +1129,9 @@ class NGModel(ConcreteModel, IntegratedModel):
                 logger.debug('C-NGMM.update_canada_supply: unknown region %s, skipped', gi.region)
                 continue
             if gi.year not in self.year:
-                logger.warning('C-NGMM.update_demand: received non-analysis year %s', gi.year)
+                logger.warning(
+                    'C-NGMM.update_canada_supply: received non-analysis year %s', gi.year
+                )
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
     def _supply_qbase_at(self, q0: float, k: int) -> float:

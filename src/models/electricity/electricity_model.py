@@ -722,8 +722,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                     Applies when the learning switch is set to the nonlinear option.  The curve
                     itself lives in ``learning.py``.  The linear path reaches the same curve
-                    through ``learning.cost_learning_func``, which still adds a calendar-time
-                    drift term that this one omits.
+                    through ``learning.cost_learning_func``.
 
                     Returns
                     -------

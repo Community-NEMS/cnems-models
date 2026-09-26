@@ -10,8 +10,9 @@ mode's iteration.
 
 The curve, ``learning_multiplier`` and ``learning_cost``, is shared by both learning modes.  The
 nonlinear objective calls ``learning_cost`` symbolically.  The linear mode calls
-``learning_multiplier`` through ``cost_learning_func`` between solves, which still adds a
-calendar-time drift term to the experience that the nonlinear objective does not.
+``learning_multiplier`` through ``cost_learning_func`` between solves.  In both, the experience is
+cumulative builds in earlier years and nothing else, except that the linear mode's first solve is
+priced from the guess ``init_old_cap`` makes before any builds exist.
 
 The two curve functions are type-agnostic: numeric inputs give a number, symbolic inputs give a
 Pyomo expression.  Neither calls ``float()`` or ``value()`` or branches on a quantity, since either
@@ -137,11 +138,11 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     return result
 
 
-def cost_learning_func(instance: PowerModel, tech: Any, y: int, new_cap: float) -> float:
-    """Learning multiplier on capital cost for one technology and year, for the linear mode.
+def cost_learning_func(instance: PowerModel, tech: Any, new_cap: float) -> float:
+    """Learning multiplier on capital cost for one technology, for the linear mode.
 
-    Calls :func:`learning_multiplier` with ``new_cap`` plus a calendar-time drift of 0.0001 GW per
-    year since ``y0_learning`` as the experience.  The nonlinear objective has no drift term.
+    Calls :func:`learning_multiplier` with ``new_cap`` as the experience, the same curve the
+    nonlinear objective uses.  The year enters only through ``new_cap``.
 
     Parameters
     ----------
@@ -149,20 +150,16 @@ def cost_learning_func(instance: PowerModel, tech: Any, y: int, new_cap: float) 
         Electricity model built with learning enabled.
     tech : str or int
         Technology.
-    y : int
-        Year.
     new_cap : float
-        Cumulative builds of ``tech`` before ``y``, in GW.
+        Cumulative builds of ``tech`` in the years before the one being priced, in GW.
 
     Returns
     -------
     float
         Multiplier to apply to ``cap_cost_initial``.
     """
-    # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
-    drift = 0.0001 * (y - instance.y0_learning)
     return learning_multiplier(
-        drift + new_cap,
+        new_cap,
         instance.supply_curve_learning[tech],
         instance.learning_rate[tech],
     )
@@ -173,7 +170,7 @@ def update_expansion_cost(instance, new_cap: dict[tuple, float]):
     new_multiplier = {}
     for key in new_cap:
         tech, y = key
-        new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
+        new_multiplier[tech, y] = cost_learning_func(instance, tech, new_cap[tech, y])
 
     # Assign new cost
     for r, tech, step, y in instance.cap_cost:

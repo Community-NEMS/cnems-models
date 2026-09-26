@@ -70,7 +70,7 @@ yet.
 
 | Parameter                         | Code                     | Domain           | Short Description                                                                            | Units                      |
 |:----------------------------------|:-------------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
-| $YR0$                             | y0_learning              | $\mathbb{I}$     | First year of model                                                                          | unitless                   |
+| $YR0$                             | y0_learning              | $\mathbb{I}$     | Year the linear learning mode's first guess of cumulative builds counts from                 | year                       |
 | $N$                               | num_hr_day               | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
 | $CAP^{exist}_{r,seas,t,s,y}$      | supply_curve             | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
@@ -168,19 +168,13 @@ discounts its own cost. The cumulative term pools that technology's builds acros
 regions and steps, written above as $r'$ and $s'$, so experience is national rather than regional.
 
 The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
-modes use it: the nonlinear objective directly, and the linear iteration through
-`cost_learning_func` in the same file, which also holds the linear mode's other helpers.
+modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
+objective directly, and the linear iteration through `cost_learning_func` in the same file, which
+also holds the linear mode's other helpers. The linear mode's first solve is the exception: no
+builds exist yet, so it is priced from a guess of 1 GW a year per technology since $YR0$.
 
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.
-
-One difference from the linear path is known and **not** addressed here. The linear formula still
-carries a calendar-time drift term $d \times (y - YR0)$ with $d = 0.0001$ GW/year, which the
-nonlinear form above omits. It is an absolute quantity divided by a technology-specific $SCL_t$
-spanning 0.01 to 264 GW, so its effect varies by roughly four orders of magnitude across
-technologies. On the reference dataset it produced the entire measurable output of nonlinear
-learning while endogenous learning contributed nothing, which is why the revived nonlinear form
-leaves it out.
 
 Note $LR_t$ is consumed **directly as the curve exponent**, while the input file names its column
 `rate`. If those values are learning rates meaning fractional reduction per doubling, the exponent

@@ -183,15 +183,16 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
-    # run_elec_model postprocesses into the config's output folder
-    common_config.make_scenario_dir()
 
     # introduce the ElecConfig
     elec_config = ElecConfig(**remainder.pop('elec_config'))
 
     # make adjustments based on the config_info
     if config_info == 'agg_years':
-        common_config.aggregate_years = True
+        # re-validate rather than assign, so the year-aggregation validator runs
+        common_config = CommonConfig.model_validate(
+            common_config.model_dump() | {'aggregate_years': True}
+        )
     elif config_info == 'ramping':
         elec_config.ramping_required = True
     elif config_info == 'reserve_with_expansion_no_learning':
@@ -216,6 +217,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         elec_config.reserve_margin_required = True
         elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
 
+    # run_elec_model postprocesses into the config's output folder
+    common_config.make_scenario_dir()
     elec_model = run_elec_model(common_config, elec_config, solve=True)
     if verbose:
         print('\n~~ Sets ~~')

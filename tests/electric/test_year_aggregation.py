@@ -6,6 +6,8 @@ Contact:  jeff@westernspark.us
 Created on:  6/17/26
 """
 
+import pytest
+
 from src.models.electricity.model_sets import ModelSets
 
 
@@ -29,3 +31,9 @@ def test_year_agg_weights():
     assert weights[2025] == 26
     assert weights[2030] == 5
     assert weights[2040] == 10
+
+
+def test_year_map_rejects_late_start_year():
+    """A start year after the first summary year would leave that year unmapped."""
+    with pytest.raises(ValueError, match='must precede or equal'):
+        ModelSets._create_year_map([2030, 2025], 2026)

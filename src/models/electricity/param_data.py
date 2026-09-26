@@ -332,12 +332,17 @@ class ParamData:
         df : DataFrame
             time-based data with ``year`` and/or ``hour`` columns
         name : str
-            name of the data, passed to ``avg_by_group`` for its gap warning
+            name of the data, passed to ``avg_by_group`` for its gap error
 
         Returns
         -------
         DataFrame
             data averaged onto the representative years/hours
+
+        Raises
+        ------
+        ValueError
+            If ``df`` has a gap within any year or hour block (see ``avg_by_group``).
         """
         # average values in years/hours used
 

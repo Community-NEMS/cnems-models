@@ -27,84 +27,68 @@ def year_map():
 
 
 @pytest.fixture
-def dummy_df():
-    """Small (year, color, value) frame to aggregate over."""
+def complete_df():
+    """(year, color, value) frame where every group carries every year its block maps."""
     df = pd.DataFrame(
         {
-            'year': [2000, 2002, 2001, 2008, 2020, 2025, 2029],
-            'color': ['red', 'red', 'blue', 'blue', 'red', 'green', 'green'],
-            'value': [1, 2, 3, 4, 5, 6, 7],
+            'year': [2000, 2001, 2002, 2008, 2000, 2001, 2002, 2008, 2020, 2025, 2029],
+            'color': ['red'] * 4 + ['blue'] * 4 + ['red', 'green', 'green'],
+            'value': [1, 3, 2, 6, 10, 22, 30, 20, 5, 6, 8],
         }
     )
     return df
 
 
-def test_avg_by_group(dummy_df, year_map, caplog):
-    """Test the aggregation function."""
+def test_avg_by_group(complete_df, year_map, caplog):
+    """Complete data averages over each block, with nothing logged."""
     with caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'):
-        grouped_averaged = avg_by_group(
-            df=dummy_df, set_name='year', map_frame=year_map, name='dummy'
-        )
-    assert not caplog.records, 'no gap warning expected when every mapped year is present'
+        res = avg_by_group(df=complete_df, set_name='year', map_frame=year_map, name='dummy')
 
     expected = pd.DataFrame(
         {
             'year': [2010, 2010, 2020, 2030],
             'color': ['blue', 'red', 'red', 'green'],
-            'value': [3.5, 1.5, 5.0, 6.5],
+            'value': [20.5, 3.0, 5.0, 7.0],
         }
     )
-
-    assert grouped_averaged.equals(expected), 'computed aggregation is not as expected'
+    assert res.equals(expected), 'computed aggregation is not as expected'
+    assert not caplog.records
 
 
 @pytest.mark.parametrize(
-    'dropped_years,expected',
+    'dropped,fragment',
     [
-        # a gap inside an aggregated block:  2010/blue is informed by 2008 only
-        (
-            [2001],
-            {
-                'year': [2010, 2010, 2020, 2030],
-                'color': ['blue', 'red', 'red', 'green'],
-                'value': [4.0, 1.5, 5.0, 6.5],
-            },
-        ),
-        # a gap that empties a group:  2020/red disappears
-        (
-            [2020],
-            {
-                'year': [2010, 2010, 2030],
-                'color': ['blue', 'red', 'green'],
-                'value': [3.5, 1.5, 6.5],
-            },
-        ),
-        (
-            [2000, 2029],
-            {
-                'year': [2010, 2010, 2020, 2030],
-                'color': ['blue', 'red', 'red', 'green'],
-                'value': [3.5, 2.0, 5.0, 6.0],
-            },
-        ),
+        # one group short a year other groups carry:  2010/blue has 3 of its 4 years
+        ([(2001, 'blue')], '1 of 4 aggregate group(s)'),
+        # a year absent from the whole source is named as such
+        ([(2001, 'blue'), (2001, 'red')], '[2001]'),
+        # a gap that empties a group:  2020/red has no rows at all
+        ([(2020, 'red')], '[2020]'),
     ],
+    ids=['group_gap', 'table_gap', 'emptied_group'],
 )
-def test_avg_by_group_gap_warning(dummy_df, year_map, caplog, dropped_years, expected):
-    """Mapped years absent from the source are named in a warning; averaging proceeds."""
-    source = dummy_df[~dummy_df['year'].isin(dropped_years)]
-    with caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'):
-        res = avg_by_group(df=source, set_name='year', map_frame=year_map, name='dummy')
+def test_avg_by_group_gap_raises(complete_df, year_map, caplog, dropped, fragment):
+    """Each gap is logged as a single error naming the source and the gap, then raised."""
+    drop = pd.MultiIndex.from_tuples(dropped)
+    source = complete_df[~complete_df.set_index(['year', 'color']).index.isin(drop)]
+    with (
+        caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'),
+        pytest.raises(ValueError, match='dummy') as exc_info,
+    ):
+        avg_by_group(df=source, set_name='year', map_frame=year_map, name='dummy')
 
-    assert res.equals(pd.DataFrame(expected)), 'averages should use the years present'
+    assert fragment in str(exc_info.value)
     assert len(caplog.records) == 1
     record = caplog.records[0]
-    assert record.levelno == logging.WARNING
-    assert 'dummy' in record.getMessage()
-    assert str(sorted(dropped_years)) in record.getMessage()
+    assert record.levelno == logging.ERROR
+    assert record.getMessage() == str(exc_info.value)
 
 
-def test_avg_by_group_empty_source_no_warning(dummy_df, year_map, caplog):
+def test_avg_by_group_empty_source_passes(complete_df, year_map, caplog):
     """An empty source has no data to aggregate, so it is not reported as a gap."""
     with caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'):
-        avg_by_group(df=dummy_df.iloc[0:0], set_name='year', map_frame=year_map, name='dummy')
+        res = avg_by_group(
+            df=complete_df.iloc[0:0], set_name='year', map_frame=year_map, name='dummy'
+        )
+    assert res.empty
     assert not caplog.records

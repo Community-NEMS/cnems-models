@@ -525,10 +525,26 @@ summary year when aggregating, and `summary_years` alone otherwise. Averaging is
 - The year-indexed time-based tables: `supply_curve`, `supply_price`, `cap_cost`, `tran_cost`,
   `tran_cost_int`, `tran_limit`, `tran_limit_cap_int`, and `tran_limit_gen_int`.
 
-If a table lacks any year (or, for the hourly aggregation in the same step, any hour) that the map
-expects, `avg_by_group` logs a warning naming the table and the missing values. The run
-continues, and the affected averages are formed from the years present only. An empty table is
-not reported.
+**Missing data stops the run.** `avg_by_group` requires complete data within every block it
+averages. It logs an error and raises a `ValueError`, naming the table, in either of two cases:
+
+- the table lacks a year (or, for the hourly aggregation in the same step, an hour) that the map
+  expects, anywhere in the table;
+- some rows of the table (for example one region/technology/step combination) lack a year that
+  other rows carry. The error gives how many such groups there are and lists the first few.
+
+A combination with no rows at all in a block is ordinary sparsity and passes, and an empty table
+is not checked. The check applies with aggregation off as well. There the map is one-to-one, so
+it only catches a summary year missing from a table.
+
+This is deliberately a showstopper rather than a warning. An average over an incomplete block
+cannot tell what the missing years mean. A missing row might be a retired plant (really zero), a
+unit not yet online, or a gap in the source data, and each calls for a different value. Averaging
+over just the years present picks one answer silently. For example, a plant with capacity in 2023
+and 2024 but no 2025 row would show full capacity for the whole 2023–2025 block. That value then
+enters the sparse index sets and the objective with no sign of where it came from. Stopping the run
+makes the data owner decide: fill the missing years explicitly (zeros where appropriate), or
+choose `summary_years` / `aggregate_start_year` so that the blocks match the data.
 
 `cap_factor_vre` and `hydro_cap_factor` have no year index and are not aggregated. Neither are the
 parameters loaded as plain dictionaries, such as `fom_cost` and `cap_cost_initial`.

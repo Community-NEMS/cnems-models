@@ -21,12 +21,15 @@ logger = getLogger(__name__)
 def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) -> DataFrame:
     """Takes in a dataframe and groups it by the set specified and then averages the data.
 
-    Logs a warning if ``df`` lacks any ``set_name`` values that ``map_frame`` maps (a "gap");
-    the affected averages are then formed from the values present only.  An empty ``df`` is not
-    checked.  Rows whose ``set_name`` value is absent from ``map_frame`` are dropped.
+    Gaps are fatal:  an average over an incomplete block silently misrepresents the block, so
+    they are logged as errors and raised.  Two kinds are checked:  ``set_name`` values that
+    ``map_frame`` maps but ``df`` lacks entirely, and aggregate groups (index rows sharing a mapped
+    value) lacking values that other groups carry.  A group absent altogether is sparsity, not a
+    gap, and passes.  An empty ``df`` is not checked.  Rows whose ``set_name`` value is absent
+    from ``map_frame`` are dropped.
 
     With a trivial 1:1 map (e.g. the year map of a run without year aggregation) and unique index
-    rows, no averaging occurs:  values pass through unchanged, but missing data is still logged,
+    rows, no averaging occurs:  values pass through unchanged, but missing data still raises,
     unmapped rows are still dropped, and the output is still sorted by the index columns.
 
     Parameters
@@ -38,12 +41,17 @@ def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) 
     map_frame : DataFrame
         data that maps the set name to the new grouping for that set
     name : str
-        name of the source data, used to identify it in the gap warning
+        name of the source data, used to identify it in the gap error
 
     Returns
     -------
     DataFrame
         parameter data that is averaged by specified set mapping
+
+    Raises
+    ------
+    ValueError
+        If ``map_frame`` lacks the ``Map_<set_name>`` column, or ``df`` has a gap (see above).
     """
     # location of y column and list of cols needed for the groupby
     pos = df.columns.get_loc(set_name)
@@ -52,17 +60,18 @@ def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) 
     if map_name not in map_frame.columns:
         raise ValueError(f'The mapping dataframe does not contain the column: {map_name}')
 
-    # warn on values the map expects but the source data does not carry
-    missing = set(map_frame[set_name]) - set(df[set_name])
+    # fail on values the map expects but the source data does not carry anywhere
+    present = df[set_name].unique()
+    missing = set(map_frame[set_name]) - set(present)
     if missing and not df.empty:
-        logger.warning(
-            '%s is missing %s value(s) %s expected by the aggregation map; aggregate averages '
-            'are not informed by them',
-            name,
-            set_name,
-            sorted(missing),
+        msg = (
+            f'{name} is missing {set_name} value(s) {sorted(missing)} expected by the '
+            'aggregation map; its aggregate averages would not be informed by them'
         )
+        logger.error(msg)
+        raise ValueError(msg)
 
+    value_col = df.columns[-1]
     groupby_cols = list(df.columns[:-1]) + [map_name]
     groupby_cols.remove(set_name)
 
@@ -79,7 +88,25 @@ def avg_by_group(df: DataFrame, set_name: str, map_frame: DataFrame, name: str) 
             n_rows,
             set_name,
         )
-    df = df.groupby(by=groupby_cols, as_index=False).mean()
+    df = df.groupby(by=groupby_cols, as_index=False).agg(
+        **{value_col: (value_col, 'mean'), '_n_present': (set_name, 'nunique')}
+    )
+
+    # fail on groups short of values that exist elsewhere in the source (values missing from the
+    # whole source were caught above, so they are not counted against each group again)
+    expected = map_frame[map_frame[set_name].isin(present)].groupby(map_name)[set_name].nunique()
+    short = df['_n_present'] < df[map_name].map(expected)
+    if short.any():
+        examples = df.loc[short, groupby_cols].head(3).to_dict('records')
+        msg = (
+            f'{name}: {short.sum()} of {len(df)} aggregate group(s) are missing {set_name} '
+            'value(s) present elsewhere in the source; their averages would be informed only by '
+            f'the values present.  First few: {examples}'
+        )
+        logger.error(msg)
+        raise ValueError(msg)
+    df = df.drop(columns=['_n_present'])
+
     df[set_name] = df[map_name]
     df = df.drop(columns=[map_name]).reset_index(drop=True)
 

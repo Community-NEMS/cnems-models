@@ -432,14 +432,39 @@ class ModelSets:
 
     @staticmethod
     def _create_year_map(agg_years: Collection[int], start_year: int) -> dict:
-        """Creates a dictionary of year mappings."""
+        """Map each year from ``start_year`` onward to the summary year that represents it.
+
+        ``CommonConfig`` validates both conditions below; they are re-checked here because a
+        config mutated after construction bypasses that validation.
+
+        Parameters
+        ----------
+        agg_years : Collection[int]
+            the summary years to aggregate onto
+        start_year : int
+            first year to aggregate
+
+        Returns
+        -------
+        dict
+            year -> representative (summary) year
+
+        Raises
+        ------
+        ValueError
+            If ``agg_years`` is empty or ``start_year`` is later than its earliest year (which
+            would leave that summary year unmapped).
+        """
         if not agg_years:
             logger.error('No years provided for aggregation.')
             raise ValueError('No years provided for aggregation.')
         if start_year > min(agg_years):
-            logger.warning(
-                'Start year is greater than the minimum year in the aggregation years. '
-                'This may result in unexpected behavior.'
+            logger.error(
+                'Aggregation start year %d is later than the first summary year.', start_year
+            )
+            raise ValueError(
+                f'Aggregation start year {start_year} must precede or equal the first summary '
+                f'year {min(agg_years)}'
             )
         agg_years = sorted(agg_years)  # ensure years are sorted:  cheap insurance!
         res = {}

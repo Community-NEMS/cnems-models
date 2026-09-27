@@ -105,7 +105,7 @@ yet.
 | $H2PR_{r,seas,t,s,y}$             | h2_price                 | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
 | $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
 | $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
-| $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from.  Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | GW                         |
 
 ### Variables
@@ -177,10 +177,12 @@ the first model year.
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.
 
-Note $LR_t$ is consumed **directly as the curve exponent**, while the input file names its column
-`rate`. If those values are learning rates meaning fractional reduction per doubling, the exponent
-would instead be $-\ln(1-LR_t)/\ln 2$. That ambiguity is unresolved, so no conversion is applied and
-no quantitative result from this mode should be treated as calibrated until it is settled.
+Note $LR_t$ is the **curve exponent**, the `learning_exponent` column of `LearningRate.csv`. Each
+doubling of $SCL_t$ plus prior builds cuts cost by $1 - 2^{-LR_t}$, so a learning rate $LR$ per
+doubling converts as $LR_t = -\ln(1-LR)/\ln 2$. The file holds the exponents for rates of 1, 10
+and 20 percent, rounded to 0.0145, 0.152 and 0.322. Those are the component learning rates in
+NEMS (AEO2026 EMM Assumptions, Table 5, page 11). Which technology gets which rate comes from the
+source data, which predates AEO2026; geothermal, for one, is 8 percent there and 10 percent here.
 
 $$
 \begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}}{ CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} \neq \mathtt{nonlinear} \end{aligned} \tag{4b}

@@ -54,9 +54,10 @@ def learning_multiplier(quantity: Any, baseline_quantity: Any, learning_rate: An
     baseline_quantity : float or pyomo ParamData
         Capacity the curve is measured from, ``Q0``, in GW.  Must be strictly positive.
     learning_rate : float or pyomo ParamData
-        Curve exponent ``b``, consumed directly.  The input file names this column ``rate``; if the
-        values are learning rates meaning fractional reduction per doubling, the exponent would be
-        ``-ln(1 - rate) / ln 2``.  That ambiguity is unresolved, so no conversion is applied.
+        Curve exponent ``b``, the ``learning_exponent`` column of the input file.  Each doubling of
+        ``Q`` cuts cost by ``1 - 2 ** -b``, so a learning rate ``LR`` per doubling converts as
+        ``b = -ln(1 - LR) / ln 2``.  Rates of 1, 10 and 20 percent give 0.0145, 0.152 and 0.322,
+        rounded from 0.0144996, 0.1520031 and 0.3219281.
 
     Returns
     -------

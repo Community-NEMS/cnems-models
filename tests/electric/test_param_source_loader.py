@@ -26,7 +26,7 @@ _EXPECTED_PARAM_SOURCES = {
     'fom_cost': ('FOMCost.csv', ('region', 'tech', 'step'), 'cost'),
     'hours_to_buy': ('HourstoBuy.csv', ('tech',), 'hours'),
     'hydro_cap_factor': ('HydroCapFactor.csv', ('region', 'season'), 'value'),
-    'learning_rate': ('LearningRate.csv', ('tech',), 'rate'),
+    'learning_rate': ('LearningRate.csv', ('tech',), 'learning_exponent'),
     'ramp_down_cost': ('RampDownCost.csv', ('tech',), 'cost'),
     'ramp_rate': ('RampRate.csv', ('tech',), 'rate'),
     'ramp_up_cost': ('RampUpCost.csv', ('tech',), 'cost'),

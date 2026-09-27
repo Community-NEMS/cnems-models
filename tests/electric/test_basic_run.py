@@ -372,8 +372,8 @@ def test_nonlinear_learning_objective_characterization():
 
     This is a **characterization** test, not an acceptance test: it pins current behavior so that
     refactoring the learning multiplier cannot change the formulation silently.  It does not assert
-    that these values are correct -- the meaning of ``learning_rate`` and the provenance of
-    ``supply_curve_learning`` are both unresolved, so the numbers are not yet interpretable.
+    that these values are correct, the provenance of ``supply_curve_learning`` is unresolved, so
+    the numbers are not yet interpretable.
 
     Evaluates the expression at fixed build levels rather than solving, so it needs no nonlinear
     solver and runs wherever the model can be constructed.
@@ -398,8 +398,8 @@ def test_nonlinear_learning_objective_characterization():
 
     at_one = cost_at(1.0)
     at_two_and_a_half = cost_at(2.5)
-    assert at_one == pytest.approx(134701708367.183029)
-    assert at_two_and_a_half == pytest.approx(333548120375.104126)
+    assert at_one == pytest.approx(133777599845.11543)
+    assert at_two_and_a_half == pytest.approx(329888419799.9818)
 
     # Learning makes cost subadditive in cumulative builds: 2.5x the capacity costs less than 2.5x
     # the money.  That is the property the nonlinear mode exists to produce, so it is asserted

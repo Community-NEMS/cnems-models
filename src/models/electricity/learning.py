@@ -109,18 +109,19 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     ----------
     instance : PowerModel
         unsolved electricity model
+
+    Returns
+    -------
+    dict[tuple, float]
+        assumed cumulative builds before each year, in GW, keyed by (tech, year)
     """
     initial_growth = {}
-    # instance.cap_set = []
-    # instance.old_cap_wt = {}
-
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
     for _r, tech, _step, y in instance.cap_cost:
         if (tech, y) not in initial_growth:
             # each tech will increase cap by 1 GW per year. reasonable starting point.
-            # TODO:  come back to this assumption after better understanding of process
+            # the assumption only prices the first solve; later solves are priced from solved builds
             initial_growth[tech, y] = (y - instance.y0_learning) * 1
-            # instance.old_cap_wt[(tech, y)] = instance.weight_year[y] * instance.old_cap[(tech, y)]
     return initial_growth
 
 

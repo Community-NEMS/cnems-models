@@ -11,6 +11,7 @@ so that unintended changes to the formulation or the input data show up as a fai
 
 """
 
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -31,21 +32,23 @@ from src.common.update_package import (
 )
 from src.models.natural_gas.data import load_base_demand
 from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from src.models.natural_gas.ng_model import NGModel
+from src.models.natural_gas.postprocessor import _extract_balance
+from src.models.natural_gas.sequencer import UNSERVED_REPORT_TOL_BCF, NGSequencer
 
 verbose = True
 
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type          Total Cost ($)   Variables   Constraints
 # ----------------  ---------------  ----------  -----------
-# basic_config      -480902641083.88       1476         1530
+# basic_config      -480902641083.88       1530         1530
 # partial_regions   -319146064790.54        342          342
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
 #     runs the model at full resolution (9 census divisions x the 6 years in summary_years),
 #     which is the same case src/models/natural_gas/README.md reports a reference solve for:
-#     1476 vars / 1530 constraints.
+#     1530 vars / 1530 constraints.
 # 2.  a negative total cost is expected, not a defect: the LNG consumer-surplus term is
 #     subtracted in the minimisation form.
 # 3.  model size scales with common_config.summary_years, the only year knob the model reads,
@@ -68,8 +71,12 @@ verbose = True
 #     further along than the production it reported. Counts are unchanged because the
 #     producer-cost coefficients moved into mutable Params, which add neither a variable nor a
 #     constraint.
+# 6.  basic_config's variable count moved from 1476 to 1530 when the unserved-demand variable,
+#     until then created only for a region subset, was created for every run: 9 regions x 6
+#     years = 54 variables.  It is zero at this demand level, so the objective and the
+#     constraint count did not move, and partial_regions, which always had it, is unchanged.
 configs = [
-    ('basic_config', -480902641083.88, 1476, 1530),
+    ('basic_config', -480902641083.88, 1530, 1530),
     ('partial_regions', -319146064790.54, 342, 342),
 ]
 
@@ -167,8 +174,75 @@ class TestNGBasicRun:
         )
 
 
+def _solve_scaled(scale: float) -> tuple[IterationStatus, NGModel]:
+    """Build the test config with demand scaled, and solve it with HiGHS.
+
+    Demand is scaled on the built model's mutable ``demand`` Param, where a coupled model's
+    update lands.
+
+    Parameters
+    ----------
+    scale : float
+        Factor applied to demand.
+
+    Returns
+    -------
+    tuple[IterationStatus, NGModel]
+        The solve status and the solved model.
+    """
+    config_path = Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    ng_config = NGConfig(**remainder.pop('natural_gas'))
+
+    sequencer = NGSequencer()
+    model = sequencer.build_model(common_config, ng_config)
+    for r, s, y in model.demand:
+        model.demand[r, s, y].set_value(value(model.demand[r, s, y]) * scale)
+    return sequencer.solve_model(solver_name='highs')[-1], model
+
+
+class TestUnservedDemand:
+    """The unserved-demand penalty, which every run carries.
+
+    The test forces HiGHS, so the result does not depend on which solvers are installed.
+    """
+
+    def test_shortfall_solves_and_is_reported(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Unmet demand is carried by ``unserved`` and priced at the penalty.
+
+        Twice the base demand is more than can reach New England and Pacific.  The solve is
+        usable, the shortfall is logged and written to the balance CSV, and the price in each short
+        region is the penalty.
+        """
+        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.sequencer'):
+            status, model = _solve_scaled(2.0)
+
+        assert status is IterationStatus.USABLE, f'solve failed with status {status}'
+        short = {
+            (r, y)
+            for r in model.region_analyze
+            for y in model.year
+            if value(model.unserved[r, y]) > UNSERVED_REPORT_TOL_BCF
+        }
+        assert short == {('new_england', y) for y in model.year} | {('pacific', 2050)}
+        assert sum(value(v) for v in model.unserved.values()) == pytest.approx(1288.08, rel=1e-4)
+
+        prices = {(gi.region, gi.year): p for gi, p in model.poll_gas_price().items()}
+        for r, y in short:
+            assert prices[r, y] == pytest.approx(1000.0, rel=1e-6), f'price in {r} {y}'
+
+        # both slacks reach the balance CSV, row for row
+        for row in _extract_balance(model).itertuples():
+            assert row.unserved_bcf == pytest.approx(value(model.unserved[row.region, row.year]))
+            assert row.slack_demand_bcf == pytest.approx(
+                value(model.slack_demand[row.region, row.year])
+            )
+
+        assert 'demand unserved in 7 region-year(s)' in caplog.text
+
+
 class TestSequencerFullRun:
-    """``full_run()`` must not present a failed solve as a successful run.
+    """``main()`` must not present a failed solve as a successful run.
 
     ``full_run`` is the entry point the integrator's pool workers call
     (``src/integrator/combine.py::driver``), and its only channel back to the caller is the

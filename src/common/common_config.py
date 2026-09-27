@@ -13,7 +13,7 @@ import tomllib
 from logging import getLogger
 from pathlib import Path
 
-from pydantic import BaseModel, PrivateAttr, ValidationError, model_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator, model_validator
 
 from definitions import PROJECT_ROOT
 from src.common.models_modes import ModelType, RunMode
@@ -42,16 +42,31 @@ class CommonConfig(BaseModel):
     # the claimed ``<output_path>/<scenario_name>[_<n>]`` folder; set by ``make_scenario_dir``
     _output_folder: Path | None = PrivateAttr(default=None)
 
+    @field_validator('summary_years')
+    @classmethod
+    def check_summary_years(cls, summary_years: list[int]) -> list[int]:
+        """Require at least one summary year."""
+        if not summary_years:
+            raise ValueError('summary_years must contain at least one year')
+        return summary_years
+
     @model_validator(mode='after')
-    def check_year_aggregation(self):
-        """Require ``aggregate_start_year`` whenever ``aggregate_years`` is set."""
-        if self.aggregate_years and self.aggregate_start_year is None:
+    def check_year_aggregation(self) -> CommonConfig:
+        """Check the year-aggregation settings when ``aggregate_years`` is set."""
+        if not self.aggregate_years:
+            return self
+        if self.aggregate_start_year is None:
             raise ValueError('aggregate_start_year must be set when aggregate_years is True')
+        if self.aggregate_start_year > min(self.summary_years):
+            raise ValueError(
+                'Aggregate start year must precede or be equal to the first summary_year'
+            )
         return self
 
     @model_validator(mode='after')
     def check_paths(self):
         """Resolve the output/residential paths against PROJECT_ROOT and check they are usable."""
+        # TODO:  remove the assumption here that the path is relative to project root
         self.output_path = PROJECT_ROOT / self.output_path
         # the output root is not tracked in git, so create it on demand (fresh clones/CI)
         try:
@@ -67,6 +82,7 @@ class CommonConfig(BaseModel):
             )
         return self
 
+    # TODO: Look at making this a field validator instead of model validator
     @model_validator(mode='after')
     def check_scenario_name(self):
         """Require a scenario name of 4+ alphanumeric/underscore characters."""
@@ -78,6 +94,7 @@ class CommonConfig(BaseModel):
             )
         return self
 
+    # TODO:  Resolve / combine this with the output path checking above
     @model_validator(mode='after')
     def check_output_path_exists(self):
         """Require the (resolved) ``output_path`` to be an existing directory.

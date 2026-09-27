@@ -68,8 +68,8 @@ All are non-negative.
 | i | `lng_import[r,y]` | backstop LNG imports | Bcf/yr |
 | inj | `stor_inject[r,y]` | storage injection | Bcf/yr |
 | wd | `stor_withdraw[r,y]` | storage withdrawal | Bcf/yr |
-| v | `var_demand[r,y]` | balancing slack, demand side | Bcf/yr |
-| u | `unserved[r,y]` | unmet demand, **subset runs only** | Bcf/yr |
+| v | `slack_demand[r,y]` | surplus disposal, demand side, free | Bcf/yr |
+| u | `unserved[r,y]` | unmet demand, supply side, priced at Π | Bcf/yr |
 
 #### Derived expressions
 
@@ -117,7 +117,7 @@ S_lng   = Σ_ℓ Σ_y Σ_m ( PLNG[ℓ,m,y]·x + ½ π_m·x² ) · β           �
 area beneath it is consumer surplus. Segments of zero width are skipped, which prevents division
 by zero in regions with no capacity of a given type.
 
-For a region subset, a penalty term is added:
+A penalty term prices unmet demand:
 
 ```
 + Σ_r Σ_y  Π · unserved[r,y] · β        Π = 1000 $/MMBtu
@@ -136,7 +136,7 @@ production_total[r,y]·(1 − λ_intra[r])
   + canada_supply[r,y]
   + Σ_(o,d)→r  pipe_flow[o,d,y]·(1 − λ_pipe[o,d])
   + stor_withdraw[r,y]·(1 − λ_stor[r])
-  + unserved[r,y]                                    ← subset runs only
+  + unserved[r,y]                                    ← unmet demand, priced at Π
 =
   Σ_s demand[r,s,y]
   + λ_dist[r]·( demand[r,residential,y] + demand[r,commercial,y] )
@@ -144,7 +144,7 @@ production_total[r,y]·(1 − λ_intra[r])
   + Σ_r→(o,d)  pipe_flow[o,d,y]
   + stor_inject[r,y]
   + lng_export_demand[r,y]
-  + var_demand[r,y]
+  + slack_demand[r,y]                                ← surplus disposal, free
 ```
 
 **Supply segment cap**: production on a segment cannot exceed its width:
@@ -238,6 +238,20 @@ arc carrying positive flow on the interior of an active segment:
 At zero flow this is an inequality rather than an equality, and at a segment breakpoint the
 marginal value lies between the slopes of the two adjacent segments. The simpler
 `p_d - p_o = tariff` holds only in the zero-loss, constant-tariff case, which is not this model.
+
+The two slack variables bound every price. `slack_demand` is free and non-negative on the uses side,
+so no price falls below zero. It is used only when demand drops below what a region cannot avoid
+supplying, its committed production floor and its Canadian imports, and wherever it takes gas the
+price is zero, within solver tolerance. The use is more numerical rather than economical. A region-year with
+unserved demand has its price at Π, within solver tolerance: that is the dual as solved, not a value
+imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. The two are the same pair the
+electricity model has in its demand balance, an inequality that allows free surplus, and
+`unmet_load`.
+
+A result with unserved demand is a shortfall, not a cleared market. `NGSequencer.solve_model` still
+returns `USABLE` for it, logs a warning naming every region-year short by more than 0.01 Bcf, and
+`ng_regional_balance.csv` carries both slacks as `unserved_bcf` and `slack_demand_bcf`. Check one of
+them before reading prices from a run that may have been pushed past what the network can deliver. Once capacity expansion is implemented in C-NGMM and the model is calibrated, we can aim for both of these to not have an impact on projections.
 
 ---
 
@@ -355,11 +369,10 @@ absent override files. A `ValueError` naming a file is the system working.
 arc with one endpoint outside has no counterparty balance constraint, and leaving it would let gas
 appear from, or vanish into, a region the model no longer represents.
 
-Dropping regions removes suppliers as well as consumers, so a net-importing subset would otherwise
-be infeasible. `var_demand` sits on the demand side of the balance and can absorb surplus but never
-cover a shortfall. Subset runs therefore carry the `unserved` variable described in the objective:
-it stays at zero when the subset can supply itself, and any volume it takes is reported by region
-and year. It is created **only** for a strict subset, so the full nine-region model is unaffected.
+Dropping regions removes suppliers as well as consumers, so a net-importing subset can run short.
+The `unserved` variable, which every run carries, covers the gap at the penalty Π: it stays at zero
+when the subset can supply itself, and any volume it takes is logged and written to
+`ng_regional_balance.csv` by region and year.
 
 Results from a subset are not comparable to a full run, the omitted regions take their
 production, demand, and trade with them. Subsets are for exercising mechanics and structure, not

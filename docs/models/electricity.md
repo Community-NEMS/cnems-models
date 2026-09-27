@@ -70,7 +70,7 @@ yet.
 
 | Parameter                         | Code                     | Domain           | Short Description                                                                            | Units                      |
 |:----------------------------------|:-------------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
-| $YR0$                             | y0_learning              | $\mathbb{I}$     | Year the linear learning mode's first guess of cumulative builds counts from                 | year                       |
+| $YR0$                             | y0_learning              | $\mathbb{I}$     | First model year, from which the linear learning mode's initial assumption counts builds     | year                       |
 | $N$                               | num_hr_day               | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
 | $CAP^{exist}_{r,seas,t,s,y}$      | supply_curve             | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
@@ -171,7 +171,8 @@ The curve is computed by `learning_multiplier` in `src/models/electricity/learni
 modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
 objective directly, and the linear iteration through `cost_learning_func` in the same file, which
 also holds the linear mode's other helpers. The linear mode's first solve is the exception: no
-builds exist yet, so it is priced from a guess of 1 GW a year per technology since $YR0$.
+builds exist yet, so it is priced from an assumption of 1 GW a year per technology since $YR0$,
+the first model year.
 
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.
@@ -556,7 +557,3 @@ representative year is charged for every calendar year it stands in for:
 The capacity expansion cost ($C_{exp}$, eq. 4a/4b) is **not** weighted: a build is a one-time
 cost, incurred once whichever year it is placed in. The constraints do not use $WY_y$; each
 representative year is operated as a single typical year.
-
-!!! note
-    `y0_learning` ($YR0$) is initialized from `aggregate_start_year` even when aggregation is off.
-    The coupling is flagged in `electricity_model.py` for separation.

@@ -12,7 +12,7 @@ The curve, ``learning_multiplier`` and ``learning_cost``, is shared by both lear
 nonlinear objective calls ``learning_cost`` symbolically.  The linear mode calls
 ``learning_multiplier`` through ``cost_learning_func`` between solves.  In both, the experience is
 cumulative builds in earlier years and nothing else, except that the linear mode's first solve is
-priced from the guess ``init_old_cap`` makes before any builds exist.
+priced from the assumption ``init_old_cap`` makes before any builds exist.
 
 The two curve functions are type-agnostic: numeric inputs give a number, symbolic inputs give a
 Pyomo expression.  Neither calls ``float()`` or ``value()`` or branches on a quantity, since either

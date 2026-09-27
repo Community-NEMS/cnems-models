@@ -563,10 +563,6 @@ The capacity expansion cost ($C_{exp}$, eq. 4a/4b) is **not** weighted: a build 
 cost, incurred once whichever year it is placed in. The constraints do not use $WY_y$; each
 representative year is operated as a single typical year.
 
-Outside the objective, the linear-learning loop in `sequencer.py` passes `weight_year` to
-`calculate_tolerance`, which weights each year's change in capacity growth by $WY_y$ when testing
-for convergence.
-
 !!! note
     `y0_learning` ($YR0$) is initialized from `aggregate_start_year` even when aggregation is off.
     The coupling is flagged in `electricity_model.py` for separation.

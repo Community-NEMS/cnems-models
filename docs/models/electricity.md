@@ -103,8 +103,8 @@ yet.
 | $RTUB_{o,t}$                      | res_tech_upper_bound     | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
 | $H2HR$                            | h2_heatrate              | $\mathbb{R}^+_0$ | Hydrogen heatrate                                                                            | kg/GWh                     |
 | $H2PR_{r,seas,t,s,y}$             | h2_price                 | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
-| $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
-| $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
+| $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost to build capacity, from `CapCost`; the linear mode reprices it before each solve        | \$/GW                      |
+| $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial cost to build capacity, scaled by the learning multiplier in the learning modes      | \$/GW                      |
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from.  Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | GW                         |
 
@@ -187,6 +187,19 @@ source data, which predates AEO2026; geothermal, for one, is 8 percent there and
 $$
 \begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}}{ CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} \neq \mathtt{nonlinear} \end{aligned} \tag{4b}
 $$
+
+With learning disabled, builds are priced from `CapCost`, which falls by 2 percent of its 2023
+value each year, to 46 percent of it by 2050. That decline stands in for learning. The learning
+modes price builds from $CAPC0$ times the multiplier instead and do not also apply the decline:
+the linear mode overwrites $CAPCL$ before each solve, and the nonlinear mode uses $CAPC0$ in
+(4a).
+
+The two learning modes are different formulations, not two ways of solving one problem. The
+linear mode takes each solve's costs as given and iterates until they match its builds, so it
+never builds early to lower later costs. The nonlinear mode puts the curve in the objective, so
+it can; the problem is nonconvex, and IPOPT returns a local solution. The two can choose
+different builds. On the linear learning test case, the nonlinear mode builds ahead of load in
+the first two years, while the linear mode builds what the disabled mode does.
 
 Fixed O\&M cost:
 

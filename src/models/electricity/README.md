@@ -16,10 +16,11 @@ choose how non-modeled intervals between years are aggregated. In terms of spati
 regions they want to run and if regions have the capability to trade with one another.
 
 **The model uses linear optimization by default, but if running the model with capacity expansion, a user has the option
-of representing cost reductions using a nonlinear technology learning function**. This function can be modeled
-endogenously, by either turning the problem into a nonlinear program, or by running successive iterations of linear
-programs over a fixed nonlinear learning function. Users can also specify which technology options are allowed to expand
-or retire.
+of representing cost reductions using a nonlinear technology learning function**. The nonlinear mode puts the function
+in the objective, which makes the problem a nonlinear program. The linear mode instead solves a sequence of linear
+programs, repricing capacity from the previous solve's builds until the two agree. The two are different formulations
+and can choose different builds. With learning disabled, a fixed yearly decline in capital costs stands in for learning.
+Users can also specify which technology options are allowed to expand or retire.
 
 After completing a run, the module will return datasets in the output directory for the variables, parameters, sets, and
 constraints. These datasets will be stored in the output directory at the top level. The viewer within the output

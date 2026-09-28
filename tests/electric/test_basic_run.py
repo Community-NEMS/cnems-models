@@ -500,12 +500,10 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     if verbose:
         # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
         cost_rows = [rec.args for rec in caplog.records if rec.msg.startswith('Reduced cap_cost')]
-        y0 = value(elec_model.y0_learning)
         initial_costs = {
             idx: value(elec_model.cap_cost_initial[idx]) for idx in elec_model.cap_cost_initial
         }
-        print(f'\ny0 for learning: {y0}')
-        print(f'cap_cost_initial: {initial_costs}')
+        print(f'\ncap_cost_initial: {initial_costs}')
         # one record per cap_cost key per iteration; recover the iteration index by
         # chunking
         n_keys = len(elec_model.cap_cost)

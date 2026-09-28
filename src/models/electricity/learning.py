@@ -11,8 +11,11 @@ mode's iteration.
 The curve, ``learning_multiplier`` and ``learning_cost``, is shared by both learning modes.  The
 nonlinear objective calls ``learning_cost`` symbolically.  The linear mode calls
 ``learning_multiplier`` through ``cost_learning_func`` between solves.  In both, the experience is
-cumulative builds in earlier years and nothing else, except that the linear mode's first solve is
-priced from the assumption ``init_old_cap`` makes before any builds exist.
+cumulative builds in earlier years and nothing else, so the linear mode's first solve, before any
+builds exist, is priced at ``cap_cost_initial``.
+
+Nothing bounds ``capacity_builds`` from above, and under learning more builds make later builds
+cheaper, so check the builds in learning runs for implausibly large values.
 
 The two curve functions are type-agnostic: numeric inputs give a number, symbolic inputs give a
 Pyomo expression.  Neither calls ``float()`` or ``value()`` or branches on a quantity, since either
@@ -114,16 +117,11 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     Returns
     -------
     dict[tuple, float]
-        assumed cumulative builds before each year, in GW, keyed by (tech, year)
+        zero cumulative builds before each year, in GW, keyed by (tech, year)
     """
-    initial_growth = {}
+    # no builds exist before the first solve; later solves are priced from solved builds
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for _r, tech, _step, y in instance.cap_cost:
-        if (tech, y) not in initial_growth:
-            # each tech will increase cap by 1 GW per year. reasonable starting point.
-            # the assumption only prices the first solve; later solves are priced from solved builds
-            initial_growth[tech, y] = (y - instance.y0_learning) * 1
-    return initial_growth
+    return {(tech, y): 0.0 for _r, tech, _step, y in instance.cap_cost}
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:

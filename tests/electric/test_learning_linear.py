@@ -44,8 +44,6 @@ def mock_model() -> pyo.ConcreteModel:
     m.step = pyo.Set(initialize=STEPS)
     m.year = pyo.Set(initialize=YEARS)
 
-    m.y0_learning = pyo.Param(initialize=Y0)
-
     m.learning_rate = pyo.Param(m.tech, initialize={2: 0.1, 3: 0.2})
     m.supply_curve_learning = pyo.Param(m.tech, initialize={2: 100.0, 3: 200.0})
     m.cap_cost_initial = pyo.Param(
@@ -99,13 +97,11 @@ class TestCalculateTolerance:
 
 
 def test_init_old_cap(mock_model):
-    """0th iteration assumes 1 GW/yr of growth since the learning start year."""
+    """0th iteration starts from zero experience in every (tech, year)."""
     result = init_old_cap(mock_model)
 
     assert set(result.keys()) == {(tech, y) for tech in TECHS for y in YEARS}
-    assert result[(2, 2030)] == 0
-    assert result[(2, 2035)] == 5
-    assert result[(3, 2035)] == 5
+    assert all(v == 0 for v in result.values())
 
 
 def test_calculate_cap_growth(mock_model):

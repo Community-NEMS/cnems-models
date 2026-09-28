@@ -70,7 +70,6 @@ yet.
 
 | Parameter                         | Code                     | Domain           | Short Description                                                                            | Units                      |
 |:----------------------------------|:-------------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
-| $YR0$                             | y0_learning              | $\mathbb{I}$     | First model year, from which the linear learning mode's initial assumption counts builds     | year                       |
 | $N$                               | num_hr_day               | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
 | $CAP^{exist}_{r,seas,t,s,y}$      | supply_curve             | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
@@ -170,9 +169,8 @@ regions and steps, written above as $r'$ and $s'$, so experience is national rat
 The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
 modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
 objective directly, and the linear iteration through `cost_learning_func` in the same file, which
-also holds the linear mode's other helpers. The linear mode's first solve is the exception: no
-builds exist yet, so it is priced from an assumption of 1 GW a year per technology since $YR0$,
-the first model year.
+also holds the linear mode's other helpers. The linear mode's first solve comes before any
+builds exist, so it is priced with zero experience, at $CAPC0$.
 
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.

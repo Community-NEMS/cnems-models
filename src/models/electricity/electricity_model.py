@@ -334,8 +334,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         all_dicts = param_data.param_dicts
 
         # temporal parameters
-        # first model year, from which the linear learning mode's initial assumption counts builds
-        self.y0_learning = pyo.Param(initialize=min(common_config.summary_years))
         self.num_hr_day = pyo.Param(initialize=model_sets.num_hr_day)
         # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
         #        of a *numeric* parameter.  They are just simple LUTs

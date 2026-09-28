@@ -151,7 +151,7 @@ shipped inputs replace.
 
 | # | Name and value | File:line | Class | Notes |
 |---|---|---|---|---|
-| 1 | `SUPPLY_ELASTICITY` conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 | `us_gas.py:67` | **Ours (literature)** | Newell et al. (2016). We should verify and update as needed. |
+| 1 | `SUPPLY_ELASTICITY` conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 | `us_gas.py:67` | **Ours** | We should verify and update as needed. |
 | 2 | `OIL_ASSOCIATED_GAS_ELASTICITY` WSC 0.35, Mountain 0.20, WNC 0.15, … | `us_gas.py:77` | **Ours** (by hand) | Not used when the NA/AD split is on, which it is with the shipped inputs. |
 | 3 | `BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50` | `us_gas.py:89` | **Ours** | "2023 US average wellhead price". The denominator of every gas price ratio. Live. |
 | 4 | `BASE_YEAR = 2023` | `us_gas.py:90` | Ours | Start of the technology and depletion clocks. Live. |

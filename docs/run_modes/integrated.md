@@ -3,8 +3,9 @@
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
 electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `src/integrator/combine.py`, run through `main.py` with a config whose
-`[common]` mode is `"integrated jacobi"`:
+integrated driver today is `JacobiIterator` in `src/integrator/jacobi_iterator.py`, a subclass
+of the `IterativeRun` base class (`src/common/iterative_run.py`). It runs through `main.py` with
+a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
@@ -12,12 +13,17 @@ python main.py run_configs/full_combo.toml      # or:  pixi run combine
 ```
 
 The run config holds a `[common]` section plus one section per participating model
-(`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`).
+(`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`). The `[common]`
+`models_to_run` list selects the models; `all` selects every model except the dev/test MAGIC
+model, which runs only when named explicitly.
 
 ## Jacobi Iteration
 
-`combine.py` couples the models with **Jacobi-style** iteration. Every model in the circuit
-(`CIRCUIT`: electricity, natural gas, magic) solves in the same iteration, in parallel. Each one
+`jacobi_iterator.py` couples the models with **Jacobi-style** iteration. Every selected model
+solves in the same iteration, in parallel. The *circuit* is the selected models in a fixed order,
+which sets the order packages are routed and applied in, so results are deterministic. By default
+it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, natural gas);
+`JacobiIterator.run(..., circuit=...)` overrides it. Each model
 sees only the results the others sent at the end of the *previous* iteration. (In a Gauss-Seidel
 scheme, by contrast, the models would solve one after another, and each would see results from
 the models ahead of it in the same iteration.) Jacobi iteration lets the models run
@@ -69,7 +75,7 @@ Things to know about the current loop:
     A model that is filtered to a subset of regions only sends packages covering the other
     model's regions that overlap its own. It also ignores inbound entries for regions it doesn't
     hold. The receiving model keeps loaded (base-year) values wherever coverage is missing, so
-    filtering either model can give odd results in an integrated run. `combine.py` logs a
+    filtering either model can give odd results in an integrated run. `jacobi_iterator.py` logs a
     warning when either model is filtered.
 
 ## Inter-model Communication
@@ -94,10 +100,10 @@ flowchart LR
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
   status is in `ALLOW_OUTBOUND_UPDATES` (`BEST` or `USABLE`). After a failed
-  solve, the model sends nothing new; `combine.py` resends that model's last accepted packages
+  solve, the model sends nothing new; `jacobi_iterator.py` resends that model's last accepted packages
   instead, so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
-- **Routing.** `route_updates` in `combine.py` delivers every package to each receiver in the
+- **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
   circuit. A receiver outside the circuit gets nothing, and a warning is logged.
 - **Reading.** Each model has an `UpdatePackageReader` (`update_reader.py`) that applies inbound
   packages to the model's loaded data *before* the model is built. It picks a handler by package
@@ -116,7 +122,7 @@ The packages exchanged today:
 
 ### Watching the Exchange
 
-After each iteration, `combine.py` prints a text monitor laid out like a sequence diagram
+After each iteration, `jacobi_iterator.py` prints a text monitor laid out like a sequence diagram
 (`src/integrator/iteration_monitor.py`). Each model has a vertical lifeline, and the first
 column is the iteration number. The monitor shows each model's objective, then one horizontal
 arrow per package delivered. Each arrow leaves the sender's lifeline at a `+`, arrives at the

@@ -14,9 +14,10 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.log_setup import setup_control_loop_logging
-from src.common.models_modes import ModelType, RunMode
+from src.common.models_modes import ModelType, RunMode, resolve_models_to_run
 from src.common.utilities import get_args
-from src.integrator import combine
+from src.integrator.iteration_plot import plot_objectives
+from src.integrator.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
@@ -24,6 +25,9 @@ from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
 logger = logging.getLogger(__name__)
+
+# TEMP:  plot the objectives by iteration after an integrated run (plt.show() blocks until closed)
+PLOT_OBJECTIVES = True
 
 
 @deprecated('needs reconfig if preserved')
@@ -81,10 +85,11 @@ def main(config_path: Path, debug: bool = False) -> None:
             )
             _run_standalone(common_config, remainder)
         case RunMode.INTEGRATED_JACOBI:
-            # combine.main() sets up its own logging, so nothing is logged here before it runs
-            # TODO:  combine runs a fixed set of models (CIRCUIT) and ignores models_to_run.
-            #        future:  enable model selection...
-            combine.main(config_path)
+            # the iterator claims the output folder and sets up its own logging, so nothing is
+            # logged here before it runs
+            results = JacobiIterator().run(common_config, remainder)
+            if PLOT_OBJECTIVES:
+                plot_objectives(results)
         case RunMode.INTEGRATED_GS:
             raise NotImplementedError('Integrated Gauss-Seidel mode is not implemented')
 
@@ -106,15 +111,7 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     remainder : dict
         The config file's sections other than ``[common]``.
     """
-    models = common_config.models_to_run
-    if ModelType.ALL in models:
-        # MAGIC is a dev/test mock, so ALL leaves it out unless it is also named explicitly
-        excluded = (
-            {ModelType.ALL} if ModelType.MAGIC in models else {ModelType.ALL, ModelType.MAGIC}
-        )
-        models = [model for model in ModelType if model not in excluded]
-
-    for model_type in models:
+    for model_type in resolve_models_to_run(common_config.models_to_run):
         sequencer: IntegratedModelSequencer[Any, Any, Any]
         try:
             match model_type:

@@ -2,7 +2,7 @@
 mode = "integrated jacobi"
 
 # Modules to run (requires module input sections below)
-models_to_run=['electricity']
+models_to_run=['electricity', 'natural_gas', 'magic']
 
 common_data_path='input/electricity'
 residential_data_path='input/residential'

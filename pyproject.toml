@@ -207,7 +207,7 @@ ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve 
 
 # The integrated control loop:  electricity, natural gas and magic in parallel, exchanging
 # update packages each iteration, with the iteration monitor on the console.
-# TODO:  This is for development work only and the main loop in combine will migrate soon
+# TODO:  This is for development work only; the task runs main.py's integrated (Jacobi) mode
 combine = { cmd = "python main.py run_configs/full_combo.toml", description = "Run the integrated model loop using run_configs/full_combo.toml." }
 
 # Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be

@@ -19,6 +19,7 @@ from src.common.integrated_model_sequencer import IntegratedModelSequencer, Iter
 from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
+from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
 from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
@@ -27,11 +28,6 @@ from src.models.natural_gas.update_reader import NGUpdateReader
 from src.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
-
-# Unserved demand above this, in Bcf for one region-year, is reported after a solve. It sits well
-# above solver residuals (under 1e-12 Bcf with HiGHS; an interior-point solve without crossover can
-# leave more) and well below any real shortfall seen so far (1.4 Bcf and up).
-UNSERVED_REPORT_TOL_BCF = 0.01
 
 
 class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
@@ -149,14 +145,13 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         Returns
         -------
         tuple[ModelType, IterationStatus]
-            the model type (for accounting) and the status of solve on this iteration
-        IterationStatus
-            ``USABLE`` if the solver reached optimality, ``ERROR`` otherwise.  A non-optimal
-            solve is reported by return value, not raised, so callers must check: the model is
-            left holding whatever values the failed solve produced.  An optimal solve with
-            unserved demand is still ``USABLE``; the region-years short by more than
-            ``UNSERVED_REPORT_TOL_BCF`` are logged as a warning, and their price is the
-            unserved-demand penalty, within solver tolerance.
+            The model type (for accounting) and the status of the solve:  ``ERROR`` if the
+            solver did not reach optimality; otherwise ``PENALTY`` if any demand went unserved
+            (see :meth:`_in_penalty`), else ``USABLE``.  A non-optimal solve is reported by
+            return value, not raised, so callers must check: the model is left holding whatever
+            values the failed solve produced.  A ``PENALTY`` solve's results are accurate and
+            still sent to coupled models -- the unserved-demand price is the signal they need to
+            pull demand down -- but an iterative run will not stop on it.
 
         Raises
         ------
@@ -263,23 +258,6 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self.model.solutions.load_from(results)
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
 
-        # A shortfall still solves, so it has to be said: the status stays USABLE, since the price
-        # in a short region, the penalty within solver tolerance, is the signal a coupled model
-        # needs to pull its demand down, and dropping the solve would withhold it.
-        short: dict[tuple[str, int], float] = {}
-        for (r, y), var in self.model.unserved.items():
-            q = value(var)
-            if q is not None and q > UNSERVED_REPORT_TOL_BCF:
-                short[r, y] = q
-        if short:
-            logger.warning(
-                'C-NGMM: %.1f Bcf of demand unserved in %d region-year(s), priced at the '
-                'unserved-demand penalty: %s',
-                sum(short.values()),
-                len(short),
-                ', '.join(f'{r} {y} {q:.1f} Bcf' for (r, y), q in sorted(short.items())),
-            )
-
         # ── attach result tables to the model for reporting ──────────────────────
         # TODO:  Extraction below on hold till model running and then maybe refactor to not
         #        "staple on" instance variables and do it cleaner
@@ -288,8 +266,46 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         # m.results_prices = postprocessor._extract_prices(m)
         # m.results_storage = postprocessor._extract_storage(m)
         # m.results_balance = postprocessor._extract_balance(m)
-        self._last_status = IterationStatus.USABLE
-        return ModelType.NATURAL_GAS, IterationStatus.USABLE
+
+        # A shortfall still solves, so it has to be said.  The status is PENALTY rather than
+        # ERROR:  the price in a short region, the penalty within solver tolerance, is the signal
+        # a coupled model needs to pull its demand down, so the results are still sent, but an
+        # iterative run must not stop here.  Only an optimal solve has solved values to inspect,
+        # so this follows the ERROR check.
+        status = IterationStatus.PENALTY if self._in_penalty(self.model) else IterationStatus.USABLE
+        self._last_status = status
+        return ModelType.NATURAL_GAS, status
+
+    @staticmethod
+    def _in_penalty(model: NGModel) -> bool:
+        """Check a solved model for unserved demand, which marks the solve as ``PENALTY``.
+
+        Each short region-year is listed in a warning, with the total.
+
+        Parameters
+        ----------
+        model : NGModel
+            A solved model; only its ``unserved`` values are read.
+
+        Returns
+        -------
+        bool
+            True if ``unserved`` exceeds ``UNSERVED_PENALTY_TOL`` in any region-year.
+        """
+        short: dict[tuple[str, int], float] = {}
+        for (region, year), var in model.unserved.items():
+            quantity = value(var, exception=False)
+            if quantity is not None and quantity > UNSERVED_PENALTY_TOL:
+                short[region, year] = quantity
+        if short:
+            logger.warning(
+                'C-NGMM: %.4g Bcf of demand unserved in %d region-year(s), priced at the '
+                'unserved-demand penalty; solve status PENALTY: %s',
+                sum(short.values()),
+                len(short),
+                ', '.join(f'{r} {y} {q:.4g} Bcf' for (r, y), q in sorted(short.items())),
+            )
+        return bool(short)
 
     def full_postprocess(self, **kwargs):
         """Write the result CSVs for the solved model.

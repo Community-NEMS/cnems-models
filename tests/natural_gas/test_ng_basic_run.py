@@ -30,11 +30,12 @@ from src.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
 )
+from src.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY, UNSERVED_PENALTY_TOL
 from src.models.natural_gas.data import load_base_demand
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import _extract_balance
-from src.models.natural_gas.sequencer import UNSERVED_REPORT_TOL_BCF, NGSequencer
+from src.models.natural_gas.sequencer import NGSequencer
 
 verbose = True
 
@@ -210,26 +211,28 @@ class TestUnservedDemand:
     def test_shortfall_solves_and_is_reported(self, caplog: pytest.LogCaptureFixture) -> None:
         """Unmet demand is carried by ``unserved`` and priced at the penalty.
 
-        Twice the base demand is more than can reach New England and Pacific.  The solve is
-        usable, the shortfall is logged and written to the balance CSV, and the price in each short
-        region is the penalty.
+        Twice the base demand is more than can reach New England and Pacific.  The solve is in
+        ``PENALTY`` status, the shortfall is logged and written to the balance CSV, and the price in
+        each short region is the penalty.
         """
         with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.sequencer'):
             status, model = _solve_scaled(2.0)
 
-        assert status is IterationStatus.USABLE, f'solve failed with status {status}'
+        assert status is IterationStatus.PENALTY, f'expected PENALTY, got {status}'
         short = {
             (r, y)
             for r in model.region_analyze
             for y in model.year
-            if value(model.unserved[r, y]) > UNSERVED_REPORT_TOL_BCF
+            if value(model.unserved[r, y]) > UNSERVED_PENALTY_TOL
         }
         assert short == {('new_england', y) for y in model.year} | {('pacific', 2050)}
         assert sum(value(v) for v in model.unserved.values()) == pytest.approx(1288.08, rel=1e-4)
 
         prices = {(gi.region, gi.year): p for gi, p in model.poll_gas_price().items()}
         for r, y in short:
-            assert prices[r, y] == pytest.approx(1000.0, rel=1e-6), f'price in {r} {y}'
+            assert prices[r, y] == pytest.approx(UNSERVED_DEMAND_PENALTY, rel=1e-6), (
+                f'price in {r} {y}'
+            )
 
         # both slacks reach the balance CSV, row for row
         for row in _extract_balance(model).itertuples():

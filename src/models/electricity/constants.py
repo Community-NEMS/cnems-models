@@ -16,6 +16,10 @@ H2_HEATRATE = 13.84 / 1000000  # currently NOT used
 
 UNMET_LOAD_PRICE = 500_000  # TODO:  This seems quite high, but scale is unclear RN.  Re-evaluate
 
+# a solved unmet_load above this in any index puts the solve in PENALTY status; anything smaller
+# is treated as solver decimal dust
+UNMET_LOAD_PENALTY_TOL = 1e-4
+
 STORAGE_LEVEL_COST = 0.00000001  # TODO:  This seems wayyyy small and has no units.  Re-evaluate
 
 #########  Reserve Policy Data ###########

@@ -67,8 +67,9 @@ python main.py
    packages are then applied to it in place by `ElecUpdateReader` (see *Update packages* below).
 4. `sequencer.py::ElectricitySequencer` implements the `IntegratedModelSequencer` ABC
    (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
-   `full_postprocess` / `iteration_postprocess`). `solve_model` returns an `IterationStatus`. Tests build
-   models by calling `ElectricitySequencer().build_model(common_config, elec_config)` directly.
+   `full_postprocess` / `iteration_postprocess`). `solve_model` returns a
+   `(ModelType, IterationStatus)` tuple. Tests build models by calling
+   `ElectricitySequencer().build_model(common_config, elec_config)` directly.
 5. `sequencer.py::run_elec_model(common_config, elec_config, solve=True)` is a thin wrapper over the
    sequencer: build → (optionally) solve → postprocess, returning the `PowerModel`.
 

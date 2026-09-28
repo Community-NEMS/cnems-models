@@ -44,8 +44,14 @@ class MagicModel(IntegratedModel):
         sleep(3)
         logger.info('magic model initialized')
 
-    def solve(self):
-        """Solve the magic model."""
+    def solve(self) -> IterationStatus:
+        """Solve the magic model.
+
+        Returns
+        -------
+        IterationStatus
+            Always ``IterationStatus.BEST``; the mock model cannot fail.
+        """
         sleep(3)
         logger.info('magic model solved')
         return IterationStatus.BEST

@@ -508,7 +508,7 @@ non-associated, tight, shale and coalbed methane; British Columbia tight, shale 
 Saskatchewan tight and non-associated. For $y \ge 2024$:
 
 $$
-W_{\ell,\mathit{type},y} = \operatorname{round}\Big( \max\Big( \Pi_{\ell,\mathit{type}}\big(H^b_y\big)\mkern5mu P^{\mathrm{pipe}} \Big[ H^b_y \Big(\frac{m\thinspace B_y}{B^b_y}\Big)^{e^{W}_{\ell,\mathit{type},y}} \Big]^{0.75},\mkern5mu 0 \Big) \Big) \tag{25}
+W_{\ell,\mathit{type},y} = \mathrm{round}\Big( \max\Big( \Pi_{\ell,\mathit{type}}\big(H^b_y\big)\mkern5mu P^{\mathrm{pipe}} \Big[ H^b_y \Big(\frac{m\thinspace B_y}{B^b_y}\Big)^{e^{W}_{\ell,\mathit{type},y}} \Big]^{0.75},\mkern5mu 0 \Big) \Big) \tag{25}
 $$
 
 $$
@@ -581,12 +581,12 @@ $\mathcal I_{r,a}^{\mathrm{leg}}$ the projects of region $r$ (districts mapped t
 `mapping.csv`) and class $a$ (AD if $\mathit{wt_i} < 3$, NA otherwise):
 
 $$
-G^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_3 \Big( \frac{1}{1000} \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{GP}_{i,\thinspace y - 2023} \Big), \qquad
-O^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_1 \Big( \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{OP}_{i,\thinspace y - 2023} \Big) \tag{31}
+G^{\mathrm{leg}}_{r,a,y} = \mathrm{round}_3 \Big( \frac{1}{1000} \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{GP}_{i,\thinspace y - 2023} \Big), \qquad
+O^{\mathrm{leg}}_{r,a,y} = \mathrm{round}_1 \Big( \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{OP}_{i,\thinspace y - 2023} \Big) \tag{31}
 $$
 
-in BCF and thousand barrels, for 2024 to 2050, where $\operatorname{round}_3$ and
-$\operatorname{round}_1$ round to three decimals and one. There is no new drilling in these numbers, and they do not feed the capacity of section 2.
+in BCF and thousand barrels, for 2024 to 2050, where $\mathrm{round_3}$ and
+$\mathrm{round_1}$ round to three decimals and one. There is no new drilling in these numbers, and they do not feed the capacity of section 2.
 
 ## 7. The optional well-level engine
 

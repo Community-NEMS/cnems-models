@@ -1,5 +1,6 @@
 # AEO2026 reference Henry Hub spot price, 1987 $/MMBtu: AEO2026Results/sup_ogc.xlsx, Table 59
-# (Henry Hub Spot Price, nominal), divided by the GDP deflator in module.py (1987 = 1.0).
+# (Henry Hub Spot Price, 2025 $), divided by each year's GDP deflator in module.py (1987 = 1.0).
+# Known issue: that treats 2025 $ as nominal. 2023 and 2024 repeat 2025, the table's first year.
 # C-HSM uses it when it is given no Henry Hub prices, and as the reference gas price for the
 # NA/AD split.
 year,henry_hub_1987_per_mmbtu

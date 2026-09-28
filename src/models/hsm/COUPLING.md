@@ -3,8 +3,8 @@
 **Status.** C-HSM is not yet wired into a coupled run. On the gas side, C-NGMM already has the
 method that would receive C-HSM's capacity (`NGModel.update_supply_capacity`), but no runner calls
 it, and both sequencers raise `NotImplementedError` from `update_model`. This page sets out what
-each side offers and how a Gauss-Seidel loop would join them. Line numbers on the C-NGMM side are for
-c-nems `main` at `0c79a67`.
+each side offers and how a coupled loop would join them. Line numbers on the C-NGMM side are for
+c-nems `main` at `6dc2570`.
 
 ## What C-HSM offers
 
@@ -21,14 +21,14 @@ c-nems `main` at `0c79a67`.
 
 | Method | Line | What it does |
 |---|---|---|
-| `update_supply_capacity(capacity_updates, alpha)` | :1208 | takes `{(region, cost_tier, year): BCF}`, ignores the cost tier and sums per `(region, year)`, blends with the current `q0` by `alpha`, sets `q0` and the production floor, and rebuilds the supply curve |
-| `update_canada_supply(supply)` | :1127 | sets the Canadian gas arriving in each **US** region: keys are `GI(region, year)` named tuples (`GI` at :102), unknown regions are skipped; it starts at 0 everywhere |
-| `poll_gas_price()` | :1294 | regional prices, $/MMBtu, the duals of the market balance |
-| `set_reference_prices`, `update_demand`, `update_demand_from_price` | :1018, :1096, :1034 | the demand side of the exchange |
+| `update_supply_capacity(capacity_updates, alpha)` | :1203 | takes `{(region, cost_tier, year): BCF}`, ignores the cost tier and sums per `(region, year)`, blends with the current `q0` by `alpha`, sets `q0` and the production floor, and rebuilds the supply curve |
+| `update_canada_supply(supply)` | :1118 | sets the Canadian gas arriving in each **US** region: keys are `GI(region, year)` named tuples (`GI` at :90), unknown regions are skipped; it starts at 0 everywhere |
+| `poll_gas_price()` | :1289 | regional prices, $/MMBtu, the duals of the market balance |
+| `set_reference_prices`, `update_demand`, `update_demand_from_price` | :1005, :1083, :1021 | the demand side of the exchange |
 
 C-NGMM runs on representative years (2025 to 2050 in steps of 5); C-HSM runs every calendar year.
 
-## One Gauss-Seidel iteration
+## One iteration of a coupled loop
 
 Not shipped as code; the runner belongs in c-nems.
 
@@ -80,7 +80,8 @@ sweep then fails with `KeyError: 'year'`.
   (`module.py:474`). C-NGMM's prices must be converted to 1987 $ exactly once, in the adapter
   (`henry_hub_1987_from` above), with the same deflator table (`_GDP_DEFLATOR`, `module.py:44`).
   Converting with each year's deflator on the way in and the fixed 2023 one on the way out would
-  scale a real price by `deflator[2023] / deflator[year]`.
+  scale a real price by `deflator[2023] / deflator[year]`. The reference price files already do
+  this to AEO2026's 2025 \$ prices (`PROVENANCE.md` §6).
 - **Which C-NGMM price stands for Henry Hub.** C-NGMM has regional prices, not a Henry Hub price.
   West South Central, where Henry Hub is, is the natural stand-in. Its representative years must be
   filled in to every calendar year 2023–2050 (C-HSM rejects gaps).

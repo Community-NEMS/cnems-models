@@ -20,7 +20,7 @@ supplemental tables, `AEO2026Results/sup_ogc.xlsx`. `NOTICE.md` has the attribut
 | **AEO2025 result** | the same for EIA's archived AEO2025 side cases |
 | **Fitted** | produced by fitting to AEO2026-derived targets |
 | **Model output** | produced by running C-HSM itself |
-| **Ours** | written or chosen for C-HSM: hand-set constants, literature values, fallbacks, and code with no NEMS counterpart |
+| **Ours** | written or chosen for C-HSM: hand-set constants, fallbacks, and code with no NEMS counterpart |
 
 Code similarity is measured on normalised code: comments, docstrings and formatting are removed (the
 Python `ast` module parses both files and prints them back), then the lines are compared with
@@ -151,12 +151,12 @@ shipped inputs replace.
 
 | # | Name and value | File:line | Class | Notes |
 |---|---|---|---|---|
-| 1 | `SUPPLY_ELASTICITY` conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 | `us_gas.py:67` | **Ours** | We should verify and update as needed. |
+| 1 | `SUPPLY_ELASTICITY` conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 | `us_gas.py:67` | **Ours** (by hand) | No source. Live. |
 | 2 | `OIL_ASSOCIATED_GAS_ELASTICITY` WSC 0.35, Mountain 0.20, WNC 0.15, … | `us_gas.py:77` | **Ours** (by hand) | Not used when the NA/AD split is on, which it is with the shipped inputs. |
-| 3 | `BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50` | `us_gas.py:89` | **Ours** | "2023 US average wellhead price". The denominator of every gas price ratio. Live. |
+| 3 | `BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50` | `us_gas.py:89` | **Ours** (by hand) | 2023 $/MMBtu, no source. The denominator of every gas price ratio. Live. |
 | 4 | `BASE_YEAR = 2023` | `us_gas.py:90` | Ours | Start of the technology and depletion clocks. Live. |
-| 5 | `BASE_OIL_PRICE_PER_BBL = 65.0` | `us_gas.py:91` | **Ours** | "2023 WTI approximate". Used when there is no Brent price or it is below the $20 check (row 21). |
-| 6 | `_OIL_ASSOC_COST_TIER_FRACTION_FALLBACK = 0.15` | `us_gas.py:96` | NEMS-derived (a copy of the deck value) | Live value read from NEMS `on_constraint_params.csv`, `share_ratio` (:372); reading `share_ratio` as an oil-associated share is ours. Not used when the split is on. |
+| 5 | `BASE_OIL_PRICE_PER_BBL = 65.0` | `us_gas.py:91` | **Ours** (by hand) | 2023 $/bbl, no source. Used when there is no Brent price or it is below the $20 check (row 21). |
+| 6 | `_OIL_ASSOC_COST_TIER_FRACTION_FALLBACK = 0.15` | `us_gas.py:96` | NEMS-derived (a copy of the deck value) | Live value read from NEMS `on_constraint_params.csv`, `share_ratio` (:372); NEMS does not read `share_ratio`, so using it as an oil-associated share is ours. Not used when the split is on. |
 | 7 | `_TECH_TREND_FALLBACK` conventional 0.0025, tight 0.010, shale 0.010, cbm 0.0025 | `us_gas.py:104-109` | NEMS-derived copies, **except shale**: the fallback is 0.010, the shipped deck has 0.02 | Live values read from `on_tech_levers.csv`, `tier_1_eur_tech` (:182), so 0.02 is what runs for shale. Using a per-well recovery trend as a capacity trend is ours. |
 | 8 | `_COST_TIER_TYPE_SHARES_FALLBACK` low: conventional 0.55 / cbm 0.45; medium: tight **0.40** / shale **0.60**; high: conventional **0.20** / shale **0.80** | `us_gas.py:113-120` | **Split**: the low-cost pair is recomputed from `on_region_avg_cost.csv` (:237) by a rule of ours; **the medium and high-cost shares are ours and live** (:116-119) | Four of the six live shares are set by hand. |
 | 9 | `_CONVENTIONAL_DEPLETION_RATE_FALLBACK`, 0.005–0.020 by region | `us_gas.py:123` | Ours (fallback) | Live values from NEMS `on_dryhole_rate.csv` and `mapping.csv`, **rescaled to 0.005–0.020 per year** (:267): NEMS-derived ranking, our range. |
@@ -167,7 +167,7 @@ shipped inputs replace.
 | 14 | gas price floor 0.01 $/MMBtu | `us_gas.py:728, :747` (and :664, :714 in the engine) | Ours | Guards the power law, actual and reference prices. |
 | 15 | engine first year 2024 | `us_gas.py:658-659, :678` | Ours (engine only) | GP1 = 2024, see `us_onshore.py:56`. |
 | 16 | calibration form `k (1 + g)^x exp(c x²)`, x = year − 2025 | `us_gas.py:761` (split on), `:803` (split off); `:669, :694, :719` (engine) | Ours (form); **Fitted** (values) | Values from `us_gas_calibration.csv`, or `us_gas_calibration_engine.csv` with the engine (`calibration_file`, `module.py:251`). |
-| 17 | `_GDP_DEFLATOR`, 1987 = 1.000 … 2050 = 3.326 | `module.py:44` | **Ours** (entered by hand) | "Approximate BEA values". Not from NEMS. |
+| 17 | `_GDP_DEFLATOR`, 1987 = 1.000 … 2050 = 3.326 | `module.py:44` | **Ours** (entered by hand) | No source; about 10% below BEA's GDP deflator by 2023. Not from NEMS. |
 | 18 | `REGIONAL_BASIS` NE +0.80, MA +0.20, ENC +0.10, WNC 0, SA −0.10, ESC −0.20, WSC −0.50, Mtn −0.30, Pac +0.15 | `module.py:458` | **Ours** (by hand) | Regional wellhead price differentials, $/MMBtu, added to Henry Hub. The calibration fit used the same values. Live, every year. |
 | 19 | Henry Hub fallback 3.5 (1987 $/MMBtu) | `module.py:352, :356, :455` | Ours | For a missing year. `HSMModel` rejects a price path, or a reference path, that misses a year, so this is not reached in a C-HSM run. |
 | 20 | Brent fallback 4.0 (1987 $/bbl) | `module.py:333, :337, :497` | Ours | As row 19. |
@@ -181,7 +181,7 @@ shipped inputs replace.
 | 28 | `AD_WELL_TYPES_BELOW = 3` | `us_onshore.py:57` | NEMS convention | The rule NEMS uses for its AD gas output. |
 | 29 | `CENSUS_TO_REGION` | `us_onshore.py:59` | NEMS-derived | as row 10 |
 | 30 | `PLAY_TO_BASIN`, `WELL_TYPE_MERGE` | `us_onshore.py:434, :454` | Ours (engine only) | Keyword maps for the drilling cost regression. |
-| 31 | `MMBTU_PER_MMCF = 1037.0`, `MCF_PER_BOE = 5.6` | `us_onshore.py:455-456` | Physical constants | |
+| 31 | `MMBTU_PER_MMCF = 1037.0`, `MCF_PER_BOE = 5.6` | `us_onshore.py:455-456` | Ours | Conversion factors, no source |
 | 32 | Canada years 1990, 2005, 2051 | `canada.py:71-73` | NEMS code | AEO2025 `canada.py:110-112` |
 | 33 | Canada `× 0.5` first decline value; `+ 0.01` guard; `× 365`; `0.96 / deflator[2016]`; `** 0.75` on `calibration_var`; `[0, 0.85]` `can_well_v_HH` | `canada.py:323, :311, :314, :351, :381, :81` | **NEMS code** | AEO2025 `canada.py:387, :384, :382, :428, :443/:448, :122` |
 | 34 | Canada well count `× hh_cal` (inside `calibration_var`) and `× can_ng_price_bench` | `canada.py:362-381` | **NEMS code** (AEO2025) | AEO2025 `canada.py:441-448`; dropped in AEO2026. Fixed inputs, so Canada does not respond to Henry Hub (§2.4). |
@@ -191,7 +191,7 @@ shipped inputs replace.
 | 38 | oil price floor 1.0 $/bbl, actual and reference | `us_gas.py:732, :750` | Ours | |
 | 39 | AD share clamped to [0, 1]; a region with no Brent elasticity gets (0, 0) | `us_gas.py:754, :755` | Ours | A region missing from `us_ad_elasticity.csv` gets no Brent response. |
 | 40 | drilling constants: `MAX_PRICE_ADJUSTMENT 2.0`, `MAX_GAS_ADJ_RATIO 1.5`, `GAS_TO_OIL_CONVERSION 5600`, `HIGH_GAS_OIL_RATIO_THRESHOLD 6000`, `DAMP_EXP 0.5`, bounds 0.98 and 1.02, `LOW_PRICE_FLAG_MULT 1.25` | `us_onshore.py:272-281` | **NEMS code** | from AEO2026 `drilling_equations.py:423-442`. Engine only. |
-| 41 | engine settings: base gas price 2.50, ramp-up 5 years, pre-decline share 0.70, low price flag 0, discount rate 0.10, well caps 11,000 oil and 9,000 gas a year, cap growth 0, capex deflator 2.17, royalty 0.1875, severance 0.06, decline overrides on | `input/hsm/us_onshore_engine.csv`, read at `us_onshore.py:544-547, :604-610, :713-717` | Ours (engine only, set by hand) | Every setting must be in the file (`read_engine_settings`). |
+| 41 | engine settings: base gas price 2.50, ramp-up 5 years, pre-decline share 0.70, low price flag 0, discount rate 0.10, well caps 11,000 oil and 9,000 gas a year, cap growth 0, capex deflator 2.17 (`_GDP_DEFLATOR` gives 2.085 for 2023), royalty 0.1875, severance 0.06, decline overrides on | `input/hsm/us_onshore_engine.csv`, read at `us_onshore.py:544-547, :604-610, :713-717` | Ours (engine only, set by hand) | Every setting must be in the file (`read_engine_settings`). |
 | 42 | engine oil price default 50.0 $/bbl for a play with no base price | `us_onshore.py:564` | Ours (engine only) | As shipped, every project: `play_name` is empty in the continuous deck (`ENGINE_PLAN.md`, known bug 1). |
 | 43 | engine cost fill-ins: log-cost intercept 13.0; opex 3.0; facility capex 3e5; overhead 5e5 | `us_onshore.py:673, :704, :707-708` | Ours (engine only) | Used where a deck row has no value. |
 | 44 | new-well technology rates 0.01 (tight oil, shale), 0.0025 (coalbed methane) | `us_onshore.py:613` | Ours (engine only) | Always used today: a known bug stops the engine reading `on_tech_levers.csv` (`ENGINE_PLAN.md`). |
@@ -224,15 +224,15 @@ be rebuilt. We should update these as we advance the model as necessary, think o
 
 | File | How it was made | Class of the numbers |
 |---|---|---|
-| `hh_reference_path.csv` | `AEO2026Results/sup_ogc.xlsx`, Table 59, "Henry Hub Spot Price" (nominal $/MMBtu), divided by `_GDP_DEFLATOR` (row 17) | **AEO2026 result**, our deflator |
+| `hh_reference_path.csv` | `AEO2026Results/sup_ogc.xlsx`, Table 59, "Henry Hub Spot Price" (2025 $/MMBtu), divided by each year's `_GDP_DEFLATOR` (row 17) as if nominal (§6); 2023 and 2024 repeat 2025 | **AEO2026 result**, our deflator |
 | `henry_hub_path_aeo2026_1987usd.csv` | the same Table 59 series, the same conversion; the path the run config uses | AEO2026 result |
-| `brent_reference_path.csv` | Table 57, "Brent Spot Price" in $/gallon, × 42, divided by the deflator | AEO2026 result |
+| `brent_reference_path.csv` | Table 57, "Brent Spot Price" in 2025 $/gallon, × 42, then as for Henry Hub | AEO2026 result |
 | `us_ad_gas_share.csv` | NEMS `on_process_codes.csv`, the producing and CO2-EOR decks and `mapping.csv`: share of first-year gas from projects with `well_type_number` < 3 | **NEMS-derived** |
-| `us_ad_elasticity.csv` | EIA AEO2025 High and Low Oil Price side cases (Table 12, Brent; Table 14, crude by type), 2030–2050 mean response, mixed by the NEMS decks' tight oil share | AEO2025 result + NEMS-derived |
+| `us_ad_elasticity.csv` | EIA AEO2025 High and Low Oil Price side cases (Table 12, Brent; Table 14, crude by type), 2030–2050 mean response of crude, used for AD gas (our assumption), mixed by the NEMS decks' tight oil share | AEO2025 result + NEMS-derived |
 | `us_gas_calibration.csv` | `(k, g, c)` fitted by region so that reduced-form capacity at `hh_reference_path.csv` prices, with `REGIONAL_BASIS`, matches `Q0 = Σ cost tier capacity × q0_mult` from C-NGMM's `ng_supply_cost_tiers.csv` and `ng_supply_anchors.csv` | **Fitted** |
 | `us_gas_calibration_engine.csv` | the same fit with the engine on, made with an earlier set of engine settings; approximate with the shipped settings | **Fitted** |
 | `us_onshore_engine.csv` | the engine settings (row 41) | Ours |
-| `can_na_reference.csv` | C-HSM's own Canada NA production at the reference Henry Hub path | **Model output** |
+| `can_na_reference.csv` | C-HSM's own Canada NA production at the reference Brent path | **Model output** |
 | `can_us_export_share.csv` | Table 61 net pipeline imports from Canada (imports − exports; missing exports taken as 0; a missing year takes the earliest), divided by **western Canada** NA reference production only, clipped to [0, 1] | AEO2026 result ÷ model output, with three rules of ours |
 
 C-NGMM's `q0` on c-nems `main` equals all 54 targets the reduced-form calibration was fitted to
@@ -264,9 +264,11 @@ and *Canada* is NEMS's AEO2025 Canada code, responding to Brent only.
 | Item | Why it is open | What would close it |
 |---|---|---|
 | The deck calendar: the AEO2026 onshore decks are read with the AEO2025 model years (§4.1; the mix of releases itself is kept on purpose) | `GP1` may be calendar 2025, not 2024, in the AEO2026 cycle | `ENGINE_PLAN.md`, step 2 |
+| The three AEO2026 price files (§4.2) treat 2025 $ as nominal | the Henry Hub and Brent paths are 8% low by 2030 and 35% by 2050; Canada's Brent ratio, `can_na_reference.csv` and `can_us_export_share.csv` inherit it | rebuild them as price / `_GDP_DEFLATOR`[2025], refit, and re-capture the expected results |
+| Supply elasticities (row 1) | set by hand | a source or a fit |
 | The fixed Canada pipeline price 4.0 (row 35) | stand-in for a NEMS-computed price; with the AEO2025 formula it sets the level of Canadian drilling | a source for the value, or a computed price |
-| `_GDP_DEFLATOR` values | entered by hand, "approximate BEA" | replace with a BEA series file and cite its vintage |
-| The 2.50 \$/MMBtu and 65 \$/bbl base prices | set by hand | cite the EIA series and year they stand for |
+| `_GDP_DEFLATOR` values | entered by hand, no source; about 10% below BEA by 2023 | replace with a BEA series file and cite its vintage |
+| The 2.50 \$/MMBtu and 65 \$/bbl base prices | set by hand | a source |
 | `REGIONAL_BASIS` | set by hand | cite a basis differential source, or fit it |
 | Medium and high-cost gas type shares (row 8) | set by hand | a NEMS or literature source |
 | The engine's settings and fill-ins (rows 41-44) | set by hand | `ENGINE_PLAN.md`, steps 4 to 6 |

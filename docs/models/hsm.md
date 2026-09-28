@@ -45,15 +45,15 @@ or derived.
 
 | Symbol | Code or file | Description | Value or unit |
 |---|---|---|---|
-| $H_y$ | `rest_henry_hub` | Henry Hub price given to C-HSM | 1987 \$/MMBtu |
-| $B_y$ | `brent_prices`, or `brent_reference_path.csv` if none | Brent price given to C-HSM; `rest_brent_price` holds $m\, B_y$ | 1987 \$/bbl |
-| $H^{\mathrm{ref}}_y$, $B^{\mathrm{ref}}_y$ | `hh_reference_path.csv`, `brent_reference_path.csv` | AEO2026 reference paths | 1987 \$/MMBtu, 1987 \$/bbl |
-| $H^{\mathrm{nom}}_y$, $B^{\mathrm{gal}}_y$ | AEO2026 Tables 59 and 57 | Henry Hub and Brent spot prices the reference paths are built from | nominal \$/MMBtu, nominal \$/gallon |
+| $H_y$ | `rest_henry_hub` | Henry Hub price given to C-HSM | 1987 USD/MMBtu |
+| $B_y$ | `brent_prices`, or `brent_reference_path.csv` if none | Brent price given to C-HSM; `rest_brent_price` holds $m\thinspace B_y$ | 1987 USD/bbl |
+| $H_y^{\mathrm{ref}}$, $B_y^{\mathrm{ref}}$ | `hh_reference_path.csv`, `brent_reference_path.csv` | AEO2026 reference paths | 1987 USD/MMBtu, 1987 USD/bbl |
+| $H_y^{\mathrm{AEO}}$, $B_y^{\mathrm{gal}}$ | AEO2026 Tables 59 and 57 | Henry Hub and Brent spot prices the reference paths are built from | 2025 USD/MMBtu, 2025 USD/gallon |
 | $m$ | `brent_multiplier` | Brent scenario multiplier | 1.0 |
-| $D_y$ | `_GDP_DEFLATOR` (`module.py`) | GDP deflator, $D_{1987} = 1$ | $D_{2023} = 2.085$, $D_{2016} = 1.771$ |
-| $\beta_r$ | `REGIONAL_BASIS` (`module.py`) | wellhead price basis to Henry Hub | 2023 \$/MMBtu, table below |
-| $\bar p$ | `BASE_WELLHEAD_PRICE_PER_MMBTU` | base gas price | 2.50 (2023 \$/MMBtu) |
-| $\bar o$ | `BASE_OIL_PRICE_PER_BBL` | base oil price | 65 (2023 \$/bbl) |
+| $D_y$ | `_GDP_DEFLATOR` (`module.py`) | GDP deflator, $D_{1987} = 1$, entered by hand with no source | $D_{2023} = 2.085$, $D_{2016} = 1.771$ |
+| $\beta_r$ | `REGIONAL_BASIS` (`module.py`) | wellhead price basis to Henry Hub | 2023 USD/MMBtu, table below |
+| $\bar p$ | `BASE_WELLHEAD_PRICE_PER_MMBTU` | base gas price, set by hand | 2.50 (2023 USD/MMBtu) |
+| $\bar o$ | `BASE_OIL_PRICE_PER_BBL` | base oil price, set by hand | 65 (2023 USD/bbl) |
 | $y_0$ | `history_year` in `setup.csv` | start of the technology and depletion clocks | 2023 |
 | $y_a$ | `CAL_ANCHOR_YEAR` | year the calibration is normalised to | 2025 |
 
@@ -61,20 +61,20 @@ or derived.
 
 | Symbol | Code or file | Description | Value with the shipped inputs |
 |---|---|---|---|
-| $\mathit{Cap}^{\mathrm{NG}}_{r,j}$ | `input/natural_gas/ng_supply_cost_tiers.csv` | capacity of cost tier $j$ in C-NGMM | BCF/yr |
-| $\mathit{share}_{j,\mathit{type}}$ | `_load_cost_tier_shares` | share of a gas type in cost tier $j$ | $\mathrm{Low}$: conventional 0.4633, cbm 0.5367 (eq. 14); $\mathrm{Med}$: tight 0.40, shale 0.60; $\mathrm{High}$: conventional 0.20, shale 0.80 |
-| $\varepsilon_{\mathit{type}}$ | `SUPPLY_ELASTICITY` | price elasticity of capacity | conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 |
+| $\mathit{Cap_{r,j}^{\mathrm{NG}}}$ | `input/natural_gas/ng_supply_cost_tiers.csv` | capacity of cost tier $j$ in C-NGMM | BCF/yr |
+| $\mathit{share_{j,\mathit{type}}}$ | `_load_cost_tier_shares` | share of a gas type in cost tier $j$ | $\mathrm{Low}$: conventional 0.4633, cbm 0.5367 (eq. 14); $\mathrm{Med}$: tight 0.40, shale 0.60; $\mathrm{High}$: conventional 0.20, shale 0.80 |
+| $\varepsilon_{\mathit{type}}$ | `SUPPLY_ELASTICITY` | price elasticity of capacity, set by hand | conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 |
 | $\tau_{\mathit{type}}$ | `_load_tech_trend` | technology trend, per year | conventional 0.0025, tight 0.010, shale 0.020, cbm 0.0025 (eq. 15) |
 | $\delta_r$ | `_load_depletion_rate` | depletion rate of the low-cost tier, per year | eq. 16, table below |
 | $\sigma_r$ | `us_ad_gas_share.csv` | share of capacity that is AD gas | eq. 17, table below |
-| $\eta^{\mathrm{up}}_r$, $\eta^{\mathrm{dn}}_r$ | `us_ad_elasticity.csv` | Brent elasticity of AD gas above and below the reference | eq. 18, table below |
+| $\eta_r^{\mathrm{up}}$, $\eta_r^{\mathrm{dn}}$ | `us_ad_elasticity.csv` | Brent elasticity of AD gas above and below the reference | eq. 18, table below |
 | $k_r$, $g_r$, $c_r$ | `us_gas_calibration.csv` | calibration | section 4, table below |
 | $\phi$ | `share_ratio` in `on_constraint_params.csv` | oil-associated share of medium-cost capacity, used only without the NA/AD split | 0.15 (eq. 13) |
-| $\varepsilon^{\mathrm{oil}}_r$ | `OIL_ASSOCIATED_GAS_ELASTICITY` | oil price elasticity of that capacity, used only without the NA/AD split | eq. 13 |
+| $\varepsilon_r^{\mathrm{oil}}$ | `OIL_ASSOCIATED_GAS_ELASTICITY` | oil price elasticity of that capacity, used only without the NA/AD split | eq. 13 |
 
 Regional values with the inputs shipped with C-HSM:
 
-| Region | $\beta_r$ | $\delta_r$ | $\sigma_r$ | $\eta^{\mathrm{up}}_r$ | $\eta^{\mathrm{dn}}_r$ | $k_r$ | $g_r$ | $c_r$ |
+| Region | $\beta_r$ | $\delta_r$ | $\sigma_r$ | $\eta_r^{\mathrm{up}}$ | $\eta_r^{\mathrm{dn}}$ | $k_r$ | $g_r$ | $c_r$ |
 |---|---|---|---|---|---|---|---|---|
 | new_england | +0.80 | 0.0089 | 0.0000 | 0.0000 | 0.0000 | 0.779409 | −0.021845 | 0.00064412 |
 | middle_atlantic | +0.20 | 0.0089 | 0.0003 | 0.5456 | 0.7276 | 0.835358 | 0.021147 | −0.00001372 |
@@ -90,16 +90,16 @@ Regional values with the inputs shipped with C-HSM:
 
 | Symbol | Description | Units | Eq. |
 |---|---|---|---|
-| $p_{r,y}$ | wellhead gas price | 2023 \$/MMBtu | 1 |
-| $\tilde o_y$ | Brent after the scenario multiplier | 2023 \$/bbl | 2 |
-| $o_y$ | oil price the US supply uses | 2023 \$/bbl | 2 |
-| $p^{\mathrm{ref}}_{r,y}$, $o^{\mathrm{ref}}_y$ | wellhead gas price and oil price at the reference paths | 2023 \$/MMBtu, 2023 \$/bbl | 3 |
+| $p_{r,y}$ | wellhead gas price | 2023 USD/MMBtu | 1 |
+| $\tilde o_y$ | Brent after the scenario multiplier | 2023 USD/bbl | 2 |
+| $o_y$ | oil price the US supply uses | 2023 USD/bbl | 2 |
+| $p_{r,y}^{\mathrm{ref}}$, $o_y^{\mathrm{ref}}$ | wellhead gas price and oil price at the reference paths | 2023 USD/MMBtu, 2023 USD/bbl | 3 |
 | $\overline{\mathit{Cap}}_{r,j,\mathit{type}}$ | base capacity of a gas type in cost tier $j$ | BCF/yr | 4 |
-| $\mathit{Cap}_{r,j}(p, y)$ | capacity of cost tier $j$ at a gas price $p$, before calibration | BCF/yr | 5 |
+| $\mathit{Cap_{r,j}}(p, y)$ | capacity of cost tier $j$ at a gas price $p$, before calibration | BCF/yr | 5 |
 | $\Lambda_{r,j,y}$ | depletion factor | | 6 |
 | $\eta_{r,y}$ | Brent elasticity of AD gas in effect | | 7 |
 | $f_{r,y}$ | Brent factor on AD gas | | 7 |
-| $Q^{\mathrm{NA}}_{r,j,y}$, $Q^{\mathrm{AD}}_{r,\mathrm{Med},y}$ | NA and AD capacity, what C-HSM reports | BCF/yr | 8, 9 |
+| $Q_{r,j,y}^{\mathrm{NA}}$, $Q_{r,\mathrm{Med},y}^{\mathrm{AD}}$ | NA and AD capacity, what C-HSM reports | BCF/yr | 8, 9 |
 | $x$ | years from the anchor year, $y - y_a$ | years | 10 |
 | $K_{r,y}$ | calibration factor | | 10 |
 | $\omega_{r,j,\mathit{type},y}$ | share of a gas type in the capacity of cost tier $j$ | | 12 |
@@ -109,45 +109,45 @@ Regional values with the inputs shipped with C-HSM:
 
 | Symbol | Description | Units | Eq. |
 |---|---|---|---|
-| $\mathit{opex}_{\mathit{type}}$ | mean production plus transport operating cost of conventional gas or coalbed methane wells in `on_region_avg_cost.csv` | \$/bbl | 14 |
-| $\mathit{wt}$, $\mathit{wt}_i$ | a NEMS `well_type_number`, and that of project $i$: 1 conventional oil, 2 tight oil, 3 conventional gas, 4 tight gas, 5 shale gas, 6 coalbed methane | | 15, 17 |
-| $\mathit{eur}_{\mathit{wt}}$ | `tier_1_eur_tech` of well type $\mathit{wt}$ in `on_tech_levers.csv` | per year | 15 |
+| $\mathit{opex_{\mathit{type}}}$ | mean production plus transport operating cost of conventional gas or coalbed methane wells in `on_region_avg_cost.csv` | USD/bbl | 14 |
+| $\mathit{wt}$, $\mathit{wt_i}$ | a NEMS `well_type_number`, and that of project $i$: 1 conventional oil, 2 tight oil, 3 conventional gas, 4 tight gas, 5 shale gas, 6 coalbed methane | | 15, 17 |
+| $\mathit{eur_{\mathit{wt}}}$ | `tier_1_eur_tech` of well type $\mathit{wt}$ in `on_tech_levers.csv` | per year | 15 |
 | $S_r$, $s$ | onshore districts of division $r$ in `mapping.csv` whose NEMS region has a dry-hole rate, and one such district | | 16 |
 | $h_s$ | dry-hole rate of district $s$'s NEMS region, development conventional gas (`on_dryhole_rate.csv`) | | 16 |
 | $h_r$ | mean dry-hole rate of division $r$ | | 16 |
-| $\mathcal I^{\mathrm{leg}}_r$, $\mathcal I^{\mathrm{leg}}_{r,a}$ | projects of the producing and CO2-EOR decks in region $r$, and those of class $a$ | | 17, 31 |
-| $\mathit{GP}_{i,n}$, $\mathit{OP}_{i,n}$ | gas, and crude oil with lease condensate, of project $i$ in profile year $n$ | MMcf/yr, thousand bbl/yr | 17, 31 |
+| $\mathcal I_r^{\mathrm{leg}}$, $\mathcal I_{r,a}^{\mathrm{leg}}$ | projects of the producing and CO2-EOR decks in region $r$, and those of class $a$ | | 17, 31 |
+| $\mathit{GP_{i,n}}$, $\mathit{OP_{i,n}}$ | gas, and crude oil with lease condensate, of project $i$ in profile year $n$ | MMcf/yr, thousand bbl/yr | 17, 31 |
 | $\lambda_r$ | tight oil share of the AD gas of region $r$ | | 18 |
 | $Y_a$ | C-NGMM's model years, 2025 to 2050 in steps of 5 | | 19 |
 | $\mu_{r,y}$ | `q0_mult` in `input/natural_gas/ng_supply_anchors.csv` | | 19 |
-| $Q^0_{r,y}$ | C-NGMM's supply anchor, the calibration target | BCF/yr | 19 |
+| $Q_{r,y}^0$ | C-NGMM's supply anchor, the calibration target | BCF/yr | 19 |
 | $\hat Q_{r,y}$ | capacity at the reference prices before calibration | BCF/yr | 20 |
 
 ### Canada
 
 | Symbol | Description | Units | Eq. |
 |---|---|---|---|
-| $H^b_y$, $B^b_y$ | benchmark Henry Hub and Brent prices (`can_benchmark_prices.csv`) | 1987 \$/MMBtu, 1987 \$/bbl | 23, 25 |
-| $\mathit{Base}^{\mathrm{AD}}_{\ell,y}$ | baseline AD production of province $\ell$ (`can_natgas_baseline_prod.csv`) | BCF/yr | 23 |
-| $e^{\mathrm{high}}_{\ell,y}$, $e^{\mathrm{low}}_{\ell,y}$ | Brent elasticity of AD gas above and below the benchmark (`can_elasticity_ad_gas.csv`) | | 23 |
-| $e^{\mathrm{AD}}_{\ell,y}$ | the one of the two in effect | | 23 |
+| $H_y^b$, $B_y^b$ | benchmark Henry Hub and Brent prices (`can_benchmark_prices.csv`) | 1987 USD/MMBtu, 1987 USD/bbl | 23, 25 |
+| $\mathit{Base_{\ell,y}^{\mathrm{AD}}}$ | baseline AD production of province $\ell$ (`can_natgas_baseline_prod.csv`) | BCF/yr | 23 |
+| $e_{\ell,y}^{\mathrm{high}}$, $e_{\ell,y}^{\mathrm{low}}$ | Brent elasticity of AD gas above and below the benchmark (`can_elasticity_ad_gas.csv`) | | 23 |
+| $e_{\ell,y}^{\mathrm{AD}}$ | the one of the two in effect | | 23 |
 | $A_{\ell,y}$ | AD production of province $\ell$ | BCF/yr | 23 |
-| $\mathit{AD}_{\mathit{cr},y}$ | AD production of Canadian region $\mathit{cr}$ | BCF/yr | 24 |
+| $\mathit{AD_{\mathit{cr},y}}$ | AD production of Canadian region $\mathit{cr}$ | BCF/yr | 24 |
 | $W_{\ell,\mathit{type},y}$ | new wells | wells | 25 |
-| $e^{W}_{\ell,\mathit{type},y}$ | Brent exponent of new wells, `oilprc_high` or `oilprc_low` (`can_natgas_poly_eqs.csv`) | | 25 |
+| $e_{\ell,\mathit{type},y}^{W}$ | Brent exponent of new wells, `oilprc_high` or `oilprc_low` (`can_natgas_poly_eqs.csv`) | | 25 |
 | $\Pi_{\ell,\mathit{type}}$; $b^{(0)}, \dots, b^{(3)}$ | well polynomial, and its coefficients `b0` to `b3` (`can_natgas_poly_eqs.csv`) | | 26 |
-| $P^{\mathrm{pipe}}$ | Canada pipeline price term | 1987 \$/MMBtu | 26 |
-| $\mathit{IP}_{\ell,\mathit{type}}$ | initial production rate of one well (`ipr`) | BCF/day | 27 |
+| $P^{\mathrm{pipe}}$ | Canada pipeline price term | 1987 USD/MMBtu | 26 |
+| $\mathit{IP_{\ell,\mathit{type}}}$ | initial production rate of one well (`ipr`) | BCF/day | 27 |
 | $b_{\ell,\mathit{type}}$, $\tilde b_{\ell,\mathit{type}}$ | hyperbolic exponent (`b`), and the value used in the decline exponent | | 27 |
 | $d_{\ell,\mathit{type}}$ | decline rate (`dr`) | per year | 27 |
 | $\kappa_n$ | first-year factor: 0.5 in year 1, 1 after | | 27 |
 | $q_{\ell,\mathit{type},n}$ | production of one well in year $n$ of its life | BCF/yr | 27 |
-| $\mathit{Base}^{\mathrm{NA}}_{\ell,\mathit{type},y}$ | baseline NA production (`can_natgas_baseline_prod.csv`) | BCF/yr | 28 |
-| $\tau^c_{\ell,\mathit{type}}$ | technology rate of new wells (`tech` in `can_natgas_dc_vars.csv`) | per year | 28 |
+| $\mathit{Base_{\ell,\mathit{type},y}^{\mathrm{NA}}}$ | baseline NA production (`can_natgas_baseline_prod.csv`) | BCF/yr | 28 |
+| $\tau_{\ell,\mathit{type}}^c$ | technology rate of new wells (`tech` in `can_natgas_dc_vars.csv`) | per year | 28 |
 | $X_y$ | production not available for export (`can_natgas_no_export_prod.csv`) | BCF/day | 28 |
-| $\mathit{NA}_{\mathit{cr},y}$ | NA production of Canadian region $\mathit{cr}$ | BCF/yr | 28 |
-| $\mathit{NA}^{\mathrm{ref}}_{\mathit{cr},y}$ | the same at the reference prices (`can_na_reference.csv`) | BCF/yr | 29 |
-| $\mathit{Imp}_y$, $\mathit{Exp}_y$ | US pipeline imports from and exports to Canada, AEO2026 Table 61 | Tcf | 29 |
+| $\mathit{NA_{\mathit{cr},y}}$ | NA production of Canadian region $\mathit{cr}$ | BCF/yr | 28 |
+| $\mathit{NA_{\mathit{cr},y}^{\mathrm{ref}}}$ | the same at the reference prices (`can_na_reference.csv`) | BCF/yr | 29 |
+| $\mathit{Imp_y}$, $\mathit{Exp_y}$ | US pipeline imports from and exports to Canada, AEO2026 Table 61 | Tcf | 29 |
 | $\chi_y$ | share of extra Canadian production that reaches the US (`can_us_export_share.csv`) | | 29 |
 | $\Delta_y$ | Canadian supply a coupled run would send to C-NGMM | BCF/yr | 30 |
 
@@ -155,38 +155,38 @@ Regional values with the inputs shipped with C-HSM:
 
 | Symbol | Description | Units | Eq. |
 |---|---|---|---|
-| $G^{\mathrm{leg}}_{r,a,y}$, $O^{\mathrm{leg}}_{r,a,y}$ | gas and crude oil from existing wells | BCF/yr, thousand bbl/yr | 31 |
-| $N_i$, $N^{\mathrm{cum}}_i$ | well limit (`totpat`) and wells drilled so far (`past_wells`) of a continuous project | wells | 32 |
+| $G_{r,a,y}^{\mathrm{leg}}$, $O_{r,a,y}^{\mathrm{leg}}$ | gas and crude oil from existing wells | BCF/yr, thousand bbl/yr | 31 |
+| $N_i$, $N_i^{\mathrm{cum}}$ | well limit (`totpat`) and wells drilled so far (`past_wells`) of a continuous project | wells | 32 |
 | $\rho^d$ | discount rate, 0.10 | per year | 32 |
 | $\psi_n$, $\mathcal A$ | discount factor of profile year $n$, and the sum of the 40 factors | | 32 |
 | $\nu$ | share of revenue left after royalty (0.1875) and severance (0.06) | | 33 |
 | $\mathcal G_i$, $\mathcal O_i$ | discounted gas and oil of one well, net of royalty and severance | MMBtu, bbl | 33 |
-| $\mathit{capex}_i$, $\mathit{fac}_i$ | drilling capex and facility capex of one well | 2023 \$ | 34 |
-| $\mathit{ovh}_i$, $\mathit{opx}_i$ | overhead a year, and operating cost per barrel of oil equivalent | 2023 \$ | 34 |
-| $\mathcal F_i$ | discounted cost of one well | 2023 \$ | 34 |
-| $P^g_{i,y}$, $P^o_{i,y}$ | gas and oil prices the engine uses | 2023 \$/MMBtu, 2023 \$/bbl | 35 |
-| $\mathit{NPV}_{i,y}$ | net present value of one well | 2023 \$ | 35 |
-| $D^{\mathrm{cap}}$ | the engine's own deflator for drilling cost, 1987 to 2023 dollars (`capex_deflator_1987_to_2023`, 2.17) | ratio | 36 |
+| $\mathit{capex_i}$, $\mathit{fac_i}$ | drilling capex and facility capex of one well | 2023 USD | 34 |
+| $\mathit{ovh_i}$, $\mathit{opx_i}$ | overhead a year, and operating cost per barrel of oil equivalent | 2023 USD | 34 |
+| $\mathcal F_i$ | discounted cost of one well | 2023 USD | 34 |
+| $P_{i,y}^g$, $P_{i,y}^o$ | gas and oil prices the engine uses | 2023 USD/MMBtu, 2023 USD/bbl | 35 |
+| $\mathit{NPV_{i,y}}$ | net present value of one well | 2023 USD | 35 |
+| $D^{\mathrm{cap}}$ | the engine's own deflator for drilling cost, 1987 to 2023 dollars (`capex_deflator_1987_to_2023`, 2.17, set by hand; $D_{2023}$ is 2.085) | ratio | 36 |
 | $\zeta_0$, $\zeta_{\mathit{basin}(i)}$, $\zeta_L$, $\zeta_V$ | drilling cost regression (`on_drill_cost_eqs.csv`): intercept, the term of basin $\mathit{basin}(i)$ (or of the state when no basin matches), and the coefficients of $L_i$ and $V_i$ | | 36 |
 | $\mathit{basin}(i)$ | basin of project $i$, matched from its play name | | 36 |
 | $r(i)$ | census division of project $i$ (its district mapped with `mapping.csv`) | | 35 |
 | $L_i$, $V_i$ | lateral length and vertical depth of a well | ft | 36 |
-| $\bar W^{\mathrm{oil}}_y$, $\bar W^{\mathrm{gas}}_y$ | national yearly caps on oil-directed and gas-directed wells | wells | 37 |
+| $\bar W_y^{\mathrm{oil}}$, $\bar W_y^{\mathrm{gas}}$ | national yearly caps on oil-directed and gas-directed wells | wells | 37 |
 | $\gamma$ | growth rate of the caps, 0 as shipped | per year | 37 |
 | $w_{i,y}$ | wells project $i$ drills in year $y$ | wells | 38 |
 | $\Omega_{i,y}$ | wells from the NEMS drilling rule | wells | 39 |
 | $R_i$, $\xi_i$, $\alpha_i$ | `max_annual_wells`, `max_annual_%_dev`, `max_drill_rate_frac` | | 39 |
 | $\pi^{\mathrm{pre}}$, $T$ | share of wells drilled before the drilling rate declines (0.70), ramp-up years (5) | | 39 |
-| $w^{\mathrm{last}}_i$ | wells project $i$ drilled last year | wells | 39 |
+| $w_i^{\mathrm{last}}$ | wells project $i$ drilled last year | wells | 39 |
 | $u_0$, $u$, $u_d$, $\Sigma$, $\Omega$, $\Omega^0$, $\bar\Omega_i$ | working values of the drilling rule, section 7.3 | | 39 |
-| $\bar P^g$, $\bar P^o_i$ | the engine's base gas price (`base_gas_price_2023`, 2.50, the value of $\bar p$), and the base oil price of project $i$ (`base_oil_prc_by_play.csv` by play name, 50 when none) | 2023 \$/MMBtu, 2023 \$/bbl | 39 |
+| $\bar P^g$, $\bar P_i^o$ | the engine's base gas price (`base_gas_price_2023`, 2.50, the value of $\bar p$), and the base oil price of project $i$ (`base_oil_prc_by_play.csv` by play name, 50 when none) | 2023 USD/MMBtu, 2023 USD/bbl | 39 |
 | $\theta^o$, $\theta^g$, $z$, $\Phi_{i,y}$ | oil and gas price ratios, working value, and the price adjustment | | 39 |
 | $\mathcal I_{r,a}$ | continuous projects of region $r$ and class $a$ | | 40 |
-| $\tau^E_i$ | technology rate of new wells | per year | 40 |
-| $G^E_{r,a,y}$, $O^E_{r,a,y}$ | gas and crude oil from the engine, existing and new wells | BCF/yr, thousand bbl/yr | 40, 41 |
+| $\tau_i^E$ | technology rate of new wells | per year | 40 |
+| $G_{r,a,y}^E$, $O_{r,a,y}^E$ | gas and crude oil from the engine, existing and new wells | BCF/yr, thousand bbl/yr | 40, 41 |
 | $\mathit{GP}'_{i,n}$ | gas profile after the decline overrides ($\mathit{OP}'_{i,n}$ likewise) | MMcf/yr | 42 |
-| $d^{\mathrm{first}}_i$, $d^{\mathrm{later}}_i$ | first-year and later decline rates of the overrides | | 42 |
-| $K^E_{r,y}$ | calibration factor of the engine | | 43 |
+| $d_i^{\mathrm{first}}$, $d_i^{\mathrm{later}}$ | first-year and later decline rates of the overrides | | 42 |
+| $K_{r,y}^E$ | calibration factor of the engine | | 43 |
 
 ## 1. Prices
 
@@ -198,35 +198,38 @@ inflation into the model as if it were a price signal.
 The wellhead gas price of region $r$ is Henry Hub plus a fixed regional basis:
 
 $$
-p_{r,y} = \max\big(D_{2023}\, H_y + \beta_r,\; 0.01\big) \tag{1}
+p_{r,y} = \max\big(D_{2023}\thinspace H_y + \beta_r,\mkern5mu 0.01\big) \tag{1}
 $$
 
 The oil price is Brent, scaled by the scenario multiplier, and replaced by the base oil price when
-it is below 20 \$/bbl in 2023 dollars:
+it is below 20 USD/bbl in 2023 dollars:
 
 $$
-\tilde o_y = D_{2023}\, m\, B_y, \qquad
-o_y = \begin{cases} \tilde o_y & \text{if } \tilde o_y \ge 20 \\ \bar o & \text{otherwise} \end{cases} \tag{2}
+\tilde o_y = D_{2023}\thinspace m\thinspace B_y, \qquad
+o_y = \begin{cases} \tilde o_y & \text{if } \tilde o_y \ge 20 \\
+\bar o & \text{otherwise} \end{cases} \tag{2}
 $$
 
 The reference prices, used by the NA/AD split (section 2.3), are built the same way from the
 reference paths, without the multiplier:
 
 $$
-p^{\mathrm{ref}}_{r,y} = \max\big(D_{2023}\, H^{\mathrm{ref}}_y + \beta_r,\; 0.01\big), \qquad
-o^{\mathrm{ref}}_y = \begin{cases} D_{2023}\, B^{\mathrm{ref}}_y & \text{if } D_{2023}\, B^{\mathrm{ref}}_y \ge 20 \\ o_y & \text{otherwise} \end{cases} \tag{3}
+p^{\mathrm{ref}}_{r,y} = \max\big(D_{2023}\thinspace H^{\mathrm{ref}}_y + \beta_r,\mkern5mu 0.01\big), \qquad
+o^{\mathrm{ref}}_y = \begin{cases} D_{2023}\thinspace B^{\mathrm{ref}}_y & \text{if } D_{2023}\thinspace B^{\mathrm{ref}}_y \ge 20 \\
+o_y & \text{otherwise} \end{cases} \tag{3}
 $$
 
 A year missing from a reference path would also take the actual price, which makes the split
 neutral for that year; the shipped paths cover every year. The code also floors both oil prices at
-1 \$/bbl, which never binds.
+1 USD/bbl, which never binds.
 
-The reference paths are AEO2026 results converted to 1987 dollars with the same deflator table:
-$H^{\mathrm{ref}}_y = H^{\mathrm{nom}}_y / D_y$, from the Henry Hub spot price in Table 59, and
-$B^{\mathrm{ref}}_y = 42\, B^{\mathrm{gal}}_y / D_y$, from the Brent spot price in \$/gallon in Table 57, both stored
-to four decimals. So $D_{2023}\, H^{\mathrm{ref}}_y = H^{\mathrm{nom}}_y\, D_{2023} / D_y$ is the nominal AEO2026
-price restated in 2023 dollars. When C-HSM is given no Brent path, as in the standard run,
-$B_y = B^{\mathrm{ref}}_y$. The Henry Hub path in the standard run config
+The reference paths are AEO2026 results divided by the same deflator table:
+$H_y^{\mathrm{ref}} = H_y^{\mathrm{AEO}} / D_y$, from the Henry Hub spot price in Table 59, and
+$B_y^{\mathrm{ref}} = 42\thinspace B_y^{\mathrm{gal}} / D_y$, from the Brent spot price in USD/gallon in Table 57, both stored
+to four decimals. The tables start in 2025, so 2023 and 2024 repeat 2025. **Known issue:** the
+tables are in 2025 dollars, so dividing by $D_y$ rather than $D_{2025}$ treats them as nominal, and
+the paths are 8% low by 2030 and 35% by 2050. When C-HSM is given no Brent path, as in the standard run,
+$B_y = B_y^{\mathrm{ref}}$. The Henry Hub path in the standard run config
 (`henry_hub_path_aeo2026_1987usd.csv`) is the same series before rounding.
 
 ## 2. US gas supply capacity
@@ -238,7 +241,7 @@ This is the reduced form in `us_gas.py`, which C-HSM runs by default. Capacity i
 Each C-NGMM cost tier is split across gas types by fixed shares:
 
 $$
-\overline{\mathit{Cap}}_{r,j,\mathit{type}} = \mathit{share}_{j,\mathit{type}}\; \mathit{Cap}^{\mathrm{NG}}_{r,j} \tag{4}
+\overline{\mathit{Cap}}_{r,j,\mathit{type}} = \mathit{share}_{j,\mathit{type}}\mkern5mu \mathit{Cap}^{\mathrm{NG}}_{r,j} \tag{4}
 $$
 
 The low-cost tier holds conventional gas and coalbed methane, the medium-cost tier tight and shale
@@ -250,15 +253,15 @@ capacities are read; the tier costs in the same file are not used.
 Capacity of cost tier $j$ at gas price $p$ in year $y$, before calibration:
 
 $$
-\mathit{Cap}_{r,j}(p, y) = \Lambda_{r,j,y} \sum_{\mathit{type}} \overline{\mathit{Cap}}_{r,j,\mathit{type}} \left(\frac{p}{\bar p}\right)^{\varepsilon_{\mathit{type}}} (1 + \tau_{\mathit{type}})^{\,y - y_0} \tag{5}
+\mathit{Cap}_{r,j}(p, y) = \Lambda_{r,j,y} \sum_{\mathit{type}} \overline{\mathit{Cap}}_{r,j,\mathit{type}} \left(\frac{p}{\bar p}\right)^{\varepsilon_{\mathit{type}}} (1 + \tau_{\mathit{type}})^{\thinspace y - y_0} \tag{5}
 $$
 
 with depletion on the low-cost tier only:
 
 $$
 \Lambda_{r,j,y} = \begin{cases}
-\max\big(1 - \delta_r \max(y - y_0,\, 0),\; 0.5\big) & j = \mathrm{Low} \\
-1 & j \in \{\mathrm{Med}, \mathrm{High}\}
+\max\big(1 - \delta_r \max(y - y_0,\thinspace 0),\mkern5mu 0.5\big) & j = \mathrm{Low} \\
+1 & j \in \lbrace \mathrm{Med}, \mathrm{High}\rbrace
 \end{cases} \tag{6}
 $$
 
@@ -273,17 +276,18 @@ Brent response is
 
 $$
 f_{r,y} = \left(\frac{o_y}{o^{\mathrm{ref}}_y}\right)^{\eta_{r,y}}, \qquad
-\eta_{r,y} = \begin{cases} \eta^{\mathrm{up}}_r & \text{if } o_y > o^{\mathrm{ref}}_y \\ \eta^{\mathrm{dn}}_r & \text{otherwise} \end{cases} \tag{7}
+\eta_{r,y} = \begin{cases} \eta^{\mathrm{up}}_r & \text{if } o_y > o^{\mathrm{ref}}_y \\
+\eta^{\mathrm{dn}}_r & \text{otherwise} \end{cases} \tag{7}
 $$
 
 and the capacity C-HSM reports is
 
 $$
-Q^{\mathrm{NA}}_{r,j,y} = (1 - \sigma_r)\, \mathit{Cap}_{r,j}(p_{r,y}, y)\, K_{r,y}, \qquad j \in \{\mathrm{Low}, \mathrm{Med}, \mathrm{High}\} \tag{8}
+Q^{\mathrm{NA}}_{r,j,y} = (1 - \sigma_r)\thinspace \mathit{Cap}_{r,j}(p_{r,y}, y)\thinspace K_{r,y}, \qquad j \in \lbrace \mathrm{Low}, \mathrm{Med}, \mathrm{High}\rbrace \tag{8}
 $$
 
 $$
-Q^{\mathrm{AD}}_{r,\mathrm{Med},y} = \sigma_r \sum_{j} \mathit{Cap}_{r,j}(p^{\mathrm{ref}}_{r,y}, y)\, f_{r,y}\, K_{r,y} \tag{9}
+Q^{\mathrm{AD}}_{r,\mathrm{Med},y} = \sigma_r \sum_{j} \mathit{Cap}_{r,j}(p^{\mathrm{ref}}_{r,y}, y)\thinspace f_{r,y}\thinspace K_{r,y} \tag{9}
 $$
 
 where $K_{r,y}$ is the calibration factor of section 2.4. AD gas is evaluated at the reference gas
@@ -294,7 +298,7 @@ both quantities at zero; with positive factors the floors never bind.
 ### 2.4 Calibration factor
 
 $$
-K_{r,y} = k_r\, (1 + g_r)^{x} \exp\big(c_r x^2\big), \qquad x = y - y_a \tag{10}
+K_{r,y} = k_r\thinspace (1 + g_r)^{x} \exp\big(c_r x^2\big), \qquad x = y - y_a \tag{10}
 $$
 
 $k_r$ takes up level differences, such as the gas type shares and the base price; $g_r$ and $c_r$
@@ -303,7 +307,7 @@ on its own. Section 4 gives the fit.
 
 ### 2.5 Properties
 
-At the reference prices ($p_{r,y} = p^{\mathrm{ref}}_{r,y}$, $o_y = o^{\mathrm{ref}}_y$, so $f_{r,y} = 1$) NA and AD
+At the reference prices ($p_{r,y} = p_{r,y}^{\mathrm{ref}}$, $o_y = o_y^{\mathrm{ref}}$, so $f_{r,y} = 1$) NA and AD
 gas add up to the calibrated total without the split, which is what the calibration was fitted to:
 
 $$
@@ -314,9 +318,9 @@ Away from the price floor, the elasticity of NA capacity to the wellhead price i
 capacity-weighted mean of the gas type elasticities:
 
 $$
-\frac{\partial \ln Q^{\mathrm{NA}}_{r,j,y}}{\partial \ln p_{r,y}} = \sum_{\mathit{type}} \omega_{r,j,\mathit{type},y}\, \varepsilon_{\mathit{type}}, \qquad
-\omega_{r,j,\mathit{type},y} = \frac{\overline{\mathit{Cap}}_{r,j,\mathit{type}}\, (p_{r,y}/\bar p)^{\varepsilon_{\mathit{type}}} (1 + \tau_{\mathit{type}})^{y - y_0}}
-{\sum_{\mathit{type}'} \overline{\mathit{Cap}}_{r,j,\mathit{type}'}\, (p_{r,y}/\bar p)^{\varepsilon_{\mathit{type}'}} (1 + \tau_{\mathit{type}'})^{y - y_0}} \tag{12}
+\frac{\partial \ln Q^{\mathrm{NA}}_{r,j,y}}{\partial \ln p_{r,y}} = \sum_{\mathit{type}} \omega_{r,j,\mathit{type},y}\thinspace \varepsilon_{\mathit{type}}, \qquad
+\omega_{r,j,\mathit{type},y} = \frac{\overline{\mathit{Cap}}_{r,j,\mathit{type}}\thinspace (p_{r,y}/\bar p)^{\varepsilon_{\mathit{type}}} (1 + \tau_{\mathit{type}})^{y - y_0}}
+{\sum_{\mathit{type}'} \overline{\mathit{Cap}}_{r,j,\mathit{type}'}\thinspace (p_{r,y}/\bar p)^{\varepsilon_{\mathit{type}'}} (1 + \tau_{\mathit{type}'})^{y - y_0}} \tag{12}
 $$
 
 It lies between 0.25 and 0.30 for the low-cost tier, 0.55 and 0.65 for the medium-cost tier, and
@@ -324,7 +328,7 @@ It lies between 0.25 and 0.30 for the low-cost tier, 0.55 and 0.65 for the mediu
 $\partial \ln p_{r,y} / \partial \ln H_y = D_{2023} H_y / p_{r,y}$, which is below 1 where the
 basis is positive and above 1 where it is negative. NA gas does not respond to Brent. AD gas does
 not respond to the gas price, and while $\tilde o_y \ge 20$ its Brent elasticity is
-$\partial \ln Q^{\mathrm{AD}}_{r,\mathrm{Med},y} / \partial \ln o_y = \eta_{r,y}$, with a kink at the
+$\partial \ln Q_{r,\mathrm{Med},y}^{\mathrm{AD}} / \partial \ln o_y = \eta_{r,y}$, with a kink at the
 reference price.
 
 ### 2.6 Without the NA/AD split
@@ -334,15 +338,15 @@ shipped. Without them C-HSM falls back to an older form with no gas class, which
 oil-associated gas to the medium-cost tier:
 
 $$
-Q_{r,j,y} = K_{r,y} \Big( \mathit{Cap}_{r,j}(p_{r,y}, y) + [\,j = \mathrm{Med}\,]\, [\,\lvert \varepsilon^{\mathrm{oil}}_r \rvert > 10^{-9}\,]\; \phi\, \mathit{Cap}^{\mathrm{NG}}_{r,\mathrm{Med}} \left(\frac{o_y}{\bar o}\right)^{\varepsilon^{\mathrm{oil}}_r} \Big) \tag{13}
+Q_{r,j,y} = K_{r,y} \Big( \mathit{Cap}_{r,j}(p_{r,y}, y) + [\thinspace j = \mathrm{Med}\thinspace ]\thinspace [\thinspace \lvert \varepsilon^{\mathrm{oil}}_r \rvert > 10^{-9}\thinspace ]\mkern5mu \phi\thinspace \mathit{Cap}^{\mathrm{NG}}_{r,\mathrm{Med}} \left(\frac{o_y}{\bar o}\right)^{\varepsilon^{\mathrm{oil}}_r} \Big) \tag{13}
 $$
 
 Here $[\cdot]$ is 1 when the condition holds and 0 otherwise, so the term is added only to the
-medium-cost tier and only where $\varepsilon^{\mathrm{oil}}_r$ is not zero (the code tests
-$\lvert \varepsilon^{\mathrm{oil}}_r \rvert > 10^{-9}$). $\phi = 0.15$ is `share_ratio` in
-NEMS `on_constraint_params.csv`, and $\varepsilon^{\mathrm{oil}}_r$ is `OIL_ASSOCIATED_GAS_ELASTICITY`
-(West South Central 0.35, Mountain 0.20, West North Central 0.15, South Atlantic, East South
-Central and Pacific 0.05, the rest 0). The shipped calibration was fitted to eq. 11, so with this
+medium-cost tier and only where $\varepsilon_r^{\mathrm{oil}}$ is not zero (the code tests
+$\lvert \varepsilon_r^{\mathrm{oil}} \rvert > 10^{-9}$). $\phi = 0.15$ is `share_ratio` in
+NEMS `on_constraint_params.csv`, which NEMS does not read, and $\varepsilon_r^{\mathrm{oil}}$ is
+`OIL_ASSOCIATED_GAS_ELASTICITY`, set by hand (West South Central 0.35, Mountain 0.20, West North
+Central 0.15, South Atlantic, East South Central and Pacific 0.05, the rest 0). The shipped calibration was fitted to eq. 11, so with this
 form capacity at the reference prices is higher than eq. 11 by the added term.
 
 ## 3. Parameters derived from NEMS inputs
@@ -351,7 +355,7 @@ When it starts, C-HSM computes three parameters from NEMS onshore input files in
 `input/hsm/onshore/`, unchanged from NEMS (`us_gas.py`), reads a fourth, $\phi$ in eq. 13,
 directly, and reads two files in `input/hsm/` that were built from the NEMS decks.
 
-**Low-cost tier shares** (`on_region_avg_cost.csv`). With $\mathit{opex}_{\mathit{type}}$ the mean
+**Low-cost tier shares** (`on_region_avg_cost.csv`). With $\mathit{opex_{\mathit{type}}}$ the mean
 over the file's rows for a well type of `production_opex_brl` + `transport_opex_brl`,
 
 $$
@@ -377,18 +381,18 @@ district's NEMS region) and $S_r$ the onshore districts of census division $r$ t
 
 $$
 h_r = \frac{1}{|S_r|} \sum_{s \in S_r} h_s, \qquad
-\delta_r = 0.005 + 0.015\, \frac{h_r - \min_{r'} h_{r'}}{\max_{r'} h_{r'} - \min_{r'} h_{r'}} \tag{16}
+\delta_r = 0.005 + 0.015\thinspace \frac{h_r - \min_{r'} h_{r'}}{\max_{r'} h_{r'} - \min_{r'} h_{r'}} \tag{16}
 $$
 
 rounded to four decimals: a higher dry-hole rate means faster depletion. The ranking comes from
 NEMS; the range, 0.005 to 0.020 a year, is set for C-HSM.
 
 **AD share** (`us_ad_gas_share.csv`, built from the producing and CO2-EOR decks). With
-$\mathcal I^{\mathrm{leg}}_r$ the projects of region $r$ in those decks and $\mathit{GP}_{i,1}$ their gas in the first
+$\mathcal I_r^{\mathrm{leg}}$ the projects of region $r$ in those decks and $\mathit{GP_{i,1}}$ their gas in the first
 projection year,
 
 $$
-\sigma_r = \frac{\sum_{i \in \mathcal I^{\mathrm{leg}}_r,\, \mathit{wt}_i < 3} \mathit{GP}_{i,1}}{\sum_{i \in \mathcal I^{\mathrm{leg}}_r} \mathit{GP}_{i,1}} \tag{17}
+\sigma_r = \frac{\sum_{i \in \mathcal I^{\mathrm{leg}}_r,\thinspace \mathit{wt}_i < 3} \mathit{GP}_{i,1}}{\sum_{i \in \mathcal I^{\mathrm{leg}}_r} \mathit{GP}_{i,1}} \tag{17}
 $$
 
 Well types 1 and 2 are conventional oil and tight oil, so this is the rule NEMS uses for its AD gas
@@ -400,14 +404,14 @@ elasticity by $\lambda_r$, the tight oil share of its AD gas (the first-year gas
 over that of well types 1 and 2, from the same decks):
 
 $$
-\eta^{\mathrm{up}}_r = 0.5456\, \lambda_r + 0.1225\, (1 - \lambda_r), \qquad
-\eta^{\mathrm{dn}}_r = 0.7276\, \lambda_r + 0.5795\, (1 - \lambda_r) \tag{18}
+\eta^{\mathrm{up}}_r = 0.5456\thinspace \lambda_r + 0.1225\thinspace (1 - \lambda_r), \qquad
+\eta^{\mathrm{dn}}_r = 0.7276\thinspace \lambda_r + 0.5795\thinspace (1 - \lambda_r) \tag{18}
 $$
 
 rounded to four decimals, and 0 for New England, which has no AD gas. The four national values are
 recorded in the file's header as the 2030 to 2050 mean response of crude production to Brent in
-the AEO2025 High and Low Oil Price cases; AEO2026 has no oil price cases. The script that computed
-them is not part of C-HSM.
+the AEO2025 High and Low Oil Price cases; AEO2026 has no oil price cases. Using the crude response
+for AD gas is an assumption. The script that computed them is not part of C-HSM.
 
 ## 4. Calibration
 
@@ -415,10 +419,10 @@ The calibration fits US capacity at the reference prices to C-NGMM's supply anch
 are C-NGMM's anchor quantities in its six model years:
 
 $$
-Q^0_{r,y} = \mu_{r,y} \sum_j \mathit{Cap}^{\mathrm{NG}}_{r,j}, \qquad y \in Y_a = \{2025, 2030, \dots, 2050\} \tag{19}
+Q^0_{r,y} = \mu_{r,y} \sum_j \mathit{Cap}^{\mathrm{NG}}_{r,j}, \qquad y \in Y_a = \lbrace 2025, 2030, \dots, 2050\rbrace \tag{19}
 $$
 
-$Q^0_{r,y}$ is the parameter `q0` that C-NGMM builds from the same two files. The capacity at the
+$Q_{r,y}^0$ is the parameter `q0` that C-NGMM builds from the same two files. The capacity at the
 reference prices before calibration is
 
 $$
@@ -429,11 +433,11 @@ which is the total NA plus AD capacity at the reference prices (eq. 11 with $K_{
 region, the fit is ordinary least squares on the log of the ratio, with a quadratic trend:
 
 $$
-(k_r, g_r, c_r) = \arg\min_{k > 0,\; g > -1,\; c} \sum_{y \in Y_a} \left( \ln \frac{Q^0_{r,y}}{\hat Q_{r,y}} - \ln k - x \ln(1 + g) - c\, x^2 \right)^2, \qquad x = y - y_a \tag{21}
+(k_r, g_r, c_r) = \arg\min_{k > 0,\mkern5mu g > -1,\mkern5mu c} \sum_{y \in Y_a} \left( \ln \frac{Q^0_{r,y}}{\hat Q_{r,y}} - \ln k - x \ln(1 + g) - c\thinspace x^2 \right)^2, \qquad x = y - y_a \tag{21}
 $$
 
 $$
-\ln K_{r,y} = \ln k_r + x \ln(1 + g_r) + c_r\, x^2 \tag{22}
+\ln K_{r,y} = \ln k_r + x \ln(1 + g_r) + c_r\thinspace x^2 \tag{22}
 $$
 
 The fit is linear in $\ln k_r$, $\ln(1 + g_r)$ and $c_r$, so it has a closed-form solution. The
@@ -441,7 +445,7 @@ file stores $k_r$ and $g_r$ to six decimals and $c_r$ to eight. Refitting from t
 gives back the shipped values to that precision.
 
 Six targets and three parameters leave a residual. Calibrated capacity at the reference prices
-against the target, $K_{r,y} \hat Q_{r,y} / Q^0_{r,y} - 1$, in percent:
+against the target, $K_{r,y} \hat Q_{r,y} / Q_{r,y}^0 - 1$, in percent:
 
 | Region | 2025 | 2030 | 2035 | 2040 | 2045 | 2050 |
 |---|---|---|---|---|---|---|
@@ -478,20 +482,21 @@ dollars and are not converted to 2023 dollars. The submodule's inputs are in
 AD production of province $\ell$ is its baseline scaled by Brent against a benchmark:
 
 $$
-A_{\ell,y} = \mathit{Base}^{\mathrm{AD}}_{\ell,y} \left(\frac{m\, B_y}{B^b_y}\right)^{e^{\mathrm{AD}}_{\ell,y}}, \qquad
-e^{\mathrm{AD}}_{\ell,y} = \begin{cases} e^{\mathrm{high}}_{\ell,y} & \text{if } m\, B_y > B^b_y \\ e^{\mathrm{low}}_{\ell,y} & \text{otherwise} \end{cases} \tag{23}
+A_{\ell,y} = \mathit{Base}^{\mathrm{AD}}_{\ell,y} \left(\frac{m\thinspace B_y}{B^b_y}\right)^{e^{\mathrm{AD}}_{\ell,y}}, \qquad
+e^{\mathrm{AD}}_{\ell,y} = \begin{cases} e^{\mathrm{high}}_{\ell,y} & \text{if } m\thinspace B_y > B^b_y \\
+e^{\mathrm{low}}_{\ell,y} & \text{otherwise} \end{cases} \tag{23}
 $$
 
-$\mathit{Base}^{\mathrm{AD}}_{\ell,y}$ is the `Solution` gas of Alberta, British Columbia and
+$\mathit{Base_{\ell,y}^{\mathrm{AD}}}$ is the `Solution` gas of Alberta, British Columbia and
 Saskatchewan, and all the production of Nova Scotia, New Brunswick, Quebec, Ontario, Yukon and the
 Northwest Territories. $e^{\mathrm{high}}$ and $e^{\mathrm{low}}$ are given for the three western provinces from
-2016; elsewhere $e^{\mathrm{AD}}_{\ell,y} = 0$. The Brent here is the model's path, $m B_y$, with no
-\$20 check. Years before 2023 keep their baseline. The adjustment is made once, when 2023 runs, for
+2016; elsewhere $e_{\ell,y}^{\mathrm{AD}} = 0$. The Brent here is the model's path, $m B_y$, with no
+20 USD/bbl check. Years before 2023 keep their baseline. The adjustment is made once, when 2023 runs, for
 all years.
 
 $$
 \mathit{AD}_{2,y} = \sum_{\ell \in \text{west}} A_{\ell,y}, \qquad
-\mathit{AD}_{1,y} = \sum_{\ell \in \{\text{NS, NB, QC, ON, YT, NT}\}} A_{\ell,y} \tag{24}
+\mathit{AD}_{1,y} = \sum_{\ell \in \lbrace \text{NS, NB, QC, ON, YT, NT}\rbrace } A_{\ell,y} \tag{24}
 $$
 
 Newfoundland and Labrador is in neither.
@@ -503,7 +508,7 @@ non-associated, tight, shale and coalbed methane; British Columbia tight, shale 
 Saskatchewan tight and non-associated. For $y \ge 2024$:
 
 $$
-W_{\ell,\mathit{type},y} = \operatorname{round}\Big( \max\Big( \Pi_{\ell,\mathit{type}}\big(H^b_y\big)\; P^{\mathrm{pipe}} \Big[ H^b_y \Big(\frac{m\, B_y}{B^b_y}\Big)^{e^{W}_{\ell,\mathit{type},y}} \Big]^{0.75},\; 0 \Big) \Big) \tag{25}
+W_{\ell,\mathit{type},y} = \operatorname{round}\Big( \max\Big( \Pi_{\ell,\mathit{type}}\big(H^b_y\big)\mkern5mu P^{\mathrm{pipe}} \Big[ H^b_y \Big(\frac{m\thinspace B_y}{B^b_y}\Big)^{e^{W}_{\ell,\mathit{type},y}} \Big]^{0.75},\mkern5mu 0 \Big) \Big) \tag{25}
 $$
 
 $$
@@ -511,14 +516,14 @@ $$
 P^{\mathrm{pipe}} = 4.0 + \frac{0.96}{D_{2016}} \approx 4.542 \tag{26}
 $$
 
-$e^{W}_{\ell,\mathit{type},y}$ is `oilprc_high` when $m B_y > B^b_y$ and `oilprc_low` otherwise.
+$e_{\ell,\mathit{type},y}^{W}$ is `oilprc_high` when $m B_y > B_y^b$ and `oilprc_low` otherwise.
 4.0 is the Canada pipeline price, fixed in C-HSM where NEMS computes it. Rounding is to the nearest
 integer, halves to even. The wells of 2023 are the historical counts in `can_wells.csv`, used as
 they are.
 
-$H^b_y$ and $P^{\mathrm{pipe}}$ are fixed inputs, so new wells do not depend on the Henry Hub price C-HSM
+$H_y^b$ and $P^{\mathrm{pipe}}$ are fixed inputs, so new wells do not depend on the Henry Hub price C-HSM
 is given, and before rounding and the zero floor their Brent elasticity is
-$0.75\, e^{W}_{\ell,\mathit{type},y}$. (The AEO2026 release of NEMS drops the second $H^b_y$ and
+$0.75\thinspace e_{\ell,\mathit{type},y}^{W}$. (The AEO2026 release of NEMS drops the second $H_y^b$ and
 $P^{\mathrm{pipe}}$ from eq. 25.)
 
 ### 5.3 Production of one well
@@ -526,7 +531,7 @@ $P^{\mathrm{pipe}}$ from eq. 25.)
 Each new well follows a hyperbolic (Arps) decline:
 
 $$
-q_{\ell,\mathit{type},n} = \kappa_n\; 365\; \mathit{IP}_{\ell,\mathit{type}}\, \big(1 + b_{\ell,\mathit{type}}\, d_{\ell,\mathit{type}}\, n\big)^{-1/\tilde b_{\ell,\mathit{type}}},
+q_{\ell,\mathit{type},n} = \kappa_n\mkern5mu 365\mkern5mu \mathit{IP}_{\ell,\mathit{type}}\thinspace \big(1 + b_{\ell,\mathit{type}}\thinspace d_{\ell,\mathit{type}}\thinspace n\big)^{-1/\tilde b_{\ell,\mathit{type}}},
 \qquad n = 1, \dots, 46 \tag{27}
 $$
 
@@ -537,26 +542,26 @@ file only pairs with $\mathit{IP} = 0$ have $b = 0$.
 ### 5.4 Non-associated gas
 
 $$
-\mathit{NA}_{2,y} = \max\Big( \sum_{(\ell, \mathit{type})} \Big[ \mathit{Base}^{\mathrm{NA}}_{\ell,\mathit{type},y} + \sum_{v = 2023}^{y} W_{\ell,\mathit{type},v}\; q_{\ell,\mathit{type},\,y - v + 1}\, (1 + \tau^c_{\ell,\mathit{type}})^{v - 2005} \Big] - 365\, X_y,\; 0 \Big), \qquad \mathit{NA}_{1,y} = 0 \tag{28}
+\mathit{NA}_{2,y} = \max\Big( \sum_{(\ell, \mathit{type})} \Big[ \mathit{Base}^{\mathrm{NA}}_{\ell,\mathit{type},y} + \sum_{v = 2023}^{y} W_{\ell,\mathit{type},v}\mkern5mu q_{\ell,\mathit{type},\thinspace y - v + 1}\thinspace (1 + \tau^c_{\ell,\mathit{type}})^{v - 2005} \Big] - 365\thinspace X_y,\mkern5mu 0 \Big), \qquad \mathit{NA}_{1,y} = 0 \tag{28}
 $$
 
 The sum runs over the nine pairs; $\tau^c$ is 0.005 or 0.01 a year, counted from 2005, and $X_y$ is
 read in row order for 2005 to 2050. The sum over vintages is empty before 2023. Eastern Canada has
-no non-associated baseline, so $\mathit{NA}_{1,y} = 0$. `hsm_canada_realized_na_prod.csv` is a copy of
-$\mathit{NA}_{\mathit{cr},y}$.
+no non-associated baseline, so $\mathit{NA_{1,y}} = 0$. `hsm_canada_realized_na_prod.csv` is a copy of
+$\mathit{NA_{\mathit{cr},y}}$.
 
 ### 5.5 For a coupled run
 
 Two more inputs, in `input/hsm/`, are for a coupled run with C-NGMM; a standalone run loads them
 but does not use them. `can_us_export_share.csv` holds the share of extra Canadian production
-that reaches the US. It was built as
+that reaches the US; using an average ratio for it is an assumption. It was built as
 
 $$
-\chi_y = \min\Big( \max\Big( \frac{1000\, (\mathit{Imp}_y - \mathit{Exp}_y)}{\mathit{NA}^{\mathrm{ref}}_{2,y}},\; 0 \Big),\; 1 \Big) \tag{29}
+\chi_y = \min\Big( \max\Big( \frac{1000\thinspace (\mathit{Imp}_y - \mathit{Exp}_y)}{\mathit{NA}^{\mathrm{ref}}_{2,y}},\mkern5mu 0 \Big),\mkern5mu 1 \Big) \tag{29}
 $$
 
 with a missing export taken as 0 and a year Table 61 does not have given the table's first year;
-$\mathit{NA}^{\mathrm{ref}}_{\mathit{cr},y}$ is eq. 28 at the reference prices, stored in `can_na_reference.csv`. No
+$\mathit{NA_{\mathit{cr},y}^{\mathrm{ref}}}$ is eq. 28 at the reference prices, stored in `can_na_reference.csv`. No
 code in C-HSM computes or sends anything to C-NGMM yet; a coupling runner would send
 
 $$
@@ -570,14 +575,14 @@ with Brent.
 ## 6. Existing US wells
 
 Gas and crude oil from wells already producing come from the NEMS producing oil, producing gas and
-CO2-EOR project decks (`OnshoreLegacy`). Each project $i$ has a production profile $\mathit{GP}_{i,n}$ and
-$\mathit{OP}_{i,n}$ for profile years $n = 1, \dots, 40$, and profile year 1 is taken as calendar 2024. With
-$\mathcal I^{\mathrm{leg}}_{r,a}$ the projects of region $r$ (districts mapped to census divisions with
-`mapping.csv`) and class $a$ (AD if $\mathit{wt}_i < 3$, NA otherwise):
+CO2-EOR project decks (`OnshoreLegacy`). Each project $i$ has a production profile $\mathit{GP_{i,n}}$ and
+$\mathit{OP_{i,n}}$ for profile years $n = 1, \dots, 40$, and profile year 1 is taken as calendar 2024. With
+$\mathcal I_{r,a}^{\mathrm{leg}}$ the projects of region $r$ (districts mapped to census divisions with
+`mapping.csv`) and class $a$ (AD if $\mathit{wt_i} < 3$, NA otherwise):
 
 $$
-G^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_3 \Big( \frac{1}{1000} \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{GP}_{i,\, y - 2023} \Big), \qquad
-O^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_1 \Big( \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{OP}_{i,\, y - 2023} \Big) \tag{31}
+G^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_3 \Big( \frac{1}{1000} \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{GP}_{i,\thinspace y - 2023} \Big), \qquad
+O^{\mathrm{leg}}_{r,a,y} = \operatorname{round}_1 \Big( \sum_{i \in \mathcal I^{\mathrm{leg}}_{r,a}} \mathit{OP}_{i,\thinspace y - 2023} \Big) \tag{31}
 $$
 
 in BCF and thousand barrels, for 2024 to 2050, where $\operatorname{round}_3$ and
@@ -596,8 +601,8 @@ the shipped inputs or a known bug change what applies. The settings are in
 
 The engine works on the 3,181 projects of the continuous deck, `on_projects_continuous.csv`
 (process codes 12 tight oil, 13 shale gas and 15 coalbed methane). Project $i$ has a per-well
-profile $\mathit{GP}_{i,n}$, $\mathit{OP}_{i,n}$, $n = 1, \dots, 40$, a well limit $N_i$ and wells drilled so far
-$N^{\mathrm{cum}}_i$. With discount rate $\rho^d = 0.10$ and revenue share after royalty and severance
+profile $\mathit{GP_{i,n}}$, $\mathit{OP_{i,n}}$, $n = 1, \dots, 40$, a well limit $N_i$ and wells drilled so far
+$N_i^{\mathrm{cum}}$. With discount rate $\rho^d = 0.10$ and revenue share after royalty and severance
 $\nu = 1 - 0.1875 - 0.06$:
 
 $$
@@ -605,21 +610,21 @@ $$
 $$
 
 $$
-\mathcal G_i = 1037\, \nu \sum_{n} \psi_n\, \mathit{GP}_{i,n}, \qquad
-\mathcal O_i = 1000\, \nu \sum_{n} \psi_n\, \mathit{OP}_{i,n} \tag{33}
+\mathcal G_i = 1037\thinspace \nu \sum_{n} \psi_n\thinspace \mathit{GP}_{i,n}, \qquad
+\mathcal O_i = 1000\thinspace \nu \sum_{n} \psi_n\thinspace \mathit{OP}_{i,n} \tag{33}
 $$
 
 $$
-\mathcal F_i = \mathit{capex}_i + \mathit{fac}_i + \mathit{ovh}_i\, \mathcal A + \mathit{opx}_i \Big( 1000 \sum_n \psi_n\, \mathit{OP}_{i,n} + \frac{1000}{5.6} \sum_n \psi_n\, \mathit{GP}_{i,n} \Big) \tag{34}
+\mathcal F_i = \mathit{capex}_i + \mathit{fac}_i + \mathit{ovh}_i\thinspace \mathcal A + \mathit{opx}_i \Big( 1000 \sum_n \psi_n\thinspace \mathit{OP}_{i,n} + \frac{1000}{5.6} \sum_n \psi_n\thinspace \mathit{GP}_{i,n} \Big) \tag{34}
 $$
 
 $$
-\mathit{NPV}_{i,y} = \mathcal G_i\, P^g_{i,y} + \mathcal O_i\, P^o_{i,y} - \mathcal F_i \tag{35}
+\mathit{NPV}_{i,y} = \mathcal G_i\thinspace P^g_{i,y} + \mathcal O_i\thinspace P^o_{i,y} - \mathcal F_i \tag{35}
 $$
 
 $\mathcal G_i$ is discounted gas in MMBtu (1,037 MMBtu per MMcf) and $\mathcal O_i$ discounted oil in
 barrels, both net of royalty and severance; the costs are not. The operating cost is per barrel of
-oil equivalent (5.6 Mcf per barrel). $\mathit{fac}_i$, $\mathit{ovh}_i$ and $\mathit{opx}_i$ are
+oil equivalent (5.6 Mcf per barrel). $\mathit{fac_i}$, $\mathit{ovh_i}$ and $\mathit{opx_i}$ are
 the means by well type in `on_basin_avg_cost.csv` (fill-ins $3 \times 10^5$, $5 \times 10^5$ and
 3.0). Drilling capex is the NEMS log-linear regression in `on_drill_cost_eqs.csv` (the oil
 equation for tight oil, the gas equation otherwise), scaled from 1987 to 2023 dollars by
@@ -636,29 +641,29 @@ drilling depths, but the engine drops those columns when it reads the deck, and 
 `play_name` column is empty for every project, so no basin matches either (known bug 1). Every
 project of a resource type therefore has the same drilling capex.
 
-The prices are the reduced form's, without the gas price floor: $P^g_{i,y} = D_{2023} H_y +
-\beta_{r(i)}$, and $P^o_{i,y} = \tilde o_y$ when $\tilde o_y \ge 20$, otherwise the project's base
-oil price $\bar P^o_i$ (`base_oil_prc_by_play.csv` by play name, 50 \$/bbl when there is none; as
+The prices are the reduced form's, without the gas price floor:
+$P_{i,y}^g = D_{2023} H_y + \beta_{r(i)}$, and $P_{i,y}^o = \tilde o_y$ when $\tilde o_y \ge 20$, otherwise the project's base
+oil price $\bar P_i^o$ (`base_oil_prc_by_play.csv` by play name, 50 USD/bbl when there is none; as
 shipped, 50 for every project).
 
 ### 7.2 Which projects drill
 
-Each year from 2024, projects are taken in order of $\mathit{NPV}_{i,y}$, highest first. A project
-drills if $\mathit{NPV}_{i,y} > 0$, $N_i > 0$, $N^{\mathrm{cum}}_i < N_i$ and its well cap has room;
+Each year from 2024, projects are taken in order of $\mathit{NPV_{i,y}}$, highest first. A project
+drills if $\mathit{NPV_{i,y}} > 0$, $N_i > 0$, $N_i^{\mathrm{cum}} < N_i$ and its well cap has room;
 otherwise its wells last year are set to 0. There is a national yearly cap for oil-directed wells
 (tight oil) and one for gas-directed wells:
 
 $$
-\bar W^{\mathrm{oil}}_y = 11000\, (1 + \gamma)^{y - 2024}, \qquad \bar W^{\mathrm{gas}}_y = 9000\, (1 + \gamma)^{y - 2024} \tag{37}
+\bar W^{\mathrm{oil}}_y = 11000\thinspace (1 + \gamma)^{y - 2024}, \qquad \bar W^{\mathrm{gas}}_y = 9000\thinspace (1 + \gamma)^{y - 2024} \tag{37}
 $$
 
 with $\gamma = 0$ as shipped. A project that drills drills
 
 $$
-w_{i,y} = \min\big( \Omega_{i,y},\; N_i - N^{\mathrm{cum}}_i,\; \text{what is left of its cap} \big) \tag{38}
+w_{i,y} = \min\big( \Omega_{i,y},\mkern5mu N_i - N^{\mathrm{cum}}_i,\mkern5mu \text{what is left of its cap} \big) \tag{38}
 $$
 
-wells, where $\Omega_{i,y}$ is the NEMS drilling rule of section 7.3, and $N^{\mathrm{cum}}_i$ and the cap
+wells, where $\Omega_{i,y}$ is the NEMS drilling rule of section 7.3, and $N_i^{\mathrm{cum}}$ and the cap
 are updated before the next project.
 
 ### 7.3 NEMS drilling rule
@@ -666,45 +671,45 @@ are updated before the next project.
 `on_next_wells` and `_base_well_count`, rewritten from NEMS `drilling_equations.py`. For project
 $i$: $R_i$ = `max_annual_wells` and $\xi_i$ = `max_annual_%_dev` (`on_drill_eq_constraints.csv`),
 $\alpha_i$ = `max_drill_rate_frac` (`on_process_codes.csv`), share of wells drilled before the
-drilling rate declines $\pi^{\mathrm{pre}} = 0.70$, ramp-up years $T = 5$, and $w^{\mathrm{last}}_i$ its wells last
+drilling rate declines $\pi^{\mathrm{pre}} = 0.70$, ramp-up years $T = 5$, and $w_i^{\mathrm{last}}$ its wells last
 year. $\lfloor\cdot\rfloor$ rounds down.
 
-1. Start year: $u_0 = T$ if $w^{\mathrm{last}}_i > 0.8 R_i$, otherwise
-   $u_0 = \lceil T\, w^{\mathrm{last}}_i / \max(1, R_i) \rceil + 1$.
+1. Start year: $u_0 = T$ if $w_i^{\mathrm{last}} > 0.8 R_i$, otherwise
+   $u_0 = \lceil T\thinspace w_i^{\mathrm{last}} / \max(1, R_i) \rceil + 1$.
 2. Base count $\Omega^0$ and year $u$, by replaying the project's drilling from year $u_0$ until
-   the wells replayed exceed $N^{\mathrm{cum}}_i$. If $N_i \le 0$ or $N_i \le N^{\mathrm{cum}}_i$, then
+   the wells replayed exceed $N_i^{\mathrm{cum}}$. If $N_i \le 0$ or $N_i \le N_i^{\mathrm{cum}}$, then
    $\Omega^0 = 0$ and $u = u_0$. Otherwise start with $u = u_0$, $\Sigma = 0$, $u_d = 0$, and
-   repeat while $\Sigma \le N^{\mathrm{cum}}_i$:
-    - if $u < T$: $\Omega = \max(w^{\mathrm{last}}_i, \lfloor R_i\, u / T \rfloor)$. If
-      $\Sigma / N_i > \pi^{\mathrm{pre}}$, set $\Omega = \lfloor \Omega\, (1 - \alpha_i)^{u - u_d} \rfloor$
+   repeat while $\Sigma \le N_i^{\mathrm{cum}}$:
+    - if $u < T$: $\Omega = \max(w_i^{\mathrm{last}}, \lfloor R_i\thinspace u / T \rfloor)$. If
+      $\Sigma / N_i > \pi^{\mathrm{pre}}$, set $\Omega = \lfloor \Omega\thinspace (1 - \alpha_i)^{u - u_d} \rfloor$
       and leave the loop at once, skipping the last step below; otherwise set $u_d = u$;
     - if $u \ge T$: $\Omega = \lfloor R_i \rfloor$. If $\Sigma / N_i > \pi^{\mathrm{pre}}$, set
-      $\Omega = \lfloor \Omega\, (1 - \alpha_i)^{u - u_d} \rfloor$; otherwise set $u_d = u$;
+      $\Omega = \lfloor \Omega\thinspace (1 - \alpha_i)^{u - u_d} \rfloor$; otherwise set $u_d = u$;
     - last step: $\Omega = \max(\Omega, 5)$, $\Sigma = \Sigma + \Omega$, $u = u + 1$.
 
     $\Omega^0$ is the last $\Omega$, and $u$ the year reached.
-3. If $\Omega^0 > 2 w^{\mathrm{last}}_i$ and $w^{\mathrm{last}}_i > 0$, $\Omega^0 = \max(2 w^{\mathrm{last}}_i, 10)$.
-4. Development limit: $\bar\Omega_i = \max\big(\xi_i (N_i - N^{\mathrm{cum}}_i),\, 0\big)$, times $u / T$ if
+3. If $\Omega^0 > 2 w_i^{\mathrm{last}}$ and $w_i^{\mathrm{last}} > 0$, $\Omega^0 = \max(2 w_i^{\mathrm{last}}, 10)$.
+4. Development limit: $\bar\Omega_i = \max\big(\xi_i (N_i - N_i^{\mathrm{cum}}),\thinspace 0\big)$, times $u / T$ if
    $u < T$.
 5. With the price adjustment $\Phi_{i,y}$ below,
 
 $$
-\Omega_{i,y} = \Big\lfloor \max\Big( \min\big( \max(\Omega^0, 0)\, \Phi_{i,y},\; \bar\Omega_i \big),\; 0.8\, w^{\mathrm{last}}_i \Big) \Big\rfloor \tag{39}
+\Omega_{i,y} = \Big\lfloor \max\Big( \min\big( \max(\Omega^0, 0)\thinspace \Phi_{i,y},\mkern5mu \bar\Omega_i \big),\mkern5mu 0.8\thinspace w^{\mathrm{last}}_i \Big) \Big\rfloor \tag{39}
 $$
 
 The price adjustment (`calculate_price_adjustment`) compares prices with base prices,
-$\theta^o = P^o_{i,y} / \bar P^o_i$ and $\theta^g = P^g_{i,y} / \bar P^g$ with $\bar P^g = 2.50$ (`base_gas_price_2023`),
-and uses the project's first-year production $\mathit{OP}_{i,1}$ and $\mathit{GP}_{i,1}$:
+$\theta^o = P_{i,y}^o / \bar P_i^o$ and $\theta^g = P_{i,y}^g / \bar P^g$ with $\bar P^g = 2.50$ (`base_gas_price_2023`),
+and uses the project's first-year production $\mathit{OP_{i,1}}$ and $\mathit{GP_{i,1}}$:
 
-- Oil wells ($\mathit{wt}_i$ = 1 or 2): if $\mathit{OP}_{i,1} = 0$, $z = \sqrt{\theta^o}$. Otherwise
-  $z = \theta^o$, and for tight oil ($\mathit{wt}_i = 2$) with $\mathit{OP}_{i,1} \ge 1$: if $z < 1$,
-  $z = \min\big(z^{1/\sqrt{\mathit{OP}_{i,1}/100}},\, 0.98\big)$; if $z > 1$,
-  $z = \max\big(z^{\sqrt{\mathit{OP}_{i,1}/100}},\, 1.02\big)$. Then, if the gas-oil ratio
-  $5600\, \mathit{GP}_{i,1} / \mathit{OP}_{i,1}$ exceeds 6000, $z = z^{\sqrt{\min(\theta^g,\, 1.5)}}$.
-- Gas wells: if $\mathit{GP}_{i,1} = 0$, $z = \sqrt{\theta^g}$. Otherwise $z = \theta^g$, and for tight or
-  shale gas ($\mathit{wt}_i$ = 4 or 5) with $\mathit{GP}_{i,1} \ge 10$: if $z < 1$,
-  $z = \min\big(z^{1/\sqrt{\mathit{GP}_{i,1}/1000}},\, 0.98\big)$; if $z > 1$,
-  $z = \max\big(z^{\sqrt{\mathit{GP}_{i,1}/1000}},\, 1.02\big)$.
+- Oil wells ($\mathit{wt_i}$ = 1 or 2): if $\mathit{OP_{i,1}} = 0$, $z = \sqrt{\theta^o}$. Otherwise
+  $z = \theta^o$, and for tight oil ($\mathit{wt_i} = 2$) with $\mathit{OP_{i,1}} \ge 1$: if $z < 1$,
+  $z = \min\big(z^{1/\sqrt{\mathit{OP_{i,1}}/100}},\thinspace 0.98\big)$; if $z > 1$,
+  $z = \max\big(z^{\sqrt{\mathit{OP_{i,1}}/100}},\thinspace 1.02\big)$. Then, if the gas-oil ratio
+  $5600\thinspace \mathit{GP_{i,1}} / \mathit{OP_{i,1}}$ exceeds 6000, $z = z^{\sqrt{\min(\theta^g,\thinspace 1.5)}}$.
+- Gas wells: if $\mathit{GP_{i,1}} = 0$, $z = \sqrt{\theta^g}$. Otherwise $z = \theta^g$, and for tight or
+  shale gas ($\mathit{wt_i}$ = 4 or 5) with $\mathit{GP_{i,1}} \ge 10$: if $z < 1$,
+  $z = \min\big(z^{1/\sqrt{\mathit{GP_{i,1}}/1000}},\thinspace 0.98\big)$; if $z > 1$,
+  $z = \max\big(z^{\sqrt{\mathit{GP_{i,1}}/1000}},\thinspace 1.02\big)$.
 - $\Phi_{i,y} = \min(z, 2)$, multiplied by 1.25 when it is below 1 and `low_price_flag` is 1 (0 as
   shipped).
 
@@ -718,29 +723,29 @@ Gas and crude oil from the engine are the existing wells plus every vintage of n
 later vintages slightly more productive:
 
 $$
-G^E_{r,a,y} = G^{\mathrm{leg}}_{r,a,y} + \frac{1}{1000} \sum_{i \in \mathcal I_{r,a}} \sum_{v = 2024}^{y} w_{i,v}\; \mathit{GP}_{i,\, y - v + 1}\, (1 + \tau^E_i)^{v - 2023} \tag{40}
+G^E_{r,a,y} = G^{\mathrm{leg}}_{r,a,y} + \frac{1}{1000} \sum_{i \in \mathcal I_{r,a}} \sum_{v = 2024}^{y} w_{i,v}\mkern5mu \mathit{GP}_{i,\thinspace y - v + 1}\thinspace (1 + \tau^E_i)^{v - 2023} \tag{40}
 $$
 
 $$
-O^E_{r,a,y} = O^{\mathrm{leg}}_{r,a,y} + \sum_{i \in \mathcal I_{r,a}} \sum_{v = 2024}^{y} w_{i,v}\; \mathit{OP}_{i,\, y - v + 1}\, (1 + \tau^E_i)^{v - 2023} \tag{41}
+O^E_{r,a,y} = O^{\mathrm{leg}}_{r,a,y} + \sum_{i \in \mathcal I_{r,a}} \sum_{v = 2024}^{y} w_{i,v}\mkern5mu \mathit{OP}_{i,\thinspace y - v + 1}\thinspace (1 + \tau^E_i)^{v - 2023} \tag{41}
 $$
 
 in BCF and thousand barrels. $\mathcal I_{r,a}$ is the continuous projects of region $r$ and class
-$a$ (AD for tight oil). $\tau^E_i$ is 0.01 a year for tight oil and shale gas and 0.0025 for
+$a$ (AD for tight oil). $\tau_i^E$ is 0.01 a year for tight oil and shale gas and 0.0025 for
 coalbed methane; the engine is meant to read these from `on_tech_levers.csv` but does not (known
 bug 2), so shale gets 0.01, not the file's 0.02.
 
 In the engine, $G^{\mathrm{leg}}$ and $O^{\mathrm{leg}}$ (eq. 31) are computed after NEMS's decline overrides when
 `apply_decline_overrides` is 1, as shipped. They apply to existing projects with process code 7 or
-below that are oil wells ($\mathit{wt}_i$ = 1 or 2) with $\mathit{OP}_{i,1} > 0$, using oil decline rates,
-or shale gas wells ($\mathit{wt}_i = 5$) with $\mathit{GP}_{i,1} > 0$, using gas decline rates. Each of the
+below that are oil wells ($\mathit{wt_i}$ = 1 or 2) with $\mathit{OP_{i,1}} > 0$, using oil decline rates,
+or shale gas wells ($\mathit{wt_i} = 5$) with $\mathit{GP_{i,1}} > 0$, using gas decline rates. Each of the
 project's two profiles whose first-year value is positive is rebuilt from that value:
 
 $$
-\mathit{GP}'_{i,1} = \mathit{GP}_{i,1}, \qquad \mathit{GP}'_{i,n} = \mathit{GP}_{i,1}\, (1 - d^{\mathrm{first}}_i)\, (1 - d^{\mathrm{later}}_i)^{n - 2}, \quad n \ge 2 \tag{42}
+\mathit{GP}'_{i,1} = \mathit{GP}_{i,1}, \qquad \mathit{GP}'_{i,n} = \mathit{GP}_{i,1}\thinspace (1 - d^{\mathrm{first}}_i)\thinspace (1 - d^{\mathrm{later}}_i)^{n - 2}, \quad n \ge 2 \tag{42}
 $$
 
-and the same for $\mathit{OP}$. The first-year decline $d^{\mathrm{first}}_i$ and the later decline $d^{\mathrm{later}}_i$ are
+and the same for $\mathit{OP}$. The first-year decline $d_i^{\mathrm{first}}$ and the later decline $d_i^{\mathrm{later}}$ are
 looked up by play, then by region and oil or gas type, then by region; a project for which no
 positive first-year decline is found keeps its profiles. So `hsm_us_legacy_gas.csv` differs in an
 engine run, and `hsm_us_crude.csv` reports $O^E$, new wells included.
@@ -749,26 +754,26 @@ engine run, and `hsm_us_crude.csv` reports $O^E$, new wells included.
 
 For $y \ge 2024$, in regions with projects in the decks, NA gas is spread over the cost tiers in
 proportion to their base capacities (eq. 4), AD gas goes to `medium_cost`, and the engine's
-calibration $K^E_{r,y}$ (eq. 10 with the values in `us_gas_calibration_engine.csv`) is applied to
+calibration $K_{r,y}^E$ (eq. 10 with the values in `us_gas_calibration_engine.csv`) is applied to
 each:
 
 $$
-Q^{\mathrm{NA}}_{r,j,y} = G^E_{r,\mathrm{NA},y}\, \frac{\sum_{\mathit{type}} \overline{\mathit{Cap}}_{r,j,\mathit{type}}}{\sum_{j',\, \mathit{type}} \overline{\mathit{Cap}}_{r,j',\mathit{type}}}\, K^E_{r,y}, \qquad
-Q^{\mathrm{AD}}_{r,\mathrm{Med},y} = G^E_{r,\mathrm{AD},y}\, K^E_{r,y} \tag{43}
+Q^{\mathrm{NA}}_{r,j,y} = G^E_{r,\mathrm{NA},y}\thinspace \frac{\sum_{\mathit{type}} \overline{\mathit{Cap}}_{r,j,\mathit{type}}}{\sum_{j',\thinspace \mathit{type}} \overline{\mathit{Cap}}_{r,j',\mathit{type}}}\thinspace K^E_{r,y}, \qquad
+Q^{\mathrm{AD}}_{r,\mathrm{Med},y} = G^E_{r,\mathrm{AD},y}\thinspace K^E_{r,y} \tag{43}
 $$
 
 New England, which has no projects in the decks, in every year, and every region in 2023 use the
-reduced form without the split, $Q^{\mathrm{NA}}_{r,j,y} = \mathit{Cap}_{r,j}(p_{r,y}, y)\,
-K^E_{r,y}$, and have no AD row. Using $K^E$ for 2023 is known bug 3: it makes 2023 about three
+reduced form without the split,
+$Q_{r,j,y}^{\mathrm{NA}} = \mathit{Cap_{r,j}}(p_{r,y}, y)\thinspace K_{r,y}^E$, and have no AD row. Using $K^E$ for 2023 is known bug 3: it makes 2023 about three
 times too high.
 
 ## 8. Results
 
 | File | Content | Equations |
 |---|---|---|
-| `hsm_us_gas_capacity.csv` | $Q^{\mathrm{NA}}_{r,j,y}$ (`gas_type` `na`) and $Q^{\mathrm{AD}}_{r,\mathrm{Med},y}$ (`ad`), BCF/yr | 8, 9; with the engine 43, and for 2023 and New England the unsplit form of section 7.5 |
-| `hsm_canada_na_prod.csv` | $\mathit{NA}_{\mathit{cr},y}$, BCF/yr | 28 |
-| `hsm_canada_ad_prod.csv` | $\mathit{AD}_{\mathit{cr},y}$, BCF/yr | 24 |
-| `hsm_canada_realized_na_prod.csv` | copy of $\mathit{NA}_{\mathit{cr},y}$ | 28 |
-| `hsm_us_legacy_gas.csv` | $G^{\mathrm{leg}}_{r,a,y}$, BCF/yr | 31; with the engine, after eq. 42 |
-| `hsm_us_crude.csv` | $O^{\mathrm{leg}}_{r,a,y}$, or $O^E_{r,a,y}$ with the engine, thousand barrels/yr | 31, or 41 with the engine |
+| `hsm_us_gas_capacity.csv` | $Q_{r,j,y}^{\mathrm{NA}}$ (`gas_type` `na`) and $Q_{r,\mathrm{Med},y}^{\mathrm{AD}}$ (`ad`), BCF/yr | 8, 9; with the engine 43, and for 2023 and New England the unsplit form of section 7.5 |
+| `hsm_canada_na_prod.csv` | $\mathit{NA_{\mathit{cr},y}}$, BCF/yr | 28 |
+| `hsm_canada_ad_prod.csv` | $\mathit{AD_{\mathit{cr},y}}$, BCF/yr | 24 |
+| `hsm_canada_realized_na_prod.csv` | copy of $\mathit{NA_{\mathit{cr},y}}$ | 28 |
+| `hsm_us_legacy_gas.csv` | $G_{r,a,y}^{\mathrm{leg}}$, BCF/yr | 31; with the engine, after eq. 42 |
+| `hsm_us_crude.csv` | $O_{r,a,y}^{\mathrm{leg}}$, or $O_{r,a,y}^E$ with the engine, thousand barrels/yr | 31, or 41 with the engine |

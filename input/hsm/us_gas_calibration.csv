@@ -2,7 +2,7 @@
 # x = year - 2025, by census division. (k, g, c) are fitted so that capacity at the AEO2026
 # reference price path matches C-NGMM's supply anchors: Q0 = the sum of the cost tier
 # capacities in input/natural_gas/ng_supply_cost_tiers.csv x q0_mult in ng_supply_anchors.csv
-# (both built from AEO2026Results/sup_ogc.xlsx, Tables 59 and 62). c captures the rise and fall of
+# (see input/natural_gas/ng_data_pedigree.md). c captures the rise and fall of
 # production in the regions that set the price. Refit if either C-NGMM file changes. If this
 # file is missing, k = 1, g = 0 and c = 0.
 region,k,g,c

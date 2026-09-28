@@ -1,6 +1,8 @@
 # Share of extra Canadian NA production that reaches the US: AEO2026 net US pipeline
 # imports from Canada (AEO2026Results/sup_ogc.xlsx, Table 61, Tcf converted to BCF) divided by
-# Canada's NA reference production in western Canada (can_na_reference.csv).
+# Canada's NA reference production in western Canada (can_na_reference.csv). 2023 and 2024
+# repeat 2025, the table's first year. Using this average ratio as the share of extra
+# production is an assumption.
 year,net_imports_bcf,export_share
 2023,2136.2,0.3759
 2024,2136.2,0.323

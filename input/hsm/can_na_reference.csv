@@ -1,5 +1,6 @@
-# Canada non-associated (NA) production, BCF, from C-HSM itself run at the AEO2026 reference
-# Henry Hub path (hh_reference_path.csv). A coupled run would send export_share x (NA - this
+# Canada non-associated (NA) production, BCF, from C-HSM itself run at the reference Brent path
+# (brent_reference_path.csv, with its unit issue; Canada does not use the Henry Hub path). A
+# coupled run would send export_share x (NA - this
 # reference) to C-NGMM, so Canada adds nothing at reference prices; net imports from Canada are
 # already in C-NGMM's own data.
 NUMCAN,year,na_reference_bcf

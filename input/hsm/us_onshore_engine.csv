@@ -8,7 +8,8 @@
 #   discount_rate         real discount rate for the per-well cash flow test
 #   rig_wells_cap_oil/gas most new oil-directed / gas-directed wells a year, nationally
 #   rig_growth_rate       yearly growth of those caps (0: constant)
-#   capex_deflator_1987_to_2023  scales the 1987 $ drilling cost regression to 2023 $
+#   capex_deflator_1987_to_2023  scales the 1987 $ drilling cost regression to 2023 $ (set by
+#                                hand; module.py's deflator table gives 2.085 for 2023)
 #   royalty_rate, severance_rate  shares of revenue taken off in the cash flow test
 #   apply_decline_overrides  1 reshapes the existing-well decline curves as NEMS does on load
 parameter,value

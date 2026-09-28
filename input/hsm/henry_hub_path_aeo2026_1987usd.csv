@@ -1,8 +1,8 @@
-# AEO2026 reference Henry Hub spot price by year: nominal $/MMBtu from AEO2026Results/sup_ogc.xlsx,
-# Table 59, and the same in 1987 $/MMBtu (divided by the GDP deflator in module.py). This is
-# the path the run config gives C-HSM. It differs from hh_reference_path.csv by at most
-# 5e-5 $/MMBtu.
-year,hh_nominal_usd_per_mmbtu,hh_1987_usd_per_mmbtu
+# AEO2026 reference Henry Hub spot price by year: 2025 $/MMBtu from AEO2026Results/sup_ogc.xlsx,
+# Table 59, and that divided by each year's GDP deflator in module.py. Known issue: that treats
+# 2025 $ as nominal. 2023 and 2024 repeat 2025, the table's first year. This is the path the run
+# config gives C-HSM. It differs from hh_reference_path.csv by at most 5e-5 $/MMBtu.
+year,hh_2025usd_per_mmbtu,hh_1987_usd_per_mmbtu
 2023,3.467205286026001,1.6629281947366912
 2024,3.467205286026001,1.627795908932395
 2025,3.467205286026001,1.5977904543898622

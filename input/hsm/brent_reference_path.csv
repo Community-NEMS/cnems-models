@@ -1,6 +1,7 @@
 # AEO2026 reference Brent spot price, 1987 $/bbl: AEO2026Results/sup_ogc.xlsx, Table 57
-# (Brent Spot Price, $/gallon x 42 = $/bbl, nominal), divided by the GDP deflator in
-# module.py (1987 = 1.0). C-HSM uses it when it is given no Brent prices, and as the
+# (Brent Spot Price, 2025 $/gallon x 42 = $/bbl), divided by each year's GDP deflator in
+# module.py (1987 = 1.0). Known issue: that treats 2025 $ as nominal. 2023 and 2024 repeat 2025,
+# the table's first year. C-HSM uses it when it is given no Brent prices, and as the
 # reference Brent for the NA/AD split.
 year,brent_1987_per_bbl
 2023,32.9775

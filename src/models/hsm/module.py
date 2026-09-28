@@ -18,7 +18,7 @@ License 2.0), and keeps its variable names, but it is written for C-HSM. The mai
 - Values NEMS keeps between years in pickle files live in ``hsm_vars`` (a ``SimpleNamespace``).
 - Only the Canada submodule and the US gas supply run. The NEMS onshore, offshore, Alaska and
   gas processing submodules are not loaded.
-- The GDP deflator is a table of approximate BEA values (``_GDP_DEFLATOR``), not the NEMS
+- The GDP deflator is a table entered by hand with no source (``_GDP_DEFLATOR``), not the NEMS
   macroeconomic model.
 """
 
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # GDP implicit price deflator (1987 base = 1.0)
-# Approximate BEA values. Canada needs 2016; the US supply uses 2023 to turn 1987 $ into 2023 $.
+# Entered by hand, no source (about 10% below BEA by 2023). Canada needs 2016, the US 2023.
 # ---------------------------------------------------------------------------
 _GDP_DEFLATOR = {
     1987: 1.000,
@@ -427,7 +427,7 @@ class HSMModule:
             self.reset_us_gas()
 
     def reset_us_gas(self):
-        """Clear US gas results for a new Gauss-Seidel iteration."""
+        """Clear the US gas results before the years are run again."""
         self.us_gas.reset()
         self.results_us_gas_capacity = {}
 
@@ -470,7 +470,7 @@ class HSMModule:
             # (BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50) and REGIONAL_BASIS are 2023 $. Convert with
             # the fixed 2023 deflator so the price stays real; using each year's deflator would
             # feed inflation in as if it were a price signal. Passing 1987 $ straight in would
-            # under-price US supply by about 40%.
+            # halve the price US supply sees.
             hh_price_2023 = hh_price * _GDP_DEFLATOR[2023]  # 1987$ -> real 2023$
             prices = {
                 (r, year): hh_price_2023 + REGIONAL_BASIS.get(r, 0.0) for r in self.us_gas.regions

@@ -26,8 +26,8 @@ config names `henry_hub_path_aeo2026_1987usd.csv`). C-HSM also reads two of C-NG
 `input/natural_gas/ng_region_data.csv` (the regions) and `input/natural_gas/ng_supply_cost_tiers.csv`
 (the base capacity of each cost tier), so the two models share one set.
 
-The rest of the NEMS HSM input folder (119 files: offshore, Alaska, gas processing, history, STEO,
-and the onshore files nothing reads yet) is left out. `src/models/hsm/INPUTS_PLAN.md` lists each one
+119 more NEMS HSM input files (offshore, Alaska, gas processing, history, STEO, and the onshore
+files nothing reads yet) are left out, as are 38 files new in the AEO2026 release. `src/models/hsm/INPUTS_PLAN.md` lists each one
 with its NEMS path and release, and says how to add them back if needed in future versions.
 
 `input_sources.csv`, which ships with the C-HSM release rather than in c-nems, has the SHA-256 of
@@ -53,16 +53,24 @@ the AEO2025 cycle; in the AEO2026 cycle the first projection year is 2025 (`ENGI
 
 | File | How it was made |
 |---|---|
-| `hh_reference_path.csv` | AEO2026 Henry Hub spot price (`AEO2026Results/sup_ogc.xlsx`, Table 59, nominal $/MMBtu) divided by the GDP deflator in `src/models/hsm/module.py` (1987 = 1.0). The default Henry Hub path, and the reference gas price for the NA/AD split. |
-| `henry_hub_path_aeo2026_1987usd.csv` | The same Table 59 price, nominal and in 1987$. The run config uses this one.  |
-| `brent_reference_path.csv` | AEO2026 Brent spot price (`AEO2026Results/sup_ogc.xlsx`, Table 57, \$ /gallon x 42 = $/bbl) divided by the same deflator. The default Brent path, and the reference Brent for the NA/AD split. |
+| `hh_reference_path.csv` | AEO2026 Henry Hub spot price (`AEO2026Results/sup_ogc.xlsx`, Table 59, 2025 $/MMBtu) divided by each year's GDP deflator in `src/models/hsm/module.py` (1987 = 1.0). The default Henry Hub path, and the reference gas price for the NA/AD split. |
+| `henry_hub_path_aeo2026_1987usd.csv` | The same Table 59 price, in 2025 $ and divided as above. The run config uses this one.  |
+| `brent_reference_path.csv` | AEO2026 Brent spot price (`AEO2026Results/sup_ogc.xlsx`, Table 57, 2025 \$/gallon x 42 = $/bbl) divided as above. The default Brent path, and the reference Brent for the NA/AD split. |
 | `us_ad_gas_share.csv` | Share of gas that is associated-dissolved, by census division: first-year gas (GP1) of projects with `well_type_number` < 3 in the NEMS producing and CO2-EOR decks, mapped to census divisions with `mapping.csv`. |
-| `us_ad_elasticity.csv` | Brent elasticity of associated-dissolved gas by census division: national values from EIA's AEO2025 High and Low Oil Price cases (AEO2026 has none), mixed by each division's tight oil share of AD gas from the NEMS decks. |
-| `us_gas_calibration.csv` | The reduced form's `(k, g, c)` calibration by census division, fitted so that US capacity at the AEO2026 reference prices matches C-NGMM's supply anchors (`ng_supply_cost_tiers.csv` x `ng_supply_anchors.csv`, both built from `AEO2026Results/sup_ogc.xlsx`, Tables 59 and 62). Refit it if those C-NGMM files change. |
+| `us_ad_elasticity.csv` | Brent elasticity of associated-dissolved gas by census division: national values are the crude response to Brent in EIA's AEO2025 High and Low Oil Price cases (AEO2026 has none), used for AD gas as an assumption, and mixed by each division's tight oil share of AD gas from the NEMS decks. |
+| `us_gas_calibration.csv` | The reduced form's `(k, g, c)` calibration by census division, fitted so that US capacity at the AEO2026 reference prices matches C-NGMM's supply anchors (`ng_supply_cost_tiers.csv` x `ng_supply_anchors.csv`; see `input/natural_gas/ng_data_pedigree.md`). Refit it if those C-NGMM files change. |
 | `us_gas_calibration_engine.csv` | The same calibration for the well-level engine, fitted with an earlier set of engine settings. Approximate with the shipped settings (about 3% nationally, 13% at worst regionally); refit before using engine results (`ENGINE_PLAN.md`, step 3). |
 | `us_onshore_engine.csv` | The engine's settings (discount rate, well caps, royalty and severance, and so on), set for C-HSM (`ENGINE_PLAN.md`). |
-| `can_na_reference.csv` | Canada's non-associated production from C-HSM itself, run at the AEO2026 reference Henry Hub path. Used only by a coupled run. |
-| `can_us_export_share.csv` | AEO2026 net US pipeline imports from Canada (`AEO2026Results/sup_ogc.xlsx`, Table 61) over Canada's reference production. Used only by a coupled run. |
+| `can_na_reference.csv` | Canada's non-associated production from C-HSM itself, run at the reference Brent path. Used only by a coupled run. |
+| `can_us_export_share.csv` | AEO2026 net US pipeline imports from Canada (`AEO2026Results/sup_ogc.xlsx`, Table 61) over Canada's reference production; treating this average as the share of extra production is an assumption. Used only by a coupled run. |
+
+AEO2026's tables start in 2025, so the Henry Hub, Brent and export share files repeat 2025 in 2023
+and 2024.
+
+**Known issue.** The three price files treat AEO2026's 2025 $ prices as nominal, dividing by each
+year's deflator instead of the 2025 one. The paths are 8% low by 2030 and 35% by 2050, and Canada's
+Brent response, `can_na_reference.csv` and `can_us_export_share.csv` inherit it
+(`src/models/hsm/PROVENANCE.md` §6).
 
 Each built file also says in its own header where it came from. The scripts that made them are not
 part of C-HSM.
@@ -78,8 +86,8 @@ part of C-HSM.
 
 | File | Origin | Used by | Source or method |
 |---|---|---|---|
-| `brent_reference_path.csv` | built for C-HSM | reduced form and engine | AEO2026 Brent (AEO2026Results/sup_ogc.xlsx, Table 57), nominal to 1987 $/bbl |
-| `can_na_reference.csv` | built for C-HSM | reduced form and engine | C-HSM Canada NA production at the AEO2026 reference Henry Hub path |
+| `brent_reference_path.csv` | built for C-HSM | reduced form and engine | AEO2026 Brent (AEO2026Results/sup_ogc.xlsx, Table 57), 2025 $ to 1987 $/bbl (known issue above) |
+| `can_na_reference.csv` | built for C-HSM | reduced form and engine | C-HSM Canada NA production at the reference Brent path |
 | `can_setup.csv` | NEMS AEO2025 release | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/can_setup.csv |
 | `can_us_export_share.csv` | built for C-HSM | reduced form and engine | AEO2026 net pipeline imports from Canada (AEO2026Results/sup_ogc.xlsx, Table 61) over Canada NA reference production |
 | `canada/can_benchmark_prices.csv` | NEMS AEO2025 release | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/canada/can_benchmark_prices.csv |
@@ -89,8 +97,8 @@ part of C-HSM.
 | `canada/can_natgas_no_export_prod.csv` | NEMS AEO2025 and AEO2026 releases | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/canada/can_natgas_no_export_prod.csv |
 | `canada/can_natgas_poly_eqs.csv` | NEMS AEO2025 release | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/canada/can_natgas_poly_eqs.csv |
 | `canada/can_wells.csv` | NEMS AEO2025 and AEO2026 releases | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/canada/can_wells.csv |
-| `henry_hub_path_aeo2026_1987usd.csv` | built for C-HSM | reduced form and engine | AEO2026 Henry Hub (AEO2026Results/sup_ogc.xlsx, Table 59), nominal and 1987 $/MMBtu |
-| `hh_reference_path.csv` | built for C-HSM | reduced form and engine | AEO2026 Henry Hub (AEO2026Results/sup_ogc.xlsx, Table 59), nominal to 1987 $/MMBtu |
+| `henry_hub_path_aeo2026_1987usd.csv` | built for C-HSM | reduced form and engine | AEO2026 Henry Hub (AEO2026Results/sup_ogc.xlsx, Table 59), 2025 $ and 1987 $/MMBtu (known issue above) |
+| `hh_reference_path.csv` | built for C-HSM | reduced form and engine | AEO2026 Henry Hub (AEO2026Results/sup_ogc.xlsx, Table 59), 2025 $ to 1987 $/MMBtu (known issue above) |
 | `mapping.csv` | NEMS AEO2025 and AEO2026 releases | reduced form and engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/mapping.csv |
 | `onshore/base_oil_prc_by_play.csv` | NEMS AEO2026 release | engine | EIAgov/NEMS AEO2026-Public-Release, models/hsm/input/onshore/configuration/base_oil_prc_by_play.csv |
 | `onshore/on_basin_avg_cost.csv` | NEMS AEO2025 release | engine | EIAgov/NEMS AEO2025-Public-Release, models/hsm/input/onshore/on_basin_avg_cost.csv |

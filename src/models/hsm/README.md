@@ -114,7 +114,7 @@ own calibration applies (`ENGINE_PLAN.md`).
 ## Coupling
 
 C-HSM is not yet wired into a coupled run (`update_model` raises `NotImplementedError`, as in
-C-NGMM). The pieces for a Gauss-Seidel loop with C-NGMM are `HSMModel.update_prices`,
+C-NGMM). The pieces for a coupled loop with C-NGMM are `HSMModel.update_prices`,
 `HSMModel.poll_us_natgas_capacity` and C-NGMM's `NGModel.update_supply_capacity`. That method takes
 `(region, cost_tier, year)` keys and sums over the cost tier, so C-HSM's gas type has to be summed
 first (`COUPLING.md` shows how). Before re-running the years inside a loop, restore Canada's tables

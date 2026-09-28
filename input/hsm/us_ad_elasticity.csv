@@ -5,6 +5,7 @@
 #   tight oil:    up 0.5456 (sd 0.1395), down 0.7276 (sd 0.0819)
 #   conventional: up 0.1225 (sd 0.1486), down 0.5795 (sd 0.0941)
 #   mean Brent ratio: high 1.67, low 0.53
+# Using the crude response for AD gas is an assumption.
 # Each division mixes the two by its tight oil share of AD gas (w_tight), from the NEMS project
 # decks in models/hsm/input/onshore/ (https://github.com/EIAgov/NEMS, AEO2026-Public-Release;
 # first projection year, as in us_ad_gas_share.csv). ad_gp1_bcf is the division's AD gas in that year, BCF, for reference.

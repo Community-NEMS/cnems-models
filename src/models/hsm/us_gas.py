@@ -38,7 +38,7 @@ Parameters read from the NEMS onshore files in ``input/hsm/onshore/`` (taken unc
     on_constraint_params.csv -> oil-associated share of medium-cost capacity (share_ratio)
 
 Set here, with no NEMS file behind them:
-    SUPPLY_ELASTICITY             -- from the literature (Newell et al. 2016)
+    SUPPLY_ELASTICITY             -- set by hand; no source
     OIL_ASSOCIATED_GAS_ELASTICITY -- set by hand; only used when the NA/AD split is off
     medium and high-cost tier shares -- NEMS onshore has no separate tight gas cost file
 """
@@ -63,7 +63,7 @@ COST_TIER_LABELS: list[str] = ['low_cost', 'medium_cost', 'high_cost']
 # Module-level constants — price elasticities (no NEMS CSV source)
 # ---------------------------------------------------------------------------
 
-# Price elasticity of supply by gas type, from the literature (Newell et al. 2016).
+# Price elasticity of supply by gas type. Set by hand; no source.
 SUPPLY_ELASTICITY: dict[str, float] = {
     'conventional': 0.30,
     'tight': 0.55,
@@ -72,7 +72,7 @@ SUPPLY_ELASTICITY: dict[str, float] = {
 }
 
 # How much gas supply rises with the oil price, by region: oil-directed wells also produce gas.
-# Set by hand, guided by EIA AEO2025 oil and gas supply sensitivities and Newell et al. (2016).
+# Set by hand; no source.
 # Only used when the NA/AD split is off.
 OIL_ASSOCIATED_GAS_ELASTICITY: dict[str, float] = {
     'west_south_central': 0.35,  # Permian Basin + Eagle Ford oil wells
@@ -86,9 +86,9 @@ OIL_ASSOCIATED_GAS_ELASTICITY: dict[str, float] = {
     'pacific': 0.05,  # SoCal / Cook Inlet minor oil fields
 }
 
-BASE_WELLHEAD_PRICE_PER_MMBTU: float = 2.50  # 2023 US avg wellhead price (nominal $/MMBtu)
+BASE_WELLHEAD_PRICE_PER_MMBTU: float = 2.50  # 2023 $/MMBtu, set by hand
 BASE_YEAR: int = 2023
-BASE_OIL_PRICE_PER_BBL: float = 65.0  # $/bbl reference (2023 WTI approximate)
+BASE_OIL_PRICE_PER_BBL: float = 65.0  # 2023 $/bbl, set by hand
 
 # Share of medium-cost (tight/shale) capacity that is oil-associated, used only when the NA/AD
 # split is off. Read from on_constraint_params.csv (share_ratio); this is the value used if the
@@ -111,7 +111,7 @@ _TECH_TREND_FALLBACK: dict[str, float] = {
 # Split of each cost tier across gas types. The low-cost shares are recomputed from
 # on_region_avg_cost.csv; the medium and high-cost shares are always these values.
 _COST_TIER_TYPE_SHARES_FALLBACK: dict[tuple[str, str], float] = {
-    ('low_cost', 'conventional'): 0.55,  # from on_region_avg_cost.csv cost ratios
+    ('low_cost', 'conventional'): 0.55,
     ('low_cost', 'cbm'): 0.45,
     ('medium_cost', 'tight'): 0.40,  # no Tight Gas cost file in NEMS onshore
     ('medium_cost', 'shale'): 0.60,
@@ -361,9 +361,9 @@ def _load_calibration(calibration_path: str) -> dict[str, tuple[float, float, fl
 def _load_oil_assoc_fraction(constraint_path: str) -> float:
     """Read OIL_ASSOC_COST_TIER_FRACTION from on_constraint_params.csv (share_ratio).
 
-    The NEMS share_ratio parameter represents the fraction of drilling activity
-    allocated to secondary/associated resource development — used here as a proxy
-    for the fraction of the medium-cost cost_tier that is oil-directed (associated gas).
+    NEMS does not read share_ratio. Using it as the oil-directed share of the
+    medium-cost tier is an assumption of C-HSM, and it applies only when the NA/AD
+    split is off.
     """
     try:
         df = pd.read_csv(constraint_path, skiprows=1)
@@ -861,6 +861,6 @@ class USGasModule:
         return {key: val for key, val in self._results.items() if key[-1] in years}
 
     def reset(self) -> None:
-        """Clear result state for a new Gauss-Seidel iteration."""
+        """Clear the results before the years are run again."""
         self._results.clear()
         logger.debug('USGasModule.reset(): results cleared')

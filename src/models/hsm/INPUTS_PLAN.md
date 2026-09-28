@@ -1,8 +1,8 @@
 # Adding the NEMS inputs C-HSM does not use yet
 
 C-HSM ships only the input files it reads: 37 files in `input/hsm/`, listed in
-`input/hsm/hsm_data_pedigree.md`. The other 119 files of the NEMS HSM input folder were left out,
-because no C-HSM code reads them yet. This page says where each one is and how to add a group back
+`input/hsm/hsm_data_pedigree.md`. The 119 files below were left out, because no C-HSM code reads
+them yet; the AEO2026 release has 38 more, not listed here. This page says where each one is and how to add a group back
 when the code that reads it is written.
 
 ## Where the files are

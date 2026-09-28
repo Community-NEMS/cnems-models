@@ -80,7 +80,8 @@ Still to do, most important first:
 
 1. **One price basis.** C-HSM takes 1987 \$ and converts to real 2023 \$ inside with a fixed deflator
    (`module.py:474`). A coupled run must convert C-NGMM's prices to 1987 $ in exactly one place, with
-   one deflator table (`COUPLING.md`).
+   one deflator table (`COUPLING.md`). The three AEO2026 price files also treat 2025 \$ as nominal
+   (`PROVENANCE.md` §6).
 2. **Move the key constants into input files**: `REGIONAL_BASIS` (`module.py:458`),
    `BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50` and `BASE_OIL_PRICE_PER_BBL = 65` (`us_gas.py:89`, `:91`),
    the supply elasticities (`us_gas.py:67`) and the medium and high-cost gas type shares
@@ -131,8 +132,8 @@ The NEMS column is from EIA's HSM documentation for AEO2026 and the NEMS source,
 | Prices | 1987 $ inside | 1987 $ in, real 2023 \$ inside |
 
 C-HSM reproduces the level of a NEMS-like supply path and adds an elasticity around
-it; NEMS works the level out from resources, drilling and economics. Where literature elasticities
-(Newell et al. 2016) are acceptable and the question is how coupled markets behave, that is enough.
+it; NEMS works the level out from resources, drilling and economics. Where hand-set elasticities
+are acceptable and the question is how coupled markets behave, that is enough.
 Where the question is depletion, drilling or crude, it is not yet.
 
 ## 6. Worth keeping

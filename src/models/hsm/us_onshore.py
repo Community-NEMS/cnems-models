@@ -526,8 +526,8 @@ class OnshoreEngine(OnshoreLegacy):
     Where the parameters come from: ``on_drill_eq_constraints.csv`` (``max_annual_wells``,
     ``max_annual_%_dev``), ``on_process_codes.csv`` (``max_drill_rate_frac``),
     ``base_oil_prc_by_play.csv`` (oil price threshold by play, $/bbl, 50 if missing). Simplified:
-    ``drill_predecline`` is 0.70, the typical value in the NEMS documentation, and the ramp-up
-    years and base gas price come from the settings file, read by ``read_engine_settings``.
+    ``drill_predecline`` (0.70, the typical value in NEMS ``drilling_equations.py``), the ramp-up
+    years and the base gas price come from the settings file (``read_engine_settings``).
     """
 
     def __init__(self, onshore_path: str, mapping_path: str, engine_config_path: str) -> None:
@@ -608,8 +608,8 @@ class OnshoreEngine(OnshoreLegacy):
         self.rig_cap_oil = float(cfg.get('rig_wells_cap_oil', 11000))
         self.rig_cap_gas = float(cfg.get('rig_wells_cap_gas', 9000))
         self.capex_deflator = float(cfg.get('capex_deflator_1987_to_2023', 2.17))
-        # New wells get better each year they are drilled later: a simple version of NEMS
-        # calculate_prod_tech_improvement, using the annual rates in on_tech_levers.csv
+        # Later vintages of new wells produce a little more (NEMS calculate_prod_tech_improvement).
+        # Meant to use the on_tech_levers.csv rates; it does not (ENGINE_PLAN.md, known bug 2).
         self.tech_trend_by_type = {12: 0.01, 13: 0.01, 15: 0.0025}  # tight oil/shale/CBM
         try:
             lev = pd.read_csv(op + 'on_tech_levers.csv', skiprows=1)

@@ -4,8 +4,8 @@
 # with well_type_number < 3 (conventional oil and tight oil, in on_process_codes.csv), the same
 # rule NEMS uses for its AD gas output (ogsmout_ogadgprd in models/hsm/onshore.py). Producing and CO2-EOR decks only; districts are mapped to
 # census divisions with mapping.csv.
-# Gross basis: dry-basis shares are a few points lower (national about 0.20 gross, 0.12-0.15
-# dry). ad_share_gp2 and ad_share_gp3 are the shares in the next two years, as a check.
+# Gross basis (national 0.20). ad_share_gp2 and ad_share_gp3 are the shares in the next two
+# years, as a check.
 region,ad_tcf,na_tcf,ad_share,ad_share_gp2,ad_share_gp3
 new_england,0.0,0.0,0.0,0.0,0.0
 middle_atlantic,0.0024,7.4031,0.0003,0.0003,0.0004

@@ -3,11 +3,12 @@
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
 electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `src/integrator/combine.py`:
+integrated driver today is `src/integrator/combine.py`, run through `main.py` with a config whose
+`[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
-python -m src.integrator.combine      # reads run_configs/full_combo.toml
+python main.py run_configs/full_combo.toml      # or:  pixi run combine
 ```
 
 The run config holds a `[common]` section plus one section per participating model

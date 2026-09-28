@@ -80,10 +80,10 @@ def main(config_path: Path, debug: bool = False) -> None:
             )
             _run_standalone(common_config, remainder)
         case RunMode.INTEGRATED_JACOBI:
-            # TODO:  combine.main() reads its own config and runs a fixed set of models; wire it
-            #        to this config and models_to_run.  future:  enable model selection...
-            logger.info('Running integrated Jacobi mode; models_to_run is ignored for now')
-            combine.main()
+            # combine.main() sets up its own logging, so nothing is logged here before it runs
+            # TODO:  combine runs a fixed set of models (CIRCUIT) and ignores models_to_run.
+            #        future:  enable model selection...
+            combine.main(config_path)
         case RunMode.INTEGRATED_GS:
             raise NotImplementedError('Integrated Gauss-Seidel mode is not implemented')
 

@@ -13,11 +13,11 @@ import logging
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from multiprocessing import Pool
+from pathlib import Path
 
 from matplotlib import pyplot as plt
 from rich.console import Console
 
-from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
 from src.common.integrated_model_sequencer import COMMUNICATION_ACCEPTABLE, IterationResult
 from src.common.log_setup import _scenario_log, log_path, setup_control_loop_logging
@@ -42,8 +42,6 @@ logger = logging.getLogger(__name__)
 #
 # Attaching to these trees rather than to the root logger keeps the run from hijacking a host
 # application's logging, at the cost of having to name what to capture.
-
-common_config_path = PROJECT_ROOT / 'run_configs/full_combo.toml'
 
 # the models participating in this run; order here fixes the order packages are routed in
 CIRCUIT: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC)
@@ -171,15 +169,18 @@ def driver(iter_call: IterationCall) -> IterationResult:
                 raise NotImplementedError()
 
 
-def main(iter_limit: int = 15) -> None:
+def main(config_path: Path, iter_limit: int = 15) -> None:
     """Run the electricity, natural gas, and magic models in parallel until iteration-capped.
 
     Parameters
     ----------
+    config_path : Path
+        The run config file, with ``[common]``, ``[elec_config]``, ``[natural_gas]`` and
+        (optionally) ``[magic_config]`` sections.
     iter_limit : int, default 15
         Number of iterations to run; convergence is not yet measured, so this is the run length.
     """
-    common_config, remainder = parse_config_file(common_config_path)
+    common_config, remainder = parse_config_file(config_path)
     elec_cfg = ElecConfig(**remainder.pop('elec_config'))
     ng_cfg = NGConfig(**remainder.pop('natural_gas'))
     magic_cfg = MagicConfig(**remainder.pop('magic_config', {}))
@@ -296,12 +297,3 @@ def main(iter_limit: int = 15) -> None:
     ng_ax.set_ylabel('natural gas objective', color='tab:orange')
     elec_ax.legend(handles=[elec_scatter, ng_scatter], loc='lower right')
     plt.show()
-
-
-# temp note:  This can be run from the project ROOT level by running as a module:
-#    pixi run python -m src.integrator.combine
-#              -- or just --
-#    python -m src.integrator.combine
-
-if __name__ == '__main__':
-    main()

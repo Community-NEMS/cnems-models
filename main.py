@@ -63,7 +63,8 @@ def main(config_path: Path, debug: bool = False) -> None:
         case RunMode.STANDALONE:
             # Claim a fresh scenario output dir, then establish the logger in it.  Standalone runs
             # solve in this process with no per-model scenario log, so the run log is the
-            # complete record -- solver output included -- while the console stays project-only
+            # complete record -- solver output included.  Nothing is streamed to the console
+            # except by pyomo's own stdout handler, which echoes its INFO records (solver output)
             common_config.make_scenario_dir()
             log_file = common_config.output_folder / 'run.log'
             setup_control_loop_logging(log_file, level=logging.DEBUG if debug else logging.INFO)

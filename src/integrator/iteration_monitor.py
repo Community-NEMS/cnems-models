@@ -25,8 +25,9 @@ cascade down the page as iterations complete::
                       |                          |                          |
                       |<---- NG Prices [50] -----+                          |
 
-A model whose solve status is outside ``COMMUNICATION_ACCEPTABLE`` shows its status name in
-place of the objective change, and its rail runs dashed (``╎``) down to its next solve.
+A model whose solve status is outside ``ALLOW_OUTBOUND_UPDATES`` shows its
+status name in place of the objective change, and its rail runs dashed (``╎``) down to its next
+solve.
 
 Output is a ``rich`` ``Text`` coloured by the scheme in the adjacent ``monitor_style.toml``;
 its ``.plain`` attribute is the uncoloured string for log files.
@@ -43,7 +44,7 @@ from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
 
-from src.common.integrated_model_sequencer import COMMUNICATION_ACCEPTABLE, IterationResult
+from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 
@@ -287,14 +288,14 @@ class IterationMonitor:
     ) -> list[tuple[int, int, UpdatePackage]]:
         """List ``(source column, receiver column, package)`` for every delivery this iteration.
 
-        Packages from a result whose status is outside ``COMMUNICATION_ACCEPTABLE`` are left
-        out, matching the screening the control loop applies before routing.
+        Packages from a result whose status is outside ``ALLOW_OUTBOUND_UPDATES``
+        are left out, matching the screening the control loop applies before routing.
         """
         index = {m: i for i, m in enumerate(self.circuit)}
         rows: list[tuple[int, int, UpdatePackage]] = []
         for result in results:
             src = index.get(result.model_type)
-            if src is None or result.status not in COMMUNICATION_ACCEPTABLE:
+            if src is None or result.status not in ALLOW_OUTBOUND_UPDATES:
                 continue
             for package in result.update_packages:
                 receivers = set(package.receivers)
@@ -323,9 +324,10 @@ class IterationMonitor:
 
         Notes
         -----
-        A model whose status is outside ``COMMUNICATION_ACCEPTABLE`` shows the status name in
-        place of its objective change and keeps its previous objective as the delta baseline;
-        its rail is dashed from this row to its next solve, and none of its packages are drawn.
+        A model whose status is outside ``ALLOW_OUTBOUND_UPDATES`` shows the
+        status name in place of its objective change and keeps its previous objective as the
+        delta baseline; its rail is dashed from this row to its next solve, and none of its
+        packages are drawn.
         """
         results = list(results)
         by_model = {result.model_type: result for result in results}
@@ -346,7 +348,7 @@ class IterationMonitor:
         )
         for i, model in enumerate(self.circuit):
             result = by_model.get(model)
-            if result is not None and result.status not in COMMUNICATION_ACCEPTABLE:
+            if result is not None and result.status not in ALLOW_OUTBOUND_UPDATES:
                 text, kind = f'({result.status.name})', 'rejected'
                 broken.add(i)
             else:

@@ -14,7 +14,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
@@ -32,8 +31,9 @@ class IterationStatus(Enum):
     ERROR = 3
 
 
-# solve statuses whose outbound packages are trusted enough to route onward
-COMMUNICATION_ACCEPTABLE: frozenset[IterationStatus] = frozenset(
+# statuses whose solve leaves results a model's writer can read, and whose outbound packages are
+# routed onward; any other status sends no updates
+ALLOW_OUTBOUND_UPDATES: frozenset[IterationStatus] = frozenset(
     {IterationStatus.BEST, IterationStatus.USABLE}
 )
 
@@ -107,17 +107,7 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
         The model-specific pydantic config that :meth:`build_model` consumes.
     DataT
         The loaded-data object that :attr:`reader` applies inbound update packages to.
-
-    Attributes
-    ----------
-    OUTBOUND_STATUSES : frozenset of IterationStatus
-        Solve statuses the :attr:`writer` can read results from; any other :attr:`last_status`
-        sends no updates.  Override per model.
     """
-
-    OUTBOUND_STATUSES: ClassVar[frozenset[IterationStatus]] = frozenset(
-        {IterationStatus.BEST, IterationStatus.USABLE}
-    )
 
     @property
     @abstractmethod
@@ -181,9 +171,9 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
         -------
         list[UpdatePackage]
             The writer's packages, or nothing if :attr:`last_status` is not among
-            ``OUTBOUND_STATUSES`` -- an unusable solve leaves no results to read.
+            ``ALLOW_OUTBOUND_UPDATES`` -- an unusable solve leaves no results to read.
         """
-        if self.last_status not in self.OUTBOUND_STATUSES:
+        if self.last_status not in ALLOW_OUTBOUND_UPDATES:
             logger.warning(
                 '%s: no usable solve (status %s); sending no updates',
                 type(self).__name__,

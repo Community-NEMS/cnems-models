@@ -55,8 +55,11 @@ Things to know about the current loop:
 - **Iteration 1 starts with no packages**, so every model begins from its input files alone.
 - **Models are rebuilt every iteration.** `update_model` is not implemented yet, so a new model
   instance is built from the inputs plus the latest packages each time.
-- **Each model logs to its own file.** Each worker writes a per-model scenario log, and the
-  control process writes the `MAIN` log and prints the iteration monitor to the console.
+- **Each model logs to its own file.** Like a standalone run, the control process claims a fresh
+  `<output_path>/<scenario_name>` folder, suffixed `_1`, `_2`, ... if it is taken, so a rerun never
+  mixes with an earlier run's logs. Each worker writes a per-model log there
+  (`electricity.log`, ...), and the control process writes `MAIN.log` and prints the iteration
+  monitor to the console.
 - **The run ends** when every model's values are stable from one iteration to the next, or when
   the iteration limit (`iter_limit`) is reached. It then plots each model's objective by
   iteration; the plot window blocks until it is closed.
@@ -82,7 +85,7 @@ Each package travels the same route:
 ```mermaid
 flowchart LR
     A["Sender's solved model"] --> B["<code>UpdatePackageWriter.write</code><br/>extract, crosswalk regions,<br/>build packages"]
-    B --> C["<code>IterationResult</code><br/>(only if last_status is in<br/>OUTBOUND_STATUSES)"]
+    B --> C["<code>IterationResult</code><br/>(only if last_status is in<br/>ALLOW_OUTBOUND_UPDATES)"]
     C --> D["<code>route_updates</code><br/>bin by receiver"]
     D --> E["<code>UpdatePackageReader.read</code><br/>dispatch on package type,<br/>modify loaded data"]
     E --> F["Receiver's next build"]
@@ -90,8 +93,10 @@ flowchart LR
 
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
-  status is in `OUTBOUND_STATUSES`, which defaults to `BEST` or `USABLE`. After a failed solve,
-  the model sends nothing, and the receivers keep their loaded values.
+  status is in `ALLOW_OUTBOUND_UPDATES` (`BEST` or `USABLE`). After a failed
+  solve, the model sends nothing new; `combine.py` resends that model's last accepted packages
+  instead, so its receivers keep seeing its last good solution. Only a model that has never
+  solved usably leaves its receivers on their loaded values.
 - **Routing.** `route_updates` in `combine.py` delivers every package to each receiver in the
   circuit. A receiver outside the circuit gets nothing, and a warning is logged.
 - **Reading.** Each model has an `UpdatePackageReader` (`update_reader.py`) that applies inbound

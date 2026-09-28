@@ -89,7 +89,8 @@ python main.py
 
 `IntegratedModelSequencer[ModelT, ConfigT, DataT]` requires `reader` / `writer` / `last_status`
 properties. Its concrete `get_outbound_updates` calls `writer.write(model)` only when `last_status`
-is in the class's `OUTBOUND_STATUSES` (default `{BEST, USABLE}`; override per model if needed).
+is in `ALLOW_OUTBOUND_UPDATES` (`{BEST, USABLE}`), which the control loop and
+monitor also screen results against.
 
 ### Electricity model structure
 

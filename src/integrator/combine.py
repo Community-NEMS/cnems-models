@@ -19,8 +19,8 @@ from matplotlib import pyplot as plt
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
-from src.common.integrated_model_sequencer import COMMUNICATION_ACCEPTABLE, IterationResult
-from src.common.log_setup import _scenario_log, log_path, setup_control_loop_logging
+from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
+from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.integrator.iteration_monitor import DeltaMode, IterationMonitor
@@ -134,7 +134,8 @@ def driver(iter_call: IterationCall) -> IterationResult:
         If the call's config does not match its model.
     """
     # the scenario log is attached only for this task, so a reused worker never inherits it
-    with _scenario_log(iter_call.common_config.scenario_name, iter_call.model_type.value):
+    log_file = iter_call.common_config.output_folder / f'{iter_call.model_type.value}.log'
+    with _scenario_log(log_file):
         # IterationCall carries the config as the ModelConfig base, so each arm has to confirm
         # it got the config its sequencer expects -- the TypeError the docstring promises.
         match iter_call.model_type:
@@ -185,9 +186,11 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
     ng_cfg = NGConfig(**remainder.pop('natural_gas'))
     magic_cfg = MagicConfig(**remainder.pop('magic_config', {}))
 
-    # the control process logs to its own file and the console; the per-model scenario logs
-    # belong to the workers, not here
-    setup_control_loop_logging(log_path(common_config.scenario_name, 'MAIN'))
+    # claim a fresh scenario output dir, as a standalone run does; the workers get the claimed
+    # folder with their pickled copy of the config.  The control process logs to MAIN.log, and
+    # each worker to a per-model log beside it
+    common_config.make_scenario_dir()
+    setup_control_loop_logging(common_config.output_folder / 'MAIN.log')
     logger.info('Starting run for scenario "%s"', common_config.scenario_name)
     if elec_cfg.region_filter:
         logger.warning(
@@ -210,6 +213,8 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
     tolerance = 100  # cost units in electricity model
     eps = float('inf')
     routed_updates = route_updates([], CIRCUIT)
+    # the last accepted outbound packages per sender, resent while that sender's solves fail
+    accepted: dict[ModelType, list[UpdatePackage]] = {}
 
     # collect OBJ values per objective-bearing model, in iteration order
     obj_vals: dict[ModelType, list[float]] = {
@@ -259,20 +264,26 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
             block = monitor.record(iteration, results)
             logger.info('\n%s', block.plain)
             console.print(block, highlight=False)
-            # route each model's outbound packages to their receivers for the next iteration,
-            # screening out packages from any model whose solve status isn't acceptable
-            outbound: list[UpdatePackage] = []
+            # refresh each sender's accepted packages from this iteration; a sender whose solve
+            # status isn't acceptable keeps its last accepted packages, so its receivers see
+            # its last good solution rather than falling back to raw input data
             for result in results:
-                if result.status in COMMUNICATION_ACCEPTABLE:
-                    outbound.extend(result.update_packages)
-                elif result.update_packages:
+                if result.status in ALLOW_OUTBOUND_UPDATES:
+                    accepted[result.model_type] = list(result.update_packages)
+                else:
+                    held = accepted.get(result.model_type)
                     logger.warning(
-                        'Iteration %d: rejected %d update package(s) from %s (status %s)',
+                        'Iteration %d: rejected %d update package(s) from %s (status %s); %s',
                         iteration,
                         len(result.update_packages),
                         result.model_type.value,
                         result.status.name,
+                        f'resending its last accepted {len(held)} package(s)'
+                        if held is not None
+                        else 'it has no accepted packages to resend',
                     )
+            # route in circuit order, which fixes the order receivers apply packages in
+            outbound = [pkg for model in CIRCUIT for pkg in accepted.get(model, [])]
             routed_updates = route_updates(outbound, CIRCUIT)
 
             # TODO:  compute a real convergence measure; eps is never updated, so this loop

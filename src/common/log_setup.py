@@ -17,8 +17,6 @@ from contextlib import contextmanager
 from logging import Handler
 from pathlib import Path
 
-from definitions import PROJECT_ROOT
-
 LOG_FORMAT = '%(asctime)s | %(name)s | %(levelname)s :: %(message)s'
 LOG_DATE_FORMAT = '%d-%b-%y %H:%M:%S'
 
@@ -106,31 +104,11 @@ def setup_control_loop_logging(
         logging.getLogger(library).setLevel(library_level)
 
 
-def log_path(scenario_name: str, process_name: str) -> Path:
-    """Build the log file path for one process of a scenario run, creating its folder.
-
-    Parameters
-    ----------
-    scenario_name : str
-        Names the output folder holding the run's logs.
-    process_name : str
-        Names the log file; ``'MAIN'`` for the control loop, otherwise the model.
-
-    Returns
-    -------
-    Path
-        The log file to append to.
-    """
-    log_file = PROJECT_ROOT / 'output' / scenario_name / f'{process_name}.log'
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    return log_file
-
-
 _CAPTURED_LOGGERS: tuple[str, ...] = ('src', 'pyomo')
 
 
 @contextmanager
-def _scenario_log(scenario_name: str, process_name: str) -> Iterator[None]:
+def _scenario_log(log_file: Path) -> Iterator[None]:
     """Route project and solver records to a scenario log file for the duration of the block.
 
     Attaches one file handler to each tree in :data:`_CAPTURED_LOGGERS` and detaches any
@@ -142,17 +120,16 @@ def _scenario_log(scenario_name: str, process_name: str) -> Iterator[None]:
 
     Parameters
     ----------
-    scenario_name : str
-        Names the output folder and the first half of the log file name.
-    process_name : str
-        Names the second half of the log file name; ``'MAIN'`` for the control loop.
+    log_file : Path
+        File the records are appended to, so every iteration of a run lands in one file.  Its
+        parent must already exist.
 
     Yields
     ------
     None
         The block runs with the scenario log attached.
     """
-    handler = logging.FileHandler(log_path(scenario_name, process_name), mode='a', encoding='utf-8')
+    handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
     handler.setFormatter(build_formatter())
 
     captured_loggers = [logging.getLogger(name) for name in _CAPTURED_LOGGERS]

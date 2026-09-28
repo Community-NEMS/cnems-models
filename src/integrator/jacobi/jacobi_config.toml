@@ -1,0 +1,15 @@
+# Settings for the Jacobi iterator (src/integrator/jacobi/jacobi_iterator.py), validated by
+# JacobiConfig in jacobi_config.py.  Every key is required.
+
+# the most iterations to run
+iteration_limit = 15
+
+# convergence tolerance, in electricity model cost units.  Convergence is not measured yet, so
+# every run goes to iteration_limit
+epsilon = 100.0
+
+# size of the worker pool the models solve in
+worker_processes = 6
+
+# how the iteration monitor shows objective changes:  "absolute" or "percent"
+monitor_delta_mode = "absolute"

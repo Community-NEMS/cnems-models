@@ -17,7 +17,7 @@ from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType, RunMode, resolve_models_to_run
 from src.common.utilities import get_args
 from src.integrator.iteration_plot import plot_objectives
-from src.integrator.jacobi_iterator import JacobiIterator
+from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer

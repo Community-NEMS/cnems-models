@@ -13,17 +13,19 @@ import logging
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from multiprocessing import Pool
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
-from src.common.iterative_run import IterativeRun
+from src.common.iterative_sequencer import IterativeSequencer
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import UpdatePackage
-from src.integrator.iteration_monitor import DeltaMode, IterationMonitor
+from src.integrator.iteration_monitor import IterationMonitor
+from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
@@ -183,17 +185,27 @@ def driver(iter_call: IterationCall) -> IterationResult:
                 raise NotImplementedError()
 
 
-class JacobiIterator(IterativeRun):
+class JacobiIterator(IterativeSequencer[JacobiConfig]):
     """Jacobi iteration over the models selected by ``models_to_run``.
 
     Every model solves each iteration, in parallel, on the packages the others sent at the end of
-    the previous iteration.
+    the previous iteration.  Settings come from ``jacobi_config.toml`` beside this module.
     """
 
     @property
     def label(self) -> str:
         """Display name."""
         return 'Jacobi'
+
+    @property
+    def _config_class(self) -> type[JacobiConfig]:
+        """Validates ``jacobi_config.toml``."""
+        return JacobiConfig
+
+    @property
+    def _default_config_path(self) -> Path:
+        """``jacobi_config.toml`` beside this module."""
+        return DEFAULT_JACOBI_CONFIG_PATH
 
     def _process_configs(
         self, common_config: CommonConfig, remainder: dict[str, Any]
@@ -257,11 +269,13 @@ class JacobiIterator(IterativeRun):
         self,
         common_config: CommonConfig,
         remainder: dict[str, Any],
-        iter_limit: int = 15,
         circuit: Sequence[ModelType] = DEFAULT_CIRCUIT,
         **kwargs,
     ) -> dict[int, list[IterationResult]]:
-        """Run the selected models in parallel until iteration-capped.
+        """Run the selected models in parallel until converged or iteration-capped.
+
+        The iteration limit, convergence tolerance, worker pool size, and monitor delta mode come
+        from :attr:`config`.
 
         Parameters
         ----------
@@ -271,14 +285,11 @@ class JacobiIterator(IterativeRun):
         remainder : dict
             The config file's other sections:  ``elec_config``, ``natural_gas``, and optionally
             ``magic_config``.
-        iter_limit : int, default 15
-            Number of iterations to run; convergence is not yet measured, so this is the run
-            length.
         circuit : sequence of ModelType, default DEFAULT_CIRCUIT
             The order to circuit the selected models in; packages are routed in this order.  It
             must name every selected model, and may name others.
         **kwargs
-            Unused; accepted to match :meth:`IterativeRun.run`.
+            Unused; accepted to match :meth:`IterativeSequencer.run`.
 
         Returns
         -------
@@ -310,8 +321,9 @@ class JacobiIterator(IterativeRun):
 
         # set up iterative solve
         iteration = 1
-        tolerance = 100  # cost units in electricity model
-        eps = float('inf')
+        iteration_limit = self.config.iteration_limit
+        # the convergence measure, compared against config.epsilon
+        residual = float('inf')
         routed_updates = route_updates([], run_circuit)
         # the last accepted outbound packages per sender, resent while that sender's solves fail
         accepted: dict[ModelType, list[UpdatePackage]] = {}
@@ -319,12 +331,12 @@ class JacobiIterator(IterativeRun):
         # every result from the run, keyed by iteration, for the objective plot
         all_results: dict[int, list[IterationResult]] = {}
         # the text monitor of objective deltas and package traffic, one block per iteration
-        monitor = IterationMonitor(run_circuit, delta_mode=DeltaMode.ABSOLUTE)
+        monitor = IterationMonitor(run_circuit, delta_mode=self.config.monitor_delta_mode)
         console = Console()
 
         # one pool for the whole run; spawning workers per iteration re-imports the world each time
-        with Pool(processes=6) as worker_pool:
-            while eps > tolerance and iteration <= iter_limit:
+        with Pool(processes=self.config.worker_processes) as worker_pool:
+            while residual > self.config.epsilon and iteration <= iteration_limit:
                 iter_calls: list[IterationCall] = []
                 for model in run_circuit:
                     call_kwargs: dict[str, Any] = {'update_packages': routed_updates[model]}
@@ -365,9 +377,9 @@ class JacobiIterator(IterativeRun):
                 outbound = [pkg for model in run_circuit for pkg in accepted.get(model, [])]
                 routed_updates = route_updates(outbound, run_circuit)
 
-                # TODO:  compute a real convergence measure; eps is never updated, so this loop
-                #        currently always runs the full iter_limit
-                logger.info('Done with iteration %d/%d', iteration, iter_limit)
+                # TODO:  compute a real convergence measure; residual is never updated, so this
+                #        loop currently always runs the full iteration_limit
+                logger.info('Done with iteration %d/%d', iteration, iteration_limit)
                 iteration += 1
 
         return all_results

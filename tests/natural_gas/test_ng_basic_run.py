@@ -245,9 +245,9 @@ class TestSequencerFullRun:
     """``main()`` must not present a failed solve as a successful run.
 
     ``full_run`` is the entry point the integrator's pool workers call
-    (``src/integrator/jacobi_iterator.py::driver``), and its only channel back to the caller is the
-    :class:`~src.common.integrated_model_sequencer.IterationResult` it returns.  A failed solve
-    leaves no solution loaded, so reading the objective off the model would report a garbage
+    (``src/integrator/jacobi/jacobi_iterator.py::driver``), and its only channel back to the caller
+    is the :class:`~src.common.integrated_model_sequencer.IterationResult` it returns. A failed
+    solve leaves no solution loaded, so reading the objective off the model would report a garbage
     number as if it were a price; these tests pin the contract that the failure path reports
     ``ERROR`` with no objective instead.  (``full_run`` writes no result CSVs at all --
     postprocessing is a separate call -- so the old concern about a failed solve leaving output

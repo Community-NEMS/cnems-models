@@ -3,9 +3,9 @@
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
 electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `JacobiIterator` in `src/integrator/jacobi_iterator.py`, a subclass
-of the `IterativeRun` base class (`src/common/iterative_run.py`). It runs through `main.py` with
-a config whose `[common]` mode is `"integrated jacobi"`:
+integrated driver today is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
+subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`). It runs
+through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
@@ -16,6 +16,21 @@ The run config holds a `[common]` section plus one section per participating mod
 (`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`). The `[common]`
 `models_to_run` list selects the models; `all` selects every model except the dev/test MAGIC
 model, which runs only when named explicitly.
+
+### Iterator Settings
+
+The iterator's own settings live in `src/integrator/jacobi/jacobi_config.toml`, beside the
+iterator, and are validated by `JacobiConfig` (`jacobi_config.py`) when a `JacobiIterator` is
+created. Every key is required, and an unknown key is an error:
+
+| Key                  | Meaning                                                        |
+|:---------------------|:---------------------------------------------------------------|
+| `iteration_limit`    | The most iterations to run                                     |
+| `epsilon`            | Convergence tolerance, in electricity model cost units         |
+| `worker_processes`   | Size of the worker pool the models solve in                    |
+| `monitor_delta_mode` | How the monitor shows objective changes: `absolute`/`percent`  |
+
+Convergence is not measured yet, so every run goes to `iteration_limit`.
 
 ## Jacobi Iteration
 

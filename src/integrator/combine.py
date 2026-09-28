@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 
-from matplotlib import pyplot as plt
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
@@ -24,6 +23,7 @@ from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.integrator.iteration_monitor import DeltaMode, IterationMonitor
+from src.integrator.iteration_plot import plot_objectives
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
@@ -45,6 +45,9 @@ logger = logging.getLogger(__name__)
 
 # the models participating in this run; order here fixes the order packages are routed in
 CIRCUIT: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC)
+
+# TEMP:  plot the objectives by iteration when main() finishes (plt.show() blocks until closed)
+PLOT_OBJECTIVES = True
 
 
 @dataclass
@@ -216,11 +219,8 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
     # the last accepted outbound packages per sender, resent while that sender's solves fail
     accepted: dict[ModelType, list[UpdatePackage]] = {}
 
-    # collect OBJ values per objective-bearing model, in iteration order
-    obj_vals: dict[ModelType, list[float]] = {
-        ModelType.ELECTRICITY: [],
-        ModelType.NATURAL_GAS: [],
-    }
+    # every result from the run, keyed by iteration, for the objective plot
+    all_results: dict[int, list[IterationResult]] = {}
     # the text monitor of objective deltas and package traffic, one block per iteration
     monitor = IterationMonitor(CIRCUIT, delta_mode=DeltaMode.ABSOLUTE)
     console = Console()
@@ -255,11 +255,7 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
             # log status of the model's solves
             for result in results:
                 logger.info('\n%s', result.pprint(indent=2))
-                # MAGIC carries no objective; the None arms for the other two are
-                # unreachable in practice
-                obj_value = result.objective_value
-                if result.model_type in obj_vals and obj_value is not None:
-                    obj_vals[result.model_type].append(obj_value)
+            all_results[iteration] = results
             # show this iteration's objective deltas and package traffic
             block = monitor.record(iteration, results)
             logger.info('\n%s', block.plain)
@@ -291,20 +287,5 @@ def main(config_path: Path, iter_limit: int = 15) -> None:
             logger.info('Done with iteration %d/%d', iteration, iter_limit)
             iteration += 1
 
-    # the two objectives are orders of magnitude apart (and NG's is negative), so each model
-    # gets its own y-axis; colors keyed by axis so the legend stays readable
-    _fig, elec_ax = plt.subplots()
-    ng_ax = elec_ax.twinx()
-    elec_vals = obj_vals[ModelType.ELECTRICITY]
-    ng_vals = obj_vals[ModelType.NATURAL_GAS]
-    elec_scatter = elec_ax.scatter(
-        list(range(1, len(elec_vals) + 1)), elec_vals, color='tab:blue', label='electricity'
-    )
-    ng_scatter = ng_ax.scatter(
-        list(range(1, len(ng_vals) + 1)), ng_vals, color='tab:orange', label='natural gas'
-    )
-    elec_ax.set_xlabel('iteration')
-    elec_ax.set_ylabel('electricity objective', color='tab:blue')
-    ng_ax.set_ylabel('natural gas objective', color='tab:orange')
-    elec_ax.legend(handles=[elec_scatter, ng_scatter], loc='lower right')
-    plt.show()
+    if PLOT_OBJECTIVES:
+        plot_objectives(all_results)

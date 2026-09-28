@@ -95,8 +95,9 @@ def main(config_path: Path, debug: bool = False) -> None:
 def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     """Build, solve, and postprocess each model in ``models_to_run``, one after another.
 
-    A model whose config section is missing or invalid is logged as an error and skipped; the
-    remaining models still run.
+    ``ModelType.ALL`` expands to every production model; the dev/test MAGIC model runs only when
+    named explicitly.  A model whose config section is missing or invalid is logged as an error
+    and skipped; the remaining models still run.
 
     Parameters
     ----------
@@ -107,7 +108,11 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     """
     models = common_config.models_to_run
     if ModelType.ALL in models:
-        models = [model for model in ModelType if model is not ModelType.ALL]
+        # MAGIC is a dev/test mock, so ALL leaves it out unless it is also named explicitly
+        excluded = (
+            {ModelType.ALL} if ModelType.MAGIC in models else {ModelType.ALL, ModelType.MAGIC}
+        )
+        models = [model for model in ModelType if model not in excluded]
 
     for model_type in models:
         sequencer: IntegratedModelSequencer[Any, Any, Any]

@@ -34,6 +34,7 @@ decrease = "dark_green"  # objective went down
 unchanged = "grey46"     # no change
 none = "grey35"          # the model reports no objective
 rejected = "bold red"    # the solve status was not acceptable; its name replaces the change
+penalty = "bold dark_orange"  # solved on a soft limit (PENALTY); its name replaces the change
 
 [iteration]
 number = "bold grey39"

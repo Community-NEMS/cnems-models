@@ -27,7 +27,9 @@ cascade down the page as iterations complete::
 
 A model whose solve status is outside ``ALLOW_OUTBOUND_UPDATES`` shows its
 status name in place of the objective change, and its rail runs dashed (``╎``) down to its next
-solve.
+solve.  A model whose updates are sent but whose status is outside ``ALLOW_TERMINATION``
+(``PENALTY``) also shows its status name in place of the change, in either delta mode, but its
+rail stays solid and its packages are drawn.
 
 Output is a ``rich`` ``Text`` coloured by the scheme in the adjacent ``monitor_style.toml``;
 its ``.plain`` attribute is the uncoloured string for log files.
@@ -44,7 +46,11 @@ from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
 
-from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
+from src.common.integrated_model_sequencer import (
+    ALLOW_OUTBOUND_UPDATES,
+    ALLOW_TERMINATION,
+    IterationResult,
+)
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 
@@ -74,6 +80,7 @@ _DEFAULT_STYLES: dict[str, dict[str, str]] = {
         'unchanged': 'grey62',
         'none': 'grey50',
         'rejected': 'bold red',
+        'penalty': 'bold yellow',
     },
     'iteration': {'number': 'bold white'},
 }
@@ -327,7 +334,10 @@ class IterationMonitor:
         A model whose status is outside ``ALLOW_OUTBOUND_UPDATES`` shows the
         status name in place of its objective change and keeps its previous objective as the
         delta baseline; its rail is dashed from this row to its next solve, and none of its
-        packages are drawn.
+        packages are drawn.  A model in a status that sends updates but is outside
+        ``ALLOW_TERMINATION`` (``PENALTY``) shows the status name too, but its objective is
+        accurate, so it becomes the next delta baseline; its rail stays solid and its packages
+        are drawn.
         """
         results = list(results)
         by_model = {result.model_type: result for result in results}
@@ -351,6 +361,9 @@ class IterationMonitor:
             if result is not None and result.status not in ALLOW_OUTBOUND_UPDATES:
                 text, kind = f'({result.status.name})', 'rejected'
                 broken.add(i)
+            elif result is not None and result.status not in ALLOW_TERMINATION:
+                text, kind = f'({result.status.name})', 'penalty'
+                self._previous[model] = result.objective_value
             else:
                 objective = result.objective_value if result is not None else None
                 text, kind = self._delta(model, objective)

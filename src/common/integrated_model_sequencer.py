@@ -24,16 +24,37 @@ logger = logging.getLogger(__name__)
 
 
 class IterationStatus(Enum):
-    """A non-pyomo basis for making continuation decisions."""
+    """A non-pyomo basis for making continuation decisions.
+
+    Attributes
+    ----------
+    BEST
+        Solved to optimality.
+    USABLE
+        Solved; the results are sound to use and to stop on.
+    PENALTY
+        Solved, and the objective and results are accurate, but the model leaned on a soft limit
+        (e.g. unmet demand priced at a penalty).  Its updates are sent, but an iterative run must
+        not stop on it.
+    ERROR
+        No usable solution.
+    """
 
     BEST = 1
     USABLE = 2
-    ERROR = 3
+    PENALTY = 3
+    ERROR = 4
 
 
 # statuses whose solve leaves results a model's writer can read, and whose outbound packages are
 # routed onward; any other status sends no updates
 ALLOW_OUTBOUND_UPDATES: frozenset[IterationStatus] = frozenset(
+    {IterationStatus.BEST, IterationStatus.USABLE, IterationStatus.PENALTY}
+)
+
+# statuses an iterative run may stop on; a model in any other status (e.g. PENALTY) keeps the run
+# going until the iteration limit
+ALLOW_TERMINATION: frozenset[IterationStatus] = frozenset(
     {IterationStatus.BEST, IterationStatus.USABLE}
 )
 

@@ -279,3 +279,41 @@ def test_packages_from_unacceptable_solve_are_not_drawn(monitor: IterationMonito
     ).plain
     assert 'NG Demand [4]' in block
     assert 'NG Prices' not in block
+
+
+@pytest.mark.parametrize('delta_mode', list(DeltaMode))
+def test_penalty_replaces_the_change_and_keeps_the_rail(delta_mode: DeltaMode) -> None:
+    """A PENALTY solve shows its status name in either delta mode, on a solid rail.
+
+    Its objective is accurate, so it is the baseline for the next change.
+    """
+    monitor = IterationMonitor(CIRCUIT, delta_mode=delta_mode)
+    monitor.record(1, [result(ModelType.NATURAL_GAS, -500.0)])
+    penalty = monitor.record(
+        2, [result(ModelType.NATURAL_GAS, -1000.0, status=IterationStatus.PENALTY)]
+    )
+    after = monitor.record(3, [result(ModelType.NATURAL_GAS, -1100.0)])
+    ng = monitor._center(1)
+
+    assert '(PENALTY)' in penalty.plain
+    assert '-500' not in penalty.plain and '%' not in penalty.plain
+    assert BROKEN_LIFELINE not in penalty.plain + after.plain
+    assert monitor.style.get('objective', 'penalty') in {str(span.style) for span in penalty.spans}
+    penalty_lines = penalty.plain.splitlines()
+    delta_row = next(i for i, line in enumerate(penalty_lines) if '(PENALTY)' in line)
+    assert penalty_lines[delta_row - 1][ng] == LIFELINE  # the rail into the penalty solve...
+    assert penalty_lines[delta_row + 1][ng] == LIFELINE  # ...stays solid out of it
+    expected = '(-100.00)' if delta_mode is DeltaMode.ABSOLUTE else '(-10.0000%)'
+    assert expected in after.plain
+
+
+def test_packages_from_penalty_solve_are_drawn(monitor: IterationMonitor) -> None:
+    """PENALTY results are routed, so their packages get a ray."""
+    price = NGPricePackage(
+        elements=region_year_frame(NG_PRICE_VALUE, 50), source=ModelType.NATURAL_GAS
+    )
+    block = monitor.record(
+        1, [result(ModelType.NATURAL_GAS, 2.0, [price], status=IterationStatus.PENALTY)]
+    ).plain
+    assert '(PENALTY)' in block
+    assert 'NG Prices [50]' in block

@@ -10,8 +10,9 @@ Settings for the Jacobi iterator, read from ``jacobi_config.toml`` beside this m
 """
 
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import PositiveFloat, PositiveInt
+from pydantic import Field, PositiveInt
 
 from src.common.iterative_sequencer import IterativeSequencerConfig
 from src.integrator.iteration_monitor import DeltaMode
@@ -30,8 +31,11 @@ class JacobiConfig(IterativeSequencerConfig):
     iteration_limit : int
         The most iterations to run.
     epsilon : float
-        Convergence tolerance, in electricity model cost units; the run stops once the
-        convergence measure falls to it.
+        Convergence tolerance, as a ratio in (0, 1]:  a model is stable in an iteration when its
+        objective changed by less than this fraction of the previous iteration's.
+    convergence_iterations : int
+        How many consecutive iterations every objective-bearing model must be stable for the
+        run to stop.
     worker_processes : int
         Size of the worker pool the models solve in.
     monitor_delta_mode : DeltaMode
@@ -39,6 +43,7 @@ class JacobiConfig(IterativeSequencerConfig):
     """
 
     iteration_limit: PositiveInt
-    epsilon: PositiveFloat
+    epsilon: Annotated[float, Field(gt=0, le=1)]
+    convergence_iterations: PositiveInt
     worker_processes: PositiveInt
     monitor_delta_mode: DeltaMode

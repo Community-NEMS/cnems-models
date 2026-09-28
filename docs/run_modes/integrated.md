@@ -23,14 +23,13 @@ The iterator's own settings live in `src/integrator/jacobi/jacobi_config.toml`, 
 iterator, and are validated by `JacobiConfig` (`jacobi_config.py`) when a `JacobiIterator` is
 created. Every key is required, and an unknown key is an error:
 
-| Key                  | Meaning                                                        |
-|:---------------------|:---------------------------------------------------------------|
-| `iteration_limit`    | The most iterations to run                                     |
-| `epsilon`            | Convergence tolerance, in electricity model cost units         |
-| `worker_processes`   | Size of the worker pool the models solve in                    |
-| `monitor_delta_mode` | How the monitor shows objective changes: `absolute`/`percent`  |
-
-Convergence is not measured yet, so every run goes to `iteration_limit`.
+| Key                      | Meaning                                                                    |
+|:-------------------------|:---------------------------------------------------------------------------|
+| `iteration_limit`        | The most iterations to run                                                 |
+| `epsilon`                | Convergence tolerance, a ratio in (0, 1]: the largest relative objective change that counts as stable |
+| `convergence_iterations` | How many consecutive stable iterations end the run                         |
+| `worker_processes`       | Size of the worker pool the models solve in                                |
+| `monitor_delta_mode`     | How the monitor shows objective changes: `absolute`/`percent`              |
 
 ## Jacobi Iteration
 
@@ -81,9 +80,14 @@ Things to know about the current loop:
   mixes with an earlier run's logs. Each worker writes a per-model log there
   (`electricity.log`, ...), and the control process writes `MAIN.log` and prints the iteration
   monitor to the console.
-- **The run ends** when every model's values are stable from one iteration to the next, or when
-  the iteration limit (`iter_limit`) is reached. It then plots each model's objective by
-  iteration; the plot window blocks until it is closed.
+- **The run ends** when every model with an objective has changed by less than `epsilon`,
+  relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
+  `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative
+  change makes the test independent of each model's objective scale. Models without an objective
+  (MAGIC) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`, `USABLE`)
+  holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate but lean on
+  a soft limit such as unmet demand. `main.py` then plots each model's objective by iteration; the
+  plot window blocks until it is closed.
 
 !!! warning "Region filters in integrated runs"
 
@@ -114,7 +118,7 @@ flowchart LR
 
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
-  status is in `ALLOW_OUTBOUND_UPDATES` (`BEST` or `USABLE`). After a failed
+  status is in `ALLOW_OUTBOUND_UPDATES` (`BEST`, `USABLE`, or `PENALTY`). After a failed
   solve, the model sends nothing new; `jacobi_iterator.py` resends that model's last accepted packages
   instead, so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.

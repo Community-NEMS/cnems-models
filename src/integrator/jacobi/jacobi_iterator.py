@@ -19,12 +19,17 @@ from typing import Any
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
+from src.common.integrated_model_sequencer import (
+    ALLOW_OUTBOUND_UPDATES,
+    ALLOW_TERMINATION,
+    IterationResult,
+)
 from src.common.iterative_sequencer import IterativeSequencer
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import UpdatePackage
 from src.integrator.iteration_monitor import IterationMonitor
+from src.integrator.jacobi.convergence import ConvergenceTracker
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
@@ -274,8 +279,12 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
     ) -> dict[int, list[IterationResult]]:
         """Run the selected models in parallel until converged or iteration-capped.
 
-        The iteration limit, convergence tolerance, worker pool size, and monitor delta mode come
-        from :attr:`config`.
+        The run stops once every model with an objective has changed by less than
+        ``config.epsilon`` (relative to its previous objective) for
+        ``config.convergence_iterations`` consecutive iterations, or at ``config.iteration_limit``;
+        see :class:`ConvergenceTracker`.  A model in a status outside ``ALLOW_TERMINATION``
+        (e.g. ``PENALTY``) keeps the run going.  The worker pool size and monitor delta mode
+        also come from :attr:`config`.
 
         Parameters
         ----------
@@ -322,8 +331,8 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         # set up iterative solve
         iteration = 1
         iteration_limit = self.config.iteration_limit
-        # the convergence measure, compared against config.epsilon
-        residual = float('inf')
+        tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
+        converged = False
         routed_updates = route_updates([], run_circuit)
         # the last accepted outbound packages per sender, resent while that sender's solves fail
         accepted: dict[ModelType, list[UpdatePackage]] = {}
@@ -336,7 +345,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
 
         # one pool for the whole run; spawning workers per iteration re-imports the world each time
         with Pool(processes=self.config.worker_processes) as worker_pool:
-            while residual > self.config.epsilon and iteration <= iteration_limit:
+            while not converged and iteration <= iteration_limit:
                 iter_calls: list[IterationCall] = []
                 for model in run_circuit:
                     call_kwargs: dict[str, Any] = {'update_packages': routed_updates[model]}
@@ -377,9 +386,32 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 outbound = [pkg for model in run_circuit for pkg in accepted.get(model, [])]
                 routed_updates = route_updates(outbound, run_circuit)
 
-                # TODO:  compute a real convergence measure; residual is never updated, so this
-                #        loop currently always runs the full iteration_limit
+                converged = tracker.update(results)
+                logger.info(
+                    'Iteration %d relative objective changes (epsilon %g): %s',
+                    iteration,
+                    self.config.epsilon,
+                    {
+                        model.value: 'n/a' if change is None else f'{change:.3g}'
+                        for model, change in tracker.changes.items()
+                    },
+                )
                 logger.info('Done with iteration %d/%d', iteration, iteration_limit)
                 iteration += 1
+
+        if converged:
+            logger.info('Converged after %d iteration(s)', iteration - 1)
+        else:
+            final = all_results.get(iteration - 1, [])
+            holding = [
+                f'{r.model_type.value} ({r.status.name})'
+                for r in final
+                if r.status not in ALLOW_TERMINATION
+            ]
+            logger.warning(
+                'Did not converge within %d iterations%s',
+                iteration_limit,
+                f'; ended with {", ".join(holding)}' if holding else '',
+            )
 
         return all_results

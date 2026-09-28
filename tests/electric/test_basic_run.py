@@ -122,6 +122,12 @@ _GATED_BY_SWITCH = {
 # configs are unchanged -- they already carried the term -- and no variable or constraint count
 # moves, since `fixed_om_cost` is an Expression over `capacity_total`, which every config already
 # constructed.
+# Note: the agg_years expected total cost was re-captured (14203013438.65 -> 14564553802.5, ~+2.5%)
+# when the parameter read's year filter was widened from `summary_years` to every year in
+# `year_map`.  Previously the non-summary years were filtered out before aggregation, so the
+# year-indexed tables were "averaged" over their representative year alone; they are now averaged
+# over every year each summary year represents.  Only input data changed -- not the formulation --
+# and the variable and constraint counts are unchanged.  The other configs do not aggregate years.
 configs = [
     ('basic', 3669432143.12, 17430, 19182),
     ('exchange', 2586014294.54, 20886, 22830),
@@ -136,7 +142,7 @@ configs = [
         51588,
         56748,
     ),
-    ('agg_years', 14203013438.65, 17430, 19182),  # <-- no good starting value
+    ('agg_years', 14564553802.5, 17430, 19182),  # <-- no good starting value
     # Nonlinear learning is paired with the reserve margin deliberately.  Without it the optimum
     # builds nothing, the learning term multiplies zero, and the case would pin solver tolerance
     # noise rather than model behavior.  Counts match the reserve/expansion case above because
@@ -177,15 +183,16 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
-    # run_elec_model postprocesses into the config's output folder
-    common_config.make_scenario_dir()
 
     # introduce the ElecConfig
     elec_config = ElecConfig(**remainder.pop('elec_config'))
 
     # make adjustments based on the config_info
     if config_info == 'agg_years':
-        common_config.aggregate_years = True
+        # re-validate rather than assign, so the year-aggregation validator runs
+        common_config = CommonConfig.model_validate(
+            common_config.model_dump() | {'aggregate_years': True}
+        )
     elif config_info == 'ramping':
         elec_config.ramping_required = True
     elif config_info == 'reserve_with_expansion_no_learning':
@@ -210,6 +217,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         elec_config.reserve_margin_required = True
         elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
 
+    # run_elec_model postprocesses into the config's output folder
+    common_config.make_scenario_dir()
     elec_model = run_elec_model(common_config, elec_config, solve=True)
     if verbose:
         print('\n~~ Sets ~~')
@@ -477,9 +486,14 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
         assert not PARAM_SOURCES[key].required
         assert hasattr(elec_model, key), f'{key} missing with learning enabled'
 
-    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table
+    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table.  The
+    # iteration log comes from the sequencer and the cap_cost updates from learning.py, so both
+    # loggers are raised.
     capture_level = logging.DEBUG if verbose else logging.INFO
-    with caplog.at_level(capture_level, logger='src.models.electricity.sequencer'):
+    with (
+        caplog.at_level(capture_level, logger='src.models.electricity.sequencer'),
+        caplog.at_level(capture_level, logger='src.models.electricity.learning'),
+    ):
         status = sequencer.solve_model()
     assert status is IterationStatus.BEST, f'solve failed with status {status}'
 
@@ -513,7 +527,42 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     assert final_eps < _LEARNING_TOLERANCE, (
         f'learning did not converge: final eps {final_eps} >= tolerance {_LEARNING_TOLERANCE}'
     )
+    # The load forces the same builds whatever the cost, so the second solve repeats the first and
+    # the loop stops there.  A change to the stopping rule that moved this count would show here.
+    assert len(tolerance_records) == 2
 
     # the load design must force expansion builds (step 3), otherwise learning has nothing to do
     total_builds = sum(value(elec_model.capacity_builds[idx]) for idx in elec_model.capacity_builds)
     assert total_builds > 0, 'expected capacity builds; dataset failed to force expansion'
+
+
+def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
+    """Pin what linear learning does on the micro dataset, where the curve changes the answer.
+
+    The load forces builds in every year from 2030 to 2035, so every year after the first is priced
+    from real prior experience.  Each final ``cap_cost`` is checked against the curve written out
+    from the solved builds, and the expansion cost is pinned tightly enough that a change to the
+    drift term or to the exponent moves it.
+    """
+    common_config, elec_config = learning_config_set
+    sequencer = ElectricitySequencer()
+    model = sequencer.build_model(common_config, elec_config)
+    assert sequencer.solve_model() is IterationStatus.BEST
+
+    y0 = value(model.y0_learning)
+    for r, tech, step, y in model.cap_cost:
+        prior = sum(
+            value(model.capacity_builds[idx])
+            for idx in model.capacity_builds
+            if idx[1] == tech and idx[3] < y
+        )
+        baseline = value(model.supply_curve_learning[tech])
+        exponent = value(model.learning_rate[tech])
+        multiplier = ((baseline + 0.0001 * (y - y0) + prior) / baseline) ** (-exponent)
+        expected = value(model.cap_cost_initial[r, tech, step]) * multiplier
+        assert value(model.cap_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
+
+    # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
+    # cannot see a change of the size the drift term makes.  It is pinned on its own, tighter.
+    assert value(model.capacity_expansion_cost) == pytest.approx(2525036.478238987, rel=1e-9)
+    assert value(model.total_cost) == pytest.approx(9512542826.514479)

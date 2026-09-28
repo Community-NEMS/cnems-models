@@ -217,7 +217,7 @@ def load_supply_anchors(
 def load_lng_import(
     data_dir: Path,
 ) -> dict[str, tuple[float, float]]:
-    """Load LNG_IMPORT from ng_lng_import.csv."""
+    """Load LNG imports from ng_lng_import.csv."""
     df = _csv('ng_lng_import.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -229,14 +229,14 @@ def load_lng_import(
     }
     if not result:
         raise ValueError(f'ng_lng_import.csv in {data_dir} yielded no rows')
-    logger.info('LNG_IMPORT loaded from CSV (%d terminals)', len(result))
+    logger.info('LNG imports loaded from CSV (%d terminals)', len(result))
     return result
 
 
 def load_lng_export(
     data_dir: Path,
 ) -> dict[str, dict[int, float]]:
-    """Load LNG_EXPORT_DEMAND_BCF from ng_lng_export.csv."""
+    """Load LNG export demands [BCF] from ng_lng_export.csv."""
     df = _csv('ng_lng_export.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -249,7 +249,7 @@ def load_lng_export(
     if not result:
         raise ValueError(f'ng_lng_export.csv in {data_dir} yielded no rows')
     logger.info(
-        'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
+        'LNG export demand loaded from CSV (%d region-year pairs)',
         sum(len(v) for v in result.values()),
     )
     return result
@@ -845,38 +845,38 @@ def project_demand(
 
 
 class NGData(TypedDict):
-    """Return shape of :func:`load_all`: one key per loader, in the same order.
+    """Return shape of :func:`load_all`: one key per loader, listed alphabetically.
 
     A TypedDict rather than ``dict[str, Any]`` so that a consumer indexing
     ``_NG_DATA['supply_curve_shape']`` gets the loader's own return type instead of ``Any``,
     and so a typo'd key is a type error rather than a runtime KeyError.
     """
 
-    regions: list[str]
-    regions_domestic: list[str]
-    regions_analyze: list[str]
-    regions_international: list[str]
-    region_labels: dict[str, str]
-    sectors: list[str]
-    years: list[int]
-    supply_cost_tiers: dict[str, list[tuple[float, float]]]
-    supply_anchors: dict[tuple[str, int], tuple[float, float]]
-    lng_import: dict[str, tuple[float, float]]
-    lng_export: dict[str, dict[int, float]]
-    demand_elasticity: dict[str, float]
     # base_demand: dict[str, dict[str, float]]
-    # demand_growth: dict[str, float]
     demand: dict[tuple[str, str, int], float]
+    demand_elasticity: dict[str, float]
+    # demand_growth: dict[str, float]
+    gathering: dict[str, float]
+    lng_demand_curve: dict[str, list[float] | float]
+    lng_export: dict[str, dict[int, float]]
+    lng_import: dict[str, tuple[float, float]]
+    losses: dict[str, dict[str, float]]
+    pipe_loss: dict[tuple[str, str], float]
     pipeline_arcs: list[tuple[str, str, float, float]]
+    qp_scalars: dict[str, float]
+    region_labels: dict[str, str]
+    regions: list[str]
+    regions_analyze: list[str]
+    regions_domestic: list[str]
+    regions_international: list[str]
+    sectors: list[str]
     storage: dict[str, dict[str, float]]
     storage_opex: float
+    supply_anchors: dict[tuple[str, int], tuple[float, float]]
+    supply_cost_tiers: dict[str, list[tuple[float, float]]]
     supply_curve_shape: dict[str, list[float]]
     tariff_curve_shape: dict[str, list[float]]
-    lng_demand_curve: dict[str, list[float] | float]
-    losses: dict[str, dict[str, float]]
-    gathering: dict[str, float]
-    pipe_loss: dict[tuple[str, str], float]
-    qp_scalars: dict[str, float]
+    years: list[int]
 
 
 def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:

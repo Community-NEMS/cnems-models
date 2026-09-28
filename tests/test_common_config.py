@@ -13,6 +13,7 @@ name rather than writing fresh results on top of an earlier run's output.
 import logging
 
 import pytest
+from pydantic import ValidationError
 
 from src.common.common_config import CommonConfig
 
@@ -116,3 +117,45 @@ def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, taken):
     assert not any(config.output_folder.iterdir())
     for name in existing:
         assert (output_path / name / 'electricity' / 'stale.csv').is_file()
+
+
+@pytest.mark.parametrize(
+    'overrides',
+    [
+        {'aggregate_years': True, 'aggregate_start_year': 2020, 'summary_years': [2025, 2030]},
+        {'aggregate_years': True, 'aggregate_start_year': 2025, 'summary_years': [2030, 2025]},
+        # the start year is ignored when aggregation is off, even if it follows the summary years
+        {'aggregate_years': False, 'aggregate_start_year': 2030, 'summary_years': [2025]},
+        {'aggregate_years': False, 'aggregate_start_year': None, 'summary_years': [2025]},
+    ],
+    ids=['agg_start_before', 'agg_start_equal', 'no_agg_start_after', 'no_agg_no_start'],
+)
+def test_year_aggregation_settings_accepted(config_kwargs, overrides):
+    """Valid year-aggregation settings construct a config."""
+    config = CommonConfig(**(config_kwargs | overrides))
+    assert config.summary_years == overrides['summary_years']
+
+
+@pytest.mark.parametrize(
+    'overrides,match',
+    [
+        (
+            {'aggregate_years': True, 'aggregate_start_year': None},
+            'aggregate_start_year must be set',
+        ),
+        (
+            {'aggregate_years': True, 'aggregate_start_year': 2026, 'summary_years': [2030, 2025]},
+            'must precede or be equal',
+        ),
+        ({'summary_years': []}, 'at least one year'),
+        (
+            {'aggregate_years': True, 'aggregate_start_year': 2020, 'summary_years': []},
+            'at least one year',
+        ),
+    ],
+    ids=['agg_no_start', 'agg_start_after', 'empty_summary', 'agg_empty_summary'],
+)
+def test_year_aggregation_settings_rejected(config_kwargs, overrides, match):
+    """Invalid year-aggregation settings raise a validation error naming the problem."""
+    with pytest.raises(ValidationError, match=match):
+        CommonConfig(**(config_kwargs | overrides))

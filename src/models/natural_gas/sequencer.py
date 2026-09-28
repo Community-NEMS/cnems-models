@@ -22,6 +22,11 @@ from src.models.natural_gas.postprocessor import report
 
 logger = logging.getLogger(__name__)
 
+# Unserved demand above this, in Bcf for one region-year, is reported after a solve. It sits well
+# above solver residuals (under 1e-12 Bcf with HiGHS; an interior-point solve without crossover can
+# leave more) and well below any real shortfall seen so far (1.4 Bcf and up).
+UNSERVED_REPORT_TOL_BCF = 0.01
+
 
 class NGSequencer(IntegratedModelSequencer):
     """Sequencer for Natural Gas models."""
@@ -99,7 +104,10 @@ class NGSequencer(IntegratedModelSequencer):
         IterationStatus
             ``USABLE`` if the solver reached optimality, ``ERROR`` otherwise.  A non-optimal
             solve is reported by return value, not raised, so callers must check: the model is
-            left holding whatever values the failed solve produced.
+            left holding whatever values the failed solve produced.  An optimal solve with
+            unserved demand is still ``USABLE``; the region-years short by more than
+            ``UNSERVED_REPORT_TOL_BCF`` are logged as a warning, and their price is the
+            unserved-demand penalty, within solver tolerance.
 
         Raises
         ------
@@ -110,14 +118,26 @@ class NGSequencer(IntegratedModelSequencer):
         -----
         Left to itself, the method takes the first available of, in order::
 
-            appsi_gurobi, gurobi_direct, gurobi, highs
+            appsi_gurobi, gurobi_direct, gurobi, highs, ipopt
 
         The three Gurobi entries lead purely for speed (in-memory, no LP-file round trip);
-        ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and handles
-        the convex QP properly, so a Gurobi-free environment still solves.  ``appsi_highs`` is
+        ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and solves
+        the convex QP, so a Gurobi-free environment still solves.  HiGHS is less robust than
+        Gurobi on this model.  Before the unserved-demand backstop was created for every run,
+        it returned ``unknown`` or ``unbounded`` for demand cuts on horizons of nine years or
+        more, cases Gurobi and Ipopt solve; with the backstop it still returns ``unknown`` for
+        doubled demand on 16- and 20-year horizons.  Pass ``solver_name`` when a result has to
+        be reproduced or compared across machines.  ``appsi_highs`` is
         not a candidate and ``solver_name='appsi_highs'`` will not work:  it calls
         ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on
         this model's quadratic objective (still true in pyomo 6.10.1).
+
+        ``ipopt`` comes last.  It is an interior-point solver for nonlinear programs and not a
+        dependency of this project (the electricity model's nonlinear learning uses it too), so
+        the probe reaches it only when neither Gurobi nor HiGHS is present; force it with
+        ``solver_name='ipopt'``.  It solves the cases HiGHS fails, and on the test configuration
+        its prices through ``NGModel.poll_gas_price`` match HiGHS's to within 1e-6 $/MMBtu, at
+        about three times the solve time.
 
         Gurobi is additionally pinned to the barrier method with duals requested and
         ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
@@ -133,7 +153,10 @@ class NGSequencer(IntegratedModelSequencer):
             #        installed here, earlier envs had none of them.
             #   4.   'highs': the current pyomo.contrib.solver interface (also what
             #        select_solver() hands the electricity path), which builds a Hessian and
-            #        handles a convex QP properly, so a Gurobi-free env still solves.
+            #        solves a convex QP, so a Gurobi-free env still solves, less robustly than
+            #        Gurobi on this model (see the docstring).
+            #   5.   'ipopt': an interior-point NLP solver, not a project dependency, so it is
+            #        reached only when neither of the above is installed.
             #
             # 'appsi_highs' is deliberately NOT a candidate: it calls
             # generate_standard_repn(quadratic=False) internally and so raises DegreeError on any
@@ -141,7 +164,7 @@ class NGSequencer(IntegratedModelSequencer):
             #
             # Confirm which was chosen from the log line below, or from HiGHS's own output under
             # tee, which reports "1476 Hessian nonzeros" for the full model.
-            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs']
+            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs', 'ipopt']
         else:
             candidates = [solver_name]
 
@@ -189,6 +212,23 @@ class NGSequencer(IntegratedModelSequencer):
 
         self.model.solutions.load_from(results)
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
+
+        # A shortfall still solves, so it has to be said: the status stays USABLE, since the price
+        # in a short region, the penalty within solver tolerance, is the signal a coupled model
+        # needs to pull its demand down, and dropping the solve would withhold it.
+        short: dict[tuple[str, int], float] = {}
+        for (r, y), var in self.model.unserved.items():
+            q = value(var)
+            if q is not None and q > UNSERVED_REPORT_TOL_BCF:
+                short[r, y] = q
+        if short:
+            logger.warning(
+                'C-NGMM: %.1f Bcf of demand unserved in %d region-year(s), priced at the '
+                'unserved-demand penalty: %s',
+                sum(short.values()),
+                len(short),
+                ', '.join(f'{r} {y} {q:.1f} Bcf' for (r, y), q in sorted(short.items())),
+            )
 
         # ── attach result tables to the model for reporting ──────────────────────
         # TODO:  Extraction below on hold till model running and then maybe refactor to not

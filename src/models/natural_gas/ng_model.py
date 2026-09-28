@@ -39,17 +39,6 @@ After solving, shadow prices on the regional demand-balance constraints
 (self.demand_balance) serve as regional citygate gas prices, the GS integrator
 extracts them via poll_gas_price().
 
-This module only builds the model. Solving is done by
-``sequencer.py::NGSequencer``, and result extraction / reporting by
-``postprocessor.py``.
-
-Usage (standalone):
-    python -m src.models.natural_gas.sequencer
-
-That entry point reads ``run_configs/basic_ng_config.toml``; the years, the region
-subset, and the output location are set there rather than on a command line. The
-solver is probed for convex-QP capability at solve time, or forced with
-``NGSequencer.solve_model(solver_name=...)``.
 
 References
 ----------
@@ -86,7 +75,6 @@ from pyomo.environ import (
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
-from src.common.models_modes import RunMode
 from src.common.validators import region_check
 from src.models.natural_gas.data import (
     NGData,
@@ -115,14 +103,6 @@ GI = namedtuple('GI', ['region', 'year'])
 # BCF x $/MMBtu lands in dollars, and poll_gas_price() divides it back out of the
 # demand-balance duals so prices come back as $/MMBtu.
 #
-# It was previously 1e3, a scaling constant rather than a conversion, which left
-# total_cost about 1036x smaller than dollars while prices were unaffected. The
-# objective scales exactly linearly with this factor -- every term carries it --
-# so changing it moved no quantity, flow, or price: production and prices matched
-# to solver tolerance across the change, and variable and constraint counts were
-# identical. Only the reported objective moved.
-#
-# Input provenance lives in input/natural_gas/ng_data_pedigree.md.
 ###############################################################################
 
 
@@ -139,25 +119,27 @@ class NGModel(ConcreteModel, IntegratedModel):
       - Step supply-curve capacity limits per region and NGMM step
       - Directed pipeline arc capacity limits
       - Underground storage balance (annual net injection = withdrawal)
-      - Demand satisfaction in every region and year (with optional LNG backstop)
+      - Demand satisfaction in every region and year (with optional LNG backstop, and
+        unserved demand at a penalty when a region cannot be supplied)
 
-    Shadow prices on the demand-balance constraints are the regional gas prices
-    returned to coupled models (electricity, hydrogen).
 
     Parameters
     ----------
-    years : list[int]
-        Planning years to include in the optimisation.
-    mode : str
-        'standard', standalone with built-in demand projections.
-        'integrated', mutable demand/price params updated by the integrator.
-    demand_override : dict[(region, sector, year), float] | None
-        If provided, replaces internal demand projections.
+    model_data : NGData
+        Loaded input data (regions, years, demand, supply/tariff/LNG curve shapes,
+        losses, scalars); see ``data.py``.
+    common_config : CommonConfig
+        Shared run configuration.
+    ng_config : NGConfig
+        Gas-model configuration (e.g. ``region_filter``).
+    demand_override : dict[tuple[str, str, int], float] | None
+        ``(region, sector, year) -> BCF/yr`` entries that replace the matching
+        projected demands; unlisted keys keep their projected values.
     elec_demand_override : dict[GI, float] | None
-        Regional annual electric-power gas demand from the electricity model.
+        ``GI(region, year) -> BCF/yr`` electric-power gas demand from the electricity
+        model; replaces the ``'electric_power'`` sector demand for that region/year.
     """
 
-    # Added `regions` (default None = all nine, so every
     def __init__(
         self,
         model_data: NGData,
@@ -176,18 +158,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         """
         ConcreteModel.__init__(self, *args, **kwargs)
 
-        # Region subsetting. `region_list` is the single
-        # source of truth from here down; `is_region_subset` gates the unserved-demand backstop
-        # so the full nine-region model is untouched (see the backstop block below).
-
-        if common_config.mode not in {RunMode.STANDALONE}:
-            raise NotImplementedError('Only standalone mode is implemented.')
-
         # ── SUPPORTING DATA ───────────────────────────────────────────────────
 
         analysis_regions = model_data['regions_analyze']
         self.region_labels = model_data['region_labels']
-        LNG_EXPORT_DEMAND_BCF: dict[str, dict[int, float]] = model_data['lng_export']
+        lng_export_demand: dict[str, dict[int, float]] = model_data['lng_export']
+        """Demand in BCF in region[year] format"""
         self.demand_price_elasticity: dict[str, float] = model_data['demand_elasticity']
         # ── Pipeline Network ─────────────────────────────────────────────────────────
         pipeline_arcs_raw = model_data['pipeline_arcs']
@@ -225,10 +201,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Supply-curve breakpoint count (5 segments → 6 breakpoints, matches NGMM
         # AEO 2022 default; see SUPPLY_CURVE_SHAPE for the elasticities). Kept as a
         # module constant because constraint indexing depends on it.
-        # $/MMBtu penalty on unserved demand in region-subset runs
-        # (see NGModel.__init__). Set ~100x any plausible gas price so the backstop
-        # is never economic and only relieves a genuine shortfall created by dropping a
-        # subset's supplying neighbours.
+        # $/MMBtu penalty on unserved demand (see the backstop block below). Set ~100x any
+        # plausible gas price so the backstop is never economic and only relieves a genuine
+        # shortfall: demand above what a region can deliver, or a subset whose supplying
+        # neighbors were dropped.
         unserved_penalty = 1000.0
 
         self.supply_break_ids = [1, 2, 3, 4, 5, 6]
@@ -274,11 +250,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         arc_cap = {(o, d): cap for o, d, cap, _ in _arcs_raw}
         arc_tariff = {(o, d): tar for o, d, _, tar in _arcs_raw}
 
-        # LNG export regions: only those listed in LNG_EXPORT_DEMAND_BCF carry an
+        # LNG export regions: only those listed in lng_export_demand carry an
         # endogenous LNG demand curve (NGMM Fig 3.6).  All other regions still
         # have lng_export[r, y] but it is bounded at zero.
         # Intersect with the active regions.
-        lng_regions_list = [r for r in LNG_EXPORT_DEMAND_BCF if r in _active]
+        lng_exporting_regions = [r for r in lng_export_demand if r in _active]
 
         # -
 
@@ -311,7 +287,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.tariff_breaks = Set(
             initialize=list(range(1, len(tariff_curve_shape['util_break']) + 1)), ordered=True
         )
-        self.lng_regions = Set(initialize=lng_regions_list)
+        self.lng_exporting_region = Set(initialize=lng_exporting_regions, within=self.region)
         self.lng_segs = Set(initialize=lng_segments, ordered=True)
         self.lng_breaks = Set(
             initialize=list(range(1, len(lng_demand_curve_shape['q_frac']) + 1)), ordered=True
@@ -466,23 +442,32 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export demand curve (NGMM Fig 3.6).  Per LNG export region and year,
         # PLNG / QLNG breakpoints span a linear demand curve from world price up
         # to max_factor × world price at zero export volume.  The QLNG anchor is
-        # the legacy LNG_EXPORT_DEMAND_BCF capacity for that (region, year).
+        # the legacy lng_export_demand capacity for that (region, year),
+        # previously labeled as LNG_EXPORT_DEMAND_BCF in reference models.
         lng_q_frac = lng_demand_curve_shape['q_frac']
         lng_p_factor = lng_demand_curve_shape['p_factor']
         lng_world_p = lng_demand_curve_shape['world_price']
 
         def _qlng_init(m, r, k, y):
-            cap = interp_lng_export(LNG_EXPORT_DEMAND_BCF, r, y)
+            cap = interp_lng_export(lng_export_demand, r, y)
             return cap * lng_q_frac[k - 1]
 
         def _plng_init(m, r, k, y):
             return lng_world_p * lng_p_factor[k - 1]
 
         self.q_lng = Param(
-            self.lng_regions, self.lng_breaks, self.year, initialize=_qlng_init, mutable=True
+            self.lng_exporting_region,
+            self.lng_breaks,
+            self.year,
+            initialize=_qlng_init,
+            mutable=True,
         )
         self.p_lng = Param(
-            self.lng_regions, self.lng_breaks, self.year, initialize=_plng_init, mutable=True
+            self.lng_exporting_region,
+            self.lng_breaks,
+            self.year,
+            initialize=_plng_init,
+            mutable=True,
         )
 
         # Storage
@@ -600,7 +585,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export per-step volume (NGMM Eq 14): price-responsive variable on
         # the LNG demand curve.  Indexed by LNG region × segment × year.
         self.lng_export_step = Var(
-            self.lng_regions,
+            self.lng_exporting_region,
             self.lng_segs,
             self.year,
             within=NonNegativeReals,
@@ -608,7 +593,7 @@ class NGModel(ConcreteModel, IntegratedModel):
 
         # Total LNG export per (region, year), derived from segments.
         def _lng_export_total_rule(m, r, y):
-            if r in m.lng_regions:
+            if r in m.lng_exporting_region:
                 return quicksum(m.lng_export_step[r, k, y] for k in m.lng_segs)
             return 0.0
 
@@ -633,33 +618,36 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.stor_inject = Var(self.region_analyze, self.year, within=NonNegativeReals)
         self.stor_withdraw = Var(self.region_analyze, self.year, within=NonNegativeReals)
 
-        # Slack demand variable (for integration: allows other models to add load)
-        self.var_demand = Var(
+        # SURPLUS DISPOSAL. Two supplies cannot be turned down: the committed production floor
+        # q_base[r, 1, y] and canada_supply. When demand falls so low that gas cannot be used,
+        # exported or piped out, `slack_demand` takes the rest, at no cost, on the DEMAND side of
+        # demand_balance. Being non-negative, it also keeps the balance dual, the price, at or
+        # above zero, which the abs() in poll_gas_price() relies on. It is zero at any ordinary
+        # demand level.
+        self.slack_demand = Var(
             self.region_analyze, self.year, within=NonNegativeReals, initialize=0.0
         )
 
-        # UNSERVED-DEMAND BACKSTOP, subset runs only.
-        # `var_demand` is NonNegative and sits on the DEMAND side of demand_balance, so it can
-        # only absorb surplus supply, never cover a shortfall. That makes any region subset that
-        # is a net importer INFEASIBLE once its supplying neighbours are dropped, verified:
-        # regions=['new_england'] has no production and no arcs and fails to solve at all.
-        # Failing with an opaque Gurobi infeasibility would make this feature unusable in
-        # practice, so subset runs get an explicit unserved-demand variable priced far above any
-        # real gas price. It is only created when a strict subset is active, so the nine-region
-        # model has no new variable and no new objective term (regression-safe by construction).
-        # NB: `self.unserved` is only ever CREATED for a subset, do not pre-assign None here.
-        # Assigning None first makes it a plain attribute on the Pyomo block, and attaching the
-        # Var afterwards trips "Reassigning the non-component attribute unserved". Gate on
-        # `is_region_subset` (a plain bool, never a component) instead.
-        if self.is_region_subset:
-            self.unserved = Var(
-                self.region_analyze, self.year, within=NonNegativeReals, initialize=0.0
-            )
+        # UNSERVED-DEMAND BACKSTOP, the shortfall counterpart of `slack_demand`. It sits on the
+        # SUPPLY side of demand_balance and is priced at unserved_penalty in the objective, so the
+        # solver uses it only for demand that cannot be delivered to a region, and the
+        # demand-balance dual in a short region comes back at the penalty, within solver
+        # tolerance. Without it, demand above what can reach a region in a year (local production,
+        # pipeline inflow up to the tariff curve's last breakpoint, LNG import and Canada; storage
+        # nets to zero over the year and adds none) makes the whole model infeasible, as does a
+        # region subset that is a net importer once its supplying neighbours are dropped. It is
+        # created for every run. With `slack_demand` it makes the same pair the electricity model
+        # has: a demand balance that allows a free surplus, and `unmet_load` at a penalty. Its
+        # presence also lets HiGHS solve cut-demand cases it otherwise reports as `unknown` or
+        # `unbounded` on long horizons, although it is zero in those cases; why is not known.
+        self.unserved = Var(self.region_analyze, self.year, within=NonNegativeReals, initialize=0.0)
 
         # ── CONSTRAINTS ───────────────────────────────────────────────────────
 
         # (NGMM Eq 18) Supply-curve segment range: 0 ≤ SSTEP_k ≤ QBASE_{k+1} − QBASE_k
         def supply_step_cap_rule(m, r, t, y):
+            # TODO:  This could be "tidied up" by making steps universally either "step<x>"
+            #        or just an integer as we are constructing it two ways now...
             k = int(t.replace('step', ''))  # segment index 1..5
             seg_width = m.q_base[r, k + 1, y] - m.q_base[r, k, y]
             return m.sstep[r, t, y] <= seg_width
@@ -736,7 +724,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             return m.lng_export_step[r, k, y] <= m.q_lng[r, k + 1, y] - m.q_lng[r, k, y]
 
         self.lng_step_cap_con = Constraint(
-            self.lng_regions,
+            self.lng_exporting_region,
             self.lng_segs,
             self.year,
             rule=lng_step_cap_rule,
@@ -784,6 +772,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         #   + Canada supply
         #   + Σ pipe_in × (1 − pipe_loss)                ← Eq 11 fuel loss on inbound arcs
         #   + storage withdrawal × (1 − storage_loss)    ← Eq 10 Q^store on withdrawn gas
+        #   + unserved                                   ← unmet demand, priced at the penalty
         #
         # RHS (uses):
         #     Σ_sector demand                           ← Eq 10 CONS_d
@@ -792,7 +781,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         #   + Σ pipe_out                                ← Eq 11 outbound to other hubs
         #   + storage injection                         ← Eq 11 hub-to-storage
         #   + Σ_k lng_export_step                       ← Eq 14 hub-to-LNG demand
-        #   + var_demand                                 ← integration slack (kept)
+        #   + slack_demand                              ← surplus disposal, free
         # THE PRICE-FORMING CONSTRAINT. Everything else in the model exists to give this one
         # equality something to balance. Three things to hold in mind reading it:
         #
@@ -821,14 +810,14 @@ class NGModel(ConcreteModel, IntegratedModel):
             inj = m.stor_inject[r, y]
 
             sector_demand = quicksum(m.demand[r, s, y] for s in m.sectors)
+            # TODO:  We need to either remove this hard-coding and make a subset of sectors
+            #        that are subject to losses (more generic) in the data files or make an
+            #        enumeration of sectors and brutally enforce it rather than read
+            #        them from data and expect a match
             res_comm = m.demand[r, 'residential', y] + m.demand[r, 'commercial', y]
             dist_loss_term = m.distribution_loss[r] * res_comm
             plant_fuel = m.plant_fuel_frac[r] * sector_demand
             lng_export = m.lng_export_demand[r, y]
-
-            # Unserved demand joins the SUPPLY side for
-            # subset runs only (see the declaration above); zero for the full nine-region model.
-            unserved = m.unserved[r, y] if m.is_region_subset else 0.0
 
             return (
                 prod * (1.0 - m.intrastate_loss[r])
@@ -836,14 +825,14 @@ class NGModel(ConcreteModel, IntegratedModel):
                 + m.canada_supply[r, y]
                 + pipe_in_eff
                 + wd_eff
-                + unserved
+                + m.unserved[r, y]
                 == sector_demand
                 + dist_loss_term
                 + plant_fuel
                 + pipe_out
                 + inj
                 + lng_export
-                + m.var_demand[r, y]
+                + m.slack_demand[r, y]
             )
 
         self.demand_balance = Constraint(self.region_analyze, self.year, rule=demand_balance_rule)
@@ -943,10 +932,10 @@ class NGModel(ConcreteModel, IntegratedModel):
         #    SUBTRACT from total_cost.
         # Skip zero-width LNG segments
         # for (region, year) pairs with no LNG capacity (e.g. pacific 2025,
-        # whose LNG_EXPORT_DEMAND_BCF entry is 0).  Without the guard, all
+        # whose lng_export_demand entry is 0).  Without the guard, all
         # QLNG[k] = 0 → /0 in slope computation.
         lng_consumer_surplus = 0
-        for r in self.lng_regions:
+        for r in self.lng_exporting_region:
             for y in self.year:
                 for k_seg in self.lng_segs:
                     ql_k_v = value(self.q_lng[r, k_seg, y])
@@ -962,20 +951,18 @@ class NGModel(ConcreteModel, IntegratedModel):
                         lng_consumer_surplus + (pl_k_v * q + 0.5 * slope_v * q * q) * bcf
                     )
 
-        # Price the unserved-demand backstop for subset
-        # runs. unserved_penalty is ~100x any plausible gas price, so the solver uses it only
-        # when the subset cannot source the gas, and the demand-balance dual in a
-        # short region comes back at the penalty level, an unmistakable "this subset is
-        # supply-short" signal instead of an opaque infeasibility. Zero for the full model.
-        unserved_cost = 0
-        if self.is_region_subset:
-            unserved_cost = quicksum(
-                self.unserved[r, y] * unserved_penalty * bcf
-                for r in self.region_analyze
-                for y in self.year
-            )
+        # Price the unserved-demand backstop. unserved_penalty is ~100x any plausible gas price,
+        # so the solver uses it only when a region cannot source the gas, and the demand-balance
+        # dual in a short region comes back at the penalty level, an unmistakable "this region is
+        # supply-short" signal instead of an opaque infeasibility. Zero whenever every region is
+        # supplied, which is why adding it left the pinned objective unchanged.
+        unserved_cost = quicksum(
+            self.unserved[r, y] * unserved_penalty * bcf
+            for r in self.region_analyze
+            for y in self.year
+        )
 
-        # Original objective preserved (unserved_cost is identically 0 for the full model):
+        # Original objective, before the unserved-demand backstop was added:
         # self.total_cost = Objective(
         #     expr=(prod_cost + gathering_cost + lng_backstop_cost
         #           + transport_cost + storage_cost - lng_consumer_surplus),
@@ -1119,6 +1106,10 @@ class NGModel(ConcreteModel, IntegratedModel):
             if gi.region not in valid_regions:
                 logger.debug('C-NGMM.update_demand: unknown region %s, skipped', gi.region)
                 continue
+            if sector not in self.sectors:
+                logger.warning('C-NGMM.update_demand: unknown sector %s', sector)
+            if gi.year not in self.year:
+                logger.warning('C-NGMM.update_demand: received non-analysis year %s', gi.year)
             if alpha < 1.0:
                 current = value(self.demand[gi.region, sector, gi.year])
                 qty = alpha * qty + (1.0 - alpha) * current
@@ -1137,6 +1128,10 @@ class NGModel(ConcreteModel, IntegratedModel):
             if gi.region not in valid_regions:
                 logger.debug('C-NGMM.update_canada_supply: unknown region %s, skipped', gi.region)
                 continue
+            if gi.year not in self.year:
+                logger.warning(
+                    'C-NGMM.update_canada_supply: received non-analysis year %s', gi.year
+                )
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
     def _supply_qbase_at(self, q0: float, k: int) -> float:
@@ -1357,11 +1352,3 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.results_prices = _extract_prices(self)
         self.results_storage = _extract_storage(self)
         self.results_balance = _extract_balance(self)
-
-
-###############################################################################
-# Solve & Report
-###############################################################################
-
-# dev note:  the solve procedure is now resident in the NGSequencer, and result
-# extraction / reporting now lives in postprocessor.py

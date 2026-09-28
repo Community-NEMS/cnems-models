@@ -154,7 +154,13 @@ def _extract_storage(m: NGModel) -> pd.DataFrame:
 
 
 def _extract_balance(m: NGModel) -> pd.DataFrame:
-    """Regional supply/demand balance table (includes LNG export demand)."""
+    """Regional supply/demand balance table (includes LNG export demand).
+
+    ``unserved_bcf`` is demand that could not be supplied to the region, carried by the
+    unserved-demand variable at its penalty, and ``slack_demand_bcf`` is surplus gas disposed of
+    at no cost. Both are zero at ordinary demand levels, and neither is counted in
+    ``net_supply_bcf``, which is physical gas.
+    """
     # Precompute arc adjacency dicts to avoid O(arcs×regions)
     # scan inside the inner loop.  Each region scan was iterating all 26 arcs twice.
     # Original in-loop scan kept as comments inside the loop below.
@@ -192,6 +198,8 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
                     'stor_injection': stor_inj,
                     'total_sector_demand_bcf': total_dem,
                     'lng_export_bcf': lng_exp,
+                    'unserved_bcf': value(m.unserved[r, y]),
+                    'slack_demand_bcf': value(m.slack_demand[r, y]),
                     'net_supply_bcf': prod_total
                     + canada_sup
                     + lng_imp

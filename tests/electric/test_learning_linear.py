@@ -5,9 +5,8 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/20/26
 
-Tests for the standalone helper functions in
-``src.models.electricity.sequencer`` (everything outside of
-``ElectricitySequencer`` that does not build/solve a real model).
+Tests for the linear-learning helper functions in ``src.models.electricity.learning``
+(the helpers ``ElectricitySequencer.solve_model`` calls between solves).
 
 These use a small hand-built pyomo model that carries only the components the
 helpers touch, rather than a full ``PowerModel``.
@@ -16,7 +15,7 @@ helpers touch, rather than a full ``PowerModel``.
 import pyomo.environ as pyo
 import pytest
 
-from src.models.electricity.sequencer import (
+from src.models.electricity.learning import (
     calculate_cap_growth,
     calculate_tolerance,
     cost_learning_func,
@@ -46,7 +45,6 @@ def mock_model() -> pyo.ConcreteModel:
     m.year = pyo.Set(initialize=YEARS)
 
     m.y0_learning = pyo.Param(initialize=Y0)
-    m.weight_year = pyo.Param(m.year, initialize={2030: 5, 2035: 3})
 
     m.learning_rate = pyo.Param(m.tech, initialize={2: 0.1, 3: 0.2})
     m.supply_curve_learning = pyo.Param(m.tech, initialize={2: 100.0, 3: 200.0})
@@ -77,24 +75,27 @@ def mock_model() -> pyo.ConcreteModel:
 class TestCalculateTolerance:
     """Tests for ``calculate_tolerance``, the linear-learning convergence measure."""
 
-    def test_weighted_absolute_difference(self):
-        """Tolerance is the year-weighted sum of absolute growth differences."""
+    def test_largest_absolute_difference(self):
+        """Tolerance is the largest absolute growth difference over all keys, unweighted."""
         cap_growth = {(2, 2030): 10.0, (2, 2035): 20.0}
         new_cap_growth = {(2, 2030): 12.0, (2, 2035): 15.0}
-        year_weights = {2030: 2, 2035: 3}
 
-        # |10-12| * 2 + |20-15| * 3
-        assert calculate_tolerance(cap_growth, new_cap_growth, year_weights) == pytest.approx(19.0)
+        # max(|10-12|, |20-15|)
+        assert calculate_tolerance(cap_growth, new_cap_growth) == pytest.approx(5.0)
 
     def test_identical_growth_is_zero(self):
         """Identical growth dicts give a tolerance of exactly zero."""
         cap_growth = {(2, 2030): 10.0, (3, 2030): 5.0}
-        assert calculate_tolerance(cap_growth, dict(cap_growth), {2030: 4}) == 0.0
+        assert calculate_tolerance(cap_growth, dict(cap_growth)) == 0.0
+
+    def test_no_keys_is_zero(self):
+        """With nothing buildable there is nothing to change, so the loop stops."""
+        assert calculate_tolerance({}, {}) == 0.0
 
     def test_mismatched_keys_raise(self):
         """Growth dicts with different keys are rejected rather than silently compared."""
         with pytest.raises(ValueError):
-            calculate_tolerance({(2, 2030): 1.0}, {(3, 2030): 1.0}, {2030: 1})
+            calculate_tolerance({(2, 2030): 1.0}, {(3, 2030): 1.0})
 
 
 def test_init_old_cap(mock_model):

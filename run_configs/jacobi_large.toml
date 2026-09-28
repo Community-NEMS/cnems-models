@@ -1,3 +1,10 @@
+
+# config notes:
+# this config will run all 3 models in jacobi style and will hit iteration limit (15) due to
+# magic model's heavy influence.  It is a bit slow due to all region inclusion, exchange enabling,
+# and load generation for all regions in "end_use" mode which (see the logs) is ~12 seconds per
+# iteration just to build.
+
 [common]
 mode = "integrated jacobi"
 
@@ -18,8 +25,9 @@ temporal_resolution = "default"
 # list format, cannot be less than or greater than input data
 aggregate_years=false
 aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
-summary_years = [2023,2024,2025,2026,2027,2028,2029,2030] # evaluation years / aggregation summary years (if selected)
+summary_years = [2025, 2026, 2027, 2030] # evaluation years / aggregation summary years (if selected)
 
+strict_validation=false  # current Elec data has some issues.  This logs them, but allows run to continue
 
 [natural_gas]
 
@@ -30,7 +38,7 @@ input_path = 'input/natural_gas'
 [elec_config]
 input_path='input/electricity/cem_inputs'
 #region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
-regional_exchange=false
+regional_exchange=true
 capacity_expansion=false
 expansion_learning_type='disabled'  # disabled/linear/nonlinear
 reserve_margin_required=false

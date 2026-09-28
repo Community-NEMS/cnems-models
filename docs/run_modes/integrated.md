@@ -9,7 +9,8 @@ through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
-python main.py run_configs/full_combo.toml      # or:  pixi run combine
+python main.py run_configs/jacobi_large.toml
+pixi run jacobi      # runs run_configs/jacobi_small.toml, a reduced run
 ```
 
 The run config holds a `[common]` section plus one section per participating model

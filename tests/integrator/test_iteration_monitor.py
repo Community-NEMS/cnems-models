@@ -21,7 +21,7 @@ from src.common.update_package import (
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
-    NGDemandPackage,
+    NGDemandScaler,
     NGElectricalDemandPackage,
     NGPricePackage,
 )
@@ -135,7 +135,7 @@ def test_rays_run_between_the_right_columns(monitor: IterationMonitor) -> None:
 
 def test_ray_to_all_fans_out_and_crosses_columns(monitor: IterationMonitor) -> None:
     """A package addressed to ALL draws one ray per other model, overwriting crossed rails."""
-    package = NGDemandPackage(scalar=1.1, receivers=(ModelType.ALL,), source=ModelType.ELECTRICITY)
+    package = NGDemandScaler(scalar=1.1, receivers=(ModelType.ALL,), source=ModelType.ELECTRICITY)
     block = monitor.record(1, [result(ModelType.ELECTRICITY, 1.0, [package])])
     rays = [line for line in block.plain.splitlines() if 'NG Demand Scaler [1]' in line]
     assert len(rays) == 2

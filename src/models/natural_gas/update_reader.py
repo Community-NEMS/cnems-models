@@ -14,7 +14,7 @@ from functools import singledispatchmethod
 
 from src.common.update_package import (
     NG_ELEC_DEMAND_VALUE,
-    NGDemandPackage,
+    NGDemandScaler,
     NGElectricalDemandPackage,
     UpdatePackage,
     UpdatePackageReader,
@@ -89,12 +89,12 @@ class NGUpdateReader(UpdatePackageReader[NGData]):
 
     # pyrefly cannot type either form of singledispatchmethod.register against typeshed
     @apply_package.register  # type: ignore[no-matching-overload]
-    def _(self, update_package: NGDemandPackage, data: NGData) -> None:
+    def _(self, update_package: NGDemandScaler, data: NGData) -> None:
         """Scale every entry of the projected ``demand`` table by the package scalar.
 
         Parameters
         ----------
-        update_package : NGDemandPackage
+        update_package : NGDemandScaler
             Carries the multiplier to apply.
         data : NGData
             The loaded data; ``data['demand']`` is modified in place.

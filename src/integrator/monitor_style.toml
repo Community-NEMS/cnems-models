@@ -18,7 +18,6 @@ magic = "bold dark_magenta"
 default = "dark_goldenrod"
 "NG Demand" = "dark_goldenrod"
 "NG Prices" = "gold3"
-"Trans Cost" = "dark_orange3"
 "Elec Price Scaler" = "deep_pink3"
 "NG Demand Scaler" = "indian_red1"
 

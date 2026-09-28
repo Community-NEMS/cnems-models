@@ -107,8 +107,7 @@ The packages exchanged today:
 | NG Demand        | `NGElectricalDemandPackage` | Electricity → NG  | Replaces `electric_power` sector gas demand; that sector's growth projection is switched off |
 | NG Prices        | `NGPricePackage`            | NG → Electricity  | Scales the supply price of gas-linked techs with the regional gas price             |
 | Elec Price Scaler | `ElectricityPriceScaler`   | Magic → Electricity | Mock: scales supply prices of named techs                                        |
-| Trans Cost       | `TransCostUpdate`           | Magic → Electricity | Mock: replaces transmission costs                                                |
-| NG Demand Scaler | `NGDemandPackage`           | Magic → NG        | Mock: scales all gas demand                                                        |
+| NG Demand Scaler | `NGDemandScaler`            | Magic → NG        | Mock: scales all gas demand                                                        |
 
 ### Watching the Exchange
 
@@ -132,8 +131,6 @@ receiver's with an arrowhead, and is labelled with the package label and its ent
                    |<--- NG Prices [250] ----+                         |
                    |                         |                         |
                    |<------------- Elec Price Scaler [2] --------------+
-                   |                         |                         |
-                   |<--------------- Trans Cost [506] -----------------+
                    |                         |                         |
                    |                         |< NG Demand Scaler [1] --+
 ```

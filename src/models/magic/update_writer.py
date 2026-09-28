@@ -9,16 +9,14 @@ Update package writer for the magic model:  fabricates mock updates for the othe
 """
 
 import math
-import random
 from typing import TYPE_CHECKING
 
 from src.common.models_modes import ModelType
 from src.common.update_package import (
     ElectricityPriceScaler,
-    NGDemandPackage,
+    NGDemandScaler,
     UpdatePackage,
     UpdatePackageWriter,
-    make_trans_update,
 )
 
 if TYPE_CHECKING:
@@ -27,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
-    """Writes mock electricity price, transmission cost, and NG demand updates."""
+    """Writes mock electricity price and NG demand updates."""
 
     def write(self, model: MagicModel) -> list[UpdatePackage]:
         """Make mock updates from the model's sequence number.
@@ -44,7 +42,7 @@ class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
         Returns
         -------
         list[UpdatePackage]
-            An ``ElectricityPriceScaler``, a ``TransCostUpdate``, and an ``NGDemandPackage``.
+            An ``ElectricityPriceScaler`` and an ``NGDemandScaler``.
         """
         # # TODO:  Temp patch for isolating NG updates
         # return []
@@ -56,15 +54,9 @@ class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
             receivers=(ModelType.ELECTRICITY,), scalar=scalar, techs=('4', '6')
         )
 
-        # make a transmission cost update
-        tcu = make_trans_update(
-            new_cost=2000 - 5000 * random.random() * math.e ** (-sequence_number),
-            year=2030,
-        )
-
         # exponential decay toward 1.4:  exactly 1.0 at sequence number 1 (the first
         # iteration in the control loop), approaching 1.4 as the sequence advances
         ng_scalar = 1.4 - 0.4 * math.exp(-(sequence_number - 1) / 3)
-        ng_demand = NGDemandPackage(receivers=(ModelType.NATURAL_GAS,), scalar=ng_scalar)
+        ng_demand = NGDemandScaler(receivers=(ModelType.NATURAL_GAS,), scalar=ng_scalar)
 
-        return [update, tcu, ng_demand]
+        return [update, ng_demand]

@@ -18,7 +18,6 @@ from src.common.update_package import (
     NG_PRICE_VALUE,
     ElectricityPriceScaler,
     NGPricePackage,
-    TransCostUpdate,
     UpdatePackage,
     UpdatePackageReader,
 )
@@ -93,58 +92,6 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
             tech_mask.sum(),
             len(prices),
             electricity_price_scalar.techs,
-        )
-
-    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
-    @apply_package.register  # type: ignore[no-matching-overload]
-    def _(self, trans_cost_update: TransCostUpdate, data: ParamData) -> None:
-        """Merge an incoming transmission cost update into the ``tran_cost`` frame.
-
-        Rows carried by the update replace the matching rows of ``tran_cost``; entries the
-        update does not cover keep their loaded values and are reported as warnings.  Entries
-        in the update beyond the held index (regions/years filtered out of this run) are
-        ignored.
-
-        Parameters
-        ----------
-        trans_cost_update : TransCostUpdate
-            Update package holding a frame indexed like ``tran_cost``
-            ``(destination_region, source_region, year)`` with a single ``cost`` column.
-        data : ParamData
-            The loaded parameter data; ``data.param_frames`` is modified in place.
-
-        Notes
-        -----
-        Retaining uncovered entries matters:  ``TranCost`` is a dense pyomo Param with no
-        default, so a hole in the frame fails model construction.  Incoming values must be in
-        the same units as the loaded frame, which the price hack in ``ParamData.__init__`` scales
-        by 1000.
-        """
-        old = data.param_frames['tran_cost']
-        new = trans_cost_update.elements
-        if old.empty:
-            logger.warning(
-                'Held tran_cost is empty; taking all %d received rows without a coverage check',
-                len(new),
-            )
-            data.param_frames['tran_cost'] = new
-            return
-        if set(new.columns) != set(old.columns):
-            logger.warning(
-                'Received tran_cost columns %s do not match the held columns %s',
-                list(new.columns),
-                list(old.columns),
-            )
-        missing = self._report_index_gaps(old.index, new.index, name='tran_cost')
-        # align level names so combine_first matches on position, as the gap report does; the
-        # reindex drops the overages that combine_first's index union would otherwise carry in
-        new = new.rename_axis(old.index.names)
-        data.param_frames['tran_cost'] = new.combine_first(old).reindex(old.index)[old.columns]
-        logger.info(
-            'Updated tran_cost:  %d of %d rows replaced, %d retained from the loaded data',
-            len(old) - len(missing),
-            len(old),
-            len(missing),
         )
 
     # pyrefly cannot type either form of singledispatchmethod.register against typeshed

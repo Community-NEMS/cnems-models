@@ -29,7 +29,7 @@ from definitions import PROJECT_ROOT
 from src.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
-    NGDemandPackage,
+    NGDemandScaler,
     NGElectricalDemandPackage,
 )
 from src.models.natural_gas import data as ng_data
@@ -699,7 +699,7 @@ class TestDemandGrowthGating:
         elec = self.demand_package({('mountain', 2030): 1.0})
         reader = NGUpdateReader()
         assert reader.superseded_sectors([elec]) == {'electric_power'}
-        assert reader.superseded_sectors([NGDemandPackage(scalar=1.2)]) == frozenset()
+        assert reader.superseded_sectors([NGDemandScaler(scalar=1.2)]) == frozenset()
         assert reader.superseded_sectors([]) == frozenset()
 
     def test_superseded_sector_is_held_flat(self, caplog: pytest.LogCaptureFixture) -> None:

@@ -72,6 +72,9 @@ class UpdatePackage(ABC):
 class ElectricityPriceScaler(UpdatePackage):
     """Multiply the electricity model's supply prices for a set of techs by a scalar.
 
+    For development and testing only:  produced by the mock MAGIC model to exercise the
+    integration loop, not by any real model.
+
     Handled by ``ElecUpdateReader.apply_package``, which scales the matching rows of the
     ``supply_price`` frame in place.
 
@@ -115,8 +118,11 @@ my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # mult
 
 
 @dataclass(frozen=True)
-class NGDemandPackage(UpdatePackage):
+class NGDemandScaler(UpdatePackage):
     """Multiply the natural gas model's demand values by a scalar.
+
+    For development and testing only:  produced by the mock MAGIC model to exercise the
+    integration loop, not by any real model.
 
     Handled by ``NGUpdateReader.apply_package``, which scales every entry of the loaded
     ``demand`` table in place before the model is built.
@@ -152,60 +158,6 @@ class NGDemandPackage(UpdatePackage):
                 f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
                 'non-positive multiplier drives natural gas demand non-positive.'
             )
-
-
-# index/value labels of the electricity model's ``tran_cost`` frame, which a TransCostUpdate
-# must mirror -- see the "tran_cost" entry in src/models/electricity/param_sources.toml
-TRANS_COST_INDEX = ['destination_region', 'source_region', 'year']
-
-
-@dataclass(frozen=True)
-class TransCostUpdate(UpdatePackage):
-    """Collection of updates to transmission costs.
-
-    Attributes
-    ----------
-    elements : pd.DataFrame
-        Costs indexed by ``TRANS_COST_INDEX`` with a single ``TRANS_COST_VALUE`` column, matching
-        the recipient's ``tran_cost`` frame.  Entries the recipient does not hold are ignored;
-        held entries this frame omits keep their existing values and are logged as warnings.
-    receivers : tuple of ModelType
-        Fixed to the electricity model.
-    """
-
-    elements: pd.DataFrame
-    receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
-    label: str = 'Trans Cost'
-
-    @property
-    def size(self) -> int:
-        """One entry per (destination, source, year) row."""
-        return len(self.elements)
-
-
-def make_trans_update(new_cost: float, year: int) -> TransCostUpdate:
-    """Cheap maker for a TransCostUpdate covering all region pairs in a single year.
-
-    Parameters
-    ----------
-    new_cost : float
-        Cost to apply to every ordered pair of distinct regions.
-    year : int
-        The year the costs apply to.
-
-    Returns
-    -------
-    TransCostUpdate
-        Package holding a frame indexed by ``TRANS_COST_INDEX``.
-    """
-    costs = []
-    for region in (str(num) for num in range(1, 24)):
-        for other in (str(num) for num in range(1, 24)):
-            if region != other:
-                costs.append((region, other, year, new_cost))
-    df = pd.DataFrame(costs, columns=[*TRANS_COST_INDEX, 'cost'])
-    df = df.set_index(TRANS_COST_INDEX)
-    return TransCostUpdate(elements=df)
 
 
 # index labels shared by the region-and-year packages below:  region id (str) and model year (int)

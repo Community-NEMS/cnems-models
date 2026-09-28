@@ -18,14 +18,11 @@ from src.common.update_package.update_package import (
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
     REGION_YEAR_INDEX,
-    TRANS_COST_INDEX,
     ElectricityPriceScaler,
-    NGDemandPackage,
+    NGDemandScaler,
     NGElectricalDemandPackage,
     NGPricePackage,
-    TransCostUpdate,
     UpdatePackage,
-    make_trans_update,
 )
 from src.common.update_package.writer import UpdatePackageWriter
 
@@ -35,14 +32,11 @@ __all__ = [
     'NG_PRICE_INDEX',
     'NG_PRICE_VALUE',
     'REGION_YEAR_INDEX',
-    'TRANS_COST_INDEX',
     'ElectricityPriceScaler',
-    'NGDemandPackage',
+    'NGDemandScaler',
     'NGElectricalDemandPackage',
     'NGPricePackage',
-    'TransCostUpdate',
     'UpdatePackage',
     'UpdatePackageReader',
     'UpdatePackageWriter',
-    'make_trans_update',
 ]

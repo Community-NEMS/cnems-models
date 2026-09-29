@@ -446,8 +446,9 @@ issues as warnings, showstoppers as errors.
 The `strict_validation` switch in the `[common]` section of the run configuration
 (`CommonConfig.strict_validation`, default `true`) controls what happens when validation fails:
 
-- `strict_validation = true` — a failed validation writes a notice to `stderr` and terminates the
-  run. This is the normal setting.
+- `strict_validation = true` — a failed validation raises `DataValidationError`
+  (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
+  are in the log. This is the normal setting.
 - `strict_validation = false` — failures are logged and the run continues with the data as read.
   Useful when working with known-incomplete input data, at the risk of a downstream failure or a
   silently mis-specified model.

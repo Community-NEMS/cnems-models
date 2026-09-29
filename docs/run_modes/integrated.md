@@ -81,6 +81,9 @@ Things to know about the current loop:
   mixes with an earlier run's logs. Each worker writes a per-model log there
   (`electricity.log`, ...), and the control process writes `MAIN.log` and prints the iteration
   monitor to the console.
+- **No result files are written yet.** `full_run` doesn't call `full_postprocess`, so the scenario
+  folder ends up holding only `MAIN.log` and the per-model logs (`electricity.log`,
+  `natural_gas.log`, plus `magic.log` when MAGIC runs). The objective plot is shown but not saved.
 - **The run ends** when every model with an objective has changed by less than `epsilon`,
   relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
   `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative

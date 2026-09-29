@@ -24,12 +24,16 @@ correctly on its own can also run in an integrated run.
 
 ## Flow of a Standalone Run
 
-The electricity model is the reference case. `main.py` parses a run config and calls
-`run_elec_model`, a thin wrapper over `ElectricitySequencer`:
+The electricity model is the reference case. `main.py` parses the run config with
+`parse_config_file`; when its `mode` is `standalone`, it claims a scenario output folder, sets up
+the run log, and hands off to `_run_standalone`. That function loops over `models_to_run`, builds
+each model's config from its section (`[elec_config]` → `ElecConfig`), and drives the model's
+sequencer directly: `build_model` → `solve_model` → `full_postprocess`, skipping postprocessing
+when the solve reports `ERROR`. For the electricity model:
 
 ```mermaid
 flowchart TD
-    A["Parse run config<br/><code>parse_config_file</code> → CommonConfig + ElecConfig"] --> B
+    A["Parse run config<br/><code>parse_config_file</code> → CommonConfig;<br/><code>_run_standalone</code> → ElecConfig"] --> B
     subgraph build ["build_model"]
         B["Build sets<br/><code>ModelSets</code>"] --> C["Load and shape parameters<br/><code>ParamData</code>"]
         C --> D["Apply update packages<br/><code>ElecUpdateReader.read</code> (none when standalone)"]
@@ -48,9 +52,10 @@ flowchart TD
     K -- "BEST / USABLE / PENALTY" --> L["<code>full_postprocess</code><br/>log cost components, export variables to CSV"]
 ```
 
-The natural gas model has the same shape. Its standalone entry point is the `__main__` block of
-`src/models/natural_gas/sequencer.py`, which runs `load_all` → `NGUpdateReader` → `NGModel` for
-the build, then a QP solve, then `report` for postprocessing.
+The natural gas model has the same shape and runs through the same `_run_standalone` loop when
+`models_to_run` includes `natural_gas` (see `run_configs/basic_ng_config.toml`), with its config
+built from the `[natural_gas]` section. `NGSequencer` runs `load_all` → `NGUpdateReader` →
+`NGModel` for the build, then a QP solve, then `report` for postprocessing.
 
 !!! note "What happens with update packages in a standalone run"
 

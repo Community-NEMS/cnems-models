@@ -13,6 +13,10 @@ extra_javascript = [
 
 nav = [
   { "Home" = "index.md" },
+  { "Run Modes" = [
+    { "Standalone Runs" = "run_modes/standalone.md" },
+    { "Integrated Runs" = "run_modes/integrated.md" },
+  ] },
   { "Models" = [
     { "Electricity" = "models/electricity.md" },
     { "Natural Gas" = "models/natural_gas.md" },

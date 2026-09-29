@@ -6,6 +6,7 @@ Reads all numerical parameters from CSV files. Every file listed below
 
 import csv
 import logging
+from collections.abc import Collection
 from pathlib import Path
 from typing import TypedDict
 
@@ -15,7 +16,6 @@ from src.common.common_config import CommonConfig
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
-
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
@@ -802,11 +802,14 @@ def project_demand(
     years: list[int],
     regions: list[str],
     sectors: list[str],
+    superseded: Collection[str] = (),
 ) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
     Applies ``base * (1 + growth) ** (year - 2025)`` per region and sector, so 2025 returns the
-    base-year value unchanged.
+    base-year value unchanged.  A sector in ``superseded`` is held flat at its base-year value
+    instead:  an inbound update package is about to set it, so growing it first would only put a
+    misleading number under any ``(region, year)`` the package fails to cover.
 
     Parameters
     ----------
@@ -821,6 +824,8 @@ def project_demand(
         Regions to project. Required; every one must appear in ``demand_table``.
     sectors : list[str]
         Sectors to project. Every one must appear in ``growth_rate_table``.
+    superseded : Collection[str], optional
+        Sectors whose growth is gated off; see ``NGUpdateReader.superseded_sectors``.
 
     Returns
     -------
@@ -829,10 +834,24 @@ def project_demand(
     """
     base_year = 2025
     demand: dict[tuple[str, str, int], float] = {}
+    gated = [sector for sector in sectors if sector in superseded]
+    if gated:
+        logger.info(
+            'Demand growth gated off for sector(s) %s:  an inbound update package sets them', gated
+        )
+    unknown = sorted(set(superseded).difference(sectors))
+    if unknown:
+        logger.warning(
+            'Superseded sector(s) %s are not among the sectors being projected %s; the inbound '
+            'update package will have nothing to replace.  Check ng_sector_data.csv and the '
+            'growth table against SECTOR_SUPERSEDED_BY',
+            unknown,
+            list(sectors),
+        )
     for region in regions:
         for sector in sectors:
             base = demand_table[region][sector]
-            g = growth_rate_table[sector]
+            g = 0.0 if sector in superseded else growth_rate_table[sector]
             for year in years:
                 dt = year - base_year
                 demand[(region, sector, year)] = base * ((1 + g) ** dt)
@@ -879,7 +898,9 @@ class NGData(TypedDict):
     years: list[int]
 
 
-def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
+def load_all(
+    ng_config: NGConfig, common_config: CommonConfig, superseded: Collection[str] = ()
+) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
@@ -888,6 +909,9 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
     common_config : CommonConfig
         Supplies ``summary_years``, the years demand is projected over.
+    superseded : Collection[str], optional
+        Demand sectors an inbound update package will set, whose growth projection is therefore
+        gated off; see ``NGUpdateReader.superseded_sectors`` and :func:`project_demand`.
 
     Raises
     ------
@@ -911,6 +935,7 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         years=common_config.summary_years,
         regions=region_data['regions_analyze'],
         sectors=sectors,
+        superseded=superseded,
     )
 
     # Sectors and elasticities come from two separate files with no shared key, so a sector

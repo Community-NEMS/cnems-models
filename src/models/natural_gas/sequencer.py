@@ -7,6 +7,8 @@ Created on:  8/14/26
 """
 
 import logging
+import sys
+from collections.abc import Sequence
 
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
@@ -14,21 +16,21 @@ from pyomo.opt import SolverFactory, check_optimal_termination
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.utilities import setup_logger
-from src.models.natural_gas.data import load_all
+from src.common.log_setup import setup_control_loop_logging
+from src.common.models_modes import ModelType
+from src.common.update_package import UpdatePackage
+from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
+from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
+from src.models.natural_gas.update_reader import NGUpdateReader
+from src.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
 
-# Unserved demand above this, in Bcf for one region-year, is reported after a solve. It sits well
-# above solver residuals (under 1e-12 Bcf with HiGHS; an interior-point solve without crossover can
-# leave more) and well below any real shortfall seen so far (1.4 Bcf and up).
-UNSERVED_REPORT_TOL_BCF = 0.01
 
-
-class NGSequencer(IntegratedModelSequencer):
+class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
     """Sequencer for Natural Gas models."""
 
     def __init__(self):
@@ -36,6 +38,9 @@ class NGSequencer(IntegratedModelSequencer):
         self._model = None
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
+        self._last_status: IterationStatus | None = None
+        self._reader = NGUpdateReader()
+        self._writer = NGUpdateWriter()
 
     @property
     def model(self) -> NGModel:
@@ -43,6 +48,21 @@ class NGSequencer(IntegratedModelSequencer):
         if self._model is None:
             raise RuntimeError('Model has not been built yet; call build_model() first.')
         return self._model
+
+    @property
+    def reader(self) -> NGUpdateReader:
+        """Applies inbound packages to the loaded ``NGData``."""
+        return self._reader
+
+    @property
+    def writer(self) -> NGUpdateWriter:
+        """Writes the gas-price package for the electricity model."""
+        return self._writer
+
+    @property
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        return self._last_status
 
     @property
     def common_config(self) -> CommonConfig:
@@ -57,7 +77,13 @@ class NGSequencer(IntegratedModelSequencer):
             raise RuntimeError('Config is not available; call build_model() first.')
         return self._common_config
 
-    def build_model(self, common_config: CommonConfig, model_config: NGConfig, **kwargs) -> NGModel:
+    def build_model(
+        self,
+        common_config: CommonConfig,
+        model_config: NGConfig,
+        update_packages: Sequence[UpdatePackage] | None = None,
+        **kwargs,
+    ) -> NGModel:
         """Build the Natural Gas Market Model.
 
         Parameters
@@ -66,15 +92,32 @@ class NGSequencer(IntegratedModelSequencer):
             The ``[common]`` settings.  Only ``mode`` and ``summary_years`` are read.
         model_config : NGConfig
             The ``[natural_gas]`` settings.
+        update_packages : Sequence[UpdatePackage], optional
+            Inbound data updates, applied to the loaded data (via
+            :class:`NGUpdateReader`) before the model is
+            built.  A package type with no registered handler raises.  A package that
+            supersedes a demand sector (``update_reader.SECTOR_SUPERSEDED_BY``) also gates off that
+            sector's growth projection in ``load_all``.
 
         Returns
         -------
         NGModel
             The built (unsolved) model, also retained on the sequencer.
+
+        Raises
+        ------
+        NotImplementedError
+            If an update package has no registered handler in ``data.py``.
         """
         self._common_config = common_config
         self._ng_config = model_config
-        data = load_all(common_config=common_config, ng_config=model_config)
+        update_packages = list(update_packages or [])
+        data = load_all(
+            common_config=common_config,
+            ng_config=model_config,
+            superseded=self._reader.superseded_sectors(update_packages),
+        )
+        self._reader.read(update_packages, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 
@@ -82,7 +125,7 @@ class NGSequencer(IntegratedModelSequencer):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
         raise NotImplementedError
 
-    def solve_model(self, **kwargs) -> IterationStatus:
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the built model, a convex QP, and report how the solve terminated.
 
         Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
@@ -101,13 +144,14 @@ class NGSequencer(IntegratedModelSequencer):
 
         Returns
         -------
-        IterationStatus
-            ``USABLE`` if the solver reached optimality, ``ERROR`` otherwise.  A non-optimal
-            solve is reported by return value, not raised, so callers must check: the model is
-            left holding whatever values the failed solve produced.  An optimal solve with
-            unserved demand is still ``USABLE``; the region-years short by more than
-            ``UNSERVED_REPORT_TOL_BCF`` are logged as a warning, and their price is the
-            unserved-demand penalty, within solver tolerance.
+        tuple[ModelType, IterationStatus]
+            The model type (for accounting) and the status of the solve:  ``ERROR`` if the
+            solver did not reach optimality; otherwise ``PENALTY`` if any demand went unserved
+            (see :meth:`_in_penalty`), else ``USABLE``.  A non-optimal solve is reported by
+            return value, not raised, so callers must check: the model is left holding whatever
+            values the failed solve produced.  A ``PENALTY`` solve's results are accurate and
+            still sent to coupled models -- the unserved-demand price is the signal they need to
+            pull demand down -- but an iterative run will not stop on it.
 
         Raises
         ------
@@ -143,6 +187,7 @@ class NGSequencer(IntegratedModelSequencer):
         ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
         The solver actually chosen is logged at INFO.
         """
+        # TODO:  Clean up the comments on IterationStatus above
         solver_name = kwargs.pop('solver_name', None)
         logger.debug('Requested solver: %s', solver_name)
         if solver_name is None:
@@ -207,28 +252,11 @@ class NGSequencer(IntegratedModelSequencer):
 
         if not check_optimal_termination(results):
             logger.error('C-NGMM: non-optimal solve! Results:\n%s', results)
-            return IterationStatus.ERROR
-            # raise RuntimeError('NGModel solve did not reach an optimal solution.')
+            self._last_status = IterationStatus.ERROR
+            return ModelType.NATURAL_GAS, IterationStatus.ERROR
 
         self.model.solutions.load_from(results)
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
-
-        # A shortfall still solves, so it has to be said: the status stays USABLE, since the price
-        # in a short region, the penalty within solver tolerance, is the signal a coupled model
-        # needs to pull its demand down, and dropping the solve would withhold it.
-        short: dict[tuple[str, int], float] = {}
-        for (r, y), var in self.model.unserved.items():
-            q = value(var)
-            if q is not None and q > UNSERVED_REPORT_TOL_BCF:
-                short[r, y] = q
-        if short:
-            logger.warning(
-                'C-NGMM: %.1f Bcf of demand unserved in %d region-year(s), priced at the '
-                'unserved-demand penalty: %s',
-                sum(short.values()),
-                len(short),
-                ', '.join(f'{r} {y} {q:.1f} Bcf' for (r, y), q in sorted(short.items())),
-            )
 
         # ── attach result tables to the model for reporting ──────────────────────
         # TODO:  Extraction below on hold till model running and then maybe refactor to not
@@ -238,7 +266,46 @@ class NGSequencer(IntegratedModelSequencer):
         # m.results_prices = postprocessor._extract_prices(m)
         # m.results_storage = postprocessor._extract_storage(m)
         # m.results_balance = postprocessor._extract_balance(m)
-        return IterationStatus.USABLE
+
+        # A shortfall still solves, so it has to be said.  The status is PENALTY rather than
+        # ERROR:  the price in a short region, the penalty within solver tolerance, is the signal
+        # a coupled model needs to pull its demand down, so the results are still sent, but an
+        # iterative run must not stop here.  Only an optimal solve has solved values to inspect,
+        # so this follows the ERROR check.
+        status = IterationStatus.PENALTY if self._in_penalty(self.model) else IterationStatus.USABLE
+        self._last_status = status
+        return ModelType.NATURAL_GAS, status
+
+    @staticmethod
+    def _in_penalty(model: NGModel) -> bool:
+        """Check a solved model for unserved demand, which marks the solve as ``PENALTY``.
+
+        Each short region-year is listed in a warning, with the total.
+
+        Parameters
+        ----------
+        model : NGModel
+            A solved model; only its ``unserved`` values are read.
+
+        Returns
+        -------
+        bool
+            True if ``unserved`` exceeds ``UNSERVED_PENALTY_TOL`` in any region-year.
+        """
+        short: dict[tuple[str, int], float] = {}
+        for (region, year), var in model.unserved.items():
+            quantity = value(var, exception=False)
+            if quantity is not None and quantity > UNSERVED_PENALTY_TOL:
+                short[region, year] = quantity
+        if short:
+            logger.warning(
+                'C-NGMM: %.4g Bcf of demand unserved in %d region-year(s), priced at the '
+                'unserved-demand penalty; solve status PENALTY: %s',
+                sum(short.values()),
+                len(short),
+                ', '.join(f'{r} {y} {q:.4g} Bcf' for (r, y), q in sorted(short.items())),
+            )
+        return bool(short)
 
     def full_postprocess(self, **kwargs):
         """Write the result CSVs for the solved model.
@@ -254,42 +321,27 @@ class NGSequencer(IntegratedModelSequencer):
     def iteration_postprocess(self, **kwargs):
         """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
 
+    def get_objective_value(self) -> float | None:
+        """Get the solved objective value (``total_cost``, in dollars)."""
+        return value(self.model.total_cost)
 
-def main() -> int:
-    """Build and solve the C-NGMM from the default config, then report results.
 
-    Returns
-    -------
-    int
-        ``0`` when the solve is usable, ``1`` when the solver reported
-        :attr:`IterationStatus.ERROR`. Returned rather than raised so the failure path can be
-        exercised by a test without spawning a subprocess.
-    """
+if __name__ == '__main__':
     logger.info('Trial run from sequencer')
     config_path = PROJECT_ROOT / 'run_configs/basic_ng_config.toml'
     common_config, remainder = parse_config_file(config_path)
     common_config.make_scenario_dir()
-    setup_logger(common_config)
+    setup_control_loop_logging(common_config.output_folder / 'run.log')
     ng_config = NGConfig(**remainder.pop('natural_gas'))
     sequencer = NGSequencer()
     sequencer.build_model(common_config, ng_config)
-    status = sequencer.solve_model()
+    _, status = sequencer.solve_model()
 
-    # Reject ERROR specifically rather than testing for one success value. Sequencers in this
-    # repo disagree on which success they return, electricity BEST and gas USABLE, so an
-    # equality test against either would reject a good solve from the other. Returning before
-    # the objective read matters: total_cost on a failed solve is meaningless, and
-    # full_postprocess would write a full set of result CSVs indistinguishable from a good run.
     if status is IterationStatus.ERROR:
         logger.error('C-NGMM: solve failed with status %s, no results written', status)
-        return 1
+        sys.exit(1)
 
-    logger.info('C-NGMM: solve finished with status %s', status)
-    obj_value = value(sequencer.model.total_cost)
+    logger.info('Solved with status: %s', status)
+    obj_value = sequencer.get_objective_value()
     logger.info('Objective value: %0.2f', obj_value)
     sequencer.full_postprocess()
-    return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

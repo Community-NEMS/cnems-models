@@ -180,7 +180,8 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
     2.  the values captured here for test were generated from run of legacy code and are *assumed*
         good for this test and dataset
     """
-    # config_path = Path(PROJECT_ROOT, 'tests/electric/meta_config.toml')
+    # TODO:  Bring the test data into the test folder when data format changes stabilize
+    #        This currently relies on data outside the test environment
     config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
     common_config, remainder = CommonConfig.from_toml(config_path)
 
@@ -494,7 +495,7 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
         caplog.at_level(capture_level, logger='src.models.electricity.sequencer'),
         caplog.at_level(capture_level, logger='src.models.electricity.learning'),
     ):
-        status = sequencer.solve_model()
+        _, status = sequencer.solve_model()
     assert status is IterationStatus.BEST, f'solve failed with status {status}'
 
     if verbose:
@@ -547,7 +548,7 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     common_config, elec_config = learning_config_set
     sequencer = ElectricitySequencer()
     model = sequencer.build_model(common_config, elec_config)
-    assert sequencer.solve_model() is IterationStatus.BEST
+    assert sequencer.solve_model()[-1] is IterationStatus.BEST
 
     y0 = value(model.y0_learning)
     for r, tech, step, y in model.cap_cost:

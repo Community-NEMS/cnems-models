@@ -76,6 +76,7 @@ from pyomo.environ import (
 from src.common.common_config import CommonConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.validators import region_check
+from src.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY
 from src.models.natural_gas.data import (
     NGData,
     interp_lng_export,
@@ -140,6 +141,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         model; replaces the ``'electric_power'`` sector demand for that region/year.
     """
 
+    @property
+    def label(self) -> str:
+        """Display name."""
+        return 'Natural Gas'
+
+    # Added `regions` (default None = all nine, so every
     def __init__(
         self,
         model_data: NGData,
@@ -201,12 +208,6 @@ class NGModel(ConcreteModel, IntegratedModel):
         # Supply-curve breakpoint count (5 segments → 6 breakpoints, matches NGMM
         # AEO 2022 default; see SUPPLY_CURVE_SHAPE for the elasticities). Kept as a
         # module constant because constraint indexing depends on it.
-        # $/MMBtu penalty on unserved demand (see the backstop block below). Set ~100x any
-        # plausible gas price so the backstop is never economic and only relieves a genuine
-        # shortfall: demand above what a region can deliver, or a subset whose supplying
-        # neighbors were dropped.
-        unserved_penalty = 1000.0
-
         self.supply_break_ids = [1, 2, 3, 4, 5, 6]
         self.supply_step_ids = [1, 2, 3, 4, 5]  # 5 segments between 6 breakpoints
 
@@ -629,17 +630,17 @@ class NGModel(ConcreteModel, IntegratedModel):
         )
 
         # UNSERVED-DEMAND BACKSTOP, the shortfall counterpart of `slack_demand`. It sits on the
-        # SUPPLY side of demand_balance and is priced at unserved_penalty in the objective, so the
-        # solver uses it only for demand that cannot be delivered to a region, and the
-        # demand-balance dual in a short region comes back at the penalty, within solver
-        # tolerance. Without it, demand above what can reach a region in a year (local production,
-        # pipeline inflow up to the tariff curve's last breakpoint, LNG import and Canada; storage
-        # nets to zero over the year and adds none) makes the whole model infeasible, as does a
-        # region subset that is a net importer once its supplying neighbours are dropped. It is
-        # created for every run. With `slack_demand` it makes the same pair the electricity model
-        # has: a demand balance that allows a free surplus, and `unmet_load` at a penalty. Its
-        # presence also lets HiGHS solve cut-demand cases it otherwise reports as `unknown` or
-        # `unbounded` on long horizons, although it is zero in those cases; why is not known.
+        # SUPPLY side of demand_balance and is priced at UNSERVED_DEMAND_PENALTY in the objective,
+        # so the solver uses it only for demand that cannot be delivered to a region, and the
+        # demand-balance dual in a short region comes back at the penalty, within solver tolerance.
+        # Without it, demand above what can reach a region in a year (local production, pipeline
+        # inflow up to the tariff curve's last breakpoint, LNG import and Canada; storage nets to
+        # zero over the year and adds none) makes the whole model infeasible, as does a region
+        # subset that is a net importer once its supplying neighbours are dropped. It is created for
+        # every run. With `slack_demand` it makes the same pair the electricity model has: a demand
+        # balance that allows a free surplus, and `unmet_load` at a penalty. Its presence also lets
+        # HiGHS solve cut-demand cases it otherwise reports as `unknown` or `unbounded` on long
+        # horizons, although it is zero in those cases; why is not known.
         self.unserved = Var(self.region_analyze, self.year, within=NonNegativeReals, initialize=0.0)
 
         # ── CONSTRAINTS ───────────────────────────────────────────────────────
@@ -951,13 +952,13 @@ class NGModel(ConcreteModel, IntegratedModel):
                         lng_consumer_surplus + (pl_k_v * q + 0.5 * slope_v * q * q) * bcf
                     )
 
-        # Price the unserved-demand backstop. unserved_penalty is ~100x any plausible gas price,
-        # so the solver uses it only when a region cannot source the gas, and the demand-balance
-        # dual in a short region comes back at the penalty level, an unmistakable "this region is
-        # supply-short" signal instead of an opaque infeasibility. Zero whenever every region is
-        # supplied, which is why adding it left the pinned objective unchanged.
+        # Price the unserved-demand backstop. UNSERVED_DEMAND_PENALTY is ~100x any plausible gas
+        # price, so the solver uses it only when a region cannot source the gas, and the
+        # demand-balance dual in a short region comes back at the penalty level, an unmistakable
+        # "this region is supply-short" signal instead of an opaque infeasibility. Zero whenever
+        # every region is supplied, which is why adding it left the pinned objective unchanged.
         unserved_cost = quicksum(
-            self.unserved[r, y] * unserved_penalty * bcf
+            self.unserved[r, y] * UNSERVED_DEMAND_PENALTY * bcf
             for r in self.region_analyze
             for y in self.year
         )

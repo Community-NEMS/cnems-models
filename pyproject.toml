@@ -180,10 +180,11 @@ pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
-frictionless = ">=5.19.0,<6"
-pandera = ">=0.32.1,<0.33"
-universal-pathlib = ">=0.3.10,<0.4"
+frictionless = "*"
+pandera = "*"
+universal-pathlib = "*"
 zensical = "*"
+rich = "*"
 
 
 [tool.pixi.tasks]
@@ -203,6 +204,11 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
+
+# The integrated control loop:  the models in run_configs/jacobi_small.toml solve in parallel,
+# exchanging update packages each iteration, with the iteration monitor on the console.
+# TODO:  This is for development work only; the task runs main.py's integrated (Jacobi) mode
+jacobi = { cmd = "python main.py run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
 
 # Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
 # absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then

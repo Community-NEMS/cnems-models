@@ -126,7 +126,7 @@ class ParamData:
         param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
         logger.info('Read in %d parameter elements', len(param_data))
 
-        # TEMP HACK:  Adjust prices by factor of x in select params to match the old values
+        # TEMP HACK:  Adjust prices by factor of x1000 in select params to match the old values
         # TODO:  Remove this segment and force this on the DATA!!!!
         names_to_adjust = [
             'supply_price',

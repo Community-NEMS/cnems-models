@@ -270,6 +270,11 @@ class TestContractAgainstRealPowerModel:
             f'PowerModel has no {attr}; the coupling contract has drifted from the model'
         )
 
+    def test_ng_fuel_adj_is_indexed_like_supply_price(self) -> None:
+        """The two are added together in dispatch_cost, so their index sets must match."""
+        model = self._power_model()
+        assert set(model.ng_fuel_adj.index_set()) == set(model.supply_price.index_set())
+
     def test_generation_index_order_is_as_declared(self) -> None:
         """GENERATION_INDEX is declared, not discovered, so pin it against the real index.
 

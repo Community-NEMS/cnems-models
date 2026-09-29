@@ -64,7 +64,7 @@ required = true
 key = "learning_rate"
 filename = "LearningRate.csv"
 index_cols = ["tech"]
-value_col = "rate"
+value_col = "learning_exponent"
 required = false  # capacity_expansion + expansion_learning_type != DISABLED
 
 [[param_source]]

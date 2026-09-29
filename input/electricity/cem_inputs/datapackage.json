@@ -368,7 +368,7 @@
             "type": "integer"
           },
           {
-            "name": "rate",
+            "name": "learning_exponent",
             "type": "number"
           }
         ]

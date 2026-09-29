@@ -44,8 +44,6 @@ def mock_model() -> pyo.ConcreteModel:
     m.step = pyo.Set(initialize=STEPS)
     m.year = pyo.Set(initialize=YEARS)
 
-    m.y0_learning = pyo.Param(initialize=Y0)
-
     m.learning_rate = pyo.Param(m.tech, initialize={2: 0.1, 3: 0.2})
     m.supply_curve_learning = pyo.Param(m.tech, initialize={2: 100.0, 3: 200.0})
     m.cap_cost_initial = pyo.Param(
@@ -99,13 +97,11 @@ class TestCalculateTolerance:
 
 
 def test_init_old_cap(mock_model):
-    """0th iteration assumes 1 GW/yr of growth since the learning start year."""
+    """0th iteration starts from zero experience in every (tech, year)."""
     result = init_old_cap(mock_model)
 
     assert set(result.keys()) == {(tech, y) for tech in TECHS for y in YEARS}
-    assert result[(2, 2030)] == 0
-    assert result[(2, 2035)] == 5
-    assert result[(3, 2035)] == 5
+    assert all(v == 0 for v in result.values())
 
 
 def test_calculate_cap_growth(mock_model):
@@ -122,27 +118,27 @@ class TestCostLearningFunc:
 
     def test_no_new_capacity_in_start_year(self, mock_model):
         """With no growth in the base year the multiplier is 1.0."""
-        assert cost_learning_func(mock_model, 2, Y0, 0.0) == pytest.approx(1.0)
+        assert cost_learning_func(mock_model, 2, 0.0) == pytest.approx(1.0)
 
     def test_multiplier_decreases_with_capacity(self, mock_model):
         """Learning drives the cost multiplier below 1 as capacity grows."""
-        low = cost_learning_func(mock_model, 2, Y0, 10.0)
-        high = cost_learning_func(mock_model, 2, Y0, 100.0)
+        low = cost_learning_func(mock_model, 2, 10.0)
+        high = cost_learning_func(mock_model, 2, 100.0)
 
         assert high < low < 1.0
 
     def test_expected_value(self, mock_model):
         """spot-check against the closed-form expression."""
-        expected = ((100.0 + 0.0001 * (2035 - Y0) + 50.0) / 100.0) ** (-0.1)
-        assert cost_learning_func(mock_model, 2, 2035, 50.0) == pytest.approx(expected)
+        expected = ((100.0 + 50.0) / 100.0) ** (-0.1)
+        assert cost_learning_func(mock_model, 2, 50.0) == pytest.approx(expected)
 
     def test_higher_learning_rate_lowers_cost(self, mock_model):
         """Tech 3 has the higher learning rate.
 
         So a like-for-like fraction of its supply curve yields a bigger cost reduction.
         """
-        tech_2 = cost_learning_func(mock_model, 2, Y0, 50.0)  # 50% of 100
-        tech_3 = cost_learning_func(mock_model, 3, Y0, 100.0)  # 50% of 200
+        tech_2 = cost_learning_func(mock_model, 2, 50.0)  # 50% of 100
+        tech_3 = cost_learning_func(mock_model, 3, 100.0)  # 50% of 200
 
         assert tech_3 < tech_2
 
@@ -155,7 +151,7 @@ def test_update_expansion_cost(mock_model):
 
     for r, tech, step, y in mock_model.cap_cost:
         expected = mock_model.cap_cost_initial[r, tech, step] * cost_learning_func(
-            mock_model, tech, y, new_cap[tech, y]
+            mock_model, tech, new_cap[tech, y]
         )
         assert pyo.value(mock_model.cap_cost[r, tech, step, y]) == pytest.approx(expected)
 

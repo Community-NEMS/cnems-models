@@ -10,8 +10,12 @@ mode's iteration.
 
 The curve, ``learning_multiplier`` and ``learning_cost``, is shared by both learning modes.  The
 nonlinear objective calls ``learning_cost`` symbolically.  The linear mode calls
-``learning_multiplier`` through ``cost_learning_func`` between solves, which still adds a
-calendar-time drift term to the experience that the nonlinear objective does not.
+``learning_multiplier`` through ``cost_learning_func`` between solves.  In both, the experience is
+cumulative builds in earlier years and nothing else, so the linear mode's first solve, before any
+builds exist, is priced at ``cap_cost_initial``.
+
+Nothing bounds ``capacity_builds`` from above, and under learning more builds make later builds
+cheaper, so check the builds in learning runs for implausibly large values.
 
 The two curve functions are type-agnostic: numeric inputs give a number, symbolic inputs give a
 Pyomo expression.  Neither calls ``float()`` or ``value()`` or branches on a quantity, since either
@@ -53,9 +57,10 @@ def learning_multiplier(quantity: Any, baseline_quantity: Any, learning_rate: An
     baseline_quantity : float or pyomo ParamData
         Capacity the curve is measured from, ``Q0``, in GW.  Must be strictly positive.
     learning_rate : float or pyomo ParamData
-        Curve exponent ``b``, consumed directly.  The input file names this column ``rate``; if the
-        values are learning rates meaning fractional reduction per doubling, the exponent would be
-        ``-ln(1 - rate) / ln 2``.  That ambiguity is unresolved, so no conversion is applied.
+        Curve exponent ``b``, the ``learning_exponent`` column of the input file.  Each doubling of
+        ``Q`` cuts cost by ``1 - 2 ** -b``, so a learning rate ``LR`` per doubling converts as
+        ``b = -ln(1 - LR) / ln 2``.  Rates of 1, 10 and 20 percent give 0.0145, 0.152 and 0.322,
+        rounded from 0.0144996, 0.1520031 and 0.3219281.
 
     Returns
     -------
@@ -108,19 +113,15 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     ----------
     instance : PowerModel
         unsolved electricity model
-    """
-    initial_growth = {}
-    # instance.cap_set = []
-    # instance.old_cap_wt = {}
 
+    Returns
+    -------
+    dict[tuple, float]
+        zero cumulative builds before each year, in GW, keyed by (tech, year)
+    """
+    # no builds exist before the first solve; later solves are priced from solved builds
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for _r, tech, _step, y in instance.cap_cost:
-        if (tech, y) not in initial_growth:
-            # each tech will increase cap by 1 GW per year. reasonable starting point.
-            # TODO:  come back to this assumption after better understanding of process
-            initial_growth[tech, y] = (y - instance.y0_learning) * 1
-            # instance.old_cap_wt[(tech, y)] = instance.weight_year[y] * instance.old_cap[(tech, y)]
-    return initial_growth
+    return {(tech, y): 0.0 for _r, tech, _step, y in instance.cap_cost}
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
@@ -137,11 +138,11 @@ def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     return result
 
 
-def cost_learning_func(instance: PowerModel, tech: Any, y: int, new_cap: float) -> float:
-    """Learning multiplier on capital cost for one technology and year, for the linear mode.
+def cost_learning_func(instance: PowerModel, tech: Any, new_cap: float) -> float:
+    """Learning multiplier on capital cost for one technology, for the linear mode.
 
-    Calls :func:`learning_multiplier` with ``new_cap`` plus a calendar-time drift of 0.0001 GW per
-    year since ``y0_learning`` as the experience.  The nonlinear objective has no drift term.
+    Calls :func:`learning_multiplier` with ``new_cap`` as the experience, the same curve the
+    nonlinear objective uses.  The year enters only through ``new_cap``.
 
     Parameters
     ----------
@@ -149,20 +150,16 @@ def cost_learning_func(instance: PowerModel, tech: Any, y: int, new_cap: float) 
         Electricity model built with learning enabled.
     tech : str or int
         Technology.
-    y : int
-        Year.
     new_cap : float
-        Cumulative builds of ``tech`` before ``y``, in GW.
+        Cumulative builds of ``tech`` in the years before the one being priced, in GW.
 
     Returns
     -------
     float
         Multiplier to apply to ``cap_cost_initial``.
     """
-    # pyrefly: ignore[unsupported-operation]  - pyomo ParamData arithmetic is untyped
-    drift = 0.0001 * (y - instance.y0_learning)
     return learning_multiplier(
-        drift + new_cap,
+        new_cap,
         instance.supply_curve_learning[tech],
         instance.learning_rate[tech],
     )
@@ -173,7 +170,7 @@ def update_expansion_cost(instance, new_cap: dict[tuple, float]):
     new_multiplier = {}
     for key in new_cap:
         tech, y = key
-        new_multiplier[tech, y] = cost_learning_func(instance, tech, y, new_cap[tech, y])
+        new_multiplier[tech, y] = cost_learning_func(instance, tech, new_cap[tech, y])
 
     # Assign new cost
     for r, tech, step, y in instance.cap_cost:

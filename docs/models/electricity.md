@@ -70,7 +70,6 @@ yet.
 
 | Parameter                         | Code                     | Domain           | Short Description                                                                            | Units                      |
 |:----------------------------------|:-------------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
-| $YR0$                             | y0_learning              | $\mathbb{I}$     | First year of model                                                                          | unitless                   |
 | $N$                               | num_hr_day               | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | instantaneous GW           |
 | $CAP^{exist}_{r,seas,t,s,y}$      | supply_curve             | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | GW                         |
@@ -103,9 +102,9 @@ yet.
 | $RTUB_{o,t}$                      | res_tech_upper_bound     | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
 | $H2HR$                            | h2_heatrate              | $\mathbb{R}^+_0$ | Hydrogen heatrate                                                                            | kg/GWh                     |
 | $H2PR_{r,seas,t,s,y}$             | h2_price                 | $\mathbb{R}^+_0$ | Hydrogen fuel price. Mutable parameter.                                                      | \$/kg                      |
-| $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost of capacity based on technology learning. Mutable parameter.                            | \$/GW                      |
-| $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial year's capacity cost to build                                                        | \$/GW                      |
-| $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning rate factor                                                                         | unitless                   |
+| $CAPCL_{r,t,y,s}$                 | cap_cost                 | $\mathbb{R}^+_0$ | Cost to build capacity, from `CapCost`; the linear mode reprices it before each solve        | \$/GW                      |
+| $CAPC0_{r,t,s}$                   | cap_cost_initial         | $\mathbb{R}^+_0$ | Initial cost to build capacity, scaled by the learning multiplier in the learning modes      | \$/GW                      |
+| $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from.  Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | GW                         |
 
 ### Variables
@@ -168,28 +167,37 @@ discounts its own cost. The cumulative term pools that technology's builds acros
 regions and steps, written above as $r'$ and $s'$, so experience is national rather than regional.
 
 The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
-modes use it: the nonlinear objective directly, and the linear iteration through
-`cost_learning_func` in the same file, which also holds the linear mode's other helpers.
+modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
+objective directly, and the linear iteration through `cost_learning_func` in the same file, which
+also holds the linear mode's other helpers. The linear mode's first solve comes before any
+builds exist, so it is priced with zero experience, at $CAPC0$.
 
 Solving with `nonlinear` requires a nonlinear solver. `select_solver` requests IPOPT, which is
 **not currently a project dependency**, so this mode will not run without installing it.
 
-One difference from the linear path is known and **not** addressed here. The linear formula still
-carries a calendar-time drift term $d \times (y - YR0)$ with $d = 0.0001$ GW/year, which the
-nonlinear form above omits. It is an absolute quantity divided by a technology-specific $SCL_t$
-spanning 0.01 to 264 GW, so its effect varies by roughly four orders of magnitude across
-technologies. On the reference dataset it produced the entire measurable output of nonlinear
-learning while endogenous learning contributed nothing, which is why the revived nonlinear form
-leaves it out.
-
-Note $LR_t$ is consumed **directly as the curve exponent**, while the input file names its column
-`rate`. If those values are learning rates meaning fractional reduction per doubling, the exponent
-would instead be $-\ln(1-LR_t)/\ln 2$. That ambiguity is unresolved, so no conversion is applied and
-no quantitative result from this mode should be treated as calibrated until it is settled.
+Note $LR_t$ is the **curve exponent**, the `learning_exponent` column of `LearningRate.csv`. Each
+doubling of $SCL_t$ plus prior builds cuts cost by $1 - 2^{-LR_t}$, so a learning rate $LR$ per
+doubling converts as $LR_t = -\ln(1-LR)/\ln 2$. The file holds the exponents for rates of 1, 10
+and 20 percent, rounded to 0.0145, 0.152 and 0.322. Those are the component learning rates in
+NEMS (AEO2026 EMM Assumptions, Table 5, page 11). Which technology gets which rate comes from the
+source data, which predates AEO2026; geothermal, for one, is 8 percent there and 10 percent here.
 
 $$
 \begin{aligned} C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}}{ CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\ &\quad \text{if } \mathtt{expansion\_learning\_type} \neq \mathtt{nonlinear} \end{aligned} \tag{4b}
 $$
+
+With learning disabled, builds are priced from `CapCost`, which falls by 2 percent of its 2023
+value each year, to 46 percent of it by 2050. That decline stands in for learning. The learning
+modes price builds from $CAPC0$ times the multiplier instead and do not also apply the decline:
+the linear mode overwrites $CAPCL$ before each solve, and the nonlinear mode uses $CAPC0$ in
+(4a).
+
+The two learning modes are different formulations, not two ways of solving one problem. The
+linear mode takes each solve's costs as given and iterates until they match its builds, so it
+never builds early to lower later costs. The nonlinear mode puts the curve in the objective, so
+it can; the problem is nonconvex, and IPOPT returns a local solution. The two can choose
+different builds. On the linear learning test case, the nonlinear mode builds ahead of load in
+the first two years, while the linear mode builds what the disabled mode does.
 
 Fixed O\&M cost:
 
@@ -563,7 +571,3 @@ representative year is charged for every calendar year it stands in for:
 The capacity expansion cost ($C_{exp}$, eq. 4a/4b) is **not** weighted: a build is a one-time
 cost, incurred once whichever year it is placed in. The constraints do not use $WY_y$; each
 representative year is operated as a single typical year.
-
-!!! note
-    `y0_learning` ($YR0$) is initialized from `aggregate_start_year` even when aggregation is off.
-    The coupling is flagged in `electricity_model.py` for separation.

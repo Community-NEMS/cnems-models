@@ -205,7 +205,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         -------
         tuple[ModelType, IterationStatus]
             The model type and the solve status:  ``ERROR`` on non-optimal termination;
-            otherwise ``PENALTY`` if any load went unmet (see :meth:`_in_penalty`), else ``BEST``.
+            otherwise ``PENALTY`` if any load went unmet (see :meth:`_in_penalty`), ``USABLE`` if
+            linear learning stops at the iteration cap without converging, else ``BEST``.
         """
         instance = self.model
         if instance is None:
@@ -217,6 +218,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
 
         logger.info('Solving model')
 
+        status = IterationStatus.BEST
         if self.elec_config.expansion_learning_type == ExpansionLearningType.LINEAR:
             # run iterative (external) learning
             eps = float('inf')
@@ -228,9 +230,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             results = None
 
             while eps > _LEARNING_TOLERANCE and i < _LEARNING_MAX_ITER:
-                # TODO:  Verify this sequence is correct.  We update costs only BEFORE solve s.t.
-                #        the solved result holds these costs when tol < limit
-                # update learning costs in model
+                # update learning costs in model.  Costs are set before each solve, so a converged
+                # solve was priced from builds within tolerance of its own.
                 update_expansion_cost(instance, new_cap=cap_growth)
 
                 # solve model.  Solutions are loaded explicitly after the termination
@@ -254,6 +255,15 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
 
             if results is None:  # pragma: no cover - the loop always runs at least once
                 raise RuntimeError('Linear learning loop exited without solving the model.')
+            if i >= _LEARNING_MAX_ITER and eps > _LEARNING_TOLERANCE:
+                logger.warning(
+                    'Linear learning stopped at the %d iteration cap without converging; the '
+                    'last change was %0.4f GW against a tolerance of %0.4f GW',
+                    _LEARNING_MAX_ITER,
+                    eps,
+                    _LEARNING_TOLERANCE,
+                )
+                status = IterationStatus.USABLE
         else:
             results = self._opt.solve(instance, load_solutions=False)
             if check_optimal_termination(results):
@@ -272,8 +282,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             return ModelType.ELECTRICITY, IterationStatus.ERROR
 
         logger.info('Solve Successful')
-        # only an optimal solve has solved values to inspect, so this follows the ERROR check
-        status = IterationStatus.PENALTY if self._in_penalty(instance) else IterationStatus.BEST
+        # only an optimal solve has solved values to inspect, so this follows the ERROR check;
+        # unmet load outranks a capped learning loop, since an iterative run must not stop on it
+        if self._in_penalty(instance):
+            status = IterationStatus.PENALTY
         self._last_status = status
         return ModelType.ELECTRICITY, status
 

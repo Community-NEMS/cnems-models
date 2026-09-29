@@ -339,9 +339,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         all_dicts = param_data.param_dicts
 
         # temporal parameters
-        self.y0_learning = pyo.Param(
-            initialize=common_config.aggregate_start_year
-        )  # TODO:  Separate this concept from aggregation
         self.num_hr_day = pyo.Param(initialize=model_sets.num_hr_day)
         # TODO:  Consider making these mappings just dictionaries.  They don't really "fit the mold"
         #        of a *numeric* parameter.  They are just simple LUTs
@@ -749,8 +746,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                     Applies when the learning switch is set to the nonlinear option.  The curve
                     itself lives in ``learning.py``.  The linear path reaches the same curve
-                    through ``learning.cost_learning_func``, which still adds a calendar-time
-                    drift term that this one omits.
+                    through ``learning.cost_learning_func``.
 
                     Returns
                     -------

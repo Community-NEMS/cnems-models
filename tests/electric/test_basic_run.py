@@ -373,8 +373,8 @@ def test_nonlinear_learning_objective_characterization():
 
     This is a **characterization** test, not an acceptance test: it pins current behavior so that
     refactoring the learning multiplier cannot change the formulation silently.  It does not assert
-    that these values are correct -- the meaning of ``learning_rate`` and the provenance of
-    ``supply_curve_learning`` are both unresolved, so the numbers are not yet interpretable.
+    that these values are correct, the provenance of ``supply_curve_learning`` is unresolved, so
+    the numbers are not yet interpretable.
 
     Evaluates the expression at fixed build levels rather than solving, so it needs no nonlinear
     solver and runs wherever the model can be constructed.
@@ -399,8 +399,8 @@ def test_nonlinear_learning_objective_characterization():
 
     at_one = cost_at(1.0)
     at_two_and_a_half = cost_at(2.5)
-    assert at_one == pytest.approx(134701708367.183029)
-    assert at_two_and_a_half == pytest.approx(333548120375.104126)
+    assert at_one == pytest.approx(133777599845.11543)
+    assert at_two_and_a_half == pytest.approx(329888419799.9818)
 
     # Learning makes cost subadditive in cumulative builds: 2.5x the capacity costs less than 2.5x
     # the money.  That is the property the nonlinear mode exists to produce, so it is asserted
@@ -501,12 +501,10 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     if verbose:
         # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
         cost_rows = [rec.args for rec in caplog.records if rec.msg.startswith('Reduced cap_cost')]
-        y0 = value(elec_model.y0_learning)
         initial_costs = {
             idx: value(elec_model.cap_cost_initial[idx]) for idx in elec_model.cap_cost_initial
         }
-        print(f'\ny0 for learning: {y0}')
-        print(f'cap_cost_initial: {initial_costs}')
+        print(f'\ncap_cost_initial: {initial_costs}')
         # one record per cap_cost key per iteration; recover the iteration index by
         # chunking
         n_keys = len(elec_model.cap_cost)
@@ -543,14 +541,13 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     The load forces builds in every year from 2030 to 2035, so every year after the first is priced
     from real prior experience.  Each final ``cap_cost`` is checked against the curve written out
     from the solved builds, and the expansion cost is pinned tightly enough that a change to the
-    drift term or to the exponent moves it.
+    curve or to the exponent moves it.
     """
     common_config, elec_config = learning_config_set
     sequencer = ElectricitySequencer()
     model = sequencer.build_model(common_config, elec_config)
     assert sequencer.solve_model()[-1] is IterationStatus.BEST
 
-    y0 = value(model.y0_learning)
     for r, tech, step, y in model.cap_cost:
         prior = sum(
             value(model.capacity_builds[idx])
@@ -559,11 +556,11 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
         )
         baseline = value(model.supply_curve_learning[tech])
         exponent = value(model.learning_rate[tech])
-        multiplier = ((baseline + 0.0001 * (y - y0) + prior) / baseline) ** (-exponent)
+        multiplier = ((baseline + prior) / baseline) ** (-exponent)
         expected = value(model.cap_cost_initial[r, tech, step]) * multiplier
         assert value(model.cap_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
 
     # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
-    # cannot see a change of the size the drift term makes.  It is pinned on its own, tighter.
-    assert value(model.capacity_expansion_cost) == pytest.approx(2525036.478238987, rel=1e-9)
-    assert value(model.total_cost) == pytest.approx(9512542826.514479)
+    # would miss a change of a few dollars in it.  It is pinned on its own, tighter.
+    assert value(model.capacity_expansion_cost) == pytest.approx(2525039.4414830687, rel=1e-9)
+    assert value(model.total_cost) == pytest.approx(9512542829.477722)

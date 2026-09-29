@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
+from src.common.iterative_sequencer import RunStatus
 from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType, RunMode, resolve_models_to_run
 from src.common.utilities import get_args
@@ -27,7 +28,7 @@ from src.models.natural_gas.sequencer import NGSequencer
 logger = logging.getLogger(__name__)
 
 # TEMP:  plot the objectives by iteration after an integrated run (plt.show() blocks until closed)
-PLOT_OBJECTIVES = True
+PLOT_OBJECTIVES = False  # <--- temporary resting place.  Will eventually move to config or CLA.
 
 
 @deprecated('needs reconfig if preserved')
@@ -62,6 +63,8 @@ def main(config_path: Path, debug: bool = False) -> None:
         If the config's mode is ``RunMode.INTEGRATED_GS``.
     """
     common_config, remainder = parse_config_file(config_path)
+    # only an iterative run reports a run status
+    run_status: RunStatus | None = None
 
     match common_config.mode:
         case RunMode.STANDALONE:
@@ -87,14 +90,15 @@ def main(config_path: Path, debug: bool = False) -> None:
         case RunMode.INTEGRATED_JACOBI:
             # the iterator claims the output folder and sets up its own logging, so nothing is
             # logged here before it runs
-            results = JacobiIterator().run(common_config, remainder)
+            run_status, results = JacobiIterator().run(common_config, remainder)
             if PLOT_OBJECTIVES:
                 plot_objectives(results)
         case RunMode.INTEGRATED_GS:
             raise NotImplementedError('Integrated Gauss-Seidel mode is not implemented')
 
-    logger.info('Finished.')
-    print('Finished.')
+    finish_msg = 'Finished.' + (f'  Run status: {run_status.name}' if run_status else '')
+    logger.info(finish_msg)
+    print(finish_msg)
 
 
 def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:

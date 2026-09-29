@@ -24,7 +24,7 @@ from src.common.integrated_model_sequencer import (
     ALLOW_TERMINATION,
     IterationResult,
 )
-from src.common.iterative_sequencer import IterativeSequencer
+from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import UpdatePackage
@@ -271,7 +271,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         remainder: dict[str, Any],
         circuit: Sequence[ModelType] = DEFAULT_CIRCUIT,
         **kwargs,
-    ) -> dict[int, list[IterationResult]]:
+    ) -> tuple[RunStatus, dict[int, list[IterationResult]]]:
         """Run the selected models in parallel until converged or iteration-capped.
 
         The run stops once every model with an objective has changed by less than
@@ -297,8 +297,9 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
 
         Returns
         -------
-        dict of int to list of IterationResult
-            Each iteration's model results, keyed by iteration number.
+        tuple of (RunStatus, dict of int to list of IterationResult)
+            ``CONVERGED`` or ``ITERATION_LIMIT``, and each iteration's model results, keyed by
+            iteration number.
 
         Raises
         ------
@@ -401,9 +402,12 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 logger.info('Done with iteration %d/%d', iteration, iteration_limit)
                 iteration += 1
 
+        status = RunStatus.UNKNOWN
         if converged:
+            status = RunStatus.CONVERGED
             logger.info('Converged after %d iteration(s)', iteration - 1)
-        else:
+        elif iteration > iteration_limit:
+            status = RunStatus.ITERATION_LIMIT
             final = all_results.get(iteration - 1, [])
             holding = [
                 f'{r.model_type.value} ({r.status.name})'
@@ -416,4 +420,4 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 f'; ended with {", ".join(holding)}' if holding else '',
             )
 
-        return all_results
+        return status, all_results

@@ -14,6 +14,7 @@ solution
 import logging
 import tomllib
 from abc import ABC, abstractmethod
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,27 @@ from src.common.integrated_model_sequencer import IterationResult
 from src.common.models_modes import ModelType
 
 logger = logging.getLogger(__name__)
+
+
+class RunStatus(Enum):
+    """How an iterative run ended.
+
+    Attributes
+    ----------
+    CONVERGED
+        Every model met the scheme's convergence criteria.
+    ITERATION_LIMIT
+        The iteration limit was reached before convergence.
+    UNKNOWN
+        The run ended without the scheme determining why.
+    ERROR
+        The run ended on a failure it could not recover from.
+    """
+
+    CONVERGED = 1
+    ITERATION_LIMIT = 2
+    UNKNOWN = 3
+    ERROR = 4
 
 
 class IterativeSequencerConfig(BaseModel):
@@ -130,7 +152,7 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
     @abstractmethod
     def run(
         self, common_config: CommonConfig, remainder: dict[str, Any], **kwargs
-    ) -> dict[int, list[IterationResult]]:
+    ) -> tuple[RunStatus, dict[int, list[IterationResult]]]:
         """Run the iterations to completion.
 
         Parameters
@@ -144,7 +166,7 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
 
         Returns
         -------
-        dict of int to list of IterationResult
-            Each iteration's model results, keyed by iteration number.
+        tuple of (RunStatus, dict of int to list of IterationResult)
+            How the run ended, and each iteration's model results, keyed by iteration number.
         """
         ...

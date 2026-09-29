@@ -64,7 +64,7 @@ The `[common]` section holds settings that are not specific to the electricity m
 | Setting             | Description         | Values                                                                                                                 |                                                 Notes                                                 |
 |:--------------------|:--------------------|:-----------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------:|
 | aggregate_years     | Aggregate years     | **false** = Only runs the selected years <br> **true** = Aggregates all unselected years into subsequent selected year |        Aggregates based on the years listed in summary_years.  Requires aggregate_start_year.         |
-| temporal_resolution | Temporal resolution | **default**, **d8h12**, **d4h24**, or a custom crosswalk name                                                          | Selects the representative day/hour mapping.  See [the integrator README](/src/integrator/README.md). |
+| temporal_resolution | Temporal resolution | **default**, **d8h12**, **d4h24**, or a custom crosswalk name                                                          | Selects the representative day/hour mapping.  See [the integrator README](/src/integrator/old_README.md). |
 | summary_years       | Years to run        | list of years, e.g. `[2025, 2030]`                                                                                     |                                The years the model solves and reports.                                |
 
 ### Technology Settings

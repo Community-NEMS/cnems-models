@@ -100,7 +100,7 @@ currently lives alongside the code and is being migrated into `docs/`.
 
 - [Electricity model](src/models/electricity/README.md)
 - [Natural gas model](src/models/natural_gas/README.md)
-- [Integrator](src/integrator/README.md)
+- [Integrator](src/integrator/old_README.md)
 - [Shared configuration and sequencing](src/common/README.md)
 - [Analysis tools](analysis_tools/README.md)
 

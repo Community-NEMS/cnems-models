@@ -26,6 +26,7 @@ from src.common.update_package import (
     UpdatePackage,
 )
 from src.integrator.utilities import select_solver
+from src.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
 from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
@@ -202,9 +203,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
 
         Returns
         -------
-        IterationStatus
-            ``BEST`` on optimal termination, ``USABLE`` if linear learning stops at the iteration
-            cap without converging, ``ERROR`` otherwise.
+        tuple[ModelType, IterationStatus]
+            The model type and the solve status:  ``ERROR`` on non-optimal termination;
+            otherwise ``PENALTY`` if any load went unmet (see :meth:`_in_penalty`), ``USABLE`` if
+            linear learning stops at the iteration cap without converging, else ``BEST``.
         """
         instance = self.model
         if instance is None:
@@ -280,7 +282,46 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             return ModelType.ELECTRICITY, IterationStatus.ERROR
 
         logger.info('Solve Successful')
-        return status
+        # only an optimal solve has solved values to inspect, so this follows the ERROR check;
+        # unmet load outranks a capped learning loop, since an iterative run must not stop on it
+        if self._in_penalty(instance):
+            status = IterationStatus.PENALTY
+        self._last_status = status
+        return ModelType.ELECTRICITY, status
+
+    @staticmethod
+    def _in_penalty(model: PowerModel) -> bool:
+        """Check a solved model for unmet load, which marks the solve as ``PENALTY``.
+
+        The objective is accurate, but the model leaned on the unmet-load penalty rather than
+        serving all load, so an iterative run should not stop on it.
+
+        Parameters
+        ----------
+        model : PowerModel
+            A solved model; only its ``unmet_load`` values are read.
+
+        Returns
+        -------
+        bool
+            True if ``unmet_load`` exceeds ``UNMET_LOAD_PENALTY_TOL`` in any index.
+        """
+        unmet: dict[tuple, float] = {}
+        for index, var in model.unmet_load.items():
+            quantity = pyo.value(var, exception=False)
+            if quantity is not None and quantity > UNMET_LOAD_PENALTY_TOL:
+                unmet[index] = quantity
+        if unmet:
+            logger.warning(
+                'Unmet load of %.4g across %d (region, year, hour) index(es); solve status PENALTY',
+                sum(unmet.values()),
+                len(unmet),
+            )
+        return bool(unmet)
+
+    def get_objective_value(self) -> float | None:
+        """Get the solved total cost -- the electricity model's objective."""
+        return pyo.value(self.model.total_cost)
 
     def iteration_postprocess(self, **kwargs):
         """No-op; the electricity model has nothing to do between iterations."""

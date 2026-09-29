@@ -26,7 +26,6 @@ from src.common.update_package import (
     UpdatePackage,
 )
 from src.integrator.utilities import select_solver
-from src.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
 from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel

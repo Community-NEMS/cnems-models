@@ -105,8 +105,8 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     """Build, solve, and postprocess each model in ``models_to_run``, one after another.
 
     ``ModelType.ALL`` expands to every production model; the dev/test MAGIC model runs only when
-    named explicitly.  A model whose config section is missing or invalid is logged as an error
-    and skipped; the remaining models still run.
+    named explicitly.  Every model's config is built before any model runs, so a missing or
+    invalid config section fails the whole run up front, with each problem logged.
 
     Parameters
     ----------
@@ -114,30 +114,47 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
         Common run configuration, with its scenario dir already claimed.
     remainder : dict
         The config file's sections other than ``[common]``.
+
+    Raises
+    ------
+    ValueError
+        If any selected model has a missing or invalid config section, or no standalone run.
     """
+    runs: list[tuple[ModelType, ModelConfig, IntegratedModelSequencer[Any, Any, Any]]] = []
+    failed: list[ModelType] = []
     for model_type in resolve_models_to_run(common_config.models_to_run):
-        sequencer: IntegratedModelSequencer[Any, Any, Any]
         try:
             match model_type:
                 case ModelType.ELECTRICITY:
-                    model_config: ModelConfig = ElecConfig(**remainder['elec_config'])
-                    sequencer = ElectricitySequencer()
+                    runs.append(
+                        (model_type, ElecConfig(**remainder['elec_config']), ElectricitySequencer())
+                    )
                 case ModelType.NATURAL_GAS:
-                    model_config = NGConfig(**remainder['natural_gas'])
-                    sequencer = NGSequencer()
+                    runs.append((model_type, NGConfig(**remainder['natural_gas']), NGSequencer()))
                 case ModelType.MAGIC:
-                    model_config = MagicConfig(**remainder.get('magic_config', {}))
-                    sequencer = MagicSequencer()
+                    runs.append(
+                        (
+                            model_type,
+                            MagicConfig(**remainder.get('magic_config', {})),
+                            MagicSequencer(),
+                        )
+                    )
                 case _:
-                    logger.error('No standalone run available for %s; skipping', model_type)
-                    continue
+                    logger.error('No standalone run available for %s', model_type)
+                    failed.append(model_type)
         except KeyError as e:
-            logger.error('No config section %s found for %s; skipping it', e, model_type)
-            continue
+            logger.error('No config section %s found for %s', e, model_type)
+            failed.append(model_type)
         except ValidationError as e:
-            logger.error('Invalid config for %s; skipping it:\n%s', model_type, e)
-            continue
+            logger.error('Invalid config for %s:\n%s', model_type, e)
+            failed.append(model_type)
 
+    if failed:
+        msg = f'Config problems for {[m.value for m in failed]}; no models were run'
+        logger.error(msg)
+        raise ValueError(msg)
+
+    for model_type, model_config, sequencer in runs:
         logger.info('Running %s standalone', model_type)
         sequencer.build_model(common_config, model_config)
         _, status = sequencer.solve_model()

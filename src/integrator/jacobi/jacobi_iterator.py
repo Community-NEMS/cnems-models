@@ -37,18 +37,7 @@ from src.models.magic.magic_model import MagicConfig, MagicSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
-# `python -m` names this module __main__ (__mp_main__ in a spawned worker); __spec__.name is
-# the dotted import name under every entry point, keeping these records in the captured tree
 logger = logging.getLogger(__name__)
-
-# The logger trees whose records belong in a scenario log.  `src` covers every project module.
-# `pyomo` covers solver output -- the bulk of the electricity log -- because every solver
-# interface logs under it (`pyomo.contrib.appsi.solvers.{highs,gurobi,...}`), and pyomo pipes the
-# solver's own native output through those loggers; highspy and gurobipy register none of their
-# own.  A solver driven outside pyomo would need its logger tree added here.
-#
-# Attaching to these trees rather than to the root logger keeps the run from hijacking a host
-# application's logging, at the cost of having to name what to capture.
 
 # the order the models of a run are circuited in, which fixes the order packages are routed (and
 # so applied) in and keeps results deterministic:  every model, alphabetical by enum key.  A run

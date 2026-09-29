@@ -10,13 +10,13 @@ Every model is driven by a *sequencer*: a subclass of `IntegratedModelSequencer`
 (`src/common/integrated_model_sequencer.py`). It owns the built model and the configs it was
 built from, and exposes the same small set of steps for every model:
 
-| Step                      | Purpose                                                            |
-|:--------------------------|:-------------------------------------------------------------------|
-| `build_model`             | Load inputs, apply any inbound update packages, build the model    |
-| `solve_model`             | Solve and report an `IterationStatus` (`BEST`, `USABLE`, `ERROR`)  |
-| `full_postprocess`        | Log diagnostics and write results                                  |
-| `get_objective_value`     | Report the solved objective, or `None` for a model without one     |
-| `get_outbound_updates`    | Package results for other models (used only in integrated runs)    |
+| Step                   | Purpose                                                                      |
+|:-----------------------|:-----------------------------------------------------------------------------|
+| `build_model`          | Load inputs, apply any inbound update packages, build the model              |
+| `solve_model`          | Solve and report an `IterationStatus` (`BEST`, `USABLE`, `PENALTY`, `ERROR`) |
+| `full_postprocess`     | Log diagnostics and write results                                            |
+| `get_objective_value`  | Report the solved objective, or `None` for a model without one               |
+| `get_outbound_updates` | Package results for other models (used only in integrated runs)              |
 
 A standalone run uses these same steps and simply passes no update packages, so the model is
 built from its input files alone. Because both run modes share the same steps, a model that runs
@@ -45,7 +45,7 @@ flowchart TD
         J --> K
     end
     K -- ERROR --> X["Stop; no results written"]
-    K -- BEST --> L["<code>full_postprocess</code><br/>log cost components, export variables to CSV"]
+    K -- "BEST / USABLE / PENALTY" --> L["<code>full_postprocess</code><br/>log cost components, export variables to CSV"]
 ```
 
 The natural gas model has the same shape. Its standalone entry point is the `__main__` block of

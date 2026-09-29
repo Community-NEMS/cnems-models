@@ -104,6 +104,9 @@ def setup_control_loop_logging(
         logging.getLogger(library).setLevel(library_level)
 
 
+# the logger trees a scenario log captures:  `src` for project modules, `pyomo` for solver output
+# (pyomo's solver interfaces pipe native solver output through its loggers).  A solver driven
+# outside pyomo needs its tree added.  Naming trees, not the root, leaves host logging alone
 _CAPTURED_LOGGERS: tuple[str, ...] = ('src', 'pyomo')
 
 

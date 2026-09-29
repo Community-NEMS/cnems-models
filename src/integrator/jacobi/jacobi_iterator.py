@@ -145,38 +145,44 @@ def driver(iter_call: IterationCall) -> IterationResult:
     # the scenario log is attached only for this task, so a reused worker never inherits it
     log_file = iter_call.common_config.output_folder / f'{iter_call.model_type.value}.log'
     with _scenario_log(log_file):
-        # IterationCall carries the config as the ModelConfig base, so each arm has to confirm
-        # it got the config its sequencer expects -- the TypeError the docstring promises.
-        match iter_call.model_type:
-            case ModelType.ELECTRICITY:
-                if not isinstance(iter_call.model_config, ElecConfig):
-                    raise TypeError(
-                        f'ModelType.ELECTRICITY needs an ElecConfig, '
-                        f'got {type(iter_call.model_config).__name__}'
+        try:
+            # IterationCall carries the config as the ModelConfig base, so each arm has to confirm
+            # it got the config its sequencer expects -- the TypeError the docstring promises.
+            match iter_call.model_type:
+                case ModelType.ELECTRICITY:
+                    if not isinstance(iter_call.model_config, ElecConfig):
+                        raise TypeError(
+                            f'ModelType.ELECTRICITY needs an ElecConfig, '
+                            f'got {type(iter_call.model_config).__name__}'
+                        )
+                    return ElectricitySequencer().full_run(
+                        iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
-                return ElectricitySequencer().full_run(
-                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
-                )
-            case ModelType.NATURAL_GAS:
-                if not isinstance(iter_call.model_config, NGConfig):
-                    raise TypeError(
-                        f'ModelType.NATURAL_GAS needs an NGConfig, '
-                        f'got {type(iter_call.model_config).__name__}'
+                case ModelType.NATURAL_GAS:
+                    if not isinstance(iter_call.model_config, NGConfig):
+                        raise TypeError(
+                            f'ModelType.NATURAL_GAS needs an NGConfig, '
+                            f'got {type(iter_call.model_config).__name__}'
+                        )
+                    return NGSequencer().full_run(
+                        iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
-                return NGSequencer().full_run(
-                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
-                )
-            case ModelType.MAGIC:
-                if not isinstance(iter_call.model_config, MagicConfig):
-                    raise TypeError(
-                        f'ModelType.MAGIC needs a MagicConfig, '
-                        f'got {type(iter_call.model_config).__name__}'
+                case ModelType.MAGIC:
+                    if not isinstance(iter_call.model_config, MagicConfig):
+                        raise TypeError(
+                            f'ModelType.MAGIC needs a MagicConfig, '
+                            f'got {type(iter_call.model_config).__name__}'
+                        )
+                    return MagicSequencer().full_run(
+                        iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
-                return MagicSequencer().full_run(
-                    iter_call.common_config, iter_call.model_config, **iter_call.kwargs
-                )
-            case _:
-                raise NotImplementedError()
+                case _:
+                    raise NotImplementedError()
+        except Exception:
+            # log here so the failure lands in the model's own log; the pool re-raises it in the
+            # control process once the iteration's other tasks finish
+            logger.exception('%s worker raised; the run will stop', iter_call.model_type.value)
+            raise
 
 
 class JacobiIterator(IterativeSequencer[JacobiConfig]):
@@ -344,7 +350,14 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                     iter_calls.append(
                         IterationCall(model, common_config, configs[model], call_kwargs)
                     )
-                results: list[IterationResult] = worker_pool.map(driver, iter_calls)
+                try:
+                    results: list[IterationResult] = worker_pool.map(driver, iter_calls)
+                except Exception:
+                    # record the failure in MAIN.log before it unwinds the run
+                    logger.exception(
+                        'Iteration %d: a model worker raised; stopping the run', iteration
+                    )
+                    raise
                 # log status of the model's solves
                 for result in results:
                     logger.info('\n%s', result.pprint(indent=2))

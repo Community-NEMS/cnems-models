@@ -26,10 +26,11 @@ correctly on its own can also run in an integrated run.
 
 The electricity model is the reference case. `main.py` parses the run config with
 `parse_config_file`; when its `mode` is `standalone`, it claims a scenario output folder, sets up
-the run log, and hands off to `_run_standalone`. That function loops over `models_to_run`, builds
-each model's config from its section (`[elec_config]` → `ElecConfig`), and drives the model's
-sequencer directly: `build_model` → `solve_model` → `full_postprocess`, skipping postprocessing
-when the solve reports `ERROR`. For the electricity model:
+the run log, and hands off to `_run_standalone`. That function first builds the config of every
+model in `models_to_run` from its section (`[elec_config]` → `ElecConfig`); if any section is
+missing or invalid, it logs each problem and fails the run before any model runs. It then drives
+each model's sequencer directly: `build_model` → `solve_model` → `full_postprocess`, skipping
+postprocessing when the solve reports `ERROR`. For the electricity model:
 
 ```mermaid
 flowchart TD

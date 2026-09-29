@@ -1,3 +1,5 @@
+**THIS FILE IS UNDER REVISION**
+
 # Integration
 
 ### Table of Contents
@@ -53,7 +55,7 @@ The majority of the options for integrating and solving modules rely upon a conf
 |force_10 | Forces 10 iterations to occur when running combo solves | **false** = Off <br> **true** = On| Only allows for true/false options, does not impact H2 or elec modes |
 | tol | Tolerance setting for iterative solves | $tol \in (0, 1)$| Represents the acceptable percent difference in objective values between iterative solves needed to achieve convergence
 | max_iter | Maximum number of iterations allowed | $int$ | If tolerance criteria is not met, iterative solves will stop +1 solve after max_iter
-| temporal_resolution | Temporal resolution (inter-annual) setting | **default** = 16 representative (rep) days and 4 rep hours <br> **d8h12** = 8 rep days and 12 rep hours <br> **d4h24** = 4 rep days and 24 rep hours   |Temporal setting to select different prespecified temporal resolutions. Advanced users can also specify their own temporal resolution by creating their own “cw_s_day” and “cw_hr” files in the “input/integrator/temporal_mapping” directory. See more details below in the temporal settings section
+| temporal_resolution | Temporal resolution (inter-annual) setting | **default** = 24 representative (rep) days and 4 rep hours <br> **d8h12** = 8 rep days and 12 rep hours <br> **d4h24** = 4 rep days and 24 rep hours   |Temporal setting to select different prespecified temporal resolutions. Advanced users can also specify their own temporal resolution by creating their own “cw_s_day” and “cw_hr” files in the “input/integrator/temporal_mapping” directory. See more details below in the temporal settings section
 
 #### Temporal Settings
 

@@ -25,7 +25,8 @@ strict_validation = true
 
 [natural_gas]
 
-cost=5  # some dummy data
+input_path = 'input/natural_gas'
+# region_filter = ...  # commented out for no filter == all regions
 
 [elec_config]
 input_path='input/electricity/cem_inputs'

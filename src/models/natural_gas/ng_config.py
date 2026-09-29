@@ -10,14 +10,15 @@ import tomllib
 from logging import getLogger
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
+from src.common.common_config import ModelConfig
 
 logger = getLogger(__name__)
 
 
-class NGConfig(BaseModel):
+class NGConfig(ModelConfig):
     """Settings from the ``[natural_gas]`` TOML section, controlling the Natural Gas model."""
 
     input_path: Path

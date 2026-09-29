@@ -1,0 +1,19 @@
+# Settings for the Jacobi iterator (src/integrator/jacobi/jacobi_iterator.py), validated by
+# JacobiConfig in jacobi_config.py.  Every key is required.
+
+# the most iterations to run
+iteration_limit = 15
+
+# convergence tolerance, as a ratio in (0, 1]:  a model is stable in an iteration when its
+# objective changed by less than this fraction of the previous iteration's objective
+epsilon = 0.001
+
+# the run stops once every model with an objective has been stable for this many consecutive
+# iterations (models without an objective, e.g. magic, are left out)
+convergence_iterations = 2
+
+# size of the worker pool the models solve in
+worker_processes = 6
+
+# how the iteration monitor shows objective changes:  "absolute" or "percent"
+monitor_delta_mode = "absolute"

@@ -19,6 +19,13 @@ Model code lives under `src/models`, with shared configuration and sequencing ma
 run configuration TOMLs under `run_configs/`, and post-run inspection helpers in
 `analysis_tools/`.
 
+## Run Modes
+
+- [Standalone Runs](run_modes/standalone.md): one model is built, solved, and reported through
+  its sequencer.
+- [Integrated Runs](run_modes/integrated.md): models are solved together with Jacobi iteration
+  and exchange results through update packages.
+
 ## Models
 
 - [Electricity](models/electricity.md) — capacity expansion and dispatch.

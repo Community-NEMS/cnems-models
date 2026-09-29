@@ -73,7 +73,7 @@ class FilterPackage:
         '2025' and '2042' in 'year'
     """
 
-    region_filter: Iterable[str] | Iterable[int] | None = None
+    region_filter: Iterable[str] | None = None
     region_cols: Iterable[str] = ('region', 'destination_region', 'source_region')
     year_filter: Iterable[int] | None = None
     year_col: Iterable[str] = ('year',)
@@ -509,7 +509,7 @@ if __name__ == '__main__':
         print(name, '\n', df.head())
 
     # test new df loader
-    regions = {4, 7, 8}
+    regions = list('478')
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     new_dfs = load_dataframes_w_datapackage(

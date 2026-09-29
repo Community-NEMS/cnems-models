@@ -16,13 +16,13 @@ file and/or halt on showstoppers
 """
 
 import logging
-import sys
 from collections import defaultdict, namedtuple
 from collections.abc import Sequence
 from typing import Literal
 
 from pandas import DataFrame
 
+from src.common.exceptions import DataValidationError
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
@@ -47,7 +47,12 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     param_data : ParamData
         Fully constructed parameter data to validate.
     strict : bool
-        True => exit on validation failure
+        True => raise on validation failure; False => log it and continue
+
+    Raises
+    ------
+    DataValidationError
+        If any validation failed and ``strict`` is set.
     """
     all_valid = True
     frames = param_data.param_frames
@@ -99,9 +104,10 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
             all_valid = False
 
     if not all_valid:
-        sys.stderr.write('Data validation failed.  See log for details.\n')
+        message = 'Data validation failed.  See log for details.'
         if strict:
-            sys.exit(1)
+            raise DataValidationError(message)
+        logger.error('%s  Continuing, since strict validation is off.', message)
 
 
 def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:

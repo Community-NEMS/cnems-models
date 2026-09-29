@@ -6,6 +6,7 @@ Reads all numerical parameters from CSV files. Every file listed below
 
 import csv
 import logging
+from collections.abc import Collection
 from pathlib import Path
 from typing import TypedDict
 
@@ -15,7 +16,6 @@ from src.common.common_config import CommonConfig
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
-
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
@@ -217,7 +217,7 @@ def load_supply_anchors(
 def load_lng_import(
     data_dir: Path,
 ) -> dict[str, tuple[float, float]]:
-    """Load LNG_IMPORT from ng_lng_import.csv."""
+    """Load LNG imports from ng_lng_import.csv."""
     df = _csv('ng_lng_import.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -229,14 +229,14 @@ def load_lng_import(
     }
     if not result:
         raise ValueError(f'ng_lng_import.csv in {data_dir} yielded no rows')
-    logger.info('LNG_IMPORT loaded from CSV (%d terminals)', len(result))
+    logger.info('LNG imports loaded from CSV (%d terminals)', len(result))
     return result
 
 
 def load_lng_export(
     data_dir: Path,
 ) -> dict[str, dict[int, float]]:
-    """Load LNG_EXPORT_DEMAND_BCF from ng_lng_export.csv."""
+    """Load LNG export demands [BCF] from ng_lng_export.csv."""
     df = _csv('ng_lng_export.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -249,7 +249,7 @@ def load_lng_export(
     if not result:
         raise ValueError(f'ng_lng_export.csv in {data_dir} yielded no rows')
     logger.info(
-        'LNG_EXPORT_DEMAND_BCF loaded from CSV (%d region-year pairs)',
+        'LNG export demand loaded from CSV (%d region-year pairs)',
         sum(len(v) for v in result.values()),
     )
     return result
@@ -802,11 +802,14 @@ def project_demand(
     years: list[int],
     regions: list[str],
     sectors: list[str],
+    superseded: Collection[str] = (),
 ) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
     Applies ``base * (1 + growth) ** (year - 2025)`` per region and sector, so 2025 returns the
-    base-year value unchanged.
+    base-year value unchanged.  A sector in ``superseded`` is held flat at its base-year value
+    instead:  an inbound update package is about to set it, so growing it first would only put a
+    misleading number under any ``(region, year)`` the package fails to cover.
 
     Parameters
     ----------
@@ -821,6 +824,8 @@ def project_demand(
         Regions to project. Required; every one must appear in ``demand_table``.
     sectors : list[str]
         Sectors to project. Every one must appear in ``growth_rate_table``.
+    superseded : Collection[str], optional
+        Sectors whose growth is gated off; see ``NGUpdateReader.superseded_sectors``.
 
     Returns
     -------
@@ -829,10 +834,24 @@ def project_demand(
     """
     base_year = 2025
     demand: dict[tuple[str, str, int], float] = {}
+    gated = [sector for sector in sectors if sector in superseded]
+    if gated:
+        logger.info(
+            'Demand growth gated off for sector(s) %s:  an inbound update package sets them', gated
+        )
+    unknown = sorted(set(superseded).difference(sectors))
+    if unknown:
+        logger.warning(
+            'Superseded sector(s) %s are not among the sectors being projected %s; the inbound '
+            'update package will have nothing to replace.  Check ng_sector_data.csv and the '
+            'growth table against SECTOR_SUPERSEDED_BY',
+            unknown,
+            list(sectors),
+        )
     for region in regions:
         for sector in sectors:
             base = demand_table[region][sector]
-            g = growth_rate_table[sector]
+            g = 0.0 if sector in superseded else growth_rate_table[sector]
             for year in years:
                 dt = year - base_year
                 demand[(region, sector, year)] = base * ((1 + g) ** dt)
@@ -845,41 +864,43 @@ def project_demand(
 
 
 class NGData(TypedDict):
-    """Return shape of :func:`load_all`: one key per loader, in the same order.
+    """Return shape of :func:`load_all`: one key per loader, listed alphabetically.
 
     A TypedDict rather than ``dict[str, Any]`` so that a consumer indexing
     ``_NG_DATA['supply_curve_shape']`` gets the loader's own return type instead of ``Any``,
     and so a typo'd key is a type error rather than a runtime KeyError.
     """
 
-    regions: list[str]
-    regions_domestic: list[str]
-    regions_analyze: list[str]
-    regions_international: list[str]
-    region_labels: dict[str, str]
-    sectors: list[str]
-    years: list[int]
-    supply_cost_tiers: dict[str, list[tuple[float, float]]]
-    supply_anchors: dict[tuple[str, int], tuple[float, float]]
-    lng_import: dict[str, tuple[float, float]]
-    lng_export: dict[str, dict[int, float]]
-    demand_elasticity: dict[str, float]
     # base_demand: dict[str, dict[str, float]]
-    # demand_growth: dict[str, float]
     demand: dict[tuple[str, str, int], float]
+    demand_elasticity: dict[str, float]
+    # demand_growth: dict[str, float]
+    gathering: dict[str, float]
+    lng_demand_curve: dict[str, list[float] | float]
+    lng_export: dict[str, dict[int, float]]
+    lng_import: dict[str, tuple[float, float]]
+    losses: dict[str, dict[str, float]]
+    pipe_loss: dict[tuple[str, str], float]
     pipeline_arcs: list[tuple[str, str, float, float]]
+    qp_scalars: dict[str, float]
+    region_labels: dict[str, str]
+    regions: list[str]
+    regions_analyze: list[str]
+    regions_domestic: list[str]
+    regions_international: list[str]
+    sectors: list[str]
     storage: dict[str, dict[str, float]]
     storage_opex: float
+    supply_anchors: dict[tuple[str, int], tuple[float, float]]
+    supply_cost_tiers: dict[str, list[tuple[float, float]]]
     supply_curve_shape: dict[str, list[float]]
     tariff_curve_shape: dict[str, list[float]]
-    lng_demand_curve: dict[str, list[float] | float]
-    losses: dict[str, dict[str, float]]
-    gathering: dict[str, float]
-    pipe_loss: dict[tuple[str, str], float]
-    qp_scalars: dict[str, float]
+    years: list[int]
 
 
-def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
+def load_all(
+    ng_config: NGConfig, common_config: CommonConfig, superseded: Collection[str] = ()
+) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
@@ -888,6 +909,9 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
     common_config : CommonConfig
         Supplies ``summary_years``, the years demand is projected over.
+    superseded : Collection[str], optional
+        Demand sectors an inbound update package will set, whose growth projection is therefore
+        gated off; see ``NGUpdateReader.superseded_sectors`` and :func:`project_demand`.
 
     Raises
     ------
@@ -911,6 +935,7 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         years=common_config.summary_years,
         regions=region_data['regions_analyze'],
         sectors=sectors,
+        superseded=superseded,
     )
 
     # Sectors and elasticities come from two separate files with no shared key, so a sector

@@ -1,0 +1,287 @@
+"""
+Created as part of the C-NEMS Project.
+
+Written by:  J. F. Hyink
+Contact:  jeff@westernspark.us
+Created on:  8/7/26
+
+A package of data to apply as an update to the recipient model.
+
+Dev Notes:
+    - Plan is to use a registration-handler approach here
+    - Everything must be serializable for planned use with multiprocessing
+    - Will rely on some enumerations to sort things out for now
+
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from uuid import UUID, uuid4
+
+import pandas as pd
+
+from src.common.models_modes import ModelType
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdatePackage(ABC):
+    """Base class for a serializable payload handed from one model to another.
+
+    Subclasses carry the actual update data and declare their own ``receivers``.  Frozen so a
+    package can be shared across processes without a recipient mutating it.
+
+    Attributes
+    ----------
+    update_id : UUID
+        Unique identifier for this package.
+    timestamp : datetime
+        Creation time, for ordering and provenance.
+    source : ModelType or None
+        The model that produced the package, if known.
+    version : int
+        Payload schema version, to let handlers reject packages they predate.
+    """
+
+    update_id: UUID = field(default_factory=uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    source: ModelType | None = field(default=None)
+    version: int = 1
+
+    @property
+    @abstractmethod
+    def receivers(self) -> tuple[ModelType, ...]:
+        """The models this package is intended for."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def label(self) -> str:
+        """Short human-readable name of the payload, for run monitors and logs."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def size(self) -> int:
+        """Number of entries the payload carries, for run monitors and logs."""
+        raise NotImplementedError()
+
+
+# Dev Note:  This will move later after some experimentation
+@dataclass(frozen=True)
+class ElectricityPriceScaler(UpdatePackage):
+    """Multiply the electricity model's supply prices for a set of techs by a scalar.
+
+    For development and testing only:  produced by the mock MAGIC model to exercise the
+    integration loop, not by any real model.
+
+    Handled by ``ElecUpdateReader.apply_package``, which scales the matching rows of the
+    ``supply_price`` frame in place.
+
+    Attributes
+    ----------
+    techs : tuple of str
+        Tech codes to scale, matched against the ``tech`` level of the ``supply_price`` index.
+    receivers : tuple of ModelType
+        Fixed to the electricity model.
+    scalar : float
+        The multiplier to apply; 1.0 leaves prices unchanged.  Must be positive -- the model's
+        ``SupplyPrice`` param is declared ``within=NonNegativeReals``.
+    """
+
+    techs: tuple[str, ...]
+    receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+    scalar: float = 1.0
+    label: str = 'Elec Price Scaler'
+
+    @property
+    def size(self) -> int:
+        """One entry per tech scaled."""
+        return len(self.techs)
+
+    def __post_init__(self) -> None:
+        """Reject a scalar that would drive supply prices out of ``NonNegativeReals``.
+
+        Raises
+        ------
+        ValueError
+            If ``scalar`` is not positive.
+        """
+        if self.scalar <= 0:
+            raise ValueError(
+                f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
+                'non-positive multiplier drives SupplyPrice out of its NonNegativeReals domain.'
+            )
+
+
+my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # multiply by 1.5
+
+
+@dataclass(frozen=True)
+class NGDemandScaler(UpdatePackage):
+    """Multiply the natural gas model's demand values by a scalar.
+
+    For development and testing only:  produced by the mock MAGIC model to exercise the
+    integration loop, not by any real model.
+
+    Handled by ``NGUpdateReader.apply_package``, which scales every entry of the loaded
+    ``demand`` table in place before the model is built.
+
+    Attributes
+    ----------
+    receivers : tuple of ModelType
+        Fixed to the natural gas model.
+    scalar : float
+        The multiplier to apply; 1.0 leaves demand unchanged.  Must be positive -- a
+        non-positive demand inverts the demand-balance constraints.
+    """
+
+    receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+    scalar: float = 1.0
+    label: str = 'NG Demand Scaler'
+
+    @property
+    def size(self) -> int:
+        """A single scalar."""
+        return 1
+
+    def __post_init__(self) -> None:
+        """Reject a scalar that would drive demand non-positive.
+
+        Raises
+        ------
+        ValueError
+            If ``scalar`` is not positive.
+        """
+        if self.scalar <= 0:
+            raise ValueError(
+                f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
+                'non-positive multiplier drives natural gas demand non-positive.'
+            )
+
+
+# index labels shared by the region-and-year packages below:  region id (str) and model year (int)
+REGION_YEAR_INDEX = ['region', 'year']
+
+
+def _check_region_year_frame(package: UpdatePackage, frame: pd.DataFrame, value_col: str) -> None:
+    """Reject a ``(region, year)`` frame a recipient could not apply.
+
+    Parameters
+    ----------
+    package : UpdatePackage
+        The package being constructed, named in the error.
+    frame : pd.DataFrame
+        Its payload.
+    value_col : str
+        The single value column the frame must carry.
+
+    Raises
+    ------
+    ValueError
+        If the index is not ``REGION_YEAR_INDEX`` or has duplicates, ``value_col`` is absent, or
+        any value is missing or negative.
+    """
+    name = type(package).__name__
+    if list(frame.index.names) != REGION_YEAR_INDEX:
+        raise ValueError(
+            f'{name} elements must be indexed by {REGION_YEAR_INDEX}; '
+            f'got {list(frame.index.names)}.'
+        )
+    if frame.index.has_duplicates:
+        raise ValueError(f'{name} elements carry duplicate (region, year) rows.')
+    if value_col not in frame.columns:
+        raise ValueError(f'{name} elements need a {value_col!r} column; got {list(frame.columns)}.')
+    values = frame[value_col]
+    if values.isna().any() or (values < 0).any():
+        raise ValueError(f'{name} requires finite, non-negative values in {value_col!r}.')
+
+
+# index/value labels of an NGPricePackage frame:  electricity region id (str) and model year (int)
+NG_PRICE_INDEX = REGION_YEAR_INDEX
+NG_PRICE_VALUE = 'price'
+
+
+@dataclass(frozen=True)
+class NGPricePackage(UpdatePackage):
+    """Solved natural gas prices, already crosswalked to electricity regions.
+
+    Handled by ``ElecUpdateReader.apply_package``, which moves the supply price of the gas-linked
+    techs with the received price.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Prices in $/MMBtu indexed by ``NG_PRICE_INDEX`` with a single ``NG_PRICE_VALUE`` column.
+        Entries the recipient does not hold are ignored; held entries this frame omits keep their
+        existing values and are logged as warnings.
+    receivers : tuple of ModelType
+        Fixed to the electricity model.
+    """
+
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
+    label: str = 'NG Prices'
+
+    @property
+    def size(self) -> int:
+        """One entry per (region, year) row."""
+        return len(self.elements)
+
+    def __post_init__(self) -> None:
+        """Reject a frame the recipient could not apply.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``NG_PRICE_INDEX`` or has duplicates, the ``NG_PRICE_VALUE`` column
+            is absent, or any price is missing or negative (which could drive SupplyPrice out of
+            its NonNegativeReals domain).
+        """
+        _check_region_year_frame(self, self.elements, NG_PRICE_VALUE)
+
+
+# index/value labels of an NGElectricalDemandPackage frame:  natural gas region name (str) and
+# model year (int)
+NG_ELEC_DEMAND_INDEX = REGION_YEAR_INDEX
+NG_ELEC_DEMAND_VALUE = 'demand_bcf'
+
+
+@dataclass(frozen=True)
+class NGElectricalDemandPackage(UpdatePackage):
+    """Gas burned by the electricity model's generators, already crosswalked to gas regions.
+
+    Handled by ``NGUpdateReader.apply_package``, which replaces the projected
+    ``electric_power`` sector demand for every ``(region, year)`` the frame carries.  The natural
+    gas sequencer also gates off that sector's growth projection when one of these is inbound,
+    so the package, not the AEO growth rate, sets the sector's demand.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Demand in Bcf/yr indexed by ``NG_ELEC_DEMAND_INDEX`` with a single ``NG_ELEC_DEMAND_VALUE``
+        column.  Entries the recipient does not hold are ignored; held entries this frame omits
+        keep their (ungrown) base-year values and are logged as warnings.
+    receivers : tuple of ModelType
+        Fixed to the natural gas model.
+    """
+
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+    label: str = 'NG Demand'
+
+    @property
+    def size(self) -> int:
+        """One entry per (region, year) row."""
+        return len(self.elements)
+
+    def __post_init__(self) -> None:
+        """Reject a frame the recipient could not apply.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``NG_ELEC_DEMAND_INDEX`` or has duplicates, the
+            ``NG_ELEC_DEMAND_VALUE`` column is absent, or any demand is missing or negative.
+        """
+        _check_region_year_frame(self, self.elements, NG_ELEC_DEMAND_VALUE)

@@ -826,6 +826,41 @@ def update_year_options(run: list[str] | None, *current_years: int | None) -> li
     return [options] * len(YEAR_DROPDOWN_IDS) + values
 
 
+@app.callback(
+    Output('region', 'options'),
+    Output('region', 'value'),
+    Input('run', 'value'),
+    State('region', 'value'),
+)
+def update_region_options(
+    run: list[str] | None, current_regions: list[int | str] | None
+) -> tuple[list[dict], list[int | str] | None]:
+    """
+    Limit the region dropdown to regions present in the selected runs.
+
+    Parameters
+    ----------
+    run : list[str] | None
+        Selected run names; empty/None means all runs.
+    current_regions : list[int | str] | None
+        Currently selected regions.
+
+    Returns
+    -------
+    tuple[list[dict], list[int | str] | None]
+        Region options, and the current selection pruned to those regions (None if nothing
+        remains, i.e. all regions).
+    """
+    df_runs = df_generation[df_generation.run.isin(run)] if run else df_generation
+    regions = [
+        region.item() if hasattr(region, 'item') else region
+        for region in sorted(pd.unique(df_runs['region']), key=str)
+    ]
+    options = [{'label': str(region), 'value': region} for region in regions]
+    kept = [region for region in current_regions or [] if region in regions]
+    return options, kept or None
+
+
 # each callback and its update function correspond to the graph id for each chart to be
 # updated by the filter
 

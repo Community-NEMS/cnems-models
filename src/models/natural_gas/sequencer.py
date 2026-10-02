@@ -9,6 +9,7 @@ Created on:  8/14/26
 import logging
 import sys
 from collections.abc import Sequence
+from typing import Any
 
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
@@ -39,6 +40,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
         self._last_status: IterationStatus | None = None
+        # the solver for the current model and the name it was chosen under; see solve_model
+        self._opt: Any = None
+        self._solver_name: str | None = None
         self._reader = NGUpdateReader()
         self._model_reader = NGModelUpdateReader()
         self._writer = NGUpdateWriter()
@@ -120,6 +124,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         )
         self._reader.read(update_packages, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
+        # a solver holds the model it last solved, so a new model needs a new one
+        self._opt = None
+        self._solver_name = None
         return self._model
 
     def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> NGModel:
@@ -143,6 +150,79 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         """
         self._model_reader.read(update_packages, self.model)
         return self.model
+
+    def _select_solver(self, solver_name: str | None) -> tuple[Any, str | None]:
+        """Probe for a convex-QP-capable solver and set its options.
+
+        Parameters
+        ----------
+        solver_name : str or None
+            Force this ``SolverFactory`` name; ``None`` takes the first available candidate (see
+            :meth:`solve_model`).
+
+        Returns
+        -------
+        tuple
+            The solver and the name it was chosen under.
+
+        Raises
+        ------
+        RuntimeError
+            If no candidate solver is available.
+        """
+        if solver_name is None:
+            # Ordering:
+            #   1-3. the Gurobi bindings, which lead purely for speed -- in-memory
+            #        appsi_gurobi first (no LP-file I/O), then gurobi_direct, then the classic
+            #        'gurobi' shell interface. All three handle a QP; gurobipy 12.0.1 is
+            #        installed here, earlier envs had none of them.
+            #   4.   'highs': the current pyomo.contrib.solver interface (also what
+            #        select_solver() hands the electricity path), which builds a Hessian and
+            #        solves a convex QP, so a Gurobi-free env still solves, less robustly than
+            #        Gurobi on this model (see the docstring).
+            #   5.   'ipopt': an interior-point NLP solver, not a project dependency, so it is
+            #        reached only when neither of the above is installed.
+            #
+            # 'appsi_highs' is deliberately NOT a candidate: it calls
+            # generate_standard_repn(quadratic=False) internally and so raises DegreeError on any
+            # quadratic objective, still true in pyomo 6.10.1.
+            #
+            # Confirm which was chosen from the log line below, or from HiGHS's own output under
+            # tee, which reports "1476 Hessian nonzeros" for the full model.
+            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs', 'ipopt']
+        else:
+            candidates = [solver_name]
+
+        opt = None
+        chosen = None
+        for cand in candidates:
+            try:
+                trial = SolverFactory(cand)
+                if trial.available(exception_flag=False):
+                    opt = trial
+                    chosen = cand
+                    logger.info('Selected %s solver', cand)
+                    break
+            except Exception as exc:  # noqa: BLE001 - probing, any failure means 'try the next'
+                logger.debug('C-NGMM: solver %s unavailable (%s)', cand, exc)
+
+        if opt is None:
+            raise RuntimeError(f'C-NGMM: none of the candidate solvers are available: {candidates}')
+
+        # Tighten solver options for the convex QP rewrite, Gurobi's barrier method
+        # is the standard QP path; HiGHS auto-detects QP and uses an interior-point.
+        # Apply the Gurobi QP options for the classic
+        # 'gurobi' interface too (the available one here), not just appsi_gurobi.
+        # Set QP options via the interface-appropriate API
+        # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path;
+        # duals requested.
+
+        elif chosen in {'gurobi', 'gurobi_direct', 'appsi_gurobi'}:
+            opt.options['Method'] = 2  # barrier (default for QP, explicit for safety)
+            opt.options['QCPDual'] = 1  # request meaningful duals on the QCP
+            opt.options['BarConvTol'] = 1e-6
+
+        return opt, chosen
 
     def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the built model, a convex QP, and report how the solve terminated.
@@ -201,62 +281,18 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
 
         Gurobi is additionally pinned to the barrier method with duals requested and
         ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
-        The solver actually chosen is logged at INFO.
+        The solver actually chosen is logged at INFO.  It is chosen on the first solve of a built
+        model and kept for later solves of the same model, so a model updated in place is
+        re-solved by pushing only what changed; :meth:`build_model` drops it, and a different
+        ``solver_name`` replaces it.
         """
         # TODO:  Clean up the comments on IterationStatus above
         solver_name = kwargs.pop('solver_name', None)
         logger.debug('Requested solver: %s', solver_name)
-        if solver_name is None:
-            # Ordering:
-            #   1-3. the Gurobi bindings, which lead purely for speed -- in-memory
-            #        appsi_gurobi first (no LP-file I/O), then gurobi_direct, then the classic
-            #        'gurobi' shell interface. All three handle a QP; gurobipy 12.0.1 is
-            #        installed here, earlier envs had none of them.
-            #   4.   'highs': the current pyomo.contrib.solver interface (also what
-            #        select_solver() hands the electricity path), which builds a Hessian and
-            #        solves a convex QP, so a Gurobi-free env still solves, less robustly than
-            #        Gurobi on this model (see the docstring).
-            #   5.   'ipopt': an interior-point NLP solver, not a project dependency, so it is
-            #        reached only when neither of the above is installed.
-            #
-            # 'appsi_highs' is deliberately NOT a candidate: it calls
-            # generate_standard_repn(quadratic=False) internally and so raises DegreeError on any
-            # quadratic objective, still true in pyomo 6.10.1.
-            #
-            # Confirm which was chosen from the log line below, or from HiGHS's own output under
-            # tee, which reports "1476 Hessian nonzeros" for the full model.
-            candidates = ['appsi_gurobi', 'gurobi_direct', 'gurobi', 'highs', 'ipopt']
-        else:
-            candidates = [solver_name]
-
-        opt = None
-        chosen = None
-        for cand in candidates:
-            try:
-                trial = SolverFactory(cand)
-                if trial.available(exception_flag=False):
-                    opt = trial
-                    chosen = cand
-                    logger.info('Selected %s solver', cand)
-                    break
-            except Exception as exc:  # noqa: BLE001 - probing, any failure means 'try the next'
-                logger.debug('C-NGMM: solver %s unavailable (%s)', cand, exc)
-
-        if opt is None:
-            raise RuntimeError(f'C-NGMM: none of the candidate solvers are available: {candidates}')
-
-        # Tighten solver options for the convex QP rewrite, Gurobi's barrier method
-        # is the standard QP path; HiGHS auto-detects QP and uses an interior-point.
-        # Apply the Gurobi QP options for the classic
-        # 'gurobi' interface too (the available one here), not just appsi_gurobi.
-        # Set QP options via the interface-appropriate API
-        # (APPSI uses .gurobi_options; classic uses .options). Barrier is the QP path;
-        # duals requested.
-
-        elif chosen in {'gurobi', 'gurobi_direct', 'appsi_gurobi'}:
-            opt.options['Method'] = 2  # barrier (default for QP, explicit for safety)
-            opt.options['QCPDual'] = 1  # request meaningful duals on the QCP
-            opt.options['BarConvTol'] = 1e-6
+        # keep the solver for later solves of this model; asking for another one replaces it
+        if self._opt is None or solver_name not in (None, self._solver_name):
+            self._opt, self._solver_name = self._select_solver(solver_name)
+        opt, chosen = self._opt, self._solver_name
 
         logger.info('C-NGMM: solving with %s (QP) …', chosen)
         # No tee= here, so the solver's own output is not shown, and `results` is used for the

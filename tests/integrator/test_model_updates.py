@@ -100,3 +100,65 @@ def test_demand_update_matches_a_rebuild_on_full_coverage() -> None:
         assert sequencer.update_model([package]) is model
         for key in model.demand:
             assert value(model.demand[key]) == pytest.approx(value(rebuilt.demand[key]), rel=1e-12)
+
+
+def test_kept_electricity_solver_matches_a_rebuild() -> None:
+    """After an update, the kept solver re-solves to the objective of a fresh rebuild."""
+    common, remainder = CommonConfig.from_toml(
+        Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
+    )
+    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    sequencer = ElectricitySequencer()
+    model = sequencer.build_model(common, elec_config)
+    sequencer.solve_iteration()
+    solver = sequencer._opt
+    # cheap enough gas to move dispatch, so a solver that ignored the update would be caught
+    package = _price_package(
+        sorted({(key[0], key[3]) for key in model.ng_fuel_adj}), INITIAL_NG_PRICE - 3.0
+    )
+
+    sequencer.update_model([package])
+    stale = value(model.total_cost)  # the old dispatch priced at the new fuel cost
+    held = sequencer.solve_iteration().objective_value
+    assert sequencer._opt is solver
+    fresh = ElectricitySequencer()
+    fresh.build_model(common, elec_config, update_packages=[package])
+    expected = fresh.solve_iteration().objective_value
+    assert held is not None and expected is not None
+    assert held < stale * (1 - 1e-4)
+    assert held == pytest.approx(expected, rel=1e-9)
+
+
+def test_kept_gas_solver_matches_a_rebuild() -> None:
+    """After an update, the kept solver re-solves to the objective of a fresh rebuild."""
+    common, remainder = CommonConfig.from_toml(
+        Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
+    )
+    ng_config = NGConfig(**remainder.pop('natural_gas'))
+    sequencer = NGSequencer()
+    model = sequencer.build_model(common, ng_config)
+    sequencer.solve_iteration()
+    solver = sequencer._opt
+    cells = [(str(r), int(y)) for r in model.region_analyze for y in model.year]
+    for region, year in cells:
+        model.declare_external(model.DEMAND, region, 'electric_power', year)
+    package = NGElectricalDemandPackage(
+        elements=pd.DataFrame(
+            {
+                NG_ELEC_DEMAND_VALUE: [
+                    1.3 * value(model.demand[r, 'electric_power', y]) for r, y in cells
+                ]
+            },
+            index=pd.MultiIndex.from_tuples(cells, names=NG_ELEC_DEMAND_INDEX),
+        ),
+        source=ModelType.ELECTRICITY,
+    )
+
+    sequencer.update_model([package])
+    held = sequencer.solve_iteration().objective_value
+    assert sequencer._opt is solver
+    fresh = NGSequencer()
+    fresh.build_model(common, ng_config, update_packages=[package])
+    expected = fresh.solve_iteration().objective_value
+    assert held is not None and expected is not None
+    assert held == pytest.approx(expected, rel=1e-6)

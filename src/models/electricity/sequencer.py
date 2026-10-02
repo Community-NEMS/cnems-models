@@ -89,6 +89,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
     def model(self, value: PowerModel):
         """Set the model instance.  Caution:  Alignment with config settings not checked."""
         self._model = value
+        self._opt = None
 
     @property
     def reader(self) -> ElecUpdateReader:
@@ -186,6 +187,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         logger.info('Number of constraints = %d', pyo.value(instance.nconstraints()))
 
         self._model = instance
+        # a solver holds the model it last solved, so a new model needs a new one
+        self._opt = None
         return instance
 
     def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> PowerModel:
@@ -227,6 +230,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         outer solve loop until capacity converges (or the iteration cap is hit), re-pricing
         expansion costs with ``update_expansion_cost`` before each solve.
 
+        The solver is created on the first solve of a built model and kept for later solves of
+        the same model, so a model updated in place is re-solved by pushing only what changed.
+        :meth:`build_model` drops it.
+
         Returns
         -------
         tuple[ModelType, IterationStatus]
@@ -237,10 +244,12 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         instance = self.model
         if instance is None:
             raise RuntimeError('Solve called on model that has not been built.')
-        self._opt = select_solver(
-            instance,
-            nonlinear=self.elec_config.expansion_learning_type is ExpansionLearningType.NONLINEAR,
-        )
+        if self._opt is None:
+            self._opt = select_solver(
+                instance,
+                nonlinear=self.elec_config.expansion_learning_type
+                is ExpansionLearningType.NONLINEAR,
+            )
 
         logger.info('Solving model')
 

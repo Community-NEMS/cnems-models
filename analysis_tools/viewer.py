@@ -354,10 +354,33 @@ try:
     df_trade = pd.concat(df_trade)
 except ValueError:
     print('Trade dataframe is empty.')
+    # no run has this output (e.g. regional exchange off); keep an empty frame so callbacks work
+    df_trade = pd.DataFrame(
+        columns=[
+            'run',
+            'region_destination',
+            'region_source',
+            'year',
+            'hour',
+            'trade_interregional',
+        ]
+    )
 try:
     df_tradecan = pd.concat(df_tradecan)
 except ValueError:
     print('International trade dataframe is empty.')
+    # no run has this output (e.g. regional exchange off); keep an empty frame so callbacks work
+    df_tradecan = pd.DataFrame(
+        columns=[
+            'run',
+            'region_domestic',
+            'region_international',
+            'step',
+            'year',
+            'hour',
+            'trade_international',
+        ]
+    )
 try:
     df_unmetload = pd.concat(df_unmetload)
 except ValueError:

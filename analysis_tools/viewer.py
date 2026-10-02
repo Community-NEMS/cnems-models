@@ -322,10 +322,18 @@ try:
     df_capacitybuilds = pd.concat(df_capacitybuilds)
 except ValueError:
     print('Capacity build dataframe is empty.')
+    # no run has this output (e.g. capacity expansion off); keep an empty frame so callbacks work
+    df_capacitybuilds = pd.DataFrame(
+        columns=['run', 'tech', 'region', 'year', 'step', 'capacity_builds']
+    )
 try:
     df_capacityretire = pd.concat(df_capacityretire)
 except ValueError:
     print('Capacity retirement dataframe is empty.')
+    # no run has this output (e.g. capacity expansion off); keep an empty frame so callbacks work
+    df_capacityretire = pd.DataFrame(
+        columns=['run', 'tech', 'region', 'year', 'step', 'capacity_retirements']
+    )
 try:
     df_capacitytotal = pd.concat(df_capacitytotal)
 except ValueError:

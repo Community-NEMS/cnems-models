@@ -39,7 +39,7 @@ from src.models.electricity.learning import (
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
-from src.models.electricity.update_reader import ElecUpdateReader
+from src.models.electricity.update_reader import ElecModelUpdateReader, ElecUpdateReader
 from src.models.electricity.update_writer import ElecUpdateWriter
 
 logger = getLogger(__name__)
@@ -66,7 +66,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         self._common_config: CommonConfig | None = None
         self._opt = None
         self._last_status: IterationStatus | None = None
+        # whether the current model was built with update packages; see update_model
+        self._built_with_packages = False
         self._reader = ElecUpdateReader()
+        self._model_reader = ElecModelUpdateReader()
         self._writer = ElecUpdateWriter()
 
     @property
@@ -167,6 +170,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             len(model_params.param_dicts),
         )
         self._reader.read(update_packages, model_params)
+        self._built_with_packages = bool(update_packages)
 
         logger.info('Validating input data')
         validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
@@ -184,22 +188,44 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         self._model = instance
         return instance
 
-    def update_model(self, **kwargs) -> PowerModel:
-        """TBD update process for the electricity model.
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> PowerModel:
+        """Apply inbound update packages to the built model in place, without rebuilding it.
+
+        The model must have been built without update packages.  Price adjustments are measured
+        from the built ``supply_price``, so one already scaled by a package at build time would
+        be scaled again.
+
+        Parameters
+        ----------
+        update_packages : Sequence[UpdatePackage]
+            Applied in order by :class:`ElecModelUpdateReader`.
+
+        Returns
+        -------
+        PowerModel
+            The same model instance, updated.
 
         Raises
         ------
+        ValueError
+            If the model was built with update packages.
         NotImplementedError
-            Always; the electricity model has no update step yet.
+            If a package type has no built-model handler.
         """
-        raise NotImplementedError('update_model is not implemented for the electricity model.')
+        if self._built_with_packages:
+            raise ValueError(
+                'update_model needs a model built without update packages; this one was built '
+                'with some, so its supply prices already carry them.'
+            )
+        self._model_reader.read(update_packages, self.model)
+        return self.model
 
     def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the electricity model, iterating externally for linear learning.
 
-        Ports ``runner.solve_elec_model``. For ``ExpansionLearningType.LINEAR`` this runs the
-        outer build→solve→update loop until capacity converges (or the iteration cap is hit),
-        driving each iteration through :meth:`iteration_postprocess` and :meth:`update_model`.
+        Ports ``runner.solve_elec_model``. For ``ExpansionLearningType.LINEAR`` this runs an
+        outer solve loop until capacity converges (or the iteration cap is hit), re-pricing
+        expansion costs with ``update_expansion_cost`` before each solve.
 
         Returns
         -------

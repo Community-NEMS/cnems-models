@@ -71,11 +71,16 @@ Within one iteration, each worker runs its model's `IntegratedModelSequencer.ful
 3. `get_objective_value()` and `get_outbound_updates()`: returned to the control process as an
    `IterationResult`.
 
+Steps 2 and 3 are `solve_iteration()`, which a driver that keeps its models calls after
+`update_model` instead of rebuilding.
+
 Things to know about the current loop:
 
 - **Iteration 1 starts with no packages**, so every model begins from its input files alone.
-- **Models are rebuilt every iteration.** `update_model` is not implemented yet, so a new model
-  instance is built from the inputs plus the latest packages each time.
+- **Models are rebuilt every iteration.** A new model instance is built from the inputs plus the
+  latest packages each time. `update_model` can instead apply packages to a model that is already
+  built, writing the fuel cost change implied by the gas price to `ng_fuel_adj` and the gas burn
+  to the gas model's owned demand cells, but the Jacobi loop does not use it.
 - **Each model logs to its own file.** Like a standalone run, the control process claims a fresh
   `<output_path>/<scenario_name>` folder, suffixed `_1`, `_2`, ... if it is taken, so a rerun never
   mixes with an earlier run's logs. Each worker writes a per-model log there

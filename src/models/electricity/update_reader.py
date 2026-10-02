@@ -5,13 +5,15 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  9/21/26
 
-Update package reader for the electricity model:  applies inbound packages to ``ParamData``.
+Update package readers for the electricity model:  ``ElecUpdateReader`` applies inbound packages to
+``ParamData`` before a build, and ``ElecModelUpdateReader`` applies them to a built ``PowerModel``.
 """
 
 import logging
 from functools import singledispatchmethod
 
 import pandas as pd
+from pyomo.environ import value
 
 from src.common.update_package import (
     NG_PRICE_INDEX,
@@ -27,6 +29,7 @@ from src.models.electricity.constants import (
     PRICE_COST_PROPORTION,
     SUPPLY_PRICE_CHANGE_WARN_FRACTION,
 )
+from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
@@ -242,3 +245,113 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
                 overage,
             )
         return missing
+
+
+class ElecModelUpdateReader(UpdatePackageReader[PowerModel]):
+    """Applies inbound update packages to a built ``PowerModel``, by package type.
+
+    The built-model counterpart of :class:`ElecUpdateReader`, for a driver that keeps the model
+    between solves rather than rebuilding it.  Packages change mutable parameters in place.
+    """
+
+    # pyrefly does not see singledispatchmethod as a descriptor, so flags the override
+    @singledispatchmethod
+    def apply_package(self, update_package: UpdatePackage, data: PowerModel) -> None:  # type: ignore[bad-override]
+        """Reject a package type with no registered handler.
+
+        Parameters
+        ----------
+        update_package : UpdatePackage
+            The package received.
+        data : PowerModel
+            The built model.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; handlers for supported package types are registered below.
+        """
+        raise NotImplementedError(
+            f'No built-model handler for update package type: {type(update_package)}'
+        )
+
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_package.register  # type: ignore[no-matching-overload]
+    def _(self, ng_price_update: NGPricePackage, data: PowerModel) -> None:
+        """Write the received gas price into ``ng_fuel_adj`` for the gas-linked techs.
+
+        Each ``NG_PRICE_LINKED_TECHS`` entry is set to :func:`ng_price_adjustment` of its built
+        ``supply_price`` and the price received for its ``(region, year)``, so the effective price
+        ``supply_price + ng_fuel_adj`` is what a rebuild with the same package would give, for a
+        model built without update packages (``ElectricitySequencer.update_model`` enforces it).  An
+        entry the package does not cover is set back to zero, as a rebuild leaves it at its
+        loaded price, and is reported as a warning; package entries beyond the held regions and
+        years are ignored.  The result depends only on the package, so applying one twice is the
+        same as applying it once.
+
+        Parameters
+        ----------
+        ng_price_update : NGPricePackage
+            Gas prices in $/MMBtu indexed by electricity ``(region, year)``.
+        data : PowerModel
+            The built model; ``ng_fuel_adj`` is modified in place.
+        """
+        received = ng_price_update.elements[NG_PRICE_VALUE]
+        prices = {
+            (str(r), int(y)): float(p)
+            for (r, y), p in zip(received.index.to_list(), received.to_list(), strict=True)
+        }
+        written = 0
+        missing: set[tuple[str, int]] = set()
+        for key in data.ng_fuel_adj:
+            # ng_fuel_adj and supply_price keys flatten to (region, tech, step, year, season)
+            region, tech, _, year, _ = key
+            if tech not in NG_PRICE_LINKED_TECHS:
+                continue
+            price = prices.get((str(region), int(year)))
+            if price is None:
+                missing.add((str(region), int(year)))
+                data.ng_fuel_adj[key] = 0.0
+                continue
+            # pyrefly: ignore[bad-argument-type]  - supply_price is initialized, never None
+            supply_price = float(value(data.supply_price[key]))
+            data.ng_fuel_adj[key] = ng_price_adjustment(supply_price, price, tech)
+            written += 1
+        if missing:
+            logger.warning(
+                'Received NG prices do not cover %d gas-linked (region, year) entries; their '
+                'ng_fuel_adj is set back to zero.  Missing (up to 10 shown):  %s',
+                len(missing),
+                sorted(missing)[:10],
+            )
+        logger.info(
+            'Set ng_fuel_adj for %d gas-linked entries (techs %s) from received NG prices',
+            written,
+            NG_PRICE_LINKED_TECHS,
+        )
+
+
+def ng_price_adjustment(supply_price: float, price: float, tech: str) -> float:
+    """Return the change in a gas-linked tech's supply price when gas costs ``price``.
+
+    The one place the gas price link is defined for a built model; changing the link means
+    changing only this function.  It is the multiplicative link of the pre-build
+    ``NGPricePackage`` handler:  a ``PRICE_COST_PROPORTION`` share of the supply price is taken to
+    be fuel bought at ``INITIAL_NG_PRICE``, so ``supply_price + ng_price_adjustment(...)`` equals
+    that handler's scaled supply price.
+
+    Parameters
+    ----------
+    supply_price : float
+        The row's supply price as built, in the model's units ($/GWh).
+    price : float
+        The gas price received for the row's ``(region, year)``, in $/MMBtu.
+    tech : str
+        The row's technology.  Unused by the multiplicative link; a heat-rate based link needs it.
+
+    Returns
+    -------
+    float
+        The adjustment, in the units of ``supply_price``.
+    """
+    return supply_price * PRICE_COST_PROPORTION * (price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE

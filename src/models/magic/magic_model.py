@@ -134,7 +134,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig, None]):
         self._model_config = model_config
         return self.model
 
-    def update_model(self, **kwargs) -> MagicModel:
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> MagicModel:
         """Not implemented; the magic model is rebuilt each iteration rather than updated.
 
         Raises

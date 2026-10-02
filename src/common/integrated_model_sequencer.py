@@ -148,8 +148,8 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
         ...
 
     @abstractmethod
-    def update_model(self, **kwargs) -> ModelT:
-        """Update the model with some new data, etc."""
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> ModelT:
+        """Apply inbound update packages to the built model in place, without rebuilding it."""
         ...
 
     @abstractmethod
@@ -228,6 +228,24 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
             The solve status, objective value, and any packages bound for other models.
         """
         self.build_model(common_config, model_config, **kwargs)
+        return self.solve_iteration(**kwargs)
+
+    def solve_iteration(self, **kwargs) -> IterationResult:
+        """Solve the model as it stands and collect the result, without building it.
+
+        A driver that holds a built model calls :meth:`update_model` and then this, each
+        iteration; :meth:`full_run` is a build followed by this.
+
+        Parameters
+        ----------
+        **kwargs
+            Forwarded to :meth:`solve_model`.
+
+        Returns
+        -------
+        IterationResult
+            The solve status, objective value, and any packages bound for other models.
+        """
         model_type, status = self.solve_model(**kwargs)
         # a failed solve leaves no solution loaded, so there is no objective to read
         objective_value = None if status is IterationStatus.ERROR else self.get_objective_value()

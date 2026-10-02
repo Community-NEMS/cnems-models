@@ -384,7 +384,9 @@ for calibration.
 
 | Method | Direction | Purpose |
 |---|---|---|
-| `update_demand` | in | write sectoral demand, e.g. electric-power gas burn |
+| `update_demand` | in | write sectoral demand without taking ownership of it |
+| `declare_external` | in | mark demand cells another model supplies, so the price response skips them |
+| `set_external_demand` | in | write supplied demand exactly, only to declared cells, e.g. electric-power gas burn |
 | `update_supply_capacity` | in | rebuild QBASE/PBASE from new Q0 |
 | `update_canada_supply` | in | set Canadian import volumes |
 | `set_reference_prices` | in | capture the reference for elastic demand |

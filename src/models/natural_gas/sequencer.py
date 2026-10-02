@@ -24,7 +24,7 @@ from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
-from src.models.natural_gas.update_reader import NGUpdateReader
+from src.models.natural_gas.update_reader import NGModelUpdateReader, NGUpdateReader
 from src.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self._common_config: CommonConfig | None = None
         self._last_status: IterationStatus | None = None
         self._reader = NGUpdateReader()
+        self._model_reader = NGModelUpdateReader()
         self._writer = NGUpdateWriter()
 
     @property
@@ -121,9 +122,27 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 
-    def update_model(self, **kwargs) -> NGModel:
-        """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
-        raise NotImplementedError
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> NGModel:
+        """Apply inbound update packages to the built model in place, without rebuilding it.
+
+        Parameters
+        ----------
+        update_packages : Sequence[UpdatePackage]
+            Applied in order by :class:`NGModelUpdateReader`.  Supplied demand is written only to
+            cells declared external on the model.
+
+        Returns
+        -------
+        NGModel
+            The same model instance, updated.
+
+        Raises
+        ------
+        NotImplementedError
+            If a package type has no built-model handler.
+        """
+        self._model_reader.read(update_packages, self.model)
+        return self.model
 
     def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
         """Solve the built model, a convex QP, and report how the solve terminated.
@@ -167,10 +186,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         The three Gurobi entries lead purely for speed (in-memory, no LP-file round trip);
         ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and solves
         the convex QP, so a Gurobi-free environment still solves.  HiGHS is less robust than
-        Gurobi on this model.  Before the unserved-demand backstop was created for every run,
-        it returned ``unknown`` or ``unbounded`` for demand cuts on horizons of nine years or
-        more, cases Gurobi and Ipopt solve; with the backstop it still returns ``unknown`` for
-        doubled demand on 16- and 20-year horizons.  Pass ``solver_name`` when a result has to
+        Gurobi on this model. Pass ``solver_name`` when a result has to
         be reproduced or compared across machines.  ``appsi_highs`` is
         not a candidate and ``solver_name='appsi_highs'`` will not work:  it calls
         ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on

@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, State, dcc, html
 
 from definitions import PROJECT_ROOT
 
@@ -322,10 +322,18 @@ try:
     df_capacitybuilds = pd.concat(df_capacitybuilds)
 except ValueError:
     print('Capacity build dataframe is empty.')
+    # no run has this output (e.g. capacity expansion off); keep an empty frame so callbacks work
+    df_capacitybuilds = pd.DataFrame(
+        columns=['run', 'tech', 'region', 'year', 'step', 'capacity_builds']
+    )
 try:
     df_capacityretire = pd.concat(df_capacityretire)
 except ValueError:
     print('Capacity retirement dataframe is empty.')
+    # no run has this output (e.g. capacity expansion off); keep an empty frame so callbacks work
+    df_capacityretire = pd.DataFrame(
+        columns=['run', 'tech', 'region', 'year', 'step', 'capacity_retirements']
+    )
 try:
     df_capacitytotal = pd.concat(df_capacitytotal)
 except ValueError:
@@ -346,10 +354,33 @@ try:
     df_trade = pd.concat(df_trade)
 except ValueError:
     print('Trade dataframe is empty.')
+    # no run has this output (e.g. regional exchange off); keep an empty frame so callbacks work
+    df_trade = pd.DataFrame(
+        columns=[
+            'run',
+            'region_destination',
+            'region_source',
+            'year',
+            'hour',
+            'trade_interregional',
+        ]
+    )
 try:
     df_tradecan = pd.concat(df_tradecan)
 except ValueError:
     print('International trade dataframe is empty.')
+    # no run has this output (e.g. regional exchange off); keep an empty frame so callbacks work
+    df_tradecan = pd.DataFrame(
+        columns=[
+            'run',
+            'region_domestic',
+            'region_international',
+            'step',
+            'year',
+            'hour',
+            'trade_international',
+        ]
+    )
 try:
     df_unmetload = pd.concat(df_unmetload)
 except ValueError:
@@ -761,6 +792,74 @@ app.layout = html.Div(
     ],
     className='app',
 )
+
+YEAR_DROPDOWN_IDS = ['genyear', 'techyear', 'storyear', 'trdyear']
+
+
+@app.callback(
+    [Output(dropdown_id, 'options') for dropdown_id in YEAR_DROPDOWN_IDS],
+    [Output(dropdown_id, 'value') for dropdown_id in YEAR_DROPDOWN_IDS],
+    Input('run', 'value'),
+    [State(dropdown_id, 'value') for dropdown_id in YEAR_DROPDOWN_IDS],
+)
+def update_year_options(run: list[str] | None, *current_years: int | None) -> list:
+    """
+    Limit the year dropdowns to years present in the selected runs.
+
+    Parameters
+    ----------
+    run : list[str] | None
+        Selected run names; empty/None means all runs.
+    *current_years : int | None
+        Current value of each dropdown in ``YEAR_DROPDOWN_IDS`` order.
+
+    Returns
+    -------
+    list
+        Options for each year dropdown, followed by each dropdown's value (kept if still
+        offered, otherwise the first available year).
+    """
+    df_runs = df_generation[df_generation.run.isin(run)] if run else df_generation
+    years = sorted(int(year) for year in pd.unique(df_runs['year']))
+    options = [{'label': str(year), 'value': year} for year in years]
+    values = [year if year in years else (years[0] if years else None) for year in current_years]
+    return [options] * len(YEAR_DROPDOWN_IDS) + values
+
+
+@app.callback(
+    Output('region', 'options'),
+    Output('region', 'value'),
+    Input('run', 'value'),
+    State('region', 'value'),
+)
+def update_region_options(
+    run: list[str] | None, current_regions: list[int | str] | None
+) -> tuple[list[dict], list[int | str] | None]:
+    """
+    Limit the region dropdown to regions present in the selected runs.
+
+    Parameters
+    ----------
+    run : list[str] | None
+        Selected run names; empty/None means all runs.
+    current_regions : list[int | str] | None
+        Currently selected regions.
+
+    Returns
+    -------
+    tuple[list[dict], list[int | str] | None]
+        Region options, and the current selection pruned to those regions (None if nothing
+        remains, i.e. all regions).
+    """
+    df_runs = df_generation[df_generation.run.isin(run)] if run else df_generation
+    regions = [
+        region.item() if hasattr(region, 'item') else region
+        for region in sorted(pd.unique(df_runs['region']), key=str)
+    ]
+    options = [{'label': str(region), 'value': region} for region in regions]
+    kept = [region for region in current_regions or [] if region in regions]
+    return options, kept or None
+
 
 # each callback and its update function correspond to the graph id for each chart to be
 # updated by the filter

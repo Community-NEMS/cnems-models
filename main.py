@@ -17,6 +17,7 @@ from src.common.iterative_sequencer import RunStatus
 from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType, RunMode, resolve_models_to_run
 from src.common.utilities import get_args
+from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
 from src.integrator.iteration_plot import plot_objectives
 from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
@@ -56,11 +57,6 @@ def main(config_path: Path, debug: bool = False) -> None:
         The run config file (TOML or JSON) with a ``[common]`` section plus model sections.
     debug : bool, optional
         Debug mode; currently only sets the standalone run log to DEBUG.  False by default.
-
-    Raises
-    ------
-    NotImplementedError
-        If the config's mode is ``RunMode.INTEGRATED_GS``.
     """
     common_config, remainder = parse_config_file(config_path)
     # only an iterative run reports a run status
@@ -94,7 +90,10 @@ def main(config_path: Path, debug: bool = False) -> None:
             if PLOT_OBJECTIVES:
                 plot_objectives(results)
         case RunMode.INTEGRATED_GS:
-            raise NotImplementedError('Integrated Gauss-Seidel mode is not implemented')
+            # like Jacobi, the iterator claims the output folder and sets up its own logging
+            run_status, results = GaussSeidelIterator().run(common_config, remainder)
+            if PLOT_OBJECTIVES:
+                plot_objectives(results)
 
     finish_msg = 'Finished.' + (f'  Run status: {run_status.name}' if run_status else '')
     logger.info(finish_msg)

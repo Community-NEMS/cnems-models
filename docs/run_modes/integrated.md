@@ -3,9 +3,9 @@
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
 electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
-subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`). It runs
-through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
+integrated driver is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
+subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`); an
+experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
@@ -105,6 +105,43 @@ Things to know about the current loop:
     hold. The receiving model keeps loaded (base-year) values wherever coverage is missing, so
     filtering either model can give odd results in an integrated run. `jacobi_iterator.py` logs a
     warning when either model is filtered.
+
+## Gauss-Seidel Iteration (experimental)
+
+`GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
+`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
+with `[common]` mode `"integrated gs"`:
+
+```sh
+pixi shell
+python main.py run_configs/gs_compare.toml
+```
+
+It differs from the Jacobi iterator in how the models are run, not in what they exchange:
+
+- Both models are built once and held. Each iteration applies the inbound packages to the
+  built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
+  its solver between solves.
+- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
+  the same iteration.
+- Coverage is checked before the first solve, by `build_preflight` in
+  `src/integrator/ng_preflight.py`: the electricity and gas regions must cover each other. A
+  run whose regions do not cover each other fully (most region filters) is refused unless
+  `allow_partial_coverage` is set. In that case a partly covered gas region gets the burn plus a
+  fixed top-up from its own projection for the uncovered share, and an uncovered one stays with
+  the gas model.
+- Result files are written at the end for each model whose last solve did not fail.
+
+Packages, the crosswalk, routing, the resend rule, the stopping rule (`ConvergenceTracker`) and
+the monitor are the Jacobi iterator's. The number in brackets on each monitor arrow is how many
+entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
+iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
+burn and the mean gas price by year. The settings are in
+`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
+`monitor_delta_mode`, and `allow_partial_coverage`.
+
+`python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
+same settings, and writes a side-by-side table to the output folder.
 
 ## Inter-model Communication
 

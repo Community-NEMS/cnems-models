@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, State, dcc, html
 
 from definitions import PROJECT_ROOT
 
@@ -761,6 +761,39 @@ app.layout = html.Div(
     ],
     className='app',
 )
+
+YEAR_DROPDOWN_IDS = ['genyear', 'techyear', 'storyear', 'trdyear']
+
+
+@app.callback(
+    [Output(dropdown_id, 'options') for dropdown_id in YEAR_DROPDOWN_IDS],
+    [Output(dropdown_id, 'value') for dropdown_id in YEAR_DROPDOWN_IDS],
+    Input('run', 'value'),
+    [State(dropdown_id, 'value') for dropdown_id in YEAR_DROPDOWN_IDS],
+)
+def update_year_options(run: list[str] | None, *current_years: int | None) -> list:
+    """
+    Limit the year dropdowns to years present in the selected runs.
+
+    Parameters
+    ----------
+    run : list[str] | None
+        Selected run names; empty/None means all runs.
+    *current_years : int | None
+        Current value of each dropdown in ``YEAR_DROPDOWN_IDS`` order.
+
+    Returns
+    -------
+    list
+        Options for each year dropdown, followed by each dropdown's value (kept if still
+        offered, otherwise the first available year).
+    """
+    df_runs = df_generation[df_generation.run.isin(run)] if run else df_generation
+    years = sorted(int(year) for year in pd.unique(df_runs['year']))
+    options = [{'label': str(year), 'value': year} for year in years]
+    values = [year if year in years else (years[0] if years else None) for year in current_years]
+    return [options] * len(YEAR_DROPDOWN_IDS) + values
+
 
 # each callback and its update function correspond to the graph id for each chart to be
 # updated by the filter

@@ -1,0 +1,28 @@
+[common]
+mode = "standalone"
+
+# C-CDM runs on its own with `pixi run cdm`. ModelType has no C-CDM member, so it is not listed
+# here and `python main.py` with this config runs nothing.
+models_to_run = []
+
+common_data_path = 'input/common'  # currently unused
+residential_data_path = 'input/residential'
+output_path = 'output'
+scenario_name = "cdm_baseline"
+
+# C-CDM is annual and always runs every year from 2025 to 2050.
+# The temporal settings below are required by [common] but C-CDM does not read them.
+temporal_resolution = "default"
+aggregate_years = false
+aggregate_start_year = 2025
+summary_years = [2025, 2030, 2035, 2040, 2045, 2050]
+
+
+[cdm]
+
+input_path = 'input/cdm'
+# AEO2026 case to follow: "reference" (Counterfactual Baseline) or "high_electricity_demand"
+case = "reference"
+# Multipliers on the reference price paths, for a standalone price scenario
+electricity_price_scale = 1.0
+natural_gas_price_scale = 1.0

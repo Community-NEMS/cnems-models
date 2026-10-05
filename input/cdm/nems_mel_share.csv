@@ -1,0 +1,28 @@
+# Share of miscellaneous electric load explicitly modeled in the base year
+# [xplicitmiscshr] by building type, unitless (comm.f:3729-3745 applies 1 - share).
+# Source: NEMS input/cdm/kmels.txt and kmels_higheldmd.txt, release tag AEO2026-Public-Release.
+# reference: kmels.txt lines 101-111 (multipliers), 115 (explicit share), 119 (server index), 126-145 (MEL base), 149-168 (MEL index)
+# high_electricity_demand: kmels_higheldmd.txt lines 101-111 (multipliers), 115 (explicit share), 119 (server index), 126-145 (MEL base), 149-168 (MEL index)
+case,building_type,explicit_share
+reference,assembly,0.772
+reference,education,0.846
+reference,food_sales,0.442
+reference,food_service,0.448
+reference,health_care,1.0
+reference,lodging,0.517
+reference,large_office,0.459
+reference,small_office,0.558
+reference,mercantile_service,0.66
+reference,warehouse,0.732
+reference,other,0.587
+high_electricity_demand,assembly,1.0
+high_electricity_demand,education,1.0
+high_electricity_demand,food_sales,1.0
+high_electricity_demand,food_service,1.0
+high_electricity_demand,health_care,1.0
+high_electricity_demand,lodging,1.0
+high_electricity_demand,large_office,1.0
+high_electricity_demand,small_office,1.0
+high_electricity_demand,mercantile_service,1.0
+high_electricity_demand,warehouse,1.0
+high_electricity_demand,other,1.0

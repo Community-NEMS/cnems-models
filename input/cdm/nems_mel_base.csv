@@ -1,0 +1,29 @@
+# Base-year annual energy consumption of explicit miscellaneous electric loads
+# [MelsElQ], Btu per sqft of eligible floorspace. The kmels header says trillion
+# Btu/sqft/yr; the scaling in comm.f:3488-3528 (value / 1000 x billion sqft = trillion
+# Btu) shows Btu/sqft.
+# Source: NEMS input/cdm/kmels.txt and kmels_higheldmd.txt, release tag AEO2026-Public-Release.
+# reference: kmels.txt lines 101-111 (multipliers), 115 (explicit share), 119 (server index), 126-145 (MEL base), 149-168 (MEL index)
+# high_electricity_demand: kmels_higheldmd.txt lines 101-111 (multipliers), 115 (explicit share), 119 (server index), 126-145 (MEL base), 149-168 (MEL index)
+# Identical in both files; the reference file is read.
+mel,base_btu_per_sqft
+distribution_transformers,1487.15
+kitchen_ventilation,3020.34
+security_systems,307.3
+lab_refrigerators_freezers,775.81
+medical_imaging,491.45
+large_video_boards,50.91
+coffee_brewers,500.54
+off_road_electric_vehicles,166.95
+fume_hoods,1160.14
+laundry,225.4
+elevators,203.38
+escalators,26.0
+it_equipment,570.13
+uninterruptible_power_supplies,26.35
+shredders,2.76
+private_branch_exchange,19.62
+voice_over_ip,13.43
+point_of_sale,54.92
+warehouse_robots,92.01
+televisions,135.03

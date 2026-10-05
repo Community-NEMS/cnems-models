@@ -1,0 +1,677 @@
+case,year,fuel,item,cdm_trillion_btu,aeo2026_trillion_btu,aeo2026_table
+reference,2025,electricity,heating,200.857267,200.857267,Table 5
+reference,2025,electricity,cooling,566.84798,566.84798,Table 5
+reference,2025,electricity,water_heating,73.797353,73.797353,Table 5
+reference,2025,electricity,ventilation,772.579491,772.579491,Table 5
+reference,2025,electricity,cooking,83.991043,83.991043,Table 5
+reference,2025,electricity,lighting,564.649343,564.649343,Table 5
+reference,2025,electricity,refrigeration,366.73376,366.73376,Table 5
+reference,2025,electricity,data_center_servers,357.480847,357.691526,Table 5
+reference,2025,electricity,computers_office_equipment,216.952562,216.952562,Table 5
+reference,2025,electricity,other_uses,1949.144959,1949.144959,Table 5
+reference,2025,electricity,other_uses_buildings,616.875814,,
+reference,2025,electricity,other_uses_non_building,1332.269146,,
+reference,2025,natural_gas,heating,1677.395463,1677.395463,Table 5
+reference,2025,natural_gas,cooling,15.69231,15.69231,Table 5
+reference,2025,natural_gas,water_heating,273.96971,273.96971,Table 5
+reference,2025,natural_gas,cooking,405.390143,405.390143,Table 5
+reference,2025,natural_gas,other_uses,1267.356396,1267.356396,Table 5
+reference,2025,natural_gas,other_uses_buildings,101.501023,,
+reference,2025,natural_gas,other_uses_non_building,1049.107936,,
+reference,2025,natural_gas,other_uses_combined_heat_power,116.747437,116.747437,Table 22
+reference,2025,electricity,gross_end_use_total,5153.034605,5153.245449,Table 5
+reference,2025,electricity,ev_charging,,31.882487,Table 5
+reference,2025,electricity,own_generation,,159.508586,Table 5
+reference,2025,electricity,purchased_total,5025.408507,5025.61903,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2025,electricity,data_center_increment,100.208239,,
+reference,2025,electricity,data_center_total,457.689086,,
+reference,2026,electricity,heating,193.962097,193.962097,Table 5
+reference,2026,electricity,cooling,594.470263,594.470263,Table 5
+reference,2026,electricity,water_heating,72.722971,72.722971,Table 5
+reference,2026,electricity,ventilation,778.064668,778.064668,Table 5
+reference,2026,electricity,cooking,83.242364,83.242364,Table 5
+reference,2026,electricity,lighting,553.319275,553.319275,Table 5
+reference,2026,electricity,refrigeration,365.949452,365.949452,Table 5
+reference,2026,electricity,data_center_servers,403.170183,403.69615,Table 5
+reference,2026,electricity,computers_office_equipment,211.74401,211.74401,Table 5
+reference,2026,electricity,other_uses,2133.787394,2133.787394,Table 5
+reference,2026,electricity,other_uses_buildings,621.286917,,
+reference,2026,electricity,other_uses_non_building,1512.500476,,
+reference,2026,natural_gas,heating,1658.40888,1658.40888,Table 5
+reference,2026,natural_gas,cooling,17.604966,17.604966,Table 5
+reference,2026,natural_gas,water_heating,280.23681,280.23681,Table 5
+reference,2026,natural_gas,cooking,412.563384,412.563384,Table 5
+reference,2026,natural_gas,other_uses,1194.86928,1194.86928,Table 5
+reference,2026,natural_gas,other_uses_buildings,102.63271,,
+reference,2026,natural_gas,other_uses_non_building,973.221525,,
+reference,2026,natural_gas,other_uses_combined_heat_power,119.015045,119.015045,Table 22
+reference,2026,electricity,gross_end_use_total,5390.432678,5390.958309,Table 5
+reference,2026,electricity,ev_charging,,42.331092,Table 5
+reference,2026,electricity,own_generation,,178.672493,Table 5
+reference,2026,electricity,purchased_total,5254.091277,5254.616737,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2026,electricity,data_center_increment,116.928208,,
+reference,2026,electricity,data_center_total,520.098391,,
+reference,2027,electricity,heating,192.251012,192.251012,Table 5
+reference,2027,electricity,cooling,600.830376,600.830376,Table 5
+reference,2027,electricity,water_heating,72.043188,72.043188,Table 5
+reference,2027,electricity,ventilation,787.096202,787.096202,Table 5
+reference,2027,electricity,cooking,82.865909,82.865909,Table 5
+reference,2027,electricity,lighting,547.170401,547.170401,Table 5
+reference,2027,electricity,refrigeration,366.142869,366.142869,Table 5
+reference,2027,electricity,data_center_servers,451.365287,452.964932,Table 5
+reference,2027,electricity,computers_office_equipment,207.116008,207.116008,Table 5
+reference,2027,electricity,other_uses,2139.745235,2139.745235,Table 5
+reference,2027,electricity,other_uses_buildings,626.302538,,
+reference,2027,electricity,other_uses_non_building,1513.442698,,
+reference,2027,natural_gas,heating,1654.045939,1654.045939,Table 5
+reference,2027,natural_gas,cooling,17.930282,17.930282,Table 5
+reference,2027,natural_gas,water_heating,282.789469,282.789469,Table 5
+reference,2027,natural_gas,cooking,415.881634,415.881634,Table 5
+reference,2027,natural_gas,other_uses,1199.971437,1199.971437,Table 5
+reference,2027,natural_gas,other_uses_buildings,103.77214,,
+reference,2027,natural_gas,other_uses_non_building,975.732256,,
+reference,2027,natural_gas,other_uses_combined_heat_power,120.467041,120.467041,Table 22
+reference,2027,electricity,gross_end_use_total,5446.626486,5448.225975,Table 5
+reference,2027,electricity,ev_charging,,56.072228,Table 5
+reference,2027,electricity,own_generation,,194.802329,Table 5
+reference,2027,electricity,purchased_total,5307.896385,5309.495926,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2027,electricity,data_center_increment,132.597795,,
+reference,2027,electricity,data_center_total,583.963081,,
+reference,2028,electricity,heating,191.085473,191.085473,Table 5
+reference,2028,electricity,cooling,608.812094,608.812094,Table 5
+reference,2028,electricity,water_heating,71.589708,71.589708,Table 5
+reference,2028,electricity,ventilation,798.587501,798.587501,Table 5
+reference,2028,electricity,cooking,82.706422,82.706422,Table 5
+reference,2028,electricity,lighting,545.12006,545.12006,Table 5
+reference,2028,electricity,refrigeration,366.921782,366.921782,Table 5
+reference,2028,electricity,data_center_servers,500.639759,503.837049,Table 5
+reference,2028,electricity,computers_office_equipment,202.667162,202.667162,Table 5
+reference,2028,electricity,other_uses,2139.042377,2139.042377,Table 5
+reference,2028,electricity,other_uses_buildings,630.505489,,
+reference,2028,electricity,other_uses_non_building,1508.536889,,
+reference,2028,natural_gas,heating,1638.99529,1638.99529,Table 5
+reference,2028,natural_gas,cooling,18.154217,18.154217,Table 5
+reference,2028,natural_gas,water_heating,283.490956,283.490956,Table 5
+reference,2028,natural_gas,cooking,416.47011,416.47011,Table 5
+reference,2028,natural_gas,other_uses,1197.225332,1197.225332,Table 5
+reference,2028,natural_gas,other_uses_buildings,104.891013,,
+reference,2028,natural_gas,other_uses_non_building,970.448577,,
+reference,2028,natural_gas,other_uses_combined_heat_power,121.885742,121.885742,Table 22
+reference,2028,electricity,gross_end_use_total,5507.172339,5510.369778,Table 5
+reference,2028,electricity,ev_charging,,76.568253,Table 5
+reference,2028,electricity,own_generation,,202.56415,Table 5
+reference,2028,electricity,purchased_total,5381.176442,5384.373665,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2028,electricity,data_center_increment,148.402353,,
+reference,2028,electricity,data_center_total,649.042112,,
+reference,2029,electricity,heating,189.362347,189.362347,Table 5
+reference,2029,electricity,cooling,614.831865,614.831865,Table 5
+reference,2029,electricity,water_heating,70.942804,70.942804,Table 5
+reference,2029,electricity,ventilation,807.572901,807.572901,Table 5
+reference,2029,electricity,cooking,82.27171,82.27171,Table 5
+reference,2029,electricity,lighting,542.723954,542.723954,Table 5
+reference,2029,electricity,refrigeration,367.351413,367.351413,Table 5
+reference,2029,electricity,data_center_servers,550.885486,555.6826,Table 5
+reference,2029,electricity,computers_office_equipment,198.216394,198.216394,Table 5
+reference,2029,electricity,other_uses,2137.603283,2137.603283,Table 5
+reference,2029,electricity,other_uses_buildings,634.813724,,
+reference,2029,electricity,other_uses_non_building,1502.789559,,
+reference,2029,natural_gas,heating,1613.218665,1613.218665,Table 5
+reference,2029,natural_gas,cooling,18.27004,18.27004,Table 5
+reference,2029,natural_gas,water_heating,282.570243,282.570243,Table 5
+reference,2029,natural_gas,cooking,414.816499,414.816499,Table 5
+reference,2029,natural_gas,other_uses,1188.323736,1188.323736,Table 5
+reference,2029,natural_gas,other_uses_buildings,105.997071,,
+reference,2029,natural_gas,other_uses_non_building,958.941541,,
+reference,2029,natural_gas,other_uses_combined_heat_power,123.385124,123.385124,Table 22
+reference,2029,electricity,gross_end_use_total,5561.762157,5566.559315,Table 5
+reference,2029,electricity,ev_charging,,104.381725,Table 5
+reference,2029,electricity,own_generation,,207.11334,Table 5
+reference,2029,electricity,purchased_total,5459.030541,5463.828087,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2029,electricity,data_center_increment,163.8833,,
+reference,2029,electricity,data_center_total,714.768786,,
+reference,2030,electricity,heating,187.362701,187.362701,Table 5
+reference,2030,electricity,cooling,618.528008,618.528008,Table 5
+reference,2030,electricity,water_heating,69.979347,69.979347,Table 5
+reference,2030,electricity,ventilation,810.961366,810.961366,Table 5
+reference,2030,electricity,cooking,81.501827,81.501827,Table 5
+reference,2030,electricity,lighting,530.914545,530.914545,Table 5
+reference,2030,electricity,refrigeration,366.285861,366.285861,Table 5
+reference,2030,electricity,data_center_servers,601.694604,607.867837,Table 5
+reference,2030,electricity,computers_office_equipment,193.83131,193.83131,Table 5
+reference,2030,electricity,other_uses,2134.884834,2134.884834,Table 5
+reference,2030,electricity,other_uses_buildings,639.057811,,
+reference,2030,electricity,other_uses_non_building,1495.827024,,
+reference,2030,natural_gas,heating,1583.434463,1583.434463,Table 5
+reference,2030,natural_gas,cooling,18.368641,18.368641,Table 5
+reference,2030,natural_gas,water_heating,280.976474,280.976474,Table 5
+reference,2030,natural_gas,cooking,412.102997,412.102997,Table 5
+reference,2030,natural_gas,other_uses,1176.791191,1176.791191,Table 5
+reference,2030,natural_gas,other_uses_buildings,107.114683,,
+reference,2030,natural_gas,other_uses_non_building,944.6803,,
+reference,2030,natural_gas,other_uses_combined_heat_power,124.996208,124.996208,Table 22
+reference,2030,electricity,gross_end_use_total,5595.944402,5602.117062,Table 5
+reference,2030,electricity,ev_charging,,153.196007,Table 5
+reference,2030,electricity,own_generation,,213.571191,Table 5
+reference,2030,electricity,purchased_total,5535.569219,5541.741848,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2030,electricity,data_center_increment,178.793817,,
+reference,2030,electricity,data_center_total,780.488421,,
+reference,2031,electricity,heating,184.557706,184.557706,Table 5
+reference,2031,electricity,cooling,620.427489,620.427489,Table 5
+reference,2031,electricity,water_heating,68.717048,68.717048,Table 5
+reference,2031,electricity,ventilation,811.682284,811.682284,Table 5
+reference,2031,electricity,cooking,80.426782,80.426782,Table 5
+reference,2031,electricity,lighting,518.515706,518.515706,Table 5
+reference,2031,electricity,refrigeration,365.206301,365.206301,Table 5
+reference,2031,electricity,data_center_servers,653.024049,660.080671,Table 5
+reference,2031,electricity,computers_office_equipment,189.58354,189.58354,Table 5
+reference,2031,electricity,other_uses,2130.791664,2130.791664,Table 5
+reference,2031,electricity,other_uses_buildings,643.79746,,
+reference,2031,electricity,other_uses_non_building,1486.994204,,
+reference,2031,natural_gas,heating,1555.640697,1555.640697,Table 5
+reference,2031,natural_gas,cooling,18.522471,18.522471,Table 5
+reference,2031,natural_gas,water_heating,279.687345,279.687345,Table 5
+reference,2031,natural_gas,cooking,409.833491,409.833491,Table 5
+reference,2031,natural_gas,other_uses,1165.861607,1165.861607,Table 5
+reference,2031,natural_gas,other_uses_buildings,108.259428,,
+reference,2031,natural_gas,other_uses_non_building,930.568518,,
+reference,2031,natural_gas,other_uses_combined_heat_power,127.033661,127.033661,Table 22
+reference,2031,electricity,gross_end_use_total,5622.93257,5629.989147,Table 5
+reference,2031,electricity,ev_charging,,217.016414,Table 5
+reference,2031,electricity,own_generation,,224.558249,Table 5
+reference,2031,electricity,purchased_total,5615.390734,5622.447491,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2031,electricity,data_center_increment,193.286516,,
+reference,2031,electricity,data_center_total,846.310565,,
+reference,2032,electricity,heating,182.095394,182.095394,Table 5
+reference,2032,electricity,cooling,624.132335,624.132335,Table 5
+reference,2032,electricity,water_heating,67.625232,67.625232,Table 5
+reference,2032,electricity,ventilation,814.705253,814.705253,Table 5
+reference,2032,electricity,cooking,79.564385,79.564385,Table 5
+reference,2032,electricity,lighting,508.632004,508.632004,Table 5
+reference,2032,electricity,refrigeration,364.800036,364.800036,Table 5
+reference,2032,electricity,data_center_servers,705.188405,713.523746,Table 5
+reference,2032,electricity,computers_office_equipment,185.39691,185.39691,Table 5
+reference,2032,electricity,other_uses,2128.430605,2128.430605,Table 5
+reference,2032,electricity,other_uses_buildings,648.959703,,
+reference,2032,electricity,other_uses_non_building,1479.470902,,
+reference,2032,natural_gas,heating,1533.283949,1533.283949,Table 5
+reference,2032,natural_gas,cooling,18.787531,18.787531,Table 5
+reference,2032,natural_gas,water_heating,279.538423,279.538423,Table 5
+reference,2032,natural_gas,cooking,409.12649,409.12649,Table 5
+reference,2032,natural_gas,other_uses,1157.979965,1157.979965,Table 5
+reference,2032,natural_gas,other_uses_buildings,109.436036,,
+reference,2032,natural_gas,other_uses_non_building,919.776885,,
+reference,2032,natural_gas,other_uses_combined_heat_power,128.767044,128.767044,Table 22
+reference,2032,electricity,gross_end_use_total,5660.570559,5668.905735,Table 5
+reference,2032,electricity,ev_charging,,299.73802,Table 5
+reference,2032,electricity,own_generation,,228.892878,Table 5
+reference,2032,electricity,purchased_total,5731.415701,5739.750862,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2032,electricity,data_center_increment,208.004986,,
+reference,2032,electricity,data_center_total,913.193392,,
+reference,2033,electricity,heating,180.014446,180.014446,Table 5
+reference,2033,electricity,cooling,629.750371,629.750371,Table 5
+reference,2033,electricity,water_heating,66.710494,66.710494,Table 5
+reference,2033,electricity,ventilation,820.037961,820.037961,Table 5
+reference,2033,electricity,cooking,78.912735,78.912735,Table 5
+reference,2033,electricity,lighting,500.454307,500.454307,Table 5
+reference,2033,electricity,refrigeration,365.02248,365.02248,Table 5
+reference,2033,electricity,data_center_servers,758.081733,768.207431,Table 5
+reference,2033,electricity,computers_office_equipment,182.127938,182.127938,Table 5
+reference,2033,electricity,other_uses,2129.371881,2129.371881,Table 5
+reference,2033,electricity,other_uses_buildings,655.074403,,
+reference,2033,electricity,other_uses_non_building,1474.297479,,
+reference,2033,natural_gas,heating,1518.744469,1518.744469,Table 5
+reference,2033,natural_gas,cooling,19.179665,19.179665,Table 5
+reference,2033,natural_gas,water_heating,280.961424,280.961424,Table 5
+reference,2033,natural_gas,cooking,410.640299,410.640299,Table 5
+reference,2033,natural_gas,other_uses,1154.822588,1154.822588,Table 5
+reference,2033,natural_gas,other_uses_buildings,110.645317,,
+reference,2033,natural_gas,other_uses_non_building,913.676371,,
+reference,2033,natural_gas,other_uses_combined_heat_power,130.5009,130.5009,Table 22
+reference,2033,electricity,gross_end_use_total,5710.484347,5720.609665,Table 5
+reference,2033,electricity,ev_charging,,387.134612,Table 5
+reference,2033,electricity,own_generation,,233.06863,Table 5
+reference,2033,electricity,purchased_total,5864.550328,5874.676228,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2033,electricity,data_center_increment,223.323063,,
+reference,2033,electricity,data_center_total,981.404796,,
+reference,2034,electricity,heating,178.433105,178.433105,Table 5
+reference,2034,electricity,cooling,637.671888,637.671888,Table 5
+reference,2034,electricity,water_heating,66.01949,66.01949,Table 5
+reference,2034,electricity,ventilation,828.115702,828.115702,Table 5
+reference,2034,electricity,cooking,78.50574,78.50574,Table 5
+reference,2034,electricity,lighting,494.302422,494.302422,Table 5
+reference,2034,electricity,refrigeration,365.904599,365.904599,Table 5
+reference,2034,electricity,data_center_servers,811.590487,824.157894,Table 5
+reference,2034,electricity,computers_office_equipment,179.454133,179.454133,Table 5
+reference,2034,electricity,other_uses,2130.579472,2130.579472,Table 5
+reference,2034,electricity,other_uses_buildings,661.755345,,
+reference,2034,electricity,other_uses_non_building,1468.824126,,
+reference,2034,natural_gas,heating,1508.970499,1508.970499,Table 5
+reference,2034,natural_gas,cooling,19.693324,19.693324,Table 5
+reference,2034,natural_gas,water_heating,283.11193,283.11193,Table 5
+reference,2034,natural_gas,cooking,413.279831,413.279831,Table 5
+reference,2034,natural_gas,other_uses,1153.93734,1153.93734,Table 5
+reference,2034,natural_gas,other_uses_buildings,111.888008,,
+reference,2034,natural_gas,other_uses_non_building,909.957229,,
+reference,2034,natural_gas,other_uses_combined_heat_power,132.092102,132.092102,Table 22
+reference,2034,electricity,gross_end_use_total,5770.577038,5783.144474,Table 5
+reference,2034,electricity,ev_charging,,476.841897,Table 5
+reference,2034,electricity,own_generation,,235.489398,Table 5
+reference,2034,electricity,purchased_total,6011.929536,6024.497509,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2034,electricity,data_center_increment,239.354102,,
+reference,2034,electricity,data_center_total,1050.94459,,
+reference,2035,electricity,heating,177.063659,177.063659,Table 5
+reference,2035,electricity,cooling,646.807909,646.807909,Table 5
+reference,2035,electricity,water_heating,65.459907,65.459907,Table 5
+reference,2035,electricity,ventilation,837.684572,837.684572,Table 5
+reference,2035,electricity,cooking,78.211196,78.211196,Table 5
+reference,2035,electricity,lighting,489.309371,489.309371,Table 5
+reference,2035,electricity,refrigeration,367.216349,367.216349,Table 5
+reference,2035,electricity,data_center_servers,865.648698,881.097615,Table 5
+reference,2035,electricity,computers_office_equipment,176.944941,176.944941,Table 5
+reference,2035,electricity,other_uses,2133.115768,2133.115768,Table 5
+reference,2035,electricity,other_uses_buildings,669.160957,,
+reference,2035,electricity,other_uses_non_building,1463.954811,,
+reference,2035,natural_gas,heating,1501.293182,1501.293182,Table 5
+reference,2035,natural_gas,cooling,20.281987,20.281987,Table 5
+reference,2035,natural_gas,water_heating,285.828084,285.828084,Table 5
+reference,2035,natural_gas,cooking,416.720837,416.720837,Table 5
+reference,2035,natural_gas,other_uses,1154.471874,1154.471874,Table 5
+reference,2035,natural_gas,other_uses_buildings,113.172114,,
+reference,2035,natural_gas,other_uses_non_building,907.555864,,
+reference,2035,natural_gas,other_uses_combined_heat_power,133.743896,133.743896,Table 22
+reference,2035,electricity,gross_end_use_total,5837.46237,5852.911472,Table 5
+reference,2035,electricity,ev_charging,,564.296484,Table 5
+reference,2035,electricity,own_generation,,237.493291,Table 5
+reference,2035,electricity,purchased_total,6164.265562,6179.714203,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2035,electricity,data_center_increment,255.862724,,
+reference,2035,electricity,data_center_total,1121.511422,,
+reference,2036,electricity,heating,175.60783,175.60783,Table 5
+reference,2036,electricity,cooling,656.043828,656.043828,Table 5
+reference,2036,electricity,water_heating,64.894855,64.894855,Table 5
+reference,2036,electricity,ventilation,847.433925,847.433925,Table 5
+reference,2036,electricity,cooking,77.892095,77.892095,Table 5
+reference,2036,electricity,lighting,485.149711,485.149711,Table 5
+reference,2036,electricity,refrigeration,368.705451,368.705451,Table 5
+reference,2036,electricity,data_center_servers,919.815368,938.304007,Table 5
+reference,2036,electricity,computers_office_equipment,175.024077,175.024077,Table 5
+reference,2036,electricity,other_uses,2138.37266,2138.37266,Table 5
+reference,2036,electricity,other_uses_buildings,677.748923,,
+reference,2036,electricity,other_uses_non_building,1460.623737,,
+reference,2036,natural_gas,heating,1494.052291,1494.052291,Table 5
+reference,2036,natural_gas,cooling,20.91898,20.91898,Table 5
+reference,2036,natural_gas,water_heating,288.799077,288.799077,Table 5
+reference,2036,natural_gas,cooking,420.437783,420.437783,Table 5
+reference,2036,natural_gas,other_uses,1155.531168,1155.531168,Table 5
+reference,2036,natural_gas,other_uses_buildings,114.494463,,
+reference,2036,natural_gas,other_uses_non_building,905.54966,,
+reference,2036,natural_gas,other_uses_combined_heat_power,135.487045,135.487045,Table 22
+reference,2036,electricity,gross_end_use_total,5908.9398,5927.428246,Table 5
+reference,2036,electricity,ev_charging,,648.096561,Table 5
+reference,2036,electricity,own_generation,,240.121946,Table 5
+reference,2036,electricity,purchased_total,6316.914416,6335.402489,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2036,electricity,data_center_increment,272.840069,,
+reference,2036,electricity,data_center_total,1192.655437,,
+reference,2037,electricity,heating,173.758551,173.758551,Table 5
+reference,2037,electricity,cooling,664.580166,664.580166,Table 5
+reference,2037,electricity,water_heating,64.226396,64.226396,Table 5
+reference,2037,electricity,ventilation,856.109202,856.109202,Table 5
+reference,2037,electricity,cooking,77.435143,77.435143,Table 5
+reference,2037,electricity,lighting,481.161684,481.161684,Table 5
+reference,2037,electricity,refrigeration,370.119035,370.119035,Table 5
+reference,2037,electricity,data_center_servers,974.004597,995.425045,Table 5
+reference,2037,electricity,computers_office_equipment,173.225909,173.225909,Table 5
+reference,2037,electricity,other_uses,2143.994093,2143.994093,Table 5
+reference,2037,electricity,other_uses_buildings,686.6701,,
+reference,2037,electricity,other_uses_non_building,1457.323993,,
+reference,2037,natural_gas,heating,1484.744072,1484.744072,Table 5
+reference,2037,natural_gas,cooling,21.579947,21.579947,Table 5
+reference,2037,natural_gas,water_heating,291.623026,291.623026,Table 5
+reference,2037,natural_gas,cooking,423.897237,423.897237,Table 5
+reference,2037,natural_gas,other_uses,1155.604601,1155.604601,Table 5
+reference,2037,natural_gas,other_uses_buildings,115.845683,,
+reference,2037,natural_gas,other_uses_non_building,902.383536,,
+reference,2037,natural_gas,other_uses_combined_heat_power,137.375381,137.375381,Table 22
+reference,2037,electricity,gross_end_use_total,5978.614778,6000.035286,Table 5
+reference,2037,electricity,ev_charging,,728.713453,Table 5
+reference,2037,electricity,own_generation,,245.332286,Table 5
+reference,2037,electricity,purchased_total,6461.995945,6483.416557,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2037,electricity,data_center_increment,289.894454,,
+reference,2037,electricity,data_center_total,1263.899051,,
+reference,2038,electricity,heating,171.165988,171.165988,Table 5
+reference,2038,electricity,cooling,670.905769,670.905769,Table 5
+reference,2038,electricity,water_heating,63.305207,63.305207,Table 5
+reference,2038,electricity,ventilation,861.82791,861.82791,Table 5
+reference,2038,electricity,cooking,76.691084,76.691084,Table 5
+reference,2038,electricity,lighting,476.172298,476.172298,Table 5
+reference,2038,electricity,refrigeration,371.021539,371.021539,Table 5
+reference,2038,electricity,data_center_servers,1027.414931,1051.186442,Table 5
+reference,2038,electricity,computers_office_equipment,171.445131,171.445131,Table 5
+reference,2038,electricity,other_uses,2149.15061,2149.15061,Table 5
+reference,2038,electricity,other_uses_buildings,696.096,,
+reference,2038,electricity,other_uses_non_building,1453.05461,,
+reference,2038,natural_gas,heating,1476.219535,1476.219535,Table 5
+reference,2038,natural_gas,cooling,22.281824,22.281824,Table 5
+reference,2038,natural_gas,water_heating,294.944078,294.944078,Table 5
+reference,2038,natural_gas,cooking,427.921683,427.921683,Table 5
+reference,2038,natural_gas,other_uses,1157.50742,1157.50742,Table 5
+reference,2038,natural_gas,other_uses_buildings,117.170404,,
+reference,2038,natural_gas,other_uses_non_building,900.552653,,
+reference,2038,natural_gas,other_uses_combined_heat_power,139.784363,139.784363,Table 22
+reference,2038,electricity,gross_end_use_total,6039.100467,6062.871933,Table 5
+reference,2038,electricity,ev_charging,,805.436611,Table 5
+reference,2038,electricity,own_generation,,257.778198,Table 5
+reference,2038,electricity,purchased_total,6586.75888,6610.530376,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2038,electricity,data_center_increment,306.592915,,
+reference,2038,electricity,data_center_total,1334.007847,,
+reference,2039,electricity,heating,168.803304,168.803304,Table 5
+reference,2039,electricity,cooling,677.735209,677.735209,Table 5
+reference,2039,electricity,water_heating,62.472597,62.472597,Table 5
+reference,2039,electricity,ventilation,868.872404,868.872404,Table 5
+reference,2039,electricity,cooking,76.0286,76.0286,Table 5
+reference,2039,electricity,lighting,472.600847,472.600847,Table 5
+reference,2039,electricity,refrigeration,372.116357,372.116357,Table 5
+reference,2039,electricity,data_center_servers,1079.60693,1106.163859,Table 5
+reference,2039,electricity,computers_office_equipment,170.383498,170.383498,Table 5
+reference,2039,electricity,other_uses,2155.061722,2155.061722,Table 5
+reference,2039,electricity,other_uses_buildings,705.746156,,
+reference,2039,electricity,other_uses_non_building,1449.315566,,
+reference,2039,natural_gas,heating,1467.84234,1467.84234,Table 5
+reference,2039,natural_gas,cooling,23.024671,23.024671,Table 5
+reference,2039,natural_gas,water_heating,298.275203,298.275203,Table 5
+reference,2039,natural_gas,cooking,431.940615,431.940615,Table 5
+reference,2039,natural_gas,other_uses,1159.120798,1159.120798,Table 5
+reference,2039,natural_gas,other_uses_buildings,118.463673,,
+reference,2039,natural_gas,other_uses_non_building,899.058843,,
+reference,2039,natural_gas,other_uses_combined_heat_power,141.598282,141.598282,Table 22
+reference,2039,electricity,gross_end_use_total,6103.681469,6130.238533,Table 5
+reference,2039,electricity,ev_charging,,878.666937,Table 5
+reference,2039,electricity,own_generation,,262.03382,Table 5
+reference,2039,electricity,purchased_total,6720.314586,6746.871471,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2039,electricity,data_center_increment,323.918396,,
+reference,2039,electricity,data_center_total,1403.525325,,
+reference,2040,electricity,heating,166.516587,166.516587,Table 5
+reference,2040,electricity,cooling,685.639083,685.639083,Table 5
+reference,2040,electricity,water_heating,61.6946,61.6946,Table 5
+reference,2040,electricity,ventilation,876.697838,876.697838,Table 5
+reference,2040,electricity,cooking,75.422868,75.422868,Table 5
+reference,2040,electricity,lighting,467.653632,467.653632,Table 5
+reference,2040,electricity,refrigeration,373.283356,373.283356,Table 5
+reference,2040,electricity,data_center_servers,1130.035153,1159.751534,Table 5
+reference,2040,electricity,computers_office_equipment,169.066757,169.066757,Table 5
+reference,2040,electricity,other_uses,2161.598206,2161.598206,Table 5
+reference,2040,electricity,other_uses_buildings,715.69614,,
+reference,2040,electricity,other_uses_non_building,1445.902066,,
+reference,2040,natural_gas,heating,1459.057331,1459.057331,Table 5
+reference,2040,natural_gas,cooling,23.820199,23.820199,Table 5
+reference,2040,natural_gas,water_heating,301.389307,301.389307,Table 5
+reference,2040,natural_gas,cooking,435.602844,435.602844,Table 5
+reference,2040,natural_gas,other_uses,1160.559654,1160.559654,Table 5
+reference,2040,natural_gas,other_uses_buildings,119.727664,,
+reference,2040,natural_gas,other_uses_non_building,897.460149,,
+reference,2040,natural_gas,other_uses_combined_heat_power,143.371841,143.371841,Table 22
+reference,2040,electricity,gross_end_use_total,6167.608081,6197.324753,Table 5
+reference,2040,electricity,ev_charging,,948.011756,Table 5
+reference,2040,electricity,own_generation,,268.748194,Table 5
+reference,2040,electricity,purchased_total,6846.871643,6876.588345,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2040,electricity,data_center_increment,341.640727,,
+reference,2040,electricity,data_center_total,1471.675881,,
+reference,2041,electricity,heating,164.343908,164.343908,Table 5
+reference,2041,electricity,cooling,695.494711,695.494711,Table 5
+reference,2041,electricity,water_heating,61.027523,61.027523,Table 5
+reference,2041,electricity,ventilation,885.891557,885.891557,Table 5
+reference,2041,electricity,cooking,74.955754,74.955754,Table 5
+reference,2041,electricity,lighting,464.448869,464.448869,Table 5
+reference,2041,electricity,refrigeration,374.839932,374.839932,Table 5
+reference,2041,electricity,data_center_servers,1178.513036,1211.841583,Table 5
+reference,2041,electricity,computers_office_equipment,167.460248,167.460248,Table 5
+reference,2041,electricity,other_uses,2168.667316,2168.667316,Table 5
+reference,2041,electricity,other_uses_buildings,725.663664,,
+reference,2041,electricity,other_uses_non_building,1443.003652,,
+reference,2041,natural_gas,heating,1449.079752,1449.079752,Table 5
+reference,2041,natural_gas,cooling,24.624115,24.624115,Table 5
+reference,2041,natural_gas,water_heating,304.264516,304.264516,Table 5
+reference,2041,natural_gas,cooking,439.015329,439.015329,Table 5
+reference,2041,natural_gas,other_uses,1160.792828,1160.792828,Table 5
+reference,2041,natural_gas,other_uses_buildings,120.939873,,
+reference,2041,natural_gas,other_uses_non_building,894.860325,,
+reference,2041,natural_gas,other_uses_combined_heat_power,144.99263,144.99263,Table 22
+reference,2041,electricity,gross_end_use_total,6235.642855,6268.971443,Table 5
+reference,2041,electricity,ev_charging,,1011.880636,Table 5
+reference,2041,electricity,own_generation,,272.036582,Table 5
+reference,2041,electricity,purchased_total,6975.486909,7008.815765,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2041,electricity,data_center_increment,359.961631,,
+reference,2041,electricity,data_center_total,1538.474667,,
+reference,2042,electricity,heating,162.020653,162.020653,Table 5
+reference,2042,electricity,cooling,705.270052,705.270052,Table 5
+reference,2042,electricity,water_heating,60.319629,60.319629,Table 5
+reference,2042,electricity,ventilation,894.479215,894.479215,Table 5
+reference,2042,electricity,cooking,74.428119,74.428119,Table 5
+reference,2042,electricity,lighting,461.513191,461.513191,Table 5
+reference,2042,electricity,refrigeration,376.199245,376.199245,Table 5
+reference,2042,electricity,data_center_servers,1224.157011,1261.105776,Table 5
+reference,2042,electricity,computers_office_equipment,166.603014,166.603014,Table 5
+reference,2042,electricity,other_uses,2175.845861,2175.845861,Table 5
+reference,2042,electricity,other_uses_buildings,735.737514,,
+reference,2042,electricity,other_uses_non_building,1440.108347,,
+reference,2042,natural_gas,heating,1438.792586,1438.792586,Table 5
+reference,2042,natural_gas,cooling,25.454579,25.454579,Table 5
+reference,2042,natural_gas,water_heating,307.025224,307.025224,Table 5
+reference,2042,natural_gas,cooking,442.233115,442.233115,Table 5
+reference,2042,natural_gas,other_uses,1161.099672,1161.099672,Table 5
+reference,2042,natural_gas,other_uses_buildings,122.10339,,
+reference,2042,natural_gas,other_uses_non_building,892.300482,,
+reference,2042,natural_gas,other_uses_combined_heat_power,146.695801,146.695801,Table 22
+reference,2042,electricity,gross_end_use_total,6300.835991,6337.784767,Table 5
+reference,2042,electricity,ev_charging,,1071.155667,Table 5
+reference,2042,electricity,own_generation,,277.589172,Table 5
+reference,2042,electricity,purchased_total,7094.402486,7131.351471,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2042,electricity,data_center_increment,378.785404,,
+reference,2042,electricity,data_center_total,1602.942415,,
+reference,2043,electricity,heating,159.623384,159.623384,Table 5
+reference,2043,electricity,cooling,715.018034,715.018034,Table 5
+reference,2043,electricity,water_heating,59.599534,59.599534,Table 5
+reference,2043,electricity,ventilation,902.946651,902.946651,Table 5
+reference,2043,electricity,cooking,73.873006,73.873006,Table 5
+reference,2043,electricity,lighting,459.138513,459.138513,Table 5
+reference,2043,electricity,refrigeration,377.456486,377.456486,Table 5
+reference,2043,electricity,data_center_servers,1266.928519,1307.567358,Table 5
+reference,2043,electricity,computers_office_equipment,164.933622,164.933622,Table 5
+reference,2043,electricity,other_uses,2183.388948,2183.388948,Table 5
+reference,2043,electricity,other_uses_buildings,746.009263,,
+reference,2043,electricity,other_uses_non_building,1437.379685,,
+reference,2043,natural_gas,heating,1428.909302,1428.909302,Table 5
+reference,2043,natural_gas,cooling,26.333023,26.333023,Table 5
+reference,2043,natural_gas,water_heating,309.905112,309.905112,Table 5
+reference,2043,natural_gas,cooking,445.596993,445.596993,Table 5
+reference,2043,natural_gas,other_uses,1161.884308,1161.884308,Table 5
+reference,2043,natural_gas,other_uses_buildings,123.229397,,
+reference,2043,natural_gas,other_uses_non_building,890.391635,,
+reference,2043,natural_gas,other_uses_combined_heat_power,148.263275,148.263275,Table 22
+reference,2043,electricity,gross_end_use_total,6362.906697,6403.545856,Table 5
+reference,2043,electricity,ev_charging,,1124.456286,Table 5
+reference,2043,electricity,own_generation,,281.202108,Table 5
+reference,2043,electricity,purchased_total,7206.160876,7246.799469,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2043,electricity,data_center_increment,397.560971,,
+reference,2043,electricity,data_center_total,1664.48949,,
+reference,2044,electricity,heating,157.168865,157.168865,Table 5
+reference,2044,electricity,cooling,724.606037,724.606037,Table 5
+reference,2044,electricity,water_heating,58.885913,58.885913,Table 5
+reference,2044,electricity,ventilation,911.39698,911.39698,Table 5
+reference,2044,electricity,cooking,73.301233,73.301233,Table 5
+reference,2044,electricity,lighting,457.19406,457.19406,Table 5
+reference,2044,electricity,refrigeration,378.632337,378.632337,Table 5
+reference,2044,electricity,data_center_servers,1306.102473,1350.487947,Table 5
+reference,2044,electricity,computers_office_equipment,163.560614,163.560614,Table 5
+reference,2044,electricity,other_uses,2191.021204,2191.021204,Table 5
+reference,2044,electricity,other_uses_buildings,756.151429,,
+reference,2044,electricity,other_uses_non_building,1434.869775,,
+reference,2044,natural_gas,heating,1419.473529,1419.473529,Table 5
+reference,2044,natural_gas,cooling,27.259745,27.259745,Table 5
+reference,2044,natural_gas,water_heating,312.898695,312.898695,Table 5
+reference,2044,natural_gas,cooking,449.085981,449.085981,Table 5
+reference,2044,natural_gas,other_uses,1163.43379,1163.43379,Table 5
+reference,2044,natural_gas,other_uses_buildings,124.323322,,
+reference,2044,natural_gas,other_uses_non_building,889.248988,,
+reference,2044,natural_gas,other_uses_combined_heat_power,149.861481,149.861481,Table 22
+reference,2044,electricity,gross_end_use_total,6421.869718,6466.254711,Table 5
+reference,2044,electricity,ev_charging,,1173.342943,Table 5
+reference,2044,electricity,own_generation,,285.401523,Table 5
+reference,2044,electricity,purchased_total,7309.811138,7354.195595,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2044,electricity,data_center_increment,416.679549,,
+reference,2044,electricity,data_center_total,1722.782022,,
+reference,2045,electricity,heating,154.730186,154.730186,Table 5
+reference,2045,electricity,cooling,734.61467,734.61467,Table 5
+reference,2045,electricity,water_heating,58.180518,58.180518,Table 5
+reference,2045,electricity,ventilation,919.91502,919.91502,Table 5
+reference,2045,electricity,cooking,72.719052,72.719052,Table 5
+reference,2045,electricity,lighting,455.620766,455.620766,Table 5
+reference,2045,electricity,refrigeration,379.744738,379.744738,Table 5
+reference,2045,electricity,data_center_servers,1341.765175,1389.947176,Table 5
+reference,2045,electricity,computers_office_equipment,161.945641,161.945641,Table 5
+reference,2045,electricity,other_uses,2199.123383,2199.123383,Table 5
+reference,2045,electricity,other_uses_buildings,766.713699,,
+reference,2045,electricity,other_uses_non_building,1432.409684,,
+reference,2045,natural_gas,heating,1410.770178,1410.770178,Table 5
+reference,2045,natural_gas,cooling,28.265487,28.265487,Table 5
+reference,2045,natural_gas,water_heating,315.986276,315.986276,Table 5
+reference,2045,natural_gas,cooking,452.635497,452.635497,Table 5
+reference,2045,natural_gas,other_uses,1165.736437,1165.736437,Table 5
+reference,2045,natural_gas,other_uses_buildings,125.392883,,
+reference,2045,natural_gas,other_uses_non_building,888.929812,,
+reference,2045,natural_gas,other_uses_combined_heat_power,151.413742,151.413742,Table 22
+reference,2045,electricity,gross_end_use_total,6478.359151,6526.541233,Table 5
+reference,2045,electricity,ev_charging,,1218.541026,Table 5
+reference,2045,electricity,own_generation,,289.239496,Table 5
+reference,2045,electricity,purchased_total,7407.660681,7455.842972,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2045,electricity,data_center_increment,436.147585,,
+reference,2045,electricity,data_center_total,1777.912761,,
+reference,2046,electricity,heating,152.257338,152.257338,Table 5
+reference,2046,electricity,cooling,744.542181,744.542181,Table 5
+reference,2046,electricity,water_heating,57.475828,57.475828,Table 5
+reference,2046,electricity,ventilation,928.51162,928.51162,Table 5
+reference,2046,electricity,cooking,72.123297,72.123297,Table 5
+reference,2046,electricity,lighting,454.386979,454.386979,Table 5
+reference,2046,electricity,refrigeration,380.797595,380.797595,Table 5
+reference,2046,electricity,data_center_servers,1373.178289,1425.127745,Table 5
+reference,2046,electricity,computers_office_equipment,160.693914,160.693914,Table 5
+reference,2046,electricity,other_uses,2207.422733,2207.422733,Table 5
+reference,2046,electricity,other_uses_buildings,777.149199,,
+reference,2046,electricity,other_uses_non_building,1430.273534,,
+reference,2046,natural_gas,heating,1400.522351,1400.522351,Table 5
+reference,2046,natural_gas,cooling,29.278122,29.278122,Table 5
+reference,2046,natural_gas,water_heating,318.794608,318.794608,Table 5
+reference,2046,natural_gas,cooking,455.759823,455.759823,Table 5
+reference,2046,natural_gas,other_uses,1167.103052,1167.103052,Table 5
+reference,2046,natural_gas,other_uses_buildings,126.443121,,
+reference,2046,natural_gas,other_uses_non_building,887.787586,,
+reference,2046,natural_gas,other_uses_combined_heat_power,152.872345,152.872345,Table 22
+reference,2046,electricity,gross_end_use_total,6531.389774,6583.339214,Table 5
+reference,2046,electricity,ev_charging,,1259.822726,Table 5
+reference,2046,electricity,own_generation,,291.998416,Table 5
+reference,2046,electricity,purchased_total,7499.214084,7551.163673,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2046,electricity,data_center_increment,456.052837,,
+reference,2046,electricity,data_center_total,1829.231126,,
+reference,2047,electricity,heating,149.706408,149.706408,Table 5
+reference,2047,electricity,cooling,754.495144,754.495144,Table 5
+reference,2047,electricity,water_heating,56.762978,56.762978,Table 5
+reference,2047,electricity,ventilation,936.94675,936.94675,Table 5
+reference,2047,electricity,cooking,71.502395,71.502395,Table 5
+reference,2047,electricity,lighting,453.339964,453.339964,Table 5
+reference,2047,electricity,refrigeration,381.765991,381.765991,Table 5
+reference,2047,electricity,data_center_servers,1400.243021,1455.812573,Table 5
+reference,2047,electricity,computers_office_equipment,158.604607,158.604607,Table 5
+reference,2047,electricity,other_uses,2216.099739,2216.099739,Table 5
+reference,2047,electricity,other_uses_buildings,787.594421,,
+reference,2047,electricity,other_uses_non_building,1428.505318,,
+reference,2047,natural_gas,heating,1389.765382,1389.765382,Table 5
+reference,2047,natural_gas,cooling,30.33551,30.33551,Table 5
+reference,2047,natural_gas,water_heating,321.52003,321.52003,Table 5
+reference,2047,natural_gas,cooking,458.746612,458.746612,Table 5
+reference,2047,natural_gas,other_uses,1168.319702,1168.319702,Table 5
+reference,2047,natural_gas,other_uses_buildings,127.479159,,
+reference,2047,natural_gas,other_uses_non_building,886.440031,,
+reference,2047,natural_gas,other_uses_combined_heat_power,154.400513,154.400513,Table 22
+reference,2047,electricity,gross_end_use_total,6579.466998,6635.036945,Table 5
+reference,2047,electricity,ev_charging,,1296.464443,Table 5
+reference,2047,electricity,own_generation,,296.777755,Table 5
+reference,2047,electricity,purchased_total,7579.153686,7634.72414,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2047,electricity,data_center_increment,475.876691,,
+reference,2047,electricity,data_center_total,1876.119712,,
+reference,2048,electricity,heating,147.137925,147.137925,Table 5
+reference,2048,electricity,cooling,764.666378,764.666378,Table 5
+reference,2048,electricity,water_heating,56.035679,56.035679,Table 5
+reference,2048,electricity,ventilation,945.453703,945.453703,Table 5
+reference,2048,electricity,cooking,70.872411,70.872411,Table 5
+reference,2048,electricity,lighting,452.426672,452.426672,Table 5
+reference,2048,electricity,refrigeration,382.687718,382.687718,Table 5
+reference,2048,electricity,data_center_servers,1422.532938,1481.615305,Table 5
+reference,2048,electricity,computers_office_equipment,156.274468,156.274468,Table 5
+reference,2048,electricity,other_uses,2225.399017,2225.399017,Table 5
+reference,2048,electricity,other_uses_buildings,798.485524,,
+reference,2048,electricity,other_uses_non_building,1426.913493,,
+reference,2048,natural_gas,heating,1379.266381,1379.266381,Table 5
+reference,2048,natural_gas,cooling,31.436957,31.436957,Table 5
+reference,2048,natural_gas,water_heating,324.2746,324.2746,Table 5
+reference,2048,natural_gas,cooking,461.763024,461.763024,Table 5
+reference,2048,natural_gas,other_uses,1169.637918,1169.637918,Table 5
+reference,2048,natural_gas,other_uses_buildings,128.506274,,
+reference,2048,natural_gas,other_uses_non_building,885.23255,,
+reference,2048,natural_gas,other_uses_combined_heat_power,155.899094,155.899094,Table 22
+reference,2048,electricity,gross_end_use_total,6623.486909,6682.569027,Table 5
+reference,2048,electricity,ev_charging,,1328.895092,Table 5
+reference,2048,electricity,own_generation,,300.707847,Table 5
+reference,2048,electricity,purchased_total,7651.674154,7710.756779,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2048,electricity,data_center_increment,496.039286,,
+reference,2048,electricity,data_center_total,1918.572224,,
+reference,2049,electricity,heating,144.513205,144.513205,Table 5
+reference,2049,electricity,cooling,775.013864,775.013864,Table 5
+reference,2049,electricity,water_heating,55.294573,55.294573,Table 5
+reference,2049,electricity,ventilation,953.812361,953.812361,Table 5
+reference,2049,electricity,cooking,70.217341,70.217341,Table 5
+reference,2049,electricity,lighting,451.564461,451.564461,Table 5
+reference,2049,electricity,refrigeration,383.528143,383.528143,Table 5
+reference,2049,electricity,data_center_servers,1439.747496,1502.121806,Table 5
+reference,2049,electricity,computers_office_equipment,153.692245,153.692245,Table 5
+reference,2049,electricity,other_uses,2235.003471,2235.003471,Table 5
+reference,2049,electricity,other_uses_buildings,809.294939,,
+reference,2049,electricity,other_uses_non_building,1425.708532,,
+reference,2049,natural_gas,heating,1368.52932,1368.52932,Table 5
+reference,2049,natural_gas,cooling,32.590605,32.590605,Table 5
+reference,2049,natural_gas,water_heating,326.971292,326.971292,Table 5
+reference,2049,natural_gas,cooking,464.684427,464.684427,Table 5
+reference,2049,natural_gas,other_uses,1170.930624,1170.930624,Table 5
+reference,2049,natural_gas,other_uses_buildings,129.52691,,
+reference,2049,natural_gas,other_uses_non_building,883.961011,,
+reference,2049,natural_gas,other_uses_combined_heat_power,157.442703,157.442703,Table 22
+reference,2049,electricity,gross_end_use_total,6662.387161,6724.761486,Table 5
+reference,2049,electricity,ev_charging,,1358.068943,Table 5
+reference,2049,electricity,own_generation,,305.662602,Table 5
+reference,2049,electricity,purchased_total,7714.793502,7777.16732,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2049,electricity,data_center_increment,516.398089,,
+reference,2049,electricity,data_center_total,1956.145585,,
+reference,2050,electricity,heating,141.893715,141.893715,Table 5
+reference,2050,electricity,cooling,785.589457,785.589457,Table 5
+reference,2050,electricity,water_heating,54.56252,54.56252,Table 5
+reference,2050,electricity,ventilation,962.38631,962.38631,Table 5
+reference,2050,electricity,cooking,69.561638,69.561638,Table 5
+reference,2050,electricity,lighting,450.908363,450.908363,Table 5
+reference,2050,electricity,refrigeration,384.344786,384.344786,Table 5
+reference,2050,electricity,data_center_servers,1454.821527,1520.461202,Table 5
+reference,2050,electricity,computers_office_equipment,150.865436,150.865436,Table 5
+reference,2050,electricity,other_uses,2245.546579,2245.546579,Table 5
+reference,2050,electricity,other_uses_buildings,820.401428,,
+reference,2050,electricity,other_uses_non_building,1425.145151,,
+reference,2050,natural_gas,heating,1357.643485,1357.643485,Table 5
+reference,2050,natural_gas,cooling,33.797406,33.797406,Table 5
+reference,2050,natural_gas,water_heating,329.621404,329.621404,Table 5
+reference,2050,natural_gas,cooking,467.52274,467.52274,Table 5
+reference,2050,natural_gas,other_uses,1171.957016,1171.957016,Table 5
+reference,2050,natural_gas,other_uses_buildings,130.543624,,
+reference,2050,natural_gas,other_uses_non_building,882.516114,,
+reference,2050,natural_gas,other_uses_combined_heat_power,158.897278,158.897278,Table 22
+reference,2050,electricity,gross_end_use_total,6700.48033,6766.119957,Table 5
+reference,2050,electricity,ev_charging,,1383.964658,Table 5
+reference,2050,electricity,own_generation,,308.810472,Table 5
+reference,2050,electricity,purchased_total,7775.634516,7841.274261,Table 5; C-CDM value = its gross + Table 5 EV charging - own generation
+reference,2050,electricity,data_center_increment,537.08067,,
+reference,2050,electricity,data_center_total,1991.902197,,

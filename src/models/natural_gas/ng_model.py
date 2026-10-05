@@ -189,6 +189,8 @@ class NGModel(ConcreteModel, IntegratedModel):
         # LNG export demand curve shape (NGMM Eq 14, Fig 3.6). World LNG price and
         # downward-sloping demand factors over fractional capacity.
         lng_demand_curve_shape = model_data['lng_demand_curve']
+        # Kept on the model: update_lng_export() rebuilds q_lng / p_lng from this shape.
+        self.lng_demand_curve_shape = dict(lng_demand_curve_shape)
 
         # Per-region losses (NGMM Eq 10, 11): distribution, intrastate, storage, and
         # plant-fuel fraction. {region: {distribution_loss, intrastate_loss,
@@ -468,6 +470,30 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.lng_breaks,
             self.year,
             initialize=_plng_init,
+            mutable=True,
+        )
+
+        # LNG consumer-surplus coefficients per demand-curve segment, held as mutable Params
+        # for the same reason as prod_cost_intercept / prod_cost_slope: update_lng_export()
+        # refreshes them alongside q_lng / p_lng, so the objective follows the curve.
+        _lng_coeffs = {
+            (r, k, y): self._lng_surplus_coeffs(r, k, y)
+            for r in self.lng_exporting_region
+            for k in self.lng_segs
+            for y in self.year
+        }
+        self.lng_surplus_intercept = Param(
+            self.lng_exporting_region,
+            self.lng_segs,
+            self.year,
+            initialize={key: coeffs[0] for key, coeffs in _lng_coeffs.items()},
+            mutable=True,
+        )
+        self.lng_surplus_slope = Param(
+            self.lng_exporting_region,
+            self.lng_segs,
+            self.year,
+            initialize={key: coeffs[1] for key, coeffs in _lng_coeffs.items()},
             mutable=True,
         )
 
@@ -931,26 +957,26 @@ class NGModel(ConcreteModel, IntegratedModel):
         #    (PLNG decreases with QLNG), so the quadratic term contributes a
         #    *concave* surplus that we ADD to consumer surplus and therefore
         #    SUBTRACT from total_cost.
-        # Skip zero-width LNG segments
-        # for (region, year) pairs with no LNG capacity (e.g. pacific 2025,
-        # whose lng_export_demand entry is 0).  Without the guard, all
-        # QLNG[k] = 0 → /0 in slope computation.
-        lng_consumer_surplus = 0
-        for r in self.lng_exporting_region:
-            for y in self.year:
-                for k_seg in self.lng_segs:
-                    ql_k_v = value(self.q_lng[r, k_seg, y])
-                    ql_k1_v = value(self.q_lng[r, k_seg + 1, y])
-                    width_v = ql_k1_v - ql_k_v
-                    if width_v <= 1e-9:
-                        continue
-                    pl_k_v = value(self.p_lng[r, k_seg, y])
-                    pl_k1_v = value(self.p_lng[r, k_seg + 1, y])
-                    slope_v = (pl_k1_v - pl_k_v) / width_v
-                    q = self.lng_export_step[r, k_seg, y]
-                    lng_consumer_surplus = (
-                        lng_consumer_surplus + (pl_k_v * q + 0.5 * slope_v * q * q) * bcf
-                    )
+        # Intercept and slope are mutable Params (see lng_surplus_intercept), computed by
+        # _lng_surplus_coeffs() and refreshed by update_lng_export(), so the objective follows
+        # any change to q_lng / p_lng. Reading q_lng / p_lng through value() here instead would
+        # freeze the curve at build time while lng_step_cap_con moved with it. Every segment is
+        # included: a zero-width segment (no LNG capacity for that region-year) gets (0, 0)
+        # coefficients rather than being skipped, so it picks up real ones if an update later
+        # gives it width.
+        lng_consumer_surplus = quicksum(
+            (
+                self.lng_surplus_intercept[r, k, y] * self.lng_export_step[r, k, y]
+                + 0.5
+                * self.lng_surplus_slope[r, k, y]
+                * self.lng_export_step[r, k, y]
+                * self.lng_export_step[r, k, y]
+            )
+            * bcf
+            for r in self.lng_exporting_region
+            for k in self.lng_segs
+            for y in self.year
+        )
 
         # Price the unserved-demand backstop. UNSERVED_DEMAND_PENALTY is ~100x any plausible gas
         # price, so the solver uses it only when a region cannot source the gas, and the
@@ -991,12 +1017,13 @@ class NGModel(ConcreteModel, IntegratedModel):
 
     # ── Integration interface ─────────────────────────────────────────────────
     #
-    # The eight methods below are the ENTIRE surface a Gauss-Seidel loop drives. They work
-    # because a handful of Params were declared mutable=True during construction, Q0, P0,
-    # demand, and canada_supply. Everything else is fixed once the model is built.
+    # The eight public methods below are the ENTIRE surface a Gauss-Seidel loop drives. They
+    # work because a handful of Params were declared mutable=True during construction, Q0, P0,
+    # demand, canada_supply, and q_lng / p_lng. Everything else is fixed once the model is
+    # built.
     #
     # Inbound: update_demand, update_demand_from_price, update_canada_supply,
-    # update_supply_capacity, set_reference_prices
+    # update_lng_export, update_supply_capacity, set_reference_prices
     # Outbound: poll_gas_price (the duals), poll_total_gas_demand
     #
     # No method here re-solves. The caller owns the loop and decides when to solve, so the
@@ -1135,6 +1162,59 @@ class NGModel(ConcreteModel, IntegratedModel):
                 )
             self.canada_supply[gi.region, gi.year].set_value(qty)
 
+    def update_lng_export(
+        self,
+        capacity: dict[GI, float] | None = None,
+        world_price: float | None = None,
+    ) -> None:
+        """Rebuild the LNG export demand curve from new capacity and/or world LNG price.
+
+        Sets the ``q_lng`` / ``p_lng`` breakpoints from the stored curve shape, then refreshes
+        ``lng_surplus_intercept`` / ``lng_surplus_slope`` for every touched (region, year), so
+        the segment caps and the objective's surplus term move together on the next solve.
+
+        Parameters
+        ----------
+        capacity : dict[GI, float], optional
+            {GI(region, year): BCF}, the full-curve export volume, as in ``ng_lng_export.csv``.
+            Regions without an LNG export curve are skipped.
+        world_price : float, optional
+            World LNG price in $/MMBtu, the price at full export volume; applied to every LNG
+            region and year.
+        """
+        q_frac = self.lng_demand_curve_shape['q_frac']
+        p_factor = self.lng_demand_curve_shape['p_factor']
+        touched: set[tuple[str, int]] = set()
+
+        for gi, cap in (capacity or {}).items():
+            if gi.region not in self.lng_exporting_region:
+                logger.debug('C-NGMM.update_lng_export: no LNG curve for %s, skipped', gi.region)
+                continue
+            if gi.year not in self.year:
+                logger.warning('C-NGMM.update_lng_export: received non-analysis year %s', gi.year)
+                continue
+            for k in self.lng_breaks:
+                self.q_lng[gi.region, k, gi.year].set_value(cap * q_frac[k - 1])
+            touched.add((gi.region, gi.year))
+
+        if world_price is not None:
+            self.lng_demand_curve_shape['world_price'] = world_price
+            for r in self.lng_exporting_region:
+                for y in self.year:
+                    for k in self.lng_breaks:
+                        self.p_lng[r, k, y].set_value(world_price * p_factor[k - 1])
+                    touched.add((r, y))
+
+        for r, y in touched:
+            for k_seg in self.lng_segs:
+                intercept, slope = self._lng_surplus_coeffs(r, k_seg, y)
+                self.lng_surplus_intercept[r, k_seg, y].set_value(intercept)
+                self.lng_surplus_slope[r, k_seg, y].set_value(slope)
+
+        logger.debug(
+            'C-NGMM.update_lng_export: rebuilt LNG curve for %d (region, year) pairs', len(touched)
+        )
+
     def _supply_qbase_at(self, q0: float, k: int) -> float:
         """Return supply-curve breakpoint ``k`` for anchor ``q0``, floor rule included.
 
@@ -1200,6 +1280,40 @@ class NGModel(ConcreteModel, IntegratedModel):
         pb_k = value(self.p_base[region, k_seg, year])
         pb_k1 = value(self.p_base[region, k_seg + 1, year])
         return pb_k, (pb_k1 - pb_k) / width
+
+    def _lng_surplus_coeffs(self, region: str, k_seg: int, year: int) -> tuple[float, float]:
+        """Return the LNG consumer-surplus trapezoid coefficients for one demand-curve segment.
+
+        The LNG counterpart of :meth:`_supply_cost_coeffs`: the segment between breakpoints
+        ``k_seg`` and ``k_seg + 1`` contributes ``intercept * q + 0.5 * slope * q**2`` to the
+        surplus, with ``q`` the volume on that segment. The slope is negative (PLNG falls as
+        QLNG rises). Construction and :meth:`update_lng_export` both call this.
+
+        Zero-width segments return ``(0.0, 0.0)``; ``lng_step_cap_con`` pins their
+        ``lng_export_step`` at zero, so the term vanishes either way.
+
+        Parameters
+        ----------
+        region : str
+            LNG exporting region.
+        k_seg : int
+            1-based LNG demand-curve segment index.
+        year : int
+            Model year.
+
+        Returns
+        -------
+        tuple[float, float]
+            Intercept (PLNG at the lower breakpoint) and slope (price change per BCF).
+        """
+        ql_k = value(self.q_lng[region, k_seg, year])
+        ql_k1 = value(self.q_lng[region, k_seg + 1, year])
+        width = ql_k1 - ql_k
+        if width <= 1e-9:
+            return 0.0, 0.0
+        pl_k = value(self.p_lng[region, k_seg, year])
+        pl_k1 = value(self.p_lng[region, k_seg + 1, year])
+        return pl_k, (pl_k1 - pl_k) / width
 
     def update_supply_capacity(
         self,

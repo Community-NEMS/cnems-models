@@ -387,6 +387,7 @@ for calibration.
 | `update_demand` | in | write sectoral demand, e.g. electric-power gas burn |
 | `update_supply_capacity` | in | rebuild QBASE/PBASE from new Q0 |
 | `update_canada_supply` | in | set Canadian import volumes |
+| `update_lng_export` | in | reset LNG export capacity and/or world LNG price |
 | `set_reference_prices` | in | capture the reference for elastic demand |
 | `update_demand_from_price` | internal | apply own-price elasticities against that reference |
 | `poll_gas_price` | out | regional prices, the balance duals, $/MMBtu |

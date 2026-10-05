@@ -16,6 +16,8 @@ nav = [
   { "Run Modes" = [
     { "Standalone Runs" = "run_modes/standalone.md" },
     { "Integrated Runs" = "run_modes/integrated.md" },
+    { "Gauss-Seidel Comparison" = "run_modes/gauss_seidel_comparison.md" },
+    { "Gauss-Seidel Review Notes" = "run_modes/gauss_seidel_review.md" },
   ] },
   { "Models" = [
     { "Electricity" = "models/electricity.md" },

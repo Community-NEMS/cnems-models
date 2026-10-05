@@ -893,9 +893,12 @@ class NGModel(ConcreteModel, IntegratedModel):
         # the model's non-linearity, and it is why appsi_highs cannot carry this model.
         #
         # The intercept and slope live in mutable Params rather than being read symbolically
-        # from q_base / p_base. Pyomo resolves mutable Params to numbers when the model is
-        # written, so the Hessian stays constant and the problem stays a genuine convex QP;
-        # dividing one breakpoint difference by another inside the expression would not.
+        # from q_base / p_base. Either form stays a convex QP: Pyomo treats mutable Params as
+        # degree-0 data and evaluates them to numbers when the model is written, so even a
+        # ratio of breakpoint differences times q^2 is a plain quadratic term. The Params are
+        # there because the slope divides by the segment width, and a zero-width segment has
+        # to get (0, 0) rather than a ZeroDivisionError at write time. That guard is a Python
+        # `if`, which cannot test a symbolic expression, so it lives in _supply_cost_coeffs().
         # Unlike the Python floats this block used to bake in, Params can be refreshed, so
         # update_supply_capacity() moves the cost curve and the segment widths together.
         # Both paths compute the coefficients through _supply_cost_coeffs(), which is what

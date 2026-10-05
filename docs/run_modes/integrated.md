@@ -2,7 +2,7 @@
 
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
-electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
+electricity model, electricity-sector gas burn in the natural gas model, and so on. The main
 integrated driver is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
 subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`); an
 experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
@@ -115,6 +115,8 @@ with `[common]` mode `"integrated gs"`:
 ```sh
 pixi shell
 python main.py run_configs/gs_compare.toml
+pixi run gs            # the same
+pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
 ```
 
 It differs from the Jacobi iterator in how the models are run, not in what they exchange:
@@ -132,8 +134,10 @@ It differs from the Jacobi iterator in how the models are run, not in what they 
   the gas model.
 - Result files are written at the end for each model whose last solve did not fail.
 
-Packages, the crosswalk, routing, the resend rule, the stopping rule (`ConvergenceTracker`) and
-the monitor are the Jacobi iterator's. The number in brackets on each monitor arrow is how many
+Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
+the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
+logging, the monitor display and the final status) is in `src/integrator/control_loop.py`, which
+both iterators call. The number in brackets on each monitor arrow is how many
 entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
 iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
 burn and the mean gas price by year. The settings are in
@@ -165,8 +169,8 @@ flowchart LR
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
   status is in `ALLOW_OUTBOUND_UPDATES` (`BEST`, `USABLE`, or `PENALTY`). After a failed
-  solve, the model sends nothing new; `jacobi_iterator.py` resends that model's last accepted packages
-  instead, so its receivers keep seeing its last good solution. Only a model that has never
+  solve, the model sends nothing new; the control loop resends that model's last accepted packages
+  instead (`accept_packages` in `control_loop.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
 - **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
   circuit. A receiver outside the circuit gets nothing, and a warning is logged.

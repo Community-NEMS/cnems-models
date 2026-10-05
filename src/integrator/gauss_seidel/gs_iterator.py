@@ -10,8 +10,8 @@ Gauss-Seidel iteration between the electricity and natural gas models.
 Both models are built once and held in the control process.  Each iteration solves electricity on
 the latest gas prices, then gas on that iteration's electricity burn, applying each model's
 inbound packages to its built instance with ``update_model`` rather than rebuilding it.  Package
-routing, the resend-last-accepted rule, the stopping test and the iteration monitor are the Jacobi
-iterator's.
+routing and the stopping test are the Jacobi iterator's, and the rest of the bookkeeping is
+shared with it through ``src/integrator/control_loop.py``.
 """
 
 import logging
@@ -25,8 +25,6 @@ from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model_sequencer import (
-    ALLOW_OUTBOUND_UPDATES,
-    ALLOW_TERMINATION,
     IntegratedModelSequencer,
     IterationResult,
     IterationStatus,
@@ -41,6 +39,13 @@ from src.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
     UpdatePackage,
+)
+from src.integrator.control_loop import (
+    accept_packages,
+    final_status,
+    log_progress,
+    outbound_packages,
+    show_iteration,
 )
 from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
 from src.integrator.iteration_monitor import IterationMonitor
@@ -277,8 +282,7 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         while not converged and iteration <= self.config.iteration_limit:
             results: list[IterationResult] = []
             for model in GS_ORDER:
-                outbound = [pkg for m in GS_ORDER for pkg in accepted.get(m, [])]
-                inbound = route_updates(outbound, GS_ORDER)[model]
+                inbound = route_updates(outbound_packages(accepted, GS_ORDER), GS_ORDER)[model]
                 if model is ModelType.NATURAL_GAS:
                     inbound = add_topup(inbound, topup)
                 start = perf_counter()
@@ -293,26 +297,12 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
                 if iteration == 1:
                     result.timings['build'] = build_seconds[model]
                 results.append(result)
+                # logged and accepted at once, so the next model in this iteration sees it, and a
+                # later failure in the iteration still leaves this result in the log
                 logger.info('\n%s', result.pprint(indent=2))
-                # the resend rule:  a solve whose status is not acceptable leaves the model's last
-                # accepted packages in place, so its partner sees its last good solution
-                if result.status in ALLOW_OUTBOUND_UPDATES:
-                    accepted[model] = list(result.update_packages)
-                else:
-                    logger.warning(
-                        'Iteration %d: rejected %d update package(s) from %s (status %s); %s',
-                        iteration,
-                        len(result.update_packages),
-                        model.value,
-                        result.status.name,
-                        'keeping its last accepted packages'
-                        if model in accepted
-                        else 'it has no accepted packages',
-                    )
+                accept_packages(result, accepted, iteration, logger)
             all_results[iteration] = results
-            block = monitor.record(iteration, results)
-            logger.info('\n%s', block.plain)
-            console.print(block, highlight=False)
+            show_iteration(iteration, results, monitor, console, logger, log_results=False)
             # the monitor counts entries; this line gives the values behind them
             exchanged = format_exchange(
                 exchange_summary(pkg for result in results for pkg in result.update_packages)
@@ -320,33 +310,18 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             logger.info(exchanged)
             console.print(f'      {exchanged}', highlight=False)
             converged = tracker.update(results)
-            logger.info(
-                'Iteration %d relative objective changes (epsilon %g): %s',
-                iteration,
-                self.config.epsilon,
-                {
-                    m.value: 'n/a' if change is None else f'{change:.3g}'
-                    for m, change in tracker.changes.items()
-                },
+            log_progress(
+                tracker, iteration, self.config.epsilon, self.config.iteration_limit, logger
             )
-            logger.info('Done with iteration %d/%d', iteration, self.config.iteration_limit)
             iteration += 1
 
-        if converged:
-            status = RunStatus.CONVERGED
-            logger.info('Converged after %d iteration(s)', iteration - 1)
-        else:
-            status = RunStatus.ITERATION_LIMIT
-            holding = [
-                f'{r.model_type.value} ({r.status.name})'
-                for r in all_results.get(iteration - 1, [])
-                if r.status not in ALLOW_TERMINATION
-            ]
-            logger.warning(
-                'Did not converge within %d iterations%s',
-                self.config.iteration_limit,
-                f'; ended with {", ".join(holding)}' if holding else '',
-            )
+        status = final_status(
+            converged,
+            iteration - 1,
+            self.config.iteration_limit,
+            all_results.get(iteration - 1, []),
+            logger,
+        )
 
         # the models are still held, so their final solutions can be written
         for result in all_results.get(iteration - 1, []):

@@ -59,6 +59,8 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     elec_config = ElecConfig(**remainder.pop('elec_config'))
     sequencer = ElectricitySequencer()
     model = sequencer.build_model(common, elec_config)
+    # the two are added in dispatch_cost, so they must share an index
+    assert set(model.ng_fuel_adj.index_set()) == set(model.supply_price.index_set())
     sequencer.solve_iteration()
     solver = sequencer._opt
     region_years = sorted({(key[0], key[3]) for key in model.ng_fuel_adj})

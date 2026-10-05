@@ -277,7 +277,7 @@ the values a run solves on are always the values on disk. The two exceptions are
 | `ng_lng_export.csv` | region, year, demand_bcf | LNG export demand curve anchor |
 | `ng_lng_import.csv` | region, capacity_bcf, cost_per_mmbtu | backstop imports |
 | `ng_scalars.csv` | parameter, value, units, source | storage opex, LNG world price, defaults |
-| `elec_to_ng_region_map.csv` | elec_region, ng_region | crosswalk for electricity coupling |
+| `elec_to_ng_region_map.csv` | elec_region, ng_region | one-to-one region map the population-weighted crosswalk is built from |
 
 ### Cost tiers in the input are not NGMM steps
 

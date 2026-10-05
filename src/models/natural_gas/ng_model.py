@@ -28,8 +28,8 @@ on this), but the economic structure matches NGMM:
 
 What is *not* implemented (Tier 2/3 items not in scope of this rewrite):
   * State-level hubs (NGMM uses 50 + 3 Texas hubs; this model keeps the
-    9 census-division grouping because the unified/Gauss-Seidel integrators
-    rely on it via load_ng_region_map).
+    9 census-division grouping because the electricity coupling's region
+    crosswalk, src/integrator/region_crosswalk.py, is built on it).
   * Monthly time resolution (NGMM solves each month independently).
   * STEO benchmarking and the separate capacity-expansion QP run.
   * NA/AD supply-type separation (the model keeps a single supply curve per

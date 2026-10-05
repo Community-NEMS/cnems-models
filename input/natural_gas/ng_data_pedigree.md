@@ -2,10 +2,10 @@
 
 Provenance, units, and construction notes for the CSV inputs in `input/natural_gas/`.
 These notes were previously carried as `#` comment rows at the top of each CSV and were
-moved here so the files are plain, comment-free CSV. Do not re-add notes inline. The crosswalk
-reader in `src/integrator/ng_coupling.py` uses `csv.DictReader`, which has no comment support
-and treats the first line as the header, so a leading `#` row makes the real header
-unreachable.
+moved here so the files are plain, comment-free CSV. Do not re-add notes inline. The script
+that builds the population-weighted crosswalk from `elec_to_ng_region_map.csv`
+(`input/integrator/population_weighted_region_xwalk/workproduct/build_region_weights.py`) takes
+the first line as the header, so a leading `#` row would make the real header unreachable.
 
 ## `elec_to_ng_region_map.csv`
 

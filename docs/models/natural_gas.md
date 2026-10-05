@@ -114,8 +114,12 @@ S_lng   = Σ_ℓ Σ_y Σ_m ( PLNG[ℓ,m,y]·x + ½ π_m·x² ) · β           �
 ```
 
 `S_lng` enters with a negative sign because the LNG export demand curve slopes downward and the
-area beneath it is consumer surplus. Segments of zero width are skipped, which prevents division
-by zero in regions with no capacity of a given type.
+area beneath it is consumer surplus. A zero-width segment would divide by zero in its slope. On the
+supply and LNG curves it gets zero coefficients instead: the intercept and slope are mutable Params
+(`prod_cost_*`, `lng_surplus_*`), so a later update that gives the segment width also gives it real
+coefficients, and its segment cap holds its volume at zero meanwhile. Tariff segments of zero width
+are left out of the objective when the model is built, which is safe only because `QTAR` / `PTAR`
+are not mutable.
 
 A penalty term prices unmet demand:
 
@@ -194,13 +198,22 @@ crv_above = [0.05, 0.15, 0.30]      volume rises above it
 elas      = [0.8, 0.7, 0.5, 0.3, 0.2]   supply elasticity per segment
 ```
 
-Quantities are cumulative products of the volume factors:
+Quantities are cumulative products of the volume factors, except the lowest breakpoint, which is
+the committed-production floor:
 
 ```
-QBASE_1 = Q0 · (1−c⁻₁)(1−c⁻₂)(1−c⁻₃)        QBASE_4 = Q0 · (1+c⁺₁)
+QBASE_1 = QMIN = f_min · Q0                 QBASE_4 = Q0 · (1+c⁺₁)
 QBASE_2 = Q0 · (1−c⁻₂)(1−c⁻₃)               QBASE_5 = Q0 · (1+c⁺₁)(1+c⁺₂)
 QBASE_3 = Q0 · (1−c⁻₃)                      QBASE_6 = Q0 · (1+c⁺₁)(1+c⁺₂)(1+c⁺₃)
 ```
+
+`f_min` is `supply_curve_qmin_fraction` in `ng_scalars.csv` (0.20). Setting `QBASE_1` to `QMIN`
+is what makes NGMM Eq 8, `PROD = Σ SSTEP + QMIN`, hold for `production_total`. The cumulative
+product, `Q0 · (1−c⁻₁)(1−c⁻₂)(1−c⁻₃)` (0.565·Q0 with the defaults), would put the curve's origin
+somewhere else. Only the quantity is replaced: `PBASE_1` keeps its cumulative-product value, so
+segment 1 runs from `QMIN` up to `QBASE_2` with its usual price at the lower end.
+`_supply_qbase_at()` in `ng_model.py` applies this rule at build time and in
+`update_supply_capacity()`.
 
 Prices follow from the elasticity definition. With ε = (dQ/Q)/(dP/P), a volume change of CRV
 implies a price change of CRV/ε, so:
@@ -439,7 +452,8 @@ PROD = Σ_step SSTEP + QMIN
 ```
 
 That identity is `production_total[r,y]` here. Segment-range constraints (NGMM Eq 18-20) are the
-same, and the breakpoints are built around an anchor by the same cumulative-product rule.
+same, and the breakpoints are built around an anchor by the same cumulative-product rule, except
+that `QBASE_1` is set to `QMIN` (see *The supply curve* above).
 
 **One structural difference.** NGMM indexes supply by `(suptype, qps)`, supply type by supply
 region, where `suptype` distinguishes **associated-dissolved from nonassociated** gas, so each

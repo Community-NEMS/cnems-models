@@ -371,47 +371,47 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # dev note: A missing price value (sparse set) will cause fail w/o a default value here,
         #           which is OK as it probably indicates a true error.
-        self.supply_price = pyo.Param(
+        self.generation_cost = pyo.Param(
             self.region_analyze,
             self.tech_step,
             self.year,
             self.season,
-            initialize=all_frames['supply_price'],
+            initialize=all_frames['generation_cost'],
             within=pyo.NonNegativeReals,
         )
 
         # dev note: We do not supply a built index set here, so we should iterate over the
         #           param keys where needed
-        self.supply_curve = pyo.Param(
+        self.available_capacity = pyo.Param(
             self.region_analyze,
             self.tech_step,
             self.year,
-            initialize=all_frames['supply_curve'],
+            initialize=all_frames['available_capacity'],
             within=pyo.NonNegativeReals,
         )
         # dev note:  a default of 0.0 is supplied because the indexing set is larger than the
         #            upper bound limit from the data
-        self.cap_factor_vre = pyo.Param(
+        self.capacity_factor_vre = pyo.Param(
             self.region_analyze,
             self.tech_vre,
             self.step,
             self.year,
             self.hour,
-            initialize=all_frames['cap_factor_vre'],
+            initialize=all_frames['capacity_factor_vre'],
             within=pyo.NonNegativeReals,
             default=0.0,
         )
-        self.hydro_cap_factor = pyo.Param(
+        self.hydro_capacity_factor = pyo.Param(
             self.region_analyze,
             self.season,
-            initialize=all_frames['hydro_cap_factor'],
+            initialize=all_frames['hydro_capacity_factor'],
             within=pyo.NonNegativeReals,
         )
-        self.battery_efficiency = pyo.Param(
-            self.tech_stor, initialize=all_dicts['battery_efficiency'], within=pyo.NonNegativeReals
+        self.storage_efficiency = pyo.Param(
+            self.tech_stor, initialize=all_dicts['storage_efficiency'], within=pyo.NonNegativeReals
         )
-        self.hours_to_buy = pyo.Param(
-            self.tech_stor, initialize=all_dicts['hours_to_buy'], within=pyo.NonNegativeReals
+        self.storage_duration = pyo.Param(
+            self.tech_stor, initialize=all_dicts['storage_duration'], within=pyo.NonNegativeReals
         )
 
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
@@ -432,10 +432,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
                 self.learning_rate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
-                self.cap_cost_initial = pyo.Param(
+                self.capital_cost_initial = pyo.Param(
                     self.region_analyze,
                     self.tech_step,
-                    initialize=all_dicts['cap_cost_initial'],
+                    initialize=all_dicts['capital_cost_initial'],
                 )
                 self.supply_curve_learning = pyo.Param(
                     self.tech,
@@ -446,7 +446,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 # so PositiveReals rejects zero, negatives and NaN at construction, naming the
                 # offending technology rather than failing later inside the objective.
 
-            # cap_cost is declared in every mode because capacity_builds is indexed from its
+            # capital_cost is declared in every mode because capacity_builds is indexed from its
             # keys; only DISABLED and LINEAR consume its values in the objective.
             if elec_config.expansion_learning_type in {
                 ExpansionLearningType.DISABLED,
@@ -457,11 +457,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     mute = False
                 else:
                     mute = True
-                self.cap_cost = pyo.Param(
+                self.capital_cost = pyo.Param(
                     self.region,
                     self.tech_step,
                     self.year,
-                    initialize=all_frames['cap_cost'],
+                    initialize=all_frames['capital_cost'],
                     mutable=mute,
                 )
 
@@ -484,26 +484,26 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             # note:  "steps" in intl transmission are separate from "tech steps" and are just
             #        non-negative integers.
-            self.tran_cost_int = pyo.Param(
+            self.tran_cost_intl = pyo.Param(
                 self.region_analyze,
                 self.region_int,
                 pyo.NonNegativeIntegers,
                 self.year,
-                initialize=all_frames['tran_cost_int'],
+                initialize=all_frames['tran_cost_intl'],
             )
-            self.tran_limit_gen_int = pyo.Param(
+            self.supply_limit_intl = pyo.Param(
                 self.region_int,
                 pyo.NonNegativeIntegers,
                 self.year,
                 self.hour,
-                initialize=all_frames['tran_limit_gen_int'],
+                initialize=all_frames['supply_limit_intl'],
             )
-            self.tran_limit_cap_int = pyo.Param(
+            self.tran_limit_cap_intl = pyo.Param(
                 self.region_analyze,
                 self.region_int,
                 self.year,
                 self.hour,
-                initialize=all_frames['tran_limit_cap_int'],
+                initialize=all_frames['tran_limit_cap_intl'],
             )
 
             # ————————————— Parameter-derived helper sets
@@ -558,8 +558,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if reserve margin requirements are on, set up the reserve margin reqts.
         if elec_config.reserve_margin_required:
-            self.reserve_margin = pyo.Param(
-                self.region_analyze, initialize=all_dicts['reserve_margin']
+            self.planning_reserve_margin = pyo.Param(
+                self.region_analyze, initialize=all_dicts['planning_reserve_margin']
             )
 
         # if ramping requirements are on, ...
@@ -570,13 +570,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if operating reserve requirements are on, ...
         if elec_config.spinning_reserve_required:
-            self.reg_reserves_cost = pyo.Param(self.tech, initialize=all_dicts['reg_reserves_cost'])
+            self.reserve_cost = pyo.Param(self.tech, initialize=all_dicts['reserve_cost'])
             # note:  The data is cast to cover all combinations of ReserveType and Tech
             #        with 0's as appropriate
-            self.res_tech_upper_bound = pyo.Param(
+            self.reserve_tech_limit = pyo.Param(
                 ReserveType,
                 self.tech,
-                initialize=all_dicts['res_tech_upper_bound'],
+                initialize=all_dicts['reserve_tech_limit'],
                 validate=reserve_tech_check,
             )
 
@@ -600,7 +600,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion:
             # TODO:  Review this creation of var index from parameter keys.
             #        Done in a few spots, seems like best plan.
-            self.capacity_builds = pyo.Var(list(self.cap_cost.keys()), within=pyo.NonNegativeReals)
+            self.capacity_builds = pyo.Var(
+                list(self.capital_cost.keys()), within=pyo.NonNegativeReals
+            )
             self.capacity_retirements = pyo.Var(
                 self.capacity_retirements_index, within=pyo.NonNegativeReals
             )
@@ -653,7 +655,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 * (
                     sum(
                         self.weight_year[y]
-                        * self.supply_price[r, tech, step, y, season]
+                        * self.generation_cost[r, tech, step, y, season]
                         * self.generation_total[r, tech, step, y, hr]
                         for (r, tech, step, y) in self.generation_hour_index[hr]
                     )
@@ -661,7 +663,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         self.weight_year[y]
                         * (
                             0.5
-                            * self.supply_price[r, tech, step, y, season]
+                            * self.generation_cost[r, tech, step, y, season]
                             * (
                                 self.storage_inflow[r, tech, step, y, hr]
                                 + self.storage_outflow[r, tech, step, y, hr]
@@ -738,13 +740,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             # in years strictly before y, so a build never discounts its own cost.
                             cumulative_quantity=sum(
                                 self.capacity_builds[region, tech, other_step, year]
-                                for (region, other_tech, other_step) in self.cap_cost_initial
+                                for (region, other_tech, other_step) in self.capital_cost_initial
                                 if other_tech == tech
                                 for year in self.year
                                 if year < y
                             ),
                             baseline_quantity=self.supply_curve_learning[tech],
-                            initial_cost=self.cap_cost_initial[r, tech, step],
+                            initial_cost=self.capital_cost_initial[r, tech, step],
                             learning_rate=self.learning_rate[tech],
                         )
                         for (r, tech, step, y) in self.capacity_builds
@@ -769,8 +771,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         Capacity expansion cost component (linear learning)
                     """
                     return sum(
-                        self.cap_cost[r, tech, step, y] * self.capacity_builds[r, tech, step, y]
-                        for (r, tech, step, y) in self.cap_cost
+                        self.capital_cost[r, tech, step, y] * self.capacity_builds[r, tech, step, y]
+                        for (r, tech, step, y) in self.capital_cost
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -804,7 +806,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     self.weight_day[self.map_hour_day[hr]]
                     * self.weight_year[y]
                     * self.trade_international[r, r_int, step, y, hr]
-                    * self.tran_cost_int[r, r_int, step, y]
+                    * self.tran_cost_intl[r, r_int, step, y]
                     for (r, r_int, step, y, hr) in self.international_trade_index
                 )
 
@@ -852,7 +854,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 return sum(
                     # TODO:  Review the odd 0.01 cost here for spinning/flex
                     (
-                        self.reg_reserves_cost[tech]
+                        self.reserve_cost[tech]
                         if restype == ReserveType.REGULATION
                         else SPINNING_RESERVE_DEFAULT_COST
                     )
@@ -964,7 +966,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return (
                 self.storage_level[r, t_stor, step, y, hr_first]
                 == self.storage_level[r, t_stor, step, y, hr_first + self.num_hr_day - 1]
-                + self.battery_efficiency[t_stor]
+                + self.storage_efficiency[t_stor]
                 * self.storage_inflow[r, t_stor, step, y, hr_first]
                 - self.storage_outflow[r, t_stor, step, y, hr_first]
             )
@@ -1000,7 +1002,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return (
                 self.storage_level[r, t_stor, step, y, hr_most]
                 == self.storage_level[r, t_stor, step, y, hr_most - 1]
-                + self.battery_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr_most]
+                + self.storage_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr_most]
                 - self.storage_outflow[r, t_stor, step, y, hr_most]
             )
 
@@ -1044,7 +1046,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for step in steps
                 )
                 <= sum(self.capacity_total[r, t_hydro, step, y] for step in steps)
-                * self.hydro_cap_factor[r, season]
+                * self.hydro_capacity_factor[r, season]
                 * self.weight_season[season]
             )
 
@@ -1120,7 +1122,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     else 0
                 )
                 <= self.capacity_total[r, t_hydro, step, y]
-                * self.hydro_cap_factor[r, self.map_hour_season[hr]]
+                * self.hydro_capacity_factor[r, self.map_hour_season[hr]]
                 * self.weight_hour[hr]
             )
 
@@ -1160,7 +1162,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     else 0
                 )
                 <= self.capacity_total[r, t_vre, step, y]
-                * self.cap_factor_vre[r, t_vre, step, y, hr]
+                * self.capacity_factor_vre[r, t_vre, step, y, hr]
                 * self.weight_hour[hr]
             )
 
@@ -1259,7 +1261,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """
             return (
                 self.storage_level[r, tech, step, y, hr]
-                <= self.capacity_total[r, tech, step, y] * self.hours_to_buy[tech]
+                <= self.capacity_total[r, tech, step, y] * self.storage_duration[tech]
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
@@ -1288,7 +1290,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Capacity Equality
 
             """
-            return self.capacity_total[r, tech, step, y] == self.supply_curve[
+            return self.capacity_total[r, tech, step, y] == self.available_capacity[
                 (r, tech, step, y)
             ] + (
                 sum(self.capacity_builds[r, tech, step, year] for year in self.year if year <= y)
@@ -1334,7 +1336,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return self.capacity_retirements[r, tech, step, y] <= (
                     (
-                        self.supply_curve[r, tech, step, y]
+                        self.available_capacity[r, tech, step, y]
                         if (r, tech, step, y) in self.capacity_total
                         else 0
                     )
@@ -1395,7 +1397,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         self.trade_international[r, r_int, step, y, hr]
                         for step in self.viable_international_steps[r, r_int, y, hr]
                     )
-                    <= self.tran_limit_cap_int[r, r_int, y, hr] * self.weight_hour[hr]
+                    <= self.tran_limit_cap_intl[r, r_int, y, hr] * self.weight_hour[hr]
                 )
 
             # filter the domestic region (receiver) out of the international trade index
@@ -1434,7 +1436,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         self.trade_international[r, r_int, step, y, hr]
                         for r in self.domestic_destinations[r_int, y, hr]
                     )
-                    <= self.tran_limit_gen_int[r_int, step, y, hr] * self.weight_hour[hr]
+                    <= self.supply_limit_intl[r_int, step, y, hr] * self.weight_hour[hr]
                 )
 
             @self.Constraint(self.trade_interregional.index_set())
@@ -1491,9 +1493,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Reserve margin requirement
                 """
-                return self.elec_load[r, y, hr] * (1 + self.reserve_margin[r]) <= self.weight_hour[
-                    hr
-                ] * sum(
+                return self.elec_load[r, y, hr] * (
+                    1 + self.planning_reserve_margin[r]
+                ) <= self.weight_hour[hr] * sum(
                     (
                         self.capacity_credit[r, tech, step, y, hr]
                         * (
@@ -1826,7 +1828,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return (
                     self.reserves_procurement[r, restype, tech, step, y, hr]
-                    <= self.res_tech_upper_bound[restype, tech]
+                    <= self.reserve_tech_limit[restype, tech]
                     * self.weight_hour[hr]
                     * self.capacity_total[r, tech, step, y]
                 )

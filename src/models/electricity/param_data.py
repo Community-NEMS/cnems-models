@@ -54,16 +54,16 @@ class ParamFrames(TypedDict, total=False):
     capacity_credit: DataFrame
 
     # loaded (TIME_BASED_DFS); empty DataFrame if no data survives filtering
-    cap_cost: DataFrame
-    cap_factor_vre: DataFrame
-    hydro_cap_factor: DataFrame
-    supply_curve: DataFrame
-    supply_price: DataFrame
+    capital_cost: DataFrame
+    capacity_factor_vre: DataFrame
+    hydro_capacity_factor: DataFrame
+    available_capacity: DataFrame
+    generation_cost: DataFrame
     tran_cost: DataFrame
-    tran_cost_int: DataFrame
+    tran_cost_intl: DataFrame
     tran_limit: DataFrame  # expanded season -> hour
-    tran_limit_cap_int: DataFrame  # expanded season -> hour
-    tran_limit_gen_int: DataFrame  # expanded season -> hour
+    tran_limit_cap_intl: DataFrame  # expanded season -> hour
+    supply_limit_intl: DataFrame  # expanded season -> hour
 
 
 class ParamDicts(TypedDict, total=False):
@@ -72,17 +72,17 @@ class ParamDicts(TypedDict, total=False):
     Values are keyed by the source's ``index_cols`` tuple (1-tuples for single-column indexes).
     """
 
-    battery_efficiency: dict[tuple, float]
-    cap_cost_initial: dict[tuple, float]
+    storage_efficiency: dict[tuple, float]
+    capital_cost_initial: dict[tuple, float]
     fom_cost: dict[tuple, float]
-    hours_to_buy: dict[tuple, float]
+    storage_duration: dict[tuple, float]
     learning_rate: dict[tuple, float]
     ramp_down_cost: dict[tuple, float]
     ramp_rate: dict[tuple, float]
     ramp_up_cost: dict[tuple, float]
-    reg_reserves_cost: dict[tuple, float]
-    reserve_margin: dict[tuple, float]
-    res_tech_upper_bound: dict[tuple[ReserveType, str], float]
+    reserve_cost: dict[tuple, float]
+    planning_reserve_margin: dict[tuple, float]
+    reserve_tech_limit: dict[tuple[ReserveType, str], float]
     supply_curve_learning: dict[tuple, float]
 
 
@@ -148,41 +148,41 @@ class ParamData:
             # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
             self.param_frames[name] = df
 
-        # augment cap_factor_vre with year.... ugh
+        # augment capacity_factor_vre with year.... ugh
         # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
         df = pd.merge(
-            self.param_frames['cap_factor_vre'].reset_index(),
+            self.param_frames['capacity_factor_vre'].reset_index(),
             pd.DataFrame({'year': common_config.summary_years}),
             how='cross',
         )
         # re-sequence columns
-        df = df[['region', 'tech', 'step', 'year', 'hour', 'value']]
+        df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_factor_vre_frac']]
         # set proper index
-        self.param_frames['cap_factor_vre'] = df.set_index(list(df.columns)[:-1])
+        self.param_frames['capacity_factor_vre'] = df.set_index(list(df.columns)[:-1])
 
         # expand season columns to the appropriate rep-hours for the season where season is used
         # we can skip this if no international connections:
         # TODO:  Investigate why this is done.  It seems unnecessary bloat to expand with
         #        duplicate information.  Why not just index with [season]?
-        if len(self.param_frames['tran_limit_cap_int']) > 0:
-            tlci_cols = ['region', 'region_international', 'year', 'hour', 'capacity']
-            tlgi_cols = ['region_international', 'step', 'year', 'hour', 'generation']
-            self.param_frames['tran_limit_cap_int'] = self.create_hourly_params(
+        if len(self.param_frames['tran_limit_cap_intl']) > 0:
+            tlci_cols = ['region', 'region_intl', 'year', 'hour', 'tran_limit_cap_intl_mw']
+            tlgi_cols = ['region_intl', 'step', 'year', 'hour', 'supply_limit_intl_mw']
+            self.param_frames['tran_limit_cap_intl'] = self.create_hourly_params(
                 self.param_frames['map_hour_season'],
-                self.param_frames['tran_limit_cap_int'],
+                self.param_frames['tran_limit_cap_intl'],
                 tlci_cols,
-                name='tran_limit_cap_int',
+                name='tran_limit_cap_intl',
             )
-            self.param_frames['tran_limit_gen_int'] = self.create_hourly_params(
+            self.param_frames['supply_limit_intl'] = self.create_hourly_params(
                 self.param_frames['map_hour_season'],
-                self.param_frames['tran_limit_gen_int'],
+                self.param_frames['supply_limit_intl'],
                 tlgi_cols,
-                name='tran_limit_gen_int',
+                name='supply_limit_intl',
             )
         # do the same for interregional
         # we can skip this if there are no interregional connections
         if len(self.param_frames['tran_limit']) > 0:
-            tli_cols = ['destination_region', 'source_region', 'year', 'hour', 'value']
+            tli_cols = ['region_dest', 'region_source', 'year', 'hour', 'tran_limit_mw']
             self.param_frames['tran_limit'] = self.create_hourly_params(
                 self.param_frames['map_hour_season'],
                 self.param_frames['tran_limit'],
@@ -196,27 +196,27 @@ class ParamData:
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
-        supply_curve_index_vals = [SCI(*t) for t in self.param_frames['supply_curve'].index]
+        supply_curve_index_vals = [SCI(*t) for t in self.param_frames['available_capacity'].index]
         model_sets.build_sc_indexes(supply_curve_index_vals)
 
         # populate the trade indices based on gathered parameter data
         model_sets.build_international_trade_index(
-            intl_capacity=self.param_frames['tran_limit_cap_int'],
-            intl_gen_limit=self.param_frames['tran_limit_gen_int'],
+            intl_capacity=self.param_frames['tran_limit_cap_intl'],
+            intl_gen_limit=self.param_frames['supply_limit_intl'],
         )
 
         # augment the supply curve dataframe w/ season x-product in temp var to enable x-product
         df = add_season_index(
-            model_sets.cw_temporal, self.param_frames['supply_curve'].reset_index(), 4
+            model_sets.cw_temporal, self.param_frames['available_capacity'].reset_index(), 4
         )
         augmented_supply_curve = df.set_index(list(df.columns)[:-1])
 
-        # use the augmented supply_curve DF to make the capacity_credit df
+        # use the augmented available_capacity DF to make the capacity_credit df
         self.param_frames['capacity_credit'] = self.build_capacity_credit(
             augmented_supply_curve=augmented_supply_curve,
             hour_season_map=self.param_frames['map_hour_season'],
-            cap_factor_vre=self.param_frames['cap_factor_vre'],
-            hydro_cap_factor=self.param_frames['hydro_cap_factor'],
+            capacity_factor_vre=self.param_frames['capacity_factor_vre'],
+            hydro_capacity_factor=self.param_frames['hydro_capacity_factor'],
             tech_hydro=model_sets.tech_hydro,
         )
 
@@ -231,14 +231,14 @@ class ParamData:
             self.param_dicts[name] = data
 
         # Convert the res-tech upper bound entries to Enum values for validation
-        self.param_dicts['res_tech_upper_bound'] = ParamData._convert_reserve_types(
-            self.param_dicts['res_tech_upper_bound']
+        self.param_dicts['reserve_tech_limit'] = ParamData._convert_reserve_types(
+            self.param_dicts['reserve_tech_limit']
         )
 
         # build the reserves set, using supply + the UB to be used as a filter in construction
         model_sets.build_reserves_index(
             supply_curve_index=supply_curve_index_vals,
-            reserve_ub_limits=self.param_dicts['res_tech_upper_bound'],
+            reserve_ub_limits=self.param_dicts['reserve_tech_limit'],
         )
 
     def build_load_dataframe(self) -> DataFrame:
@@ -352,8 +352,8 @@ class ParamData:
         self,
         augmented_supply_curve: DataFrame,
         hour_season_map: DataFrame,
-        cap_factor_vre: DataFrame,
-        hydro_cap_factor: DataFrame,
+        capacity_factor_vre: DataFrame,
+        hydro_capacity_factor: DataFrame,
         tech_hydro: Collection[str],
     ) -> DataFrame:
         """Builds the capacity credit dataframe.
@@ -364,12 +364,12 @@ class ParamData:
             supply curve providing the (region, tech, step, year) basis to expand to hours
         hour_season_map : DataFrame
             crosswalk mapping each hour to its season
-        cap_factor_vre : DataFrame
+        capacity_factor_vre : DataFrame
             capacity factors for the variable renewable techs
-        hydro_cap_factor : DataFrame
+        hydro_capacity_factor : DataFrame
             seasonal capacity factors for the hydro techs
         tech_hydro : Collection[str]
-            techs treated as hydro, which draw their credit from ``hydro_cap_factor``
+            techs treated as hydro, which draw their credit from ``hydro_capacity_factor``
 
         Returns
         -------
@@ -386,10 +386,10 @@ class ParamData:
         # capacity credit is hourly capacity factor for vre technologies
         df = pd.merge(
             basis,
-            cap_factor_vre,
+            capacity_factor_vre,
             how='left',
             on=['tech', 'year', 'region', 'step', 'hour'],
-        ).rename(columns={'value': 'capacity_credit'})  # TODO:  This seems hoaky
+        ).rename(columns={'capacity_factor_vre_frac': 'capacity_credit'})
         # df now has all rows in it.  We just need to correct entries for non-VRE
         # technologies and hydro techs
 
@@ -398,7 +398,7 @@ class ParamData:
 
         # capacity credit is seasonal limit for hydro, map it out to hourly
         hydro_capacity = self.create_hourly_params(
-            target=hydro_cap_factor,
+            target=hydro_capacity_factor,
             hour_season_map=hour_season_map,
             new_col_sequence=None,
             set_index=False,
@@ -407,16 +407,16 @@ class ParamData:
         # merge hydro capacity factors onto df by keys, then update only hydro technologies
         df = pd.merge(
             df,
-            hydro_capacity[['region', 'hour', 'value']],
+            hydro_capacity[['region', 'hour', 'hydro_capacity_factor_frac']],
             how='left',
             on=['region', 'hour'],
         )
 
         hydro_mask = df['tech'].isin(tech_hydro)
-        df.loc[hydro_mask, 'capacity_credit'] = df.loc[hydro_mask, 'value']
+        df.loc[hydro_mask, 'capacity_credit'] = df.loc[hydro_mask, 'hydro_capacity_factor_frac']
 
         # drop unnecessary columns
-        df = df.drop(columns=['capacity', 'value'])
+        df = df.drop(columns=['available_capacity_mw', 'hydro_capacity_factor_frac'])
 
         # reorder columns
         df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_credit']]
@@ -459,10 +459,10 @@ class ParamData:
     def _convert_reserve_types(target: dict) -> dict[tuple[ReserveType, str], float]:
         """Convert strings to enums in this target dict."""
         res = {}
-        for (restype, tech), value in target.items():
+        for (reserve_type, tech), value in target.items():
             try:
-                res[ReserveType(restype), tech] = float(value)
+                res[ReserveType(reserve_type), tech] = float(value)
             except ValueError:
-                logger.error('Invalid reserve type %s for tech %s', restype, tech)
+                logger.error('Invalid reserve type %s for tech %s', reserve_type, tech)
                 raise
         return res

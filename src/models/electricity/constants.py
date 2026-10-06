@@ -41,24 +41,24 @@ SOLAR_FLEX_RESERVE_PROPORTION = 0.04
 
 #########  Natural Gas Price Linkage ###########
 
-# $/MMBtu, the gas price the SupplyPrice.csv data is assumed to embed
+# $/MMBtu, the gas price the generation_cost.csv data is assumed to embed
 INITIAL_NG_PRICE = 4.0  # TODO:  Confirm against the source of the supply price data
-# share of a gas-linked tech's supply_price that moves with the natural gas price
+# share of a gas-linked tech's generation_cost that moves with the natural gas price
 # TODO:  May need to further refine cost proportion to be indexed by tech if multiple techs
 #        And they have (meaningful) different proportions
 PRICE_COST_PROPORTION = 0.5  # TODO:  Confirm against source of tech operating costs
-# fractional change (either direction) in a gas-linked supply_price row, relative to the held
+# fractional change (either direction) in a gas-linked generation_cost row, relative to the held
 # value it replaces, at or above which a warning is logged
 SUPPLY_PRICE_CHANGE_WARN_FRACTION = 0.5
 
 # TODO:  The table/dict below should be a data file to avoid hard-coding them.  This is a temp
 #        fixture until the mechanics of feedback are ironed out!
 # Heat rate of each natural-gas-consuming tech, MMBtu of gas per MWh generated.  Representative
-# constants, not derived from this repo's data; see input/electricity/tech_data.csv for the techs.
+# constants, not derived from this repo's data; see input/electricity/tech.csv for the techs.
 # '4' (Gas Combined Cycle) would be ~7.12 when it is added.
 NG_HEAT_RATE_MMBTU_PER_MWH: dict[str, float] = {
     '3': 9.51,  # Gas Turbine
 }
-# techs whose supply_price is linked to the natural gas price and whose generation burns gas:
+# techs whose generation_cost is linked to the natural gas price and whose generation burns gas:
 # exactly the techs with a heat rate above, so the two lists cannot drift apart
 NG_PRICE_LINKED_TECHS: tuple[str, ...] = tuple(NG_HEAT_RATE_MMBTU_PER_MWH)

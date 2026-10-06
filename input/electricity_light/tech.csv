@@ -1,0 +1,8 @@
+tech,steps,label,abbreviation,color,is_conventional,is_renewable,is_hydro,is_hydro_seasonal,is_hydro_regular,is_storage,is_vre,is_wind,is_solar,is_solar_utility,is_solar_end_use,is_hydrogen,is_dispatchable,is_generator
+NG_Fired_Plant,1/2/3,Gas Fired Plant,NGFIRE,#EE7942,True,-,-,-,-,-,-,-,-,-,-,-,True,True
+H2_Fired_Plant,1,Hydrogen Fired Plant,H2FIRE,#00FFFF,-,-,-,-,-,-,-,-,-,-,-,True,True,True
+Hydro_Plant_seasonal,1,Seasonal Hydro,HYDSEA,#0000FF,-,True,True,True,-,-,-,-,-,-,-,-,True,True
+Hydro_Plant_regular,1,Regular Hydro,HYDREG,#0000FF,-,True,True,-,True,-,-,-,-,-,-,-,True,True
+Battery_Storage,1,Battery Storage,BATTRY,#FF69B4,-,-,-,-,-,True,-,-,-,-,-,-,-,-
+Solar_utility,1,Utility Solar,SOLRUT,#FFD700,-,-,-,-,-,-,True,-,True,True,-,-,-,True
+Solar_end_use,1,End-Use Solar,SOLREU,#FFD700,-,-,-,-,-,-,True,-,True,-,True,-,-,True

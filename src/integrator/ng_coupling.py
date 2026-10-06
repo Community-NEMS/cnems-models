@@ -11,10 +11,10 @@ for hydrogen: a mutable price parameter written between solves, entering the dis
 What the electricity model must expose
 --------------------------------------
 ``generation_total``, ``weight_day`` and ``map_hour_day``, all of which already exist, plus a
-``ng_fuel_adj`` Param indexed exactly like ``supply_price``
+``ng_fuel_adj`` Param indexed exactly like ``generation_cost``
 (region, tech, step, year, season) and declared ``within=Reals, mutable=True``. It carries a
 DELTA against a reference gas price, not a price level, so it goes negative whenever gas is
-cheaper than its reference. Add it to the dispatch-cost term alongside ``supply_price``;
+cheaper than its reference. Add it to the dispatch-cost term alongside ``generation_cost``;
 both are $/MWh, so no conversion is needed. ``check_coupling_contract`` validates all four up front.
 
 Index order is DECLARED, not discovered
@@ -23,7 +23,7 @@ Index order is DECLARED, not discovered
 
     sorted((idx.region, idx.tech, idx.step, idx.year, hr) for ...)
 
-so its order is fixed by construction, and ``ng_fuel_adj`` mirrors ``supply_price``. Both are
+so its order is fixed by construction, and ``ng_fuel_adj`` mirrors ``generation_cost``. Both are
 declared in ``GENERATION_INDEX`` and ``FUEL_ADJ_INDEX`` below.
 
 Call ``check_coupling_contract`` once at setup to fail loudly if the electricity model is
@@ -60,7 +60,7 @@ NG_HEAT_RATE_MMBTUPERMWH: dict[str, float] = {'3': 9.51, '4': 7.12}
 # Position of each role in the index tuples this module reads and writes. Fixed by construction
 # in the electricity model, so declared here rather than discovered:
 #   generation_total  src/models/electricity/model_sets.py:224-229
-#   ng_fuel_adj       mirrors supply_price, src/models/electricity/electricity_model.py:304-312
+#   ng_fuel_adj       mirrors generation_cost, src/models/electricity/electricity_model.py:304-312
 GENERATION_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'hour': 4}
 FUEL_ADJ_INDEX: dict[str, int] = {'region': 0, 'tech': 1, 'step': 2, 'year': 3, 'season': 4}
 
@@ -126,7 +126,7 @@ def check_coupling_contract(elec_model) -> None:
             'ng_fuel_adj',
             (
                 'mutable gas fuel-cost adjustment, WRITTEN each iteration. Declare it '
-                'indexed like supply_price (region, tech, step, year, season), '
+                'indexed like generation_cost (region, tech, step, year, season), '
                 'within=Reals, mutable=True'
             ),
         ),

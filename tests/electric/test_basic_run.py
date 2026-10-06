@@ -49,32 +49,32 @@ verbose = False
 # every config.
 _ALWAYS_REQUIRED = frozenset(
     {
-        'battery_efficiency',
-        'hours_to_buy',
-        'cap_factor_vre',
-        'hydro_cap_factor',
-        'supply_price',
-        'supply_curve',
+        'storage_efficiency',
+        'storage_duration',
+        'capacity_factor_vre',
+        'hydro_capacity_factor',
+        'generation_cost',
+        'available_capacity',
         'fom_cost',
     }
 )
 
 # Switch-gated sources -> the ElecConfig switch gating their declaration in electricity_model.py.
 _GATED_BY_SWITCH = {
-    'cap_cost': 'capacity_expansion',
+    'capital_cost': 'capacity_expansion',
     'tran_cost': 'regional_exchange',
-    'tran_cost_int': 'regional_exchange',
+    'tran_cost_intl': 'regional_exchange',
     'tran_limit': 'regional_exchange',
-    'tran_limit_cap_int': 'regional_exchange',
-    'tran_limit_gen_int': 'regional_exchange',
-    'reserve_margin': 'reserve_margin_required',
+    'tran_limit_cap_intl': 'regional_exchange',
+    'supply_limit_intl': 'regional_exchange',
+    'planning_reserve_margin': 'reserve_margin_required',
     'ramp_up_cost': 'ramping_required',
     'ramp_down_cost': 'ramping_required',
     'ramp_rate': 'ramping_required',
-    'reg_reserves_cost': 'spinning_reserve_required',
-    'res_tech_upper_bound': 'spinning_reserve_required',
+    'reserve_cost': 'spinning_reserve_required',
+    'reserve_tech_limit': 'spinning_reserve_required',
 }
-# Note: cap_cost_initial/learning_rate/supply_curve_learning are gated by capacity_expansion +
+# Note: capital_cost_initial/learning_rate/supply_curve_learning are gated by capacity_expansion +
 # expansion_learning_type != DISABLED, which none of this file's `configs` cases enable -- those
 # three are instead cross-checked in test_linear_learning below.
 
@@ -341,9 +341,9 @@ def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected
 def test_nonlinear_learning_index_domains(regions):
     """Nonlinear learning borrows its variable index from the linear cost table.
 
-    ``capacity_builds`` is created from ``cap_cost.keys()``, but the nonlinear objective reads
-    ``cap_cost_initial`` and, for the cumulative term, indexes ``capacity_builds`` by every
-    ``cap_cost_initial`` key crossed with every earlier year.  Both lookups must be total or the
+    ``capacity_builds`` is created from ``capital_cost.keys()``, but the nonlinear objective reads
+    ``capital_cost_initial`` and, for the cumulative term, indexes ``capacity_builds`` by every
+    ``capital_cost_initial`` key crossed with every earlier year.  Both lookups must be total or the
     expression raises ``KeyError`` during construction.  This needs a build only, so it holds the
     invariant whether or not a nonlinear solver is installed.
     """
@@ -359,11 +359,11 @@ def test_nonlinear_learning_index_domains(regions):
     model = ElectricitySequencer().build_model(common_config, elec_config)
 
     builds = set(model.capacity_builds)
-    initial = set(model.cap_cost_initial)
+    initial = set(model.capital_cost_initial)
 
     missing_outer = {(r, tech, step) for (r, tech, step, _y) in builds} - initial
     assert not missing_outer, (
-        f'cap_cost_initial missing keys for builds: {sorted(missing_outer)[:5]}'
+        f'capital_cost_initial missing keys for builds: {sorted(missing_outer)[:5]}'
     )
 
     techs_built = {tech for (_r, tech, _s, _y) in builds}
@@ -445,7 +445,9 @@ def test_nonlinear_objective_uses_lagged_cumulative_builds():
     first_year_keys = [k for k in model.capacity_builds if k[3] == first_year]
     for key in first_year_keys:
         model.capacity_builds[key].set_value(1.0)
-    undiscounted = sum(value(model.cap_cost_initial[r, t, s]) for (r, t, s, _y) in first_year_keys)
+    undiscounted = sum(
+        value(model.capital_cost_initial[r, t, s]) for (r, t, s, _y) in first_year_keys
+    )
     assert value(model.capacity_expansion_cost) == pytest.approx(undiscounted)
 
     # Experience is pooled across regions and steps, not kept per region.  Build in ONE region in
@@ -460,7 +462,7 @@ def test_nonlinear_objective_uses_lagged_cumulative_builds():
     reset()
     model.capacity_builds[other_region, tech, step, later_year].set_value(1.0)
     alone = value(model.capacity_expansion_cost)
-    assert alone == pytest.approx(value(model.cap_cost_initial[other_region, tech, step]))
+    assert alone == pytest.approx(value(model.capital_cost_initial[other_region, tech, step]))
 
     model.capacity_builds[source_region, tech, step, first_year].set_value(1.0)
     with_other_region_experience = value(model.capacity_expansion_cost)
@@ -471,8 +473,8 @@ def test_nonlinear_objective_uses_lagged_cumulative_builds():
     # region is discounted by the one unit of prior experience pooled from the source region.
     baseline_capacity = value(model.supply_curve_learning[tech])
     exponent = value(model.learning_rate[tech])
-    expected = value(model.cap_cost_initial[source_region, tech, step]) + value(
-        model.cap_cost_initial[other_region, tech, step]
+    expected = value(model.capital_cost_initial[source_region, tech, step]) + value(
+        model.capital_cost_initial[other_region, tech, step]
     ) * (((baseline_capacity + 1.0) / baseline_capacity) ** (-exponent))
 
     assert with_other_region_experience == pytest.approx(expected)
@@ -492,12 +494,12 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     elec_model = sequencer.build_model(common_config, elec_config)
 
     # with learning enabled, the learning-gated param_sources.toml entries should be wired in
-    for key in ('cap_cost_initial', 'learning_rate', 'supply_curve_learning'):
+    for key in ('capital_cost_initial', 'learning_rate', 'supply_curve_learning'):
         assert not PARAM_SOURCES[key].required
         assert hasattr(elec_model, key), f'{key} missing with learning enabled'
 
-    # DEBUG level additionally captures the per-key cap_cost updates for the verbose table.  The
-    # iteration log comes from the sequencer and the cap_cost updates from learning.py, so both
+    # DEBUG level additionally captures the per-key capital_cost updates for the verbose table.  The
+    # iteration log comes from the sequencer and the capital_cost updates from learning.py, so both
     # loggers are raised.
     capture_level = logging.DEBUG if verbose else logging.INFO
     with (
@@ -509,14 +511,17 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
 
     if verbose:
         # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
-        cost_rows = [rec.args for rec in caplog.records if rec.msg.startswith('Reduced cap_cost')]
+        cost_rows = [
+            rec.args for rec in caplog.records if rec.msg.startswith('Reduced capital_cost')
+        ]
         initial_costs = {
-            idx: value(elec_model.cap_cost_initial[idx]) for idx in elec_model.cap_cost_initial
+            idx: value(elec_model.capital_cost_initial[idx])
+            for idx in elec_model.capital_cost_initial
         }
         print(f'\ncap_cost_initial: {initial_costs}')
-        # one record per cap_cost key per iteration; recover the iteration index by
+        # one record per capital_cost key per iteration; recover the iteration index by
         # chunking
-        n_keys = len(elec_model.cap_cost)
+        n_keys = len(elec_model.capital_cost)
         table = [
             (i // n_keys, y, old, new)
             for i, (_r, _tech, _step, y, old, new) in enumerate(cost_rows)
@@ -548,8 +553,8 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     """Pin what linear learning does on the micro dataset, where the curve changes the answer.
 
     The load forces builds in every year from 2030 to 2035, so every year after the first is priced
-    from real prior experience.  Each final ``cap_cost`` is checked against the curve written out
-    from the solved builds, and the expansion cost is pinned tightly enough that a change to the
+    from real prior experience.  Each final ``capital_cost`` is checked against the curve written
+    out from the solved builds, and the expansion cost is pinned tightly enough that a change to the
     curve or to the exponent moves it.
     """
     common_config, elec_config = learning_config_set
@@ -557,7 +562,7 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     model = sequencer.build_model(common_config, elec_config)
     assert sequencer.solve_model()[-1] is IterationStatus.BEST
 
-    for r, tech, step, y in model.cap_cost:
+    for r, tech, step, y in model.capital_cost:
         prior = sum(
             value(model.capacity_builds[idx])
             for idx in model.capacity_builds
@@ -566,8 +571,8 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
         baseline = value(model.supply_curve_learning[tech])
         exponent = value(model.learning_rate[tech])
         multiplier = ((baseline + prior) / baseline) ** (-exponent)
-        expected = value(model.cap_cost_initial[r, tech, step]) * multiplier
-        assert value(model.cap_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
+        expected = value(model.capital_cost_initial[r, tech, step]) * multiplier
+        assert value(model.capital_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
 
     # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
     # would miss a change of a few dollars in it.  It is pinned on its own, tighter.

@@ -37,16 +37,16 @@ PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
 
 # param sources to convert to DF's for further processing.  "Load" handled separately
 TIME_BASED_DFS = (
-    'cap_cost',
-    'cap_factor_vre',
-    'hydro_cap_factor',
-    'supply_curve',
-    'supply_price',
+    'capital_cost',
+    'capacity_factor_vre',
+    'hydro_capacity_factor',
+    'available_capacity',
+    'generation_cost',
     'tran_cost',
-    'tran_cost_int',
+    'tran_cost_intl',
     'tran_limit',
-    'tran_limit_cap_int',
-    'tran_limit_gen_int',
+    'tran_limit_cap_intl',
+    'supply_limit_intl',
 )
 
 # Schema metadata (filename, property columns, index columns) for each property source, read
@@ -74,7 +74,7 @@ class FilterPackage:
     """
 
     region_filter: Iterable[str] | None = None
-    region_cols: Iterable[str] = ('region', 'destination_region', 'source_region')
+    region_cols: Iterable[str] = ('region', 'region_dest', 'region_source')
     year_filter: Iterable[int] | None = None
     year_col: Iterable[str] = ('year',)
 

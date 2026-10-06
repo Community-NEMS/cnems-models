@@ -40,7 +40,7 @@ def _parse_steps(raw: str, tech: str) -> list[int]:
     Parameters
     ----------
     raw : str
-        the raw ``steps`` cell from tech_data.csv, e.g. ``'1/2/3'``.
+        the raw ``steps`` cell from tech.csv, e.g. ``'1/2/3'``.
     tech : str
         the owning tech, used only to identify the offender in the error message.
 
@@ -107,7 +107,7 @@ class ModelSets:
     steps: list[int]
     """All step values used in data"""
     tech_steps: dict[str, list[int]]
-    """tech -> the supply curve steps declared valid for it in tech_data.csv"""
+    """tech -> the supply curve steps declared valid for it in tech.csv"""
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
@@ -115,38 +115,38 @@ class ModelSets:
         set_data = load_property_data(common_config.common_data_path)
 
         # break up the tech data into its constituents
-        td = set_data['tech_data']
+        td = set_data['tech']
         self.tech = td['tech']
-        self.tech_conv = td['T_conv']
-        self.tech_re = td['T_re']
-        self.tech_wind = td['T_wind']
-        self.tech_solar = td['T_solar']
-        # T_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        self.tech_conv = td['is_conventional']
+        self.tech_re = td['is_renewable']
+        self.tech_wind = td['is_wind']
+        self.tech_solar = td['is_solar']
+        # is_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
         # filters on these -- utility-scale and end-use solar face the same constraints and differ
         # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
         # are carried so the distinction is addressable in the formulation and in reporting rather
         # than living implicitly in a supply curve step number.
-        self.tech_solar_utility = td['T_solar_utility']
-        self.tech_solar_end_use = td['T_solar_end_use']
-        self.tech_h2 = td['T_h2']
-        self.tech_disp = td['T_disp']
-        self.tech_gen = td['T_gen']
-        self.tech_stor = td['T_stor']
-        self.tech_vre = td['T_vre']
-        self.tech_hydro = td['T_hydro']
-        # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        self.tech_solar_utility = td['is_solar_utility']
+        self.tech_solar_end_use = td['is_solar_end_use']
+        self.tech_h2 = td['is_hydrogen']
+        self.tech_disp = td['is_dispatchable']
+        self.tech_gen = td['is_generator']
+        self.tech_stor = td['is_storage']
+        self.tech_vre = td['is_vre']
+        self.tech_hydro = td['is_hydro']
+        # is_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
         # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
         # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
         # be a hard-coded supply-curve step number.
-        self.tech_hydro_seasonal = td['T_hydro_seasonal']
-        self.tech_hydro_regular = td['T_hydro_regular']
+        self.tech_hydro_seasonal = td['is_hydro_seasonal']
+        self.tech_hydro_regular = td['is_hydro_regular']
 
-        self.tech_retires = set_data['retireable_techs']['retires']
-        self.tech_builds = set_data['buildable_techs']['builds']
+        self.tech_retires = set_data['tech_retire']['is_retirable']
+        self.tech_builds = set_data['tech_build']['is_buildable']
 
         # descriptive (non-membership) tech columns: the valid supply curve steps plus the
         # reporting label/abbreviation/color that used to live only in analysis_tools
-        ta = load_attribute_data(common_config.common_data_path)['tech_data']
+        ta = load_attribute_data(common_config.common_data_path)['tech']
         self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
         self.steps = list(chain.from_iterable(self.tech_steps.values()))
         self.tech_label: dict[str, str] = ta['label']
@@ -154,13 +154,13 @@ class ModelSets:
         self.tech_color: dict[str, str] = ta['color']
 
         # break up the region data into its constituents
-        rd = set_data['region_data']
+        rd = set_data['region']
         self.region = rd['region']
-        self.region_domestic = rd['domestic']
+        self.region_domestic = rd['is_domestic']
         self.region_analyze = (
             elec_config.region_filter if elec_config.region_filter else self.region_domestic
         )
-        self.region_international = rd['international']
+        self.region_international = rd['is_international']
 
         # # Load Setting
         # self.load_scalar = common_config.scale_load
@@ -420,11 +420,11 @@ class ModelSets:
             pd.merge(
                 intl_capacity.reset_index(),
                 intl_gen_limit.reset_index(),
-                on=['region_international', 'year', 'hour'],
+                on=['region_intl', 'year', 'hour'],
                 how='inner',
             )
-            .drop(columns=['generation'])
-            .set_index(['region', 'region_international', 'step', 'year', 'hour'])
+            .drop(columns=['supply_limit_intl_mw'])
+            .set_index(['region', 'region_intl', 'step', 'year', 'hour'])
         )
         res = list(df.index)
         self.international_trade_index = res

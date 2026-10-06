@@ -128,26 +128,34 @@ _GATED_BY_SWITCH = {
 # year-indexed tables were "averaged" over their representative year alone; they are now averaged
 # over every year each summary year represents.  Only input data changed -- not the formulation --
 # and the variable and constraint counts are unchanged.  The other configs do not aggregate years.
+# Note: all eight expected total costs below were re-captured when the model moved from GW/GWh to
+# MW/MWh internally.  Capacity, transmission and load inputs were scaled x1000 in the data, the
+# x1000 cost adjustment in ParamData was removed, and the unit-bearing constants were rescaled.
+# With fom_cost temporarily divided by 1000, every LP config reproduced its prior objective (term by
+# term, to ~1e-14 relative) with unchanged variable and constraint counts, so the unit change
+# itself is neutral.  The moves come from FOMCost, which was always in $/MW-yr but was charged
+# against GW capacity and so was 1000x understated.  The dispatch-only configs rise by exactly 999x
+# their prior fixed_om_cost; the expansion configs re-optimize (retiring capacity), rising 1.5-1.8x.
 configs = [
-    ('basic', 3669432143.12, 17430, 19182),
-    ('exchange', 2586014294.54, 20886, 22830),
-    ('expansion_no_learning', 3668698225.74, 17604, 19308),
-    ('ramping', 3739419337.87, 32406, 41646),
-    ('reserve_with_expansion_no_learning', 5138454401.3, 18756, 22188),
+    ('basic', 8152448639.12, 17430, 19182),
+    ('exchange', 7069030790.54, 20886, 22830),
+    ('expansion_no_learning', 6472076341.28, 17604, 19308),
+    ('ramping', 8222435833.87, 32406, 41646),
+    ('reserve_with_expansion_no_learning', 8070923124.59, 18756, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        5140330132.57,
+        8079497724.77,
         51588,
         56748,
     ),
-    ('agg_years', 14564553802.5, 17430, 19182),  # <-- no good starting value
+    ('agg_years', 32382704815.50, 17430, 19182),  # <-- no good starting value
     # Nonlinear learning is paired with the reserve margin deliberately.  Without it the optimum
     # builds nothing, the learning term multiplies zero, and the case would pin solver tolerance
     # noise rather than model behavior.  Counts match the reserve/expansion case above because
     # only the objective expression differs between learning modes.
-    ('nonlinear_learning_with_reserve', 5230675880.21, 18756, 22188),
+    ('nonlinear_learning_with_reserve', 8168017354.43, 18756, 22188),
 ]
 
 # Nonlinear learning solves through IPOPT, whose termination tolerance is much looser than the LP
@@ -397,8 +405,9 @@ def test_nonlinear_learning_objective_characterization():
     # No builds means no expansion cost, whatever the multiplier does.
     assert cost_at(0.0) == pytest.approx(0.0, abs=1e-9)
 
-    at_one = cost_at(1.0)
-    at_two_and_a_half = cost_at(2.5)
+    # builds are in MW; 1 and 2.5 GW keep the values captured before the move to MW units
+    at_one = cost_at(1000.0)
+    at_two_and_a_half = cost_at(2500.0)
     assert at_one == pytest.approx(133777599845.11543)
     assert at_two_and_a_half == pytest.approx(329888419799.9818)
 
@@ -473,8 +482,8 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     """Exercise the linear-learning iteration on a single-region micro dataset.
 
     The dataset lives in tests/electric/test_data_linear_learning_test.  It has a single region
-    'CA' and a single tech 'NG_Fired_Plant', with 2.0 units of existing capacity against a load
-    that starts at 4.0 units and grows 5 units/year, forcing step-3 builds every year.  Asserts on
+    'CA' and a single tech 'NG_Fired_Plant', with 2,000 MW of existing capacity against a load
+    that starts at 4,000 MW and grows 5,000 MW/year, forcing step-3 builds every year.  Asserts on
     the convergence log emitted by ``ElectricitySequencer.solve_model`` each iteration.
     """
     common_config, elec_config = learning_config_set
@@ -563,4 +572,4 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
     # would miss a change of a few dollars in it.  It is pinned on its own, tighter.
     assert value(model.capacity_expansion_cost) == pytest.approx(2525039.4414830687, rel=1e-9)
-    assert value(model.total_cost) == pytest.approx(9512542829.477722)
+    assert value(model.total_cost) == pytest.approx(9513531839.477724)

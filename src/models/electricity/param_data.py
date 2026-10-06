@@ -126,20 +126,6 @@ class ParamData:
         param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
         logger.info('Read in %d parameter elements', len(param_data))
 
-        # TEMP HACK:  Adjust prices by factor of x1000 in select params to match the old values
-        # TODO:  Remove this segment and force this on the DATA!!!!
-        names_to_adjust = [
-            'supply_price',
-            'tran_cost',
-            'tran_cost_int',
-            'reg_reserves_cost',
-            'ramp_up_cost',
-            'ramp_down_cost',
-            'cap_cost',
-            'cap_cost_initial',
-        ]
-        for name in names_to_adjust:
-            param_data[name] = {k: v * 1000 for k, v in param_data[name].items()}
         # make the time-based dataframes
         # TODO:  refactor this?
         self.build_temporal_maps()

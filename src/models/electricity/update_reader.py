@@ -115,8 +115,7 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
 
         Notes
         -----
-        The adjustment is a ratio, so it is indifferent to the x1000 price hack in
-        ``ParamData.__init__``.
+        The adjustment is a ratio, so it is indifferent to the price units.
         ``SupplyPrice`` is a dense pyomo Param with no default, which is why uncovered rows are
         retained rather than dropped.
         """

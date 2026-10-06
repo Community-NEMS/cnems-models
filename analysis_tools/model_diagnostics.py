@@ -142,11 +142,32 @@ def load_inspector(em: PowerModel, region: str):
                 print(f'Load for {year} hour {hour}: N/A')
 
 
-def cost_per_kwh(em: PowerModel) -> None:
-    """Report the grand avg cost per KWh from a solved model."""
+def cost_per_kwh(em: PowerModel) -> float:
+    """Report the grand average cost per kWh from a solved model.
+
+    Load is weighted by ``weight_day`` and ``weight_year`` exactly as the objective weights
+    dispatch, so the ratio compares like with like.
+
+    Parameters
+    ----------
+    em : PowerModel
+        A solved PowerModel instance.
+
+    Returns
+    -------
+    float
+        Total objective cost divided by total weighted load, in $/kWh.
+    """
     total_cost = value(em.total_cost)
-    total_load = sum(em.elec_load[r, y, hr] * em.weight_year[y] for (r, y, hr) in em.elec_load)
+    total_load_mwh = value(
+        sum(
+            em.elec_load[r, y, hr] * em.weight_day[em.map_hour_day[hr]] * em.weight_year[y]
+            for (r, y, hr) in em.elec_load
+        )
+    )
+    cost = total_cost / (total_load_mwh * 1000.0)
 
     print(f'total cost: $M {total_cost / 1e6:,.2f}')
-    print(f'total load: {total_load:,.2f} GWh')
-    print(f'cost per kWh: $ {total_cost / 1e6 / total_load:,.2f}')
+    print(f'total load: {total_load_mwh / 1e6:,.2f} TWh')
+    print(f'cost per kWh: $ {cost:,.4f}')
+    return cost

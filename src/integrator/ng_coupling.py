@@ -15,7 +15,7 @@ What the electricity model must expose
 (region, tech, step, year, season) and declared ``within=Reals, mutable=True``. It carries a
 DELTA against a reference gas price, not a price level, so it goes negative whenever gas is
 cheaper than its reference. Add it to the dispatch-cost term alongside ``supply_price``;
-both are $/GWh, so no conversion is needed. ``check_coupling_contract`` validates all four up front.
+both are $/MWh, so no conversion is needed. ``check_coupling_contract`` validates all four up front.
 
 Index order is DECLARED, not discovered
 --------------------------------------
@@ -159,8 +159,7 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict[str, str]) -> dict:
     Sums day-weighted generation for gas technologies, converts to Bcf with representative heat
     rates, and aggregates electricity regions onto gas regions.
 
-        Bcf = GWh x MMBtu/MWh x 1000 MWh/GWh / 1e6 MMBtu/Bcf
-            = GWh x MMBtu/MWh / 1000
+        Bcf = MWh x MMBtu/MWh / 1e6 MMBtu/Bcf
 
     Returns
     -------
@@ -193,14 +192,13 @@ def poll_ng_gas_demand(elec_model, elec_to_ng: dict[str, str]) -> dict:
         # roughly two orders of magnitude while leaving the regional shares looking right.
         hr = idx[i_h]
         # pyrefly: ignore[unsupported-operation]  - pyomo's value() will not be None in solved mdl
-        gen_gwh = value(elec_model.generation_total[idx]) * value(
+        gen_mwh = value(elec_model.generation_total[idx]) * value(
             elec_model.weight_day[elec_model.map_hour_day[hr]]
         )
-        # GWh -> Bcf. GWh x MMBtu/MWh gives thousands of MMBtu (since 1 GWh = 1000 MWh), and
-        # 1 Bcf ~ 1e6 MMBtu, so the two powers of ten collapse to a single division by 1e3.
+        # MWh -> Bcf. MWh x MMBtu/MWh gives MMBtu, and 1 Bcf ~ 1e6 MMBtu.
         # Accumulate onto (gas region, year): many electricity regions map to one gas region.
         res[GI(region=ng_region, year=int(idx[i_y]))] += (
-            gen_gwh * NG_HEAT_RATE_MMBTUPERMWH[tech] / 1e3
+            gen_mwh * NG_HEAT_RATE_MMBTUPERMWH[tech] / 1e6
         )
 
     if skipped_regions:
@@ -230,7 +228,7 @@ def update_ng_fuel_adj(
     The value written is a DELTA against a reference price captured at the first gas solve, not
     an absolute price:
 
-        ng_fuel_adj = (p - p_ref) [$/MMBtu] x heat rate [MMBtu/MWh] x 1000 [MWh/GWh]  ->  $/GWh
+        ng_fuel_adj = (p - p_ref) [$/MMBtu] x heat rate [MMBtu/MWh]  ->  $/MWh
 
     Passing a delta rather than a level preserves whatever fuel cost is already calibrated into
     the electricity model's own supply price: at convergence, if the gas market reproduces its
@@ -274,11 +272,11 @@ def update_ng_fuel_adj(
             continue
 
         # The delta, converted to the electricity objective's units:
-        # ($/MMBtu) x (MMBtu/MWh) = $/MWh, then x1000 MWh/GWh = $/GWh.
+        # ($/MMBtu) x (MMBtu/MWh) = $/MWh.
         # base_ng_prices must come from the FIRST gas solve and never be reassigned. Recapture
         # it each iteration and this difference is identically zero every time, the coupling
         # transmits nothing, converges immediately, and looks healthy.
-        adj_full = (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[tech] * 1000.0
+        adj_full = (ng_prices[gi] - base_ng_prices[gi]) * NG_HEAT_RATE_MMBTUPERMWH[tech]
         # Under-relaxation blends toward the value already in the parameter. Gas price and
         # gas-fired dispatch drive each other hard, so alpha=1.0 tends to oscillate; the loop
         # should damp here as well as on both gas-side demand updates.

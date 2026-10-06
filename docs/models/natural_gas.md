@@ -374,6 +374,85 @@ leaves everything else on its scalar.
 A healthy run is quiet: one `... loaded from CSV` line per input, plus two INFO lines noting the
 absent override files. A `ValueError` naming a file is the system working.
 
+## Data validation
+
+The loaded input data is checked before the pyomo model is built. `NGSequencer.build_model` loads
+the data with `load_all`, applies any inbound update packages through `NGUpdateReader`, and then
+calls `validate_all(data)` from `src/models/natural_gas/data_validation.py`. Validation therefore
+sees the data the model will actually use, including the effects of any packages.
+
+The loaders already reject missing files, missing columns and unparseable values. The validations
+go further and check that the values make sense for the model. Each of the three piecewise-linear
+curves (supply, pipeline tariff, LNG export demand) needs breakpoints that strictly increase in
+quantity and a slope sign that keeps the QP convex. Data that breaks either rule doesn't fail when
+the model is built:
+
+- **A segment of negative width** makes its segment cap infeasible, so the solve fails with nothing
+  pointing at the input that caused it.
+- **A zero-width segment** silently drops out of the objective.
+- **A wrong-signed slope** makes the objective non-convex.
+
+The validations turn each of these into a named error before the build.
+
+Each validation is independent and every one runs on each pass, so a single build reports all of
+the problems found rather than stopping at the first. Findings are written to the log as errors.
+
+### Strict validation
+
+The `strict_validation` switch in the `[common]` section of the run configuration
+(`CommonConfig.strict_validation`, default `true`) works as it does for the electricity model:
+
+- `strict_validation = true` — a failed validation raises `DataValidationError`
+  (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
+  are in the log. This is the normal setting.
+- `strict_validation = false` — failures are logged and the run continues with the data as read,
+  at the risk of an infeasible or mis-specified solve.
+
+### Validations performed
+
+- **Supply-curve shape** (`validate_supply_curve_shape`) — every `crv_below` in (0, 1), every
+  `crv_above` > 0 and every `elas` > 0, so each supply breakpoint sits strictly beyond the last.
+  Also checks that `crv_below[i] / elas[i]` < 1 for each step below the anchor. The price factor
+  there is `1 − crv/elas`, so a ratio of 1 or more would put a breakpoint price at or below zero.
+- **QMIN fraction** (`validate_qmin_fraction`) — `supply_curve_qmin_fraction` must lie in
+  [0, (1−c⁻₂)(1−c⁻₃)), 0.8075 with the shipped shape. `QBASE_1` is set to QMIN, so it has to sit
+  below `QBASE_2` for supply segment 1 to have positive width.
+- **Supply anchors** (`validate_supply_anchors`) — for every analysis region and year, the anchor
+  Q0 (summed tier capacity × `q0_mult`) and P0 (capacity-weighted tier cost × `p0_mult`) must both
+  be positive. A zero Q0 collapses the region's whole curve, and a zero P0 prices it at zero. An
+  analysis region with no supply cost tiers is also flagged.
+- **Tariff-curve shape** (`validate_tariff_curve_shape`) — `util_break` must start at or above zero
+  and strictly increase, and `tariff_mult` must not decrease. A falling tariff gives a negative
+  slope and a non-convex transport cost.
+- **Pipeline arcs** (`validate_pipeline_arcs`) — every arc's capacity must be > 0, since the tariff
+  breakpoints are capacity × `util_break`. Every base tariff must be ≥ 0.
+- **LNG demand curve** (`validate_lng_demand_curve`) — `q_frac` must start at or above zero and
+  strictly increase. `p_factor` must not increase and must be non-negative, and the world LNG price
+  must be positive. A rising demand curve makes the consumer-surplus term, and so the objective,
+  non-convex.
+- **LNG export capacity** (`validate_lng_export`) — every entry in `ng_lng_export.csv` must be
+  ≥ 0. Zero is allowed: it is a real state, such as a terminal not yet online, and the model gives
+  those segments zero width and zero surplus coefficients.
+
+The tariff and LNG loaders sort their breakpoints, so a repeated value is the only way those curves
+can fail the strictly-increasing checks.
+
+### Checks in the update methods
+
+The coupling-interface methods (see *Coupling interface* below) change model data after the build,
+so they check their inputs too. Each raises `ValueError` before changing anything, which leaves the
+model as it was when a call is rejected.
+
+- **`update_lng_export`** — capacity must be ≥ 0, and the world price must be > 0. These are the
+  runtime counterparts of the two LNG validations above.
+- **`update_demand`, `update_canada_supply`, `update_supply_capacity`** — reject negative
+  quantities. A negative supply or demand would otherwise enter the market balance. In
+  `update_supply_capacity`, a negative capacity would otherwise be summed into Q0 and hidden by the
+  1.0 floor applied to the total.
+- **`update_demand`, `update_demand_from_price`, `update_supply_capacity`** — the
+  under-relaxation factor `alpha` must lie in (0, 1]. Outside that range it extrapolates instead of
+  blending.
+
 ---
 
 ## Regional subsetting

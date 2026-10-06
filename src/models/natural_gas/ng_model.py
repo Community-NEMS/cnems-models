@@ -1073,7 +1073,13 @@ class NGModel(ConcreteModel, IntegratedModel):
             Current shadow prices from ``poll_gas_price()`` in $/MMBtu.
         alpha : float
             Under-relaxation factor (0 < alpha ≤ 1).
+
+        Raises
+        ------
+        ValueError
+            If ``alpha`` is outside (0, 1].
         """
+        _check_alpha(alpha)
         # SILENT NO-OP IF THE REFERENCE WAS NEVER SET. Deliberate, it lets the first
         # iteration run before any price exists, but it means forgetting the
         # set_reference_prices() call disables price-responsive demand for the whole run with
@@ -1131,7 +1137,18 @@ class NGModel(ConcreteModel, IntegratedModel):
             Demand sector to update (default: 'electric_power').
         alpha : float
             Under-relaxation factor in (0, 1].  1.0 = full replacement.
+
+        Raises
+        ------
+        ValueError
+            If any demand is negative or ``alpha`` is outside (0, 1].  Nothing is changed when
+            it raises.
         """
+        _check_alpha(alpha)
+        bad = {gi: qty for gi, qty in new_demand.items() if qty < 0.0}
+        if bad:
+            raise ValueError(f'{sector} demand must be >= 0; got {bad}')
+
         valid_regions = set(self.region_analyze)
         for gi, qty in new_demand.items():
             if gi.region not in valid_regions:
@@ -1153,7 +1170,16 @@ class NGModel(ConcreteModel, IntegratedModel):
         ----------
         supply : dict[GI, float]
             {GI(region, year): supply_BCF_per_year}
+
+        Raises
+        ------
+        ValueError
+            If any supply is negative.  Nothing is changed when it raises.
         """
+        bad = {gi: qty for gi, qty in supply.items() if qty < 0.0}
+        if bad:
+            raise ValueError(f'Canadian supply must be >= 0; got {bad}')
+
         valid_regions = set(self.region_analyze)
         for gi, qty in supply.items():
             if gi.region not in valid_regions:
@@ -1184,7 +1210,20 @@ class NGModel(ConcreteModel, IntegratedModel):
         world_price : float, optional
             World LNG price in $/MMBtu, the price at full export volume; applied to every LNG
             region and year.
+
+        Raises
+        ------
+        ValueError
+            If any capacity is negative or ``world_price`` is not positive, the runtime
+            counterparts of ``data_validation.validate_lng_export`` and
+            ``validate_lng_demand_curve``.  Nothing is changed when it raises.
         """
+        bad_caps = {gi: cap for gi, cap in (capacity or {}).items() if cap < 0.0}
+        if bad_caps:
+            raise ValueError(f'LNG export capacity must be >= 0; got {bad_caps}')
+        if world_price is not None and not world_price > 0.0:
+            raise ValueError(f'World LNG price must be > 0; got {world_price}')
+
         q_frac = self.lng_demand_curve_shape['q_frac']
         p_factor = self.lng_demand_curve_shape['p_factor']
         touched: set[tuple[str, int]] = set()
@@ -1349,7 +1388,18 @@ class NGModel(ConcreteModel, IntegratedModel):
             values are summed per (region, year).
         alpha : float
             Under-relaxation factor (0 < alpha <= 1.0)
+
+        Raises
+        ------
+        ValueError
+            If any capacity is negative or ``alpha`` is outside (0, 1].  Nothing is changed
+            when it raises.
         """
+        _check_alpha(alpha)
+        bad = {key: cap for key, cap in capacity_updates.items() if float(cap) < 0.0}
+        if bad:
+            raise ValueError(f'Supply capacity must be >= 0; got {bad}')
+
         # Step 1: aggregate to per-(region, year) totals. `_cost_tier` is unused by design --
         # see the docstring above; the underscore marks it as deliberately discarded.
         agg: dict[tuple[str, int], float] = defaultdict(float)
@@ -1470,3 +1520,9 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.results_prices = _extract_prices(self)
         self.results_storage = _extract_storage(self)
         self.results_balance = _extract_balance(self)
+
+
+def _check_alpha(alpha: float) -> None:
+    """Raise ``ValueError`` unless ``0 < alpha <= 1``, the under-relaxation factor's range."""
+    if not 0.0 < alpha <= 1.0:
+        raise ValueError(f'Under-relaxation factor alpha must be in (0, 1]; got {alpha}')

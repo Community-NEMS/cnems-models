@@ -193,3 +193,33 @@ def test_zero_width_segment(partial_config_set: tuple[CommonConfig, NGConfig]) -
 
     m.update_lng_export(capacity={gi: base_capacity[gi]})
     _assert_same(_solve(sequencer), base)
+
+
+@pytest.mark.parametrize(
+    'kwargs',
+    [{'capacity': 'negative'}, {'world_price': 0.0}],
+    ids=['negative-capacity', 'zero-world-price'],
+)
+def test_update_rejects_invalid_input(
+    partial_config_set: tuple[CommonConfig, NGConfig], kwargs: dict
+) -> None:
+    """Invalid capacity or price raises and leaves the curve untouched.
+
+    Parameters
+    ----------
+    partial_config_set : tuple[CommonConfig, NGConfig]
+        Fixture.
+    kwargs : dict
+        Arguments to ``update_lng_export``; ``'negative'`` is replaced by a negative capacity.
+    """
+    m = NGSequencer().build_model(*partial_config_set)
+    if kwargs.get('capacity') == 'negative':
+        kwargs = {'capacity': {next(iter(_base_capacity(m))): -1.0}}
+    before = {idx: value(m.q_lng[idx]) for idx in m.q_lng} | {
+        idx: value(m.p_lng[idx]) for idx in m.p_lng
+    }
+    with pytest.raises(ValueError):
+        m.update_lng_export(**kwargs)
+    assert before == {idx: value(m.q_lng[idx]) for idx in m.q_lng} | {
+        idx: value(m.p_lng[idx]) for idx in m.p_lng
+    }

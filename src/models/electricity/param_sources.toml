@@ -92,9 +92,10 @@ value_col = "ramp_up_cost_usd_per_mwh"
 required = false  # ramping_required
 
 [[param_source]]
+# reserve_type values here and in reserve_tech_limit must be ReserveType members (elec_config.py)
 key = "reserve_cost"
 filename = "reserve_cost.csv"
-index_cols = ["tech"]
+index_cols = ["reserve_type", "tech"]
 value_col = "reserve_cost_usd_per_mwh"
 required = false  # spinning_reserve_required
 

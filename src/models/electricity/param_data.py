@@ -80,7 +80,7 @@ class ParamDicts(TypedDict, total=False):
     ramp_down_cost: dict[tuple, float]
     ramp_rate: dict[tuple, float]
     ramp_up_cost: dict[tuple, float]
-    reserve_cost: dict[tuple, float]
+    reserve_cost: dict[tuple[ReserveType, str], float]
     planning_reserve_margin: dict[tuple, float]
     reserve_tech_limit: dict[tuple[ReserveType, str], float]
     supply_curve_learning: dict[tuple, float]
@@ -230,9 +230,12 @@ class ParamData:
             # pyrefly: ignore[unsupported-operation]  - remaining PARAM_SOURCES keys, in ParamDicts
             self.param_dicts[name] = data
 
-        # Convert the res-tech upper bound entries to Enum values for validation
+        # Convert the reserve-type-indexed entries to Enum values for validation
         self.param_dicts['reserve_tech_limit'] = ParamData._convert_reserve_types(
             self.param_dicts['reserve_tech_limit']
+        )
+        self.param_dicts['reserve_cost'] = ParamData._convert_reserve_types(
+            self.param_dicts['reserve_cost']
         )
 
         # build the reserves set, using supply + the UB to be used as a filter in construction
@@ -457,7 +460,26 @@ class ParamData:
 
     @staticmethod
     def _convert_reserve_types(target: dict) -> dict[tuple[ReserveType, str], float]:
-        """Convert strings to enums in this target dict."""
+        """Convert the reserve type strings keying ``target`` to ``ReserveType`` members.
+
+        The ``ReserveType`` enum is the authoritative list of reserve products, so every
+        ``reserve_type`` value in the data must name one of its members.
+
+        Parameters
+        ----------
+        target : dict
+            ``{(reserve_type, tech): value}`` as read from the csv.
+
+        Returns
+        -------
+        dict[tuple[ReserveType, str], float]
+            The same entries keyed by ``(ReserveType, tech)``.
+
+        Raises
+        ------
+        ValueError
+            If a ``reserve_type`` is not a ``ReserveType`` value.
+        """
         res = {}
         for (reserve_type, tech), value in target.items():
             try:

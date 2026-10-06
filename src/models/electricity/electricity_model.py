@@ -16,7 +16,6 @@ from src.models.electricity.constants import (
     REGULATION_RESERVE_PROPORTION,
     SOLAR_FLEX_RESERVE_PROPORTION,
     SOLAR_REGULATION_RESERVE_PROPORTION,
-    SPINNING_RESERVE_DEFAULT_COST,
     SPINNING_RESERVE_PROPORTION,
     STORAGE_LEVEL_COST,
     TRANSMISSION_LOSS_FACTOR,
@@ -570,9 +569,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if operating reserve requirements are on, ...
         if elec_config.spinning_reserve_required:
-            self.reserve_cost = pyo.Param(self.tech, initialize=all_dicts['reserve_cost'])
-            # note:  The data is cast to cover all combinations of ReserveType and Tech
-            #        with 0's as appropriate
+            self.reserve_cost = pyo.Param(
+                ReserveType, self.tech, initialize=all_dicts['reserve_cost']
+            )
+            # note:  Holds whatever reserve_tech_limit.csv declares, zero rows included.  Sparsity
+            #        is enforced by reserves_procurement_index, which keeps only limits > 0
             self.reserve_tech_limit = pyo.Param(
                 ReserveType,
                 self.tech,
@@ -852,12 +853,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Operating reserve cost component
                 """
                 return sum(
-                    # TODO:  Review the odd 0.01 cost here for spinning/flex
-                    (
-                        self.reserve_cost[tech]
-                        if restype == ReserveType.REGULATION
-                        else SPINNING_RESERVE_DEFAULT_COST
-                    )
+                    self.reserve_cost[restype, tech]
                     * self.weight_day[self.map_hour_day[hr]]
                     * self.weight_year[y]
                     * self.reserves_procurement[r, restype, tech, step, y, hr]

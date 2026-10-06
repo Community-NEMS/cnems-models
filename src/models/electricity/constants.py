@@ -25,10 +25,6 @@ STORAGE_LEVEL_COST = 1e-11
 
 #########  Reserve Policy Data ###########
 
-# used in operating reserve cost in OBJ:
-# $/MWh for spinning/flex; 0.01 $/GWh before the move to MW units  # TODO:  is this too "small"?
-SPINNING_RESERVE_DEFAULT_COST = 1e-5
-
 # reserve constants
 SPINNING_RESERVE_PROPORTION = 0.03
 

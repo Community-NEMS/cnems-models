@@ -45,7 +45,7 @@ _EXPECTED_PARAM_SOURCES = {
     'ramp_down_cost': ('ramp_down_cost.csv', ('tech',), 'ramp_down_cost_usd_per_mwh'),
     'ramp_rate': ('ramp_rate.csv', ('tech',), 'ramp_rate_frac_per_hr'),
     'ramp_up_cost': ('ramp_up_cost.csv', ('tech',), 'ramp_up_cost_usd_per_mwh'),
-    'reserve_cost': ('reserve_cost.csv', ('tech',), 'reserve_cost_usd_per_mwh'),
+    'reserve_cost': ('reserve_cost.csv', ('reserve_type', 'tech'), 'reserve_cost_usd_per_mwh'),
     'planning_reserve_margin': (
         'planning_reserve_margin.csv',
         ('region',),

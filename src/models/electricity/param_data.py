@@ -20,6 +20,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
+from src.common.season import Season
 from src.common.utilities import scale_load, scale_load_with_enduses
 from src.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
@@ -139,8 +140,12 @@ class ParamData:
 
         # Pluck out the time-based DF conversions and load them
         all_frames = load_dataframes(param_data=param_data, names_to_convert=TIME_BASED_DFS)
+        season_lut = {str(season): season for season in model_sets.season}
         for name, df in all_frames.items():
             param_data.pop(name)  # remove from param_data so we don't try to load it again below
+            # swap the season-name references for the model's Season objects
+            if 'season' in df.columns:
+                df = ParamData._convert_seasons(df, season_lut, name)
             # aggregate the time in the dataframe
             df = self.aggregate_time(df, name)
             # set the index properly
@@ -456,6 +461,38 @@ class ParamData:
         )
         if set_index:
             return df.set_index(list(df.columns[:-1]))
+        return df
+
+    @staticmethod
+    def _convert_seasons(df: DataFrame, season_lut: dict[str, Season], name: str) -> DataFrame:
+        """Replace the season names in ``df['season']`` with the matching ``Season`` objects.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Parameter data with a ``season`` column of season names.
+        season_lut : dict[str, Season]
+            ``{season.name: season}`` for the model's seasons (``ModelSets.season``).
+        name : str
+            Name of the data, for the error message.
+
+        Returns
+        -------
+        DataFrame
+            ``df`` with its ``season`` column holding ``Season`` objects.
+
+        Raises
+        ------
+        ValueError
+            If ``df`` names a season that is not in ``season_lut``.
+        """
+        season_names = df['season'].astype(str)
+        unknown = set(season_names) - season_lut.keys()
+        if unknown:
+            msg = f'{name} references seasons not in the model season set: {sorted(unknown)}'
+            logger.error(msg)
+            raise ValueError(msg)
+        df['season'] = season_names.map(season_lut)
         return df
 
     @staticmethod

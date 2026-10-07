@@ -112,7 +112,8 @@ class ModelSets:
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
         # load the bulk of the data from csv property files
-        set_data = load_property_data(common_config.common_data_path)
+        set_data = load_property_data(common_config.common_data_path)  # for "is a" data
+        attribute_data = load_attribute_data(common_config.common_data_path)  # for "has a" data
 
         # break up the tech data into its constituents
         td = set_data['tech']
@@ -146,7 +147,7 @@ class ModelSets:
 
         # descriptive (non-membership) tech columns: the valid supply curve steps plus the
         # reporting label/abbreviation/color that used to live only in analysis_tools
-        ta = load_attribute_data(common_config.common_data_path)['tech']
+        ta = attribute_data['tech']
         self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
         self.steps = list(chain.from_iterable(self.tech_steps.values()))
         self.tech_label: dict[str, str] = ta['label']
@@ -188,9 +189,9 @@ class ModelSets:
         # the year-map is used as a df in some spots, so add it here
         self.year_map_df = pd.DataFrame(self.year_map.items(), columns=['year', 'Map_year'])
 
-        # Temporal Sets - Seasons and Days
+        # Temporal Sets - Days and Seasons
 
-        self.season = list(self.cw_temporal['Map_s'].unique())
+        self.season = self.cw_temporal['Map_s'].unique()  # note:  these are rich Season objects
         self.num_days = self.cw_temporal['Map_day'].max()
         self.day = range(1, self.num_days + 1)
 

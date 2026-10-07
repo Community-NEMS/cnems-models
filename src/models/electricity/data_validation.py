@@ -23,6 +23,7 @@ from typing import Literal
 from pandas import DataFrame
 
 from src.common.exceptions import DataValidationError
+from src.common.season import Season
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
@@ -118,7 +119,7 @@ def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:
 
 
 def validate_seasonal_coverage(
-    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[int | str]
+    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[Season]
 ) -> bool:
     """Validate full seasonal coverage for table data.
 

@@ -330,7 +330,7 @@
           },
           {
             "name": "season",
-            "type": "integer"
+            "type": "string"
           },
           {
             "name": "generation_cost_usd_per_mwh",
@@ -360,7 +360,7 @@
           },
           {
             "name": "season",
-            "type": "integer"
+            "type": "string"
           },
           {
             "name": "hydro_capacity_factor_frac",
@@ -752,7 +752,7 @@
           },
           {
             "name": "season",
-            "type": "integer"
+            "type": "string"
           },
           {
             "name": "supply_limit_intl_mw",
@@ -1100,7 +1100,7 @@
           },
           {
             "name": "season",
-            "type": "integer"
+            "type": "string"
           },
           {
             "name": "tran_limit_mw",
@@ -1138,7 +1138,7 @@
           },
           {
             "name": "season",
-            "type": "integer"
+            "type": "string"
           },
           {
             "name": "tran_limit_cap_intl_mw",

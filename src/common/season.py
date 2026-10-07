@@ -52,8 +52,10 @@ class Season:
 
         Raises
         ------
-            ValueError if duplicates are present
+            ValueError if ``seasons`` is empty or duplicates are present
         """
+        if not seasons:
+            raise ValueError('Cannot build a season cycle from an empty sequence')
         if len(seasons) != len(set(seasons)):
             raise ValueError('Duplicate seasons')
         sequence = sorted(seasons)

@@ -56,6 +56,12 @@ def test_cycle(seasons: list[Season], group: tuple[int, ...], expected: tuple[in
         assert Season.cycle(members) == [seasons[i] for i in expected], 'cycle failed'
 
 
+def test_cycle_empty():
+    """cycle() rejects an empty group rather than failing on the wrap-around index."""
+    with pytest.raises(ValueError, match='empty'):
+        Season.cycle([])
+
+
 @pytest.mark.parametrize(
     'group1, group2, expected',
     [

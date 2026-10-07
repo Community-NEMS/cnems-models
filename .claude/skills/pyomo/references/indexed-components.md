@@ -61,9 +61,9 @@ Examples in `electricity_model.py`, both already annotated in place:
 
 | Param | Shape | Why |
 |---|---|---|
-| `supply_price` | no default | *"A missing price value (sparse set) will cause fail w/o a default value here, which is OK as it probably indicates a true error."* — the intended pattern |
+| `generation_cost` | no default | *"A missing price value (sparse set) will cause fail w/o a default value here, which is OK as it probably indicates a true error."* — the intended pattern |
 | `elec_load` | `default=0.0` | deliberate: zero load is meaningful, and it lets the code iterate `(r, y, hr)` confidently |
-| `cap_factor_vre` | `default=0.0` | deliberate: *"the indexing set is larger than the upper bound limit from the data"* |
+| `capacity_factor_vre` | `default=0.0` | deliberate: *"the indexing set is larger than the upper bound limit from the data"* |
 
 When a default is being added purely to stop construction from failing, the real fix is
 almost always a correctly sparse index set rather than a fabricated value.

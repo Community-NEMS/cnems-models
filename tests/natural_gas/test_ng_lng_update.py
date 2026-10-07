@@ -215,11 +215,15 @@ def test_update_rejects_invalid_input(
     m = NGSequencer().build_model(*partial_config_set)
     if kwargs.get('capacity') == 'negative':
         kwargs = {'capacity': {next(iter(_base_capacity(m))): -1.0}}
-    before = {idx: value(m.q_lng[idx]) for idx in m.q_lng} | {
-        idx: value(m.p_lng[idx]) for idx in m.p_lng
-    }
+
+    def snapshot() -> tuple[dict, dict, dict]:
+        return (
+            {idx: value(m.q_lng[idx]) for idx in m.q_lng},
+            {idx: value(m.p_lng[idx]) for idx in m.p_lng},
+            {idx: value(m.lng_surplus_slope[idx]) for idx in m.lng_surplus_slope},
+        )
+
+    before = snapshot()
     with pytest.raises(ValueError):
         m.update_lng_export(**kwargs)
-    assert before == {idx: value(m.q_lng[idx]) for idx in m.q_lng} | {
-        idx: value(m.p_lng[idx]) for idx in m.p_lng
-    }
+    assert before == snapshot()

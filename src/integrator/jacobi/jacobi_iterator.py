@@ -19,15 +19,18 @@ from typing import Any
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import (
-    ALLOW_OUTBOUND_UPDATES,
-    ALLOW_TERMINATION,
-    IterationResult,
-)
+from src.common.integrated_model_sequencer import IterationResult
 from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import UpdatePackage
+from src.integrator.control_loop import (
+    accept_packages,
+    final_status,
+    log_progress,
+    outbound_packages,
+    show_iteration,
+)
 from src.integrator.iteration_monitor import IterationMonitor
 from src.integrator.jacobi.convergence import ConvergenceTracker
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
@@ -359,65 +362,22 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                         'Iteration %d: a model worker raised; stopping the run', iteration
                     )
                     raise
-                # log status of the model's solves
-                for result in results:
-                    logger.info('\n%s', result.pprint(indent=2))
                 all_results[iteration] = results
-                # show this iteration's objective deltas and package traffic
-                block = monitor.record(iteration, results)
-                logger.info('\n%s', block.plain)
-                console.print(block, highlight=False)
-                # refresh each sender's accepted packages from this iteration; a sender whose solve
-                # status isn't acceptable keeps its last accepted packages, so its receivers see
-                # its last good solution rather than falling back to raw input data
+                # log status of the model's solves, and show this iteration's objective deltas
+                # and package traffic
+                show_iteration(iteration, results, monitor, console, logger)
+                # refresh each sender's accepted packages from this iteration
                 for result in results:
-                    if result.status in ALLOW_OUTBOUND_UPDATES:
-                        accepted[result.model_type] = list(result.update_packages)
-                    else:
-                        held = accepted.get(result.model_type)
-                        logger.warning(
-                            'Iteration %d: rejected %d update package(s) from %s (status %s); %s',
-                            iteration,
-                            len(result.update_packages),
-                            result.model_type.value,
-                            result.status.name,
-                            f'resending its last accepted {len(held)} package(s)'
-                            if held is not None
-                            else 'it has no accepted packages to resend',
-                        )
-                # route in circuit order, which fixes the order receivers apply packages in
-                outbound = [pkg for model in run_circuit for pkg in accepted.get(model, [])]
-                routed_updates = route_updates(outbound, run_circuit)
+                    accept_packages(result, accepted, iteration, logger)
+                routed_updates = route_updates(
+                    outbound_packages(accepted, run_circuit), run_circuit
+                )
 
                 converged = tracker.update(results)
-                logger.info(
-                    'Iteration %d relative objective changes (epsilon %g): %s',
-                    iteration,
-                    self.config.epsilon,
-                    {
-                        model.value: 'n/a' if change is None else f'{change:.3g}'
-                        for model, change in tracker.changes.items()
-                    },
-                )
-                logger.info('Done with iteration %d/%d', iteration, iteration_limit)
+                log_progress(tracker, iteration, self.config.epsilon, iteration_limit, logger)
                 iteration += 1
 
-        status = RunStatus.UNKNOWN
-        if converged:
-            status = RunStatus.CONVERGED
-            logger.info('Converged after %d iteration(s)', iteration - 1)
-        elif iteration > iteration_limit:
-            status = RunStatus.ITERATION_LIMIT
-            final = all_results.get(iteration - 1, [])
-            holding = [
-                f'{r.model_type.value} ({r.status.name})'
-                for r in final
-                if r.status not in ALLOW_TERMINATION
-            ]
-            logger.warning(
-                'Did not converge within %d iterations%s',
-                iteration_limit,
-                f'; ended with {", ".join(holding)}' if holding else '',
-            )
-
+        status = final_status(
+            converged, iteration - 1, iteration_limit, all_results.get(iteration - 1, []), logger
+        )
         return status, all_results

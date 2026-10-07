@@ -2,10 +2,10 @@
 
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
-electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
-subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`). It runs
-through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
+electricity model, electricity-sector gas burn in the natural gas model, and so on. The main
+integrated driver is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
+subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`); an
+experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
@@ -71,11 +71,16 @@ Within one iteration, each worker runs its model's `IntegratedModelSequencer.ful
 3. `get_objective_value()` and `get_outbound_updates()`: returned to the control process as an
    `IterationResult`.
 
+Steps 2 and 3 are `solve_iteration()`, which a driver that keeps its models calls after
+`update_model` instead of rebuilding.
+
 Things to know about the current loop:
 
 - **Iteration 1 starts with no packages**, so every model begins from its input files alone.
-- **Models are rebuilt every iteration.** `update_model` is not implemented yet, so a new model
-  instance is built from the inputs plus the latest packages each time.
+- **Models are rebuilt every iteration.** A new model instance is built from the inputs plus the
+  latest packages each time. `update_model` can instead apply packages to a model that is already
+  built, writing the fuel cost change implied by the gas price to `ng_fuel_adj` and the gas burn
+  to the gas model's owned demand cells, but the Jacobi loop does not use it.
 - **Each model logs to its own file.** Like a standalone run, the control process claims a fresh
   `<output_path>/<scenario_name>` folder, suffixed `_1`, `_2`, ... if it is taken, so a rerun never
   mixes with an earlier run's logs. Each worker writes a per-model log there
@@ -101,6 +106,47 @@ Things to know about the current loop:
     filtering either model can give odd results in an integrated run. `jacobi_iterator.py` logs a
     warning when either model is filtered.
 
+## Gauss-Seidel Iteration (experimental)
+
+`GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
+`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
+with `[common]` mode `"integrated gs"`:
+
+```sh
+pixi shell
+python main.py run_configs/gs_compare.toml
+pixi run gs            # the same
+pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
+```
+
+It differs from the Jacobi iterator in how the models are run, not in what they exchange:
+
+- Both models are built once and held. Each iteration applies the inbound packages to the
+  built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
+  its solver between solves.
+- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
+  the same iteration.
+- Coverage is checked before the first solve, by `build_preflight` in
+  `src/integrator/ng_preflight.py`: the electricity and gas regions must cover each other. A
+  run whose regions do not cover each other fully (most region filters) is refused unless
+  `allow_partial_coverage` is set. In that case a partly covered gas region gets the burn plus a
+  fixed top-up from its own projection for the uncovered share, and an uncovered one stays with
+  the gas model.
+- Result files are written at the end for each model whose last solve did not fail.
+
+Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
+the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
+logging, the monitor display and the final status) is in `src/integrator/control_loop.py`, which
+both iterators call. The number in brackets on each monitor arrow is how many
+entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
+iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
+burn and the mean gas price by year. The settings are in
+`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
+`monitor_delta_mode`, and `allow_partial_coverage`.
+
+`python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
+same settings, and writes a side-by-side table to the output folder.
+
 ## Inter-model Communication
 
 Models never read each other's variables directly. Instead, all data passing between models is
@@ -123,8 +169,8 @@ flowchart LR
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
   status is in `ALLOW_OUTBOUND_UPDATES` (`BEST`, `USABLE`, or `PENALTY`). After a failed
-  solve, the model sends nothing new; `jacobi_iterator.py` resends that model's last accepted packages
-  instead, so its receivers keep seeing its last good solution. Only a model that has never
+  solve, the model sends nothing new; the control loop resends that model's last accepted packages
+  instead (`accept_packages` in `control_loop.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
 - **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
   circuit. A receiver outside the circuit gets nothing, and a warning is logged.

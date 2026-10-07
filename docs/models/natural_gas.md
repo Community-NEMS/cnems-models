@@ -277,7 +277,7 @@ the values a run solves on are always the values on disk. The two exceptions are
 | `ng_lng_export.csv` | region, year, demand_bcf | LNG export demand curve anchor |
 | `ng_lng_import.csv` | region, capacity_bcf, cost_per_mmbtu | backstop imports |
 | `ng_scalars.csv` | parameter, value, units, source | storage opex, LNG world price, defaults |
-| `elec_to_ng_region_map.csv` | elec_region, ng_region | crosswalk for electricity coupling |
+| `elec_to_ng_region_map.csv` | elec_region, ng_region | one-to-one region map the population-weighted crosswalk is built from |
 
 ### Cost tiers in the input are not NGMM steps
 
@@ -384,7 +384,9 @@ for calibration.
 
 | Method | Direction | Purpose |
 |---|---|---|
-| `update_demand` | in | write sectoral demand, e.g. electric-power gas burn |
+| `update_demand` | in | write sectoral demand without taking ownership of it |
+| `declare_external` | in | mark demand cells another model supplies, so the price response skips them |
+| `set_external_demand` | in | write supplied demand exactly, only to declared cells, e.g. electric-power gas burn |
 | `update_supply_capacity` | in | rebuild QBASE/PBASE from new Q0 |
 | `update_canada_supply` | in | set Canadian import volumes |
 | `set_reference_prices` | in | capture the reference for elastic demand |

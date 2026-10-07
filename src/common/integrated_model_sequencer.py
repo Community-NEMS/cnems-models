@@ -12,8 +12,9 @@ A rough framework for sequencers (runners) that build & solve models to common-i
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from time import perf_counter
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
@@ -77,6 +78,9 @@ class IterationResult:
         The packages this model wants routed onward to its receivers.
     label : str
         The model's display name (``IntegratedModel.label``); falls back to the model type.
+    timings : dict of str to float
+        Wall-clock seconds for this model's steps in the iteration, e.g. ``build``, ``update``,
+        ``solve`` and ``collect``.  Empty when nothing was timed.
     """
 
     model_type: ModelType
@@ -84,6 +88,7 @@ class IterationResult:
     objective_value: float | None
     update_packages: list[UpdatePackage]
     label: str = ''
+    timings: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Default the label to the model type's value when the sequencer supplied none."""
@@ -148,8 +153,8 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
         ...
 
     @abstractmethod
-    def update_model(self, **kwargs) -> ModelT:
-        """Update the model with some new data, etc."""
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> ModelT:
+        """Apply inbound update packages to the built model in place, without rebuilding it."""
         ...
 
     @abstractmethod
@@ -227,14 +232,40 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
         IterationResult
             The solve status, objective value, and any packages bound for other models.
         """
+        start = perf_counter()
         self.build_model(common_config, model_config, **kwargs)
+        build_seconds = perf_counter() - start
+        result = self.solve_iteration(**kwargs)
+        result.timings['build'] = build_seconds
+        return result
+
+    def solve_iteration(self, **kwargs) -> IterationResult:
+        """Solve the model as it stands and collect the result, without building it.
+
+        A driver that holds a built model calls :meth:`update_model` and then this, each
+        iteration; :meth:`full_run` is a build followed by this.
+
+        Parameters
+        ----------
+        **kwargs
+            Forwarded to :meth:`solve_model`.
+
+        Returns
+        -------
+        IterationResult
+            The solve status, objective value, and any packages bound for other models.
+        """
+        start = perf_counter()
         model_type, status = self.solve_model(**kwargs)
+        solved = perf_counter()
         # a failed solve leaves no solution loaded, so there is no objective to read
         objective_value = None if status is IterationStatus.ERROR else self.get_objective_value()
+        update_packages = self.get_outbound_updates()
         return IterationResult(
             model_type=model_type,
             status=status,
             objective_value=objective_value,
-            update_packages=self.get_outbound_updates(),
+            update_packages=update_packages,
             label=self.model.label,
+            timings={'solve': solved - start, 'collect': perf_counter() - solved},
         )

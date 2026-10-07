@@ -20,12 +20,13 @@ logger = logging.getLogger(__name__)
 class UpdatePackageReader[DataT](ABC):
     """Applies inbound update packages to one model's loaded data, dispatching on package type.
 
-    Data is modified in place, before the recipient model is built from it.
+    Data is modified in place, usually before the recipient model is built from it. A reader
+    whose ``DataT`` is the built model instead updates that model between solves.
 
     Type Parameters
     ---------------
     DataT
-        The recipient model's loaded-data object the packages are applied to.
+        The recipient model's loaded-data object, or built model, the packages are applied to.
     """
 
     def read(self, update_packages: Sequence[UpdatePackage] | None, data: DataT) -> None:

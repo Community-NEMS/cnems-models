@@ -9,6 +9,7 @@ Created on:  8/14/26
 import logging
 import sys
 from collections.abc import Sequence
+from typing import Any
 
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
@@ -24,7 +25,7 @@ from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
-from src.models.natural_gas.update_reader import NGUpdateReader
+from src.models.natural_gas.update_reader import NGModelUpdateReader, NGUpdateReader
 from src.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,11 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
         self._last_status: IterationStatus | None = None
+        # the solver for the current model and the name it was chosen under; see solve_model
+        self._opt: Any = None
+        self._solver_name: str | None = None
         self._reader = NGUpdateReader()
+        self._model_reader = NGModelUpdateReader()
         self._writer = NGUpdateWriter()
 
     @property
@@ -119,77 +124,52 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         )
         self._reader.read(update_packages, data)
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
+        # a solver holds the model it last solved, so a new model needs a new one
+        self._opt = None
+        self._solver_name = None
         return self._model
 
-    def update_model(self, **kwargs) -> NGModel:
-        """Not implemented; C-NGMM is not yet wired into the iterative integrator."""
-        raise NotImplementedError
-
-    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
-        """Solve the built model, a convex QP, and report how the solve terminated.
-
-        Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
-        QP rewrite needs a convex-QP-capable solver, which rules out the ``select_solver()`` default
-        in src/integrator/utilities.py that the electricity path uses; this method probes for one
-        instead.
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> NGModel:
+        """Apply inbound update packages to the built model in place, without rebuilding it.
 
         Parameters
         ----------
-        **kwargs
-            ``solver_name`` : str, optional
-                Force this specific Pyomo ``SolverFactory`` name instead of probing.  No fallback
-                is attempted, so an unavailable name raises rather than quietly landing on
-                something else -- which is the point when a run has to be reproducible, or when
-                comparing solvers.  Any other keyword is ignored.
+        update_packages : Sequence[UpdatePackage]
+            Applied in order by :class:`NGModelUpdateReader`.  Supplied demand is written only to
+            cells declared external on the model.
 
         Returns
         -------
-        tuple[ModelType, IterationStatus]
-            The model type (for accounting) and the status of the solve:  ``ERROR`` if the
-            solver did not reach optimality; otherwise ``PENALTY`` if any demand went unserved
-            (see :meth:`_in_penalty`), else ``USABLE``.  A non-optimal solve is reported by
-            return value, not raised, so callers must check: the model is left holding whatever
-            values the failed solve produced.  A ``PENALTY`` solve's results are accurate and
-            still sent to coupled models -- the unserved-demand price is the signal they need to
-            pull demand down -- but an iterative run will not stop on it.
+        NGModel
+            The same model instance, updated.
+
+        Raises
+        ------
+        NotImplementedError
+            If a package type has no built-model handler.
+        """
+        self._model_reader.read(update_packages, self.model)
+        return self.model
+
+    def _select_solver(self, solver_name: str | None) -> tuple[Any, str | None]:
+        """Probe for a convex-QP-capable solver and set its options.
+
+        Parameters
+        ----------
+        solver_name : str or None
+            Force this ``SolverFactory`` name; ``None`` takes the first available candidate (see
+            :meth:`solve_model`).
+
+        Returns
+        -------
+        tuple
+            The solver and the name it was chosen under.
 
         Raises
         ------
         RuntimeError
             If no candidate solver is available.
-
-        Notes
-        -----
-        Left to itself, the method takes the first available of, in order::
-
-            appsi_gurobi, gurobi_direct, gurobi, highs, ipopt
-
-        The three Gurobi entries lead purely for speed (in-memory, no LP-file round trip);
-        ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and solves
-        the convex QP, so a Gurobi-free environment still solves.  HiGHS is less robust than
-        Gurobi on this model.  Before the unserved-demand backstop was created for every run,
-        it returned ``unknown`` or ``unbounded`` for demand cuts on horizons of nine years or
-        more, cases Gurobi and Ipopt solve; with the backstop it still returns ``unknown`` for
-        doubled demand on 16- and 20-year horizons.  Pass ``solver_name`` when a result has to
-        be reproduced or compared across machines.  ``appsi_highs`` is
-        not a candidate and ``solver_name='appsi_highs'`` will not work:  it calls
-        ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on
-        this model's quadratic objective (still true in pyomo 6.10.1).
-
-        ``ipopt`` comes last.  It is an interior-point solver for nonlinear programs and not a
-        dependency of this project (the electricity model's nonlinear learning uses it too), so
-        the probe reaches it only when neither Gurobi nor HiGHS is present; force it with
-        ``solver_name='ipopt'``.  It solves the cases HiGHS fails, and on the test configuration
-        its prices through ``NGModel.poll_gas_price`` match HiGHS's to within 1e-6 $/MMBtu, at
-        about three times the solve time.
-
-        Gurobi is additionally pinned to the barrier method with duals requested and
-        ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
-        The solver actually chosen is logged at INFO.
         """
-        # TODO:  Clean up the comments on IterationStatus above
-        solver_name = kwargs.pop('solver_name', None)
-        logger.debug('Requested solver: %s', solver_name)
         if solver_name is None:
             # Ordering:
             #   1-3. the Gurobi bindings, which lead purely for speed -- in-memory
@@ -241,6 +221,78 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
             opt.options['Method'] = 2  # barrier (default for QP, explicit for safety)
             opt.options['QCPDual'] = 1  # request meaningful duals on the QCP
             opt.options['BarConvTol'] = 1e-6
+
+        return opt, chosen
+
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
+        """Solve the built model, a convex QP, and report how the solve terminated.
+
+        Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
+        QP rewrite needs a convex-QP-capable solver, which rules out the ``select_solver()`` default
+        in src/integrator/utilities.py that the electricity path uses; this method probes for one
+        instead.
+
+        Parameters
+        ----------
+        **kwargs
+            ``solver_name`` : str, optional
+                Force this specific Pyomo ``SolverFactory`` name instead of probing.  No fallback
+                is attempted, so an unavailable name raises rather than quietly landing on
+                something else -- which is the point when a run has to be reproducible, or when
+                comparing solvers.  Any other keyword is ignored.
+
+        Returns
+        -------
+        tuple[ModelType, IterationStatus]
+            The model type (for accounting) and the status of the solve:  ``ERROR`` if the
+            solver did not reach optimality; otherwise ``PENALTY`` if any demand went unserved
+            (see :meth:`_in_penalty`), else ``USABLE``.  A non-optimal solve is reported by
+            return value, not raised, so callers must check: the model is left holding whatever
+            values the failed solve produced.  A ``PENALTY`` solve's results are accurate and
+            still sent to coupled models -- the unserved-demand price is the signal they need to
+            pull demand down -- but an iterative run will not stop on it.
+
+        Raises
+        ------
+        RuntimeError
+            If no candidate solver is available.
+
+        Notes
+        -----
+        Left to itself, the method takes the first available of, in order::
+
+            appsi_gurobi, gurobi_direct, gurobi, highs, ipopt
+
+        The three Gurobi entries lead purely for speed (in-memory, no LP-file round trip);
+        ``highs``, the current ``pyomo.contrib.solver`` interface, builds a Hessian and solves
+        the convex QP, so a Gurobi-free environment still solves.  HiGHS is less robust than
+        Gurobi on this model. Pass ``solver_name`` when a result has to
+        be reproduced or compared across machines.  ``appsi_highs`` is
+        not a candidate and ``solver_name='appsi_highs'`` will not work:  it calls
+        ``generate_standard_repn(quadratic=False)`` internally and so raises ``DegreeError`` on
+        this model's quadratic objective (still true in pyomo 6.10.1).
+
+        ``ipopt`` comes last.  It is an interior-point solver for nonlinear programs and not a
+        dependency of this project (the electricity model's nonlinear learning uses it too), so
+        the probe reaches it only when neither Gurobi nor HiGHS is present; force it with
+        ``solver_name='ipopt'``.  It solves the cases HiGHS fails, and on the test configuration
+        its prices through ``NGModel.poll_gas_price`` match HiGHS's to within 1e-6 $/MMBtu, at
+        about three times the solve time.
+
+        Gurobi is additionally pinned to the barrier method with duals requested and
+        ``BarConvTol`` at 1e-6; HiGHS detects the QP and picks an interior-point method itself.
+        The solver actually chosen is logged at INFO.  It is chosen on the first solve of a built
+        model and kept for later solves of the same model, so a model updated in place is
+        re-solved by pushing only what changed; :meth:`build_model` drops it, and a different
+        ``solver_name`` replaces it.
+        """
+        # TODO:  Clean up the comments on IterationStatus above
+        solver_name = kwargs.pop('solver_name', None)
+        logger.debug('Requested solver: %s', solver_name)
+        # keep the solver for later solves of this model; asking for another one replaces it
+        if self._opt is None or solver_name not in (None, self._solver_name):
+            self._opt, self._solver_name = self._select_solver(solver_name)
+        opt, chosen = self._opt, self._solver_name
 
         logger.info('C-NGMM: solving with %s (QP) …', chosen)
         # No tee= here, so the solver's own output is not shown, and `results` is used for the

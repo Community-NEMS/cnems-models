@@ -380,6 +380,25 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             within=pyo.NonNegativeReals,
         )
 
+        # Gas fuel-cost adjustment, written by the natural gas coupling between solves and added
+        # to supply_price in dispatch_cost, so it is indexed over the same sets. It is a delta
+        # against a reference gas price, not a price level, which keeps the fuel cost already in
+        # supply_price. Zero by default, so an uncoupled run is unaffected.
+        #
+        # within=Reals is load-bearing: the delta is negative whenever gas is below its
+        # reference, and Pyomo raises ValueError on a negative write into NonNegativeReals.
+        # mutable=True lets the coupling rewrite it without a rebuild. Units are $/GWh, matching
+        # supply_price.
+        self.ng_fuel_adj = pyo.Param(
+            self.region_analyze,
+            self.tech_step,
+            self.year,
+            self.season,
+            initialize=0.0,
+            within=pyo.Reals,
+            mutable=True,
+        )
+
         # dev note: We do not supply a built index set here, so we should iterate over the
         #           param keys where needed
         self.supply_curve = pyo.Param(
@@ -653,7 +672,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 * (
                     sum(
                         self.weight_year[y]
-                        * self.supply_price[r, tech, step, y, season]
+                        * (
+                            self.supply_price[r, tech, step, y, season]
+                            + self.ng_fuel_adj[r, tech, step, y, season]
+                        )
                         * self.generation_total[r, tech, step, y, hr]
                         for (r, tech, step, y) in self.generation_hour_index[hr]
                     )

@@ -39,40 +39,6 @@
       }
     },
     {
-      "name": "base_elec_price",
-      "type": "table",
-      "path": "base_elec_price.csv",
-      "scheme": "file",
-      "format": "csv",
-      "mediatype": "text/csv",
-      "encoding": "utf-8",
-      "description": "Base-year retail electricity price by region, year and hour (residential module).",
-      "schema": {
-        "fields": [
-          {
-            "name": "region",
-            "type": "string"
-          },
-          {
-            "name": "year",
-            "type": "integer"
-          },
-          {
-            "name": "hour",
-            "type": "integer"
-          },
-          {
-            "name": "base_elec_price_usd_per_mwh",
-            "type": "number",
-            "constraints": {
-              "minimum": 0
-            },
-            "description": "Retail price; units unverified."
-          }
-        ]
-      }
-    },
-    {
       "name": "base_load",
       "type": "table",
       "path": "base_load.csv",

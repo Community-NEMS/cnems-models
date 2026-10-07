@@ -55,6 +55,7 @@ References
 ###############################################################################
 
 import logging
+import math
 from collections import defaultdict, namedtuple
 from warnings import deprecated
 
@@ -322,6 +323,16 @@ class NGModel(ConcreteModel, IntegratedModel):
         # original static behaviour.
 
         supply_cost_tiers = model_data['supply_cost_tiers']
+        # Every analysis region needs tiers; zero capacity, not omission, is how a region with no
+        # production is expressed.  Checked here so a missing region is named rather than
+        # surfacing as a bare KeyError from the Param initializers (validation catches it first
+        # unless strict validation is off).
+        missing_tiers = [r for r in analysis_regions if r not in supply_cost_tiers]
+        if missing_tiers:
+            raise ValueError(
+                f'No supply cost tiers for analysis region(s) {missing_tiers}; give each one '
+                'tiers in ng_supply_cost_tiers.csv, with zero capacity for no production'
+            )
         # Optional year-varying anchor path
         # {(region, year): (q0_mult, p0_mult)}; empty dict -> static anchors (previous behaviour).
         supply_anchors = model_data['supply_anchors']
@@ -338,13 +349,9 @@ class NGModel(ConcreteModel, IntegratedModel):
         def _p0_init(m, r, y):
             cost_tiers = supply_cost_tiers[r]
             tot_q = sum(c for c, _ in cost_tiers)
-            if tot_q <= 0:
-                return 3.0
-            return (
-                sum(c * p for c, p in cost_tiers)
-                / tot_q
-                * supply_anchors.get((r, y), (1.0, 1.0))[1]
-            )
+            # zero supply has no weighted cost; fall back to 3.0, scaled as in _pbase_init
+            p0 = sum(c * p for c, p in cost_tiers) / tot_q if tot_q > 0 else 3.0
+            return p0 * supply_anchors.get((r, y), (1.0, 1.0))[1]
 
         self.q0 = Param(self.region_analyze, self.year, initialize=_q0_init, mutable=True)
         self.p0 = Param(self.region_analyze, self.year, initialize=_p0_init, mutable=True)
@@ -1392,13 +1399,22 @@ class NGModel(ConcreteModel, IntegratedModel):
         Raises
         ------
         ValueError
-            If any capacity is negative or ``alpha`` is outside (0, 1].  Nothing is changed
-            when it raises.
+            If any capacity is negative or non-finite, or ``alpha`` is outside (0, 1].  Nothing
+            is changed when it raises.
+
+        Notes
+        -----
+        A zero total gives Q0 = 0, as zero supply tiers do at build:  the segments collapse to
+        zero width with (0, 0) cost coefficients, and the region produces nothing.
         """
         _check_alpha(alpha)
-        bad = {key: cap for key, cap in capacity_updates.items() if float(cap) < 0.0}
+        bad = {
+            key: cap
+            for key, cap in capacity_updates.items()
+            if not (math.isfinite(float(cap)) and float(cap) >= 0.0)
+        }
         if bad:
-            raise ValueError(f'Supply capacity must be >= 0; got {bad}')
+            raise ValueError(f'Supply capacity must be finite and >= 0; got {bad}')
 
         # Step 1: aggregate to per-(region, year) totals. `_cost_tier` is unused by design --
         # see the docstring above; the underscore marks it as deliberately discarded.
@@ -1422,7 +1438,6 @@ class NGModel(ConcreteModel, IntegratedModel):
             if alpha < 1.0:
                 current_q0 = value(self.q0[region, year])
                 new_q0 = alpha * new_q0 + (1.0 - alpha) * current_q0
-            new_q0 = max(new_q0, 1.0)  # numerical floor to keep breakpoints non-degenerate
             self.q0[region, year].set_value(new_q0)
             self.q_min[region, year].set_value(qmin_frac * new_q0)
 

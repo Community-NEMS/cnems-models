@@ -418,9 +418,11 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   [0, (1−c⁻₂)(1−c⁻₃)), 0.8075 with the shipped shape. `QBASE_1` is set to QMIN, so it has to sit
   below `QBASE_2` for supply segment 1 to have positive width.
 - **Supply anchors** (`validate_supply_anchors`) — for every analysis region and year, the anchor
-  Q0 (summed tier capacity × `q0_mult`) and P0 (capacity-weighted tier cost × `p0_mult`) must both
-  be positive. A zero Q0 collapses the region's whole curve, and a zero P0 prices it at zero. An
-  analysis region with no supply cost tiers is also flagged.
+  Q0 (summed tier capacity × `q0_mult`) must be finite and ≥ 0, and so must every tier capacity.
+  Q0 = 0 is allowed: it is how a region with no production is expressed (see below). Where Q0 > 0,
+  P0 (capacity-weighted tier cost × `p0_mult`) must be positive, or the curve prices at zero. An
+  analysis region with no supply cost tiers is flagged, since omission is more likely a mistake
+  than a deliberate zero.
 - **Tariff-curve shape** (`validate_tariff_curve_shape`) — `util_break` must start at or above zero
   and strictly increase, and `tariff_mult` must not decrease. A falling tariff gives a negative
   slope and a non-convex transport cost.
@@ -437,6 +439,15 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 The tariff and LNG loaders sort their breakpoints, so a repeated value is the only way those curves
 can fail the strictly-increasing checks.
 
+### Regions with no production
+
+To model a region that produces no gas, keep its rows in `ng_supply_cost_tiers.csv` and set every
+`capacity_bcf` to 0 (or set `q0_mult` to 0 in `ng_supply_anchors.csv` for chosen years). Q0 is then
+0, every supply segment has zero width and (0, 0) cost coefficients, and the region's demand is met
+by imports. P0 falls back to 3.0 (× `p0_mult`), which only matters if a later
+`update_supply_capacity` call gives the region capacity again. Do not omit the region from the
+file: validation rejects that, and with validation off the build raises a `ValueError` naming it.
+
 ### Checks in the update methods
 
 The coupling-interface methods (see *Coupling interface* below) change model data after the build,
@@ -446,9 +457,10 @@ model as it was when a call is rejected.
 - **`update_lng_export`** — capacity must be ≥ 0, and the world price must be > 0. These are the
   runtime counterparts of the two LNG validations above.
 - **`update_demand`, `update_canada_supply`, `update_supply_capacity`** — reject negative
-  quantities. A negative supply or demand would otherwise enter the market balance. In
-  `update_supply_capacity`, a negative capacity would otherwise be summed into Q0 and hidden by the
-  1.0 floor applied to the total.
+  quantities. A negative supply or demand would otherwise enter the market balance.
+  `update_supply_capacity` also rejects non-finite capacities, and a negative one would otherwise
+  be summed into Q0 alongside the positive ones. A zero total is accepted and sets Q0 = 0, the same
+  as zero supply tiers at build.
 - **`update_demand`, `update_demand_from_price`, `update_supply_capacity`** — the
   under-relaxation factor `alpha` must lie in (0, 1]. Outside that range it extrapolates instead of
   blending.

@@ -19,6 +19,7 @@ halts on any failure when ``strict`` is set.
 """
 
 import logging
+import math
 from collections.abc import Sequence
 from itertools import pairwise
 from typing import cast
@@ -165,8 +166,12 @@ def validate_supply_anchors(
     """Validate the supply anchor (Q0, P0) for every analysis region and year.
 
     Q0 is the summed tier capacity times ``q0_mult``, and P0 the capacity-weighted tier cost times
-    ``p0_mult``; both must be positive, or the region's curve collapses (Q0) or prices at zero
-    (P0).  A region with no tiers at all is also flagged, since the model build would fail on it.
+    ``p0_mult``.  Q0 = 0 is allowed, and is how a region with no production is expressed:  the
+    model gives its supply segments zero width and (0, 0) cost coefficients.  A negative or
+    non-finite tier capacity or Q0 is not.  P0 must be positive wherever Q0 > 0, or the curve
+    prices at zero; with Q0 = 0 the model ignores the tier costs (P0 falls back to 3.0), so P0 is
+    not checked.  A region with no tiers at all is flagged too:  that is more likely an omission
+    than a deliberate zero, and the model build would fail on it.
 
     Parameters
     ----------
@@ -183,8 +188,9 @@ def validate_supply_anchors(
     Returns
     -------
     bool
-        True if every region has tiers and a positive Q0 and P0 in every year.  Each failure is
-        logged as an error.
+        True if every region has tiers, every tier capacity is finite and >= 0, and every year
+        has a finite Q0 >= 0 and, where Q0 > 0, a positive P0.  Each failure is logged as an
+        error.
     """
     valid = True
     for r in regions:
@@ -193,15 +199,24 @@ def validate_supply_anchors(
             valid = False
             logger.error('Region %s has no supply cost tiers', r)
             continue
+        bad_caps = [cap for cap, _ in tiers if not (math.isfinite(cap) and cap >= 0.0)]
+        if bad_caps:
+            valid = False
+            logger.error(
+                'Region %s has supply tier capacities %s; must be finite and >= 0', r, bad_caps
+            )
+            continue
         total_q = sum(cap for cap, _ in tiers)
         weighted_p = sum(cap * cost for cap, cost in tiers) / total_q if total_q > 0 else 0.0
         for y in years:
             q0_mult, p0_mult = anchors.get((r, y), (1.0, 1.0))
             q0, p0 = total_q * q0_mult, weighted_p * p0_mult
-            if not q0 > 0.0:
+            if not (math.isfinite(q0) and q0 >= 0.0):
                 valid = False
-                logger.error('Supply anchor Q0 for (%s, %d) is %s; must be > 0', r, y, q0)
-            if not p0 > 0.0:
+                logger.error(
+                    'Supply anchor Q0 for (%s, %d) is %s; must be finite and >= 0', r, y, q0
+                )
+            elif q0 > 0.0 and not (math.isfinite(p0) and p0 > 0.0):
                 valid = False
                 logger.error('Supply anchor P0 for (%s, %d) is %s; must be > 0', r, y, p0)
     return valid

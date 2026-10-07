@@ -15,6 +15,7 @@ shapes.
 
 import copy
 import logging
+import math
 
 import pytest
 
@@ -114,23 +115,45 @@ def test_qmin_fraction(
 # ---------------------------------------------------------------------------
 
 
-def test_supply_anchors_valid(validation_log: pytest.LogCaptureFixture) -> None:
-    """Positive tiers with missing anchors (defaulting to 1.0) pass."""
-    tiers = {'a': [(10.0, 2.0), (5.0, 4.0)]}
-    assert validate_supply_anchors(tiers, {}, ['a'], [2025, 2030])
+@pytest.mark.parametrize(
+    'tiers,anchors',
+    [
+        ({'a': [(10.0, 2.0), (5.0, 4.0)]}, {}),
+        ({'a': [(0.0, 2.0), (0.0, 4.0)]}, {}),
+        ({'a': [(10.0, 2.0)]}, {('a', 2030): (0.0, 1.0)}),
+    ],
+    ids=['positive', 'zero-capacity', 'zero-q0-mult'],
+)
+def test_supply_anchors_valid(
+    validation_log: pytest.LogCaptureFixture,
+    tiers: dict[str, list[tuple[float, float]]],
+    anchors: dict[tuple[str, int], tuple[float, float]],
+) -> None:
+    """Positive Q0, or Q0 = 0 for a region with no production, passes with no P0 complaint."""
+    assert validate_supply_anchors(tiers, anchors, ['a'], [2025, 2030])
     assert not _errors(validation_log)
 
 
 @pytest.mark.parametrize(
     'tiers,anchors,fragment',
     [
-        ({'a': [(0.0, 2.0)]}, {}, 'Q0 for (a, 2025)'),
-        ({'a': [(10.0, 2.0)]}, {('a', 2030): (0.0, 1.0)}, 'Q0 for (a, 2030)'),
+        ({'a': [(10.0, 2.0), (-5.0, 3.0)]}, {}, 'tier capacities [-5.0]'),
+        ({'a': [(math.inf, 2.0)]}, {}, 'tier capacities [inf]'),
+        ({'a': [(10.0, 2.0)]}, {('a', 2030): (-1.0, 1.0)}, 'Q0 for (a, 2030)'),
+        ({'a': [(10.0, 2.0)]}, {('a', 2030): (math.nan, 1.0)}, 'Q0 for (a, 2030)'),
         ({'a': [(10.0, 0.0)]}, {}, 'P0 for (a, 2025)'),
         ({'a': [(10.0, 2.0)]}, {('a', 2025): (1.0, 0.0)}, 'P0 for (a, 2025)'),
         ({}, {}, 'no supply cost tiers'),
     ],
-    ids=['zero-capacity', 'zero-q0-mult', 'zero-cost', 'zero-p0-mult', 'missing-region'],
+    ids=[
+        'negative-tier',
+        'inf-tier',
+        'negative-q0-mult',
+        'nan-q0-mult',
+        'zero-cost',
+        'zero-p0-mult',
+        'missing-region',
+    ],
 )
 def test_supply_anchors_invalid(
     validation_log: pytest.LogCaptureFixture,
@@ -138,7 +161,7 @@ def test_supply_anchors_invalid(
     anchors: dict[tuple[str, int], tuple[float, float]],
     fragment: str,
 ) -> None:
-    """A non-positive Q0 or P0, or a region with no tiers, fails and is named in the log."""
+    """Bad capacity, Q0, P0 (where Q0 > 0) or a region with no tiers fails and is logged."""
     assert not validate_supply_anchors(tiers, anchors, ['a'], [2025, 2030])
     assert any(fragment in r.getMessage() for r in _errors(validation_log))
 

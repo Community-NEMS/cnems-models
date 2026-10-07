@@ -1,9 +1,9 @@
 tech,step,is_buildable
-NG_Fired_Plant,1,-
-NG_Fired_Plant,2,-
+NG_Fired_Plant,1,False
+NG_Fired_Plant,2,False
 NG_Fired_Plant,3,True
-Hydro_Plant_seasonal,1,-
-Hydro_Plant_regular,1,-
-Battery_Storage,1,-
+Hydro_Plant_seasonal,1,False
+Hydro_Plant_regular,1,False
+Battery_Storage,1,False
 Solar_utility,1,True
-Solar_end_use,1,-
+Solar_end_use,1,False

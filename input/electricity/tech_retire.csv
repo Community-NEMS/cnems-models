@@ -15,10 +15,10 @@ tech,step,is_retirable
 7,1,True
 8,1,True
 10_seasonal,1,True
-10_regular,1,-
+10_regular,1,False
 12,1,True
 14,1,True
 15_utility,1,True
-15_end_use,1,-
+15_end_use,1,False
 11,1,True
 13,1,True

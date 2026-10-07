@@ -106,7 +106,7 @@ def test_tech_steps_matches_supply_curve(config_set):
     model_sets = ModelSets(common_config, elec_config)
 
     available_capacity = pd.read_csv(
-        Path(PROJECT_ROOT, 'input/electricity/cem_inputs/available_capacity.csv'),
+        Path(PROJECT_ROOT, 'input/electricity/parameters/available_capacity.csv'),
         dtype={'tech': str},
     )
     observed = {

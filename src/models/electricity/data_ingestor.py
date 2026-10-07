@@ -488,12 +488,12 @@ if __name__ == '__main__':
     regions = set('478')
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
-    source_dir = PROJECT_ROOT / 'input/electricity/cem_inputs'
+    source_dir = PROJECT_ROOT / 'input/electricity/parameters'
     param_data = load_param_data(source_dir, param_filter)
     for k, v in param_data.items():
         print(k, len(v))
         print(v)
-    source_dir = PROJECT_ROOT / 'input/electricity'
+    source_dir = PROJECT_ROOT / 'input/electricity/properties'
     print('\n*** property data ***\n')
     data = load_property_data(source_dir)
     for k, v in data.items():
@@ -513,7 +513,7 @@ if __name__ == '__main__':
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     new_dfs = load_dataframes_w_datapackage(
-        base_path=UPath('file://input/electricity/cem_inputs'),
+        base_path=UPath('file://input/electricity'),
         filters=param_filter,
         inputs_datapackage_branch='datapackage-updates',
     )

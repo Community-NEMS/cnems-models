@@ -20,7 +20,7 @@ from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TRAN_LIMIT_CSV = PROJECT_ROOT / 'input' / 'electricity' / 'cem_inputs' / 'tran_limit.csv'
+DEFAULT_TRAN_LIMIT_CSV = PROJECT_ROOT / 'input' / 'electricity' / 'parameters' / 'tran_limit.csv'
 
 # Multiplier applied to each edge's average tran_limit value (MW) to get its plotted line width
 # (in pixels). tran_limit in the sample data ranges roughly 100-10,000 MW, so a factor of 0.001

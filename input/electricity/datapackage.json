@@ -3,7 +3,7 @@
     {
       "name": "available_capacity",
       "type": "table",
-      "path": "available_capacity.csv",
+      "path": "parameters/available_capacity.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -71,7 +71,7 @@
     {
       "name": "capacity_factor_vre",
       "type": "table",
-      "path": "capacity_factor_vre.csv",
+      "path": "parameters/capacity_factor_vre.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -110,7 +110,7 @@
     {
       "name": "capital_cost",
       "type": "table",
-      "path": "capital_cost.csv",
+      "path": "parameters/capital_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -148,7 +148,7 @@
     {
       "name": "capital_cost_initial",
       "type": "table",
-      "path": "capital_cost_initial.csv",
+      "path": "parameters/capital_cost_initial.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -270,7 +270,7 @@
     {
       "name": "fom_cost",
       "type": "table",
-      "path": "fom_cost.csv",
+      "path": "parameters/fom_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -304,7 +304,7 @@
     {
       "name": "generation_cost",
       "type": "table",
-      "path": "generation_cost.csv",
+      "path": "parameters/generation_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -346,7 +346,7 @@
     {
       "name": "hydro_capacity_factor",
       "type": "table",
-      "path": "hydro_capacity_factor.csv",
+      "path": "parameters/hydro_capacity_factor.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -377,7 +377,7 @@
     {
       "name": "learning_rate",
       "type": "table",
-      "path": "learning_rate.csv",
+      "path": "parameters/learning_rate.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -429,7 +429,7 @@
     {
       "name": "planning_reserve_margin",
       "type": "table",
-      "path": "planning_reserve_margin.csv",
+      "path": "parameters/planning_reserve_margin.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -455,7 +455,7 @@
     {
       "name": "ramp_down_cost",
       "type": "table",
-      "path": "ramp_down_cost.csv",
+      "path": "parameters/ramp_down_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -481,7 +481,7 @@
     {
       "name": "ramp_rate",
       "type": "table",
-      "path": "ramp_rate.csv",
+      "path": "parameters/ramp_rate.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -508,7 +508,7 @@
     {
       "name": "ramp_up_cost",
       "type": "table",
-      "path": "ramp_up_cost.csv",
+      "path": "parameters/ramp_up_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -534,7 +534,7 @@
     {
       "name": "region",
       "type": "table",
-      "path": "region.csv",
+      "path": "properties/region.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -576,7 +576,7 @@
     {
       "name": "reserve_cost",
       "type": "table",
-      "path": "reserve_cost.csv",
+      "path": "parameters/reserve_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -613,7 +613,7 @@
     {
       "name": "reserve_tech_limit",
       "type": "table",
-      "path": "reserve_tech_limit.csv",
+      "path": "parameters/reserve_tech_limit.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -651,7 +651,7 @@
     {
       "name": "storage_duration",
       "type": "table",
-      "path": "storage_duration.csv",
+      "path": "parameters/storage_duration.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -677,7 +677,7 @@
     {
       "name": "storage_efficiency",
       "type": "table",
-      "path": "storage_efficiency.csv",
+      "path": "parameters/storage_efficiency.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -704,7 +704,7 @@
     {
       "name": "supply_curve_learning",
       "type": "table",
-      "path": "supply_curve_learning.csv",
+      "path": "parameters/supply_curve_learning.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -730,7 +730,7 @@
     {
       "name": "supply_limit_intl",
       "type": "table",
-      "path": "supply_limit_intl.csv",
+      "path": "parameters/supply_limit_intl.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -768,7 +768,7 @@
     {
       "name": "tech",
       "type": "table",
-      "path": "tech.csv",
+      "path": "properties/tech.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -942,7 +942,7 @@
     {
       "name": "tech_build",
       "type": "table",
-      "path": "tech_build.csv",
+      "path": "properties/tech_build.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -974,7 +974,7 @@
     {
       "name": "tech_retire",
       "type": "table",
-      "path": "tech_retire.csv",
+      "path": "properties/tech_retire.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -1006,7 +1006,7 @@
     {
       "name": "tran_cost",
       "type": "table",
-      "path": "tran_cost.csv",
+      "path": "parameters/tran_cost.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -1040,7 +1040,7 @@
     {
       "name": "tran_cost_intl",
       "type": "table",
-      "path": "tran_cost_intl.csv",
+      "path": "parameters/tran_cost_intl.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -1078,7 +1078,7 @@
     {
       "name": "tran_limit",
       "type": "table",
-      "path": "tran_limit.csv",
+      "path": "parameters/tran_limit.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",
@@ -1116,7 +1116,7 @@
     {
       "name": "tran_limit_cap_intl",
       "type": "table",
-      "path": "tran_limit_cap_intl.csv",
+      "path": "parameters/tran_limit_cap_intl.csv",
       "scheme": "file",
       "format": "csv",
       "mediatype": "text/csv",

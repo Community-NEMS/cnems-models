@@ -38,7 +38,7 @@ The data is prepared by `model_sets.py` and `param_data.py`, with the raw CSV re
 helpers remain in `preprocessor.py`).
 `ModelSets` creates the sets for the model from the configuration data. Sets are organized into regional sets, temporal
 sets, and technology-based sets. Next
-`ParamData` reads in all of the input data within the cem_inputs directory and processes it into the format needed for
+`ParamData` reads in all of the input data within the `parameters` directory and processes it into the format needed for
 the PowerModel based on the spatial and temporal settings specified. Both are passed to the PowerModel for further
 processing.
 

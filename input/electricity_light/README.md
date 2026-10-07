@@ -8,7 +8,7 @@ MWh and USD, with each file's units carried in its value column name.
 ## Provenance
 
 Added in commit `77d7264` (2026-07-21) with no script retained. The mapping below was recovered on
-2026-09-02 by exact value matching between the light CSVs and `input/electricity/cem_inputs`, and
+2026-09-02 by exact value matching between the light CSVs and `input/electricity/parameters`, and
 re-verified on 2026-10-06 after the MW unit change and file renames: applying it to the light
 files reproduces the upstream values exactly for every row that has an upstream counterpart
 (`capacity_factor_vre` 52,560 rows, `generation_cost` 648, `available_capacity` 162, `fom_cost`
@@ -53,7 +53,7 @@ column exists.
 - **No capacity expansion.** There is no `capital_cost.csv` here, so `capacity_expansion = true` fails
   while building `capacity_balance`; the reduced config runs with expansion off.
 
-## Converting another file from `input/electricity/cem_inputs`
+## Converting another file from `input/electricity/parameters`
 
 Filter the full CSV to the mapped regions and technologies (and to 2030-2035 where the file has a
 year column), then substitute the names. `fom_cost.csv` was converted this way:
@@ -72,12 +72,12 @@ TMAP = {
     '15_end_use': 'Solar_end_use',
 }
 
-full = pd.read_csv('input/electricity/cem_inputs/fom_cost.csv', dtype={'region': str, 'tech': str})
+full = pd.read_csv('input/electricity/parameters/fom_cost.csv', dtype={'region': str, 'tech': str})
 out = full[full.region.isin(RMAP) & full.tech.isin(TMAP)].copy()
 out['region'] = pd.Categorical(out.region.map(RMAP), ['CA', 'TX', 'NY'], ordered=True)
 out['tech'] = pd.Categorical(out.tech.map(TMAP), list(TMAP.values()), ordered=True)
 out.sort_values(['tech', 'region', 'step']).to_csv(
-    'input/electricity_light/param_data/fom_cost.csv', index=False
+    'input/electricity_light/parameters/fom_cost.csv', index=False
 )
 ```
 

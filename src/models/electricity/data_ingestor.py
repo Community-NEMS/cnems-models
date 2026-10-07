@@ -130,6 +130,9 @@ def load_dataframes_w_datapackage(
         schema = from_frictionless_schema(resource['schema'])
         # Read the CSV and enforce the schema
         df = schema.validate(pd.read_csv(csv_path))
+        # TODO: the full CSV is returned, including the free-text 'notes' column.  Before this
+        #  feeds ParamData, either use PARAM_SOURCES (index_cols + value_col) to select columns
+        #  and set the index, or explicitly drop 'notes'.
 
         # Filter on region / year columns
         if filters is not None:

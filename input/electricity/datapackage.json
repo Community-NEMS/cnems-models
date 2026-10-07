@@ -34,6 +34,11 @@
               "minimum": 0
             },
             "description": "Available capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -103,6 +108,11 @@
               "maximum": 1
             },
             "description": "Capacity factor, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -141,6 +151,11 @@
               "minimum": 0
             },
             "description": "Capital cost, USD/MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -175,6 +190,11 @@
               "minimum": 0
             },
             "description": "Base-year capital cost, USD/MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -297,6 +317,11 @@
               "minimum": 0
             },
             "description": "Fixed O&M cost, USD/MW-yr."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -339,6 +364,11 @@
               "minimum": 0
             },
             "description": "Variable generation cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -370,6 +400,11 @@
               "maximum": 1
             },
             "description": "Capacity factor, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -396,6 +431,11 @@
               "minimum": 0
             },
             "description": "Learning-curve exponent b, dimensionless."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -448,6 +488,11 @@
               "minimum": 0
             },
             "description": "Reserve margin, fraction of peak demand."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -474,6 +519,11 @@
               "minimum": 0
             },
             "description": "Ramp-down cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -501,6 +551,11 @@
               "maximum": 1
             },
             "description": "Ramp rate, fraction of capacity per hour."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -527,6 +582,11 @@
               "minimum": 0
             },
             "description": "Ramp-up cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -606,6 +666,11 @@
               "minimum": 0
             },
             "description": "Reserve procurement cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -644,6 +709,11 @@
               "maximum": 1
             },
             "description": "Reserve limit, fraction of capacity 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -670,6 +740,11 @@
               "minimum": 0
             },
             "description": "Storage duration, hours."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -697,6 +772,11 @@
               "maximum": 1
             },
             "description": "Round-trip efficiency, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -723,6 +803,11 @@
               "minimum": 0
             },
             "description": "Baseline capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -761,6 +846,11 @@
               "minimum": 0
             },
             "description": "Supply limit, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -1033,6 +1123,11 @@
               "minimum": 0
             },
             "description": "Transmission cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -1071,6 +1166,11 @@
               "minimum": 0
             },
             "description": "Transmission cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -1109,6 +1209,11 @@
               "minimum": 0
             },
             "description": "Transmission limit, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }
@@ -1147,6 +1252,11 @@
               "minimum": 0
             },
             "description": "Transmission capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
           }
         ]
       }

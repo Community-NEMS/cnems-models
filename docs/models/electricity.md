@@ -13,7 +13,7 @@ through the model configuration.
 |:-----------------------|:----------------------------------------------|:-----------|:-------------------------------------------------------------|
 | $H$                    | hour                                          | Set        | All representative hours                                     |
 | $Y$                    | year                                          | Sparse set | All selected model years                                     |
-| $SEA$                  | season                                        | Set        | All seasons                                                  |
+| $SEAS$                 | season                                        | Set        | All seasons                                                  |
 | $D$                    | day                                           | Set        | All representative days                                      |
 | $R$                    | region                                        | Set        | All selected model domestic regions                          |
 | $R^{int}$              | region_int                                    | Set        | All selected model international regions                     |
@@ -29,7 +29,7 @@ through the model configuration.
 | $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
 | $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse Set | Buildable capacity set                                       |
-| $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of  capacity costs                                       |
+| $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of  capacity costs                                     |
 | $\Theta_{cc0}$         | cap_cost_initial.index_set()                  | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index              | Sparse set | (non-first hour) storage balance set                         |
@@ -57,7 +57,7 @@ remaining indices.
 | $\theta^{SDB}_{y,r,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by y,r,h                                                    |
 | $\theta^{TDB}_{y,r,h}$     | regional_sources          | Sparse subset | Set for trade indexed by y,r,h                                                      |
 | $\theta^{TCDB}_{y,r,h}$    | international_partners    | Sparse subset | Set for international trade indexed by y,r,h                                        |
-| $\theta^{windor}_{y,r,h}$  | wind_reserves             | Sparse subset | Set for wind generaton for operational reserves indexed by y,r,h                    |
+| $\theta^{windor}_{y,r,h}$  | wind_reserves             | Sparse subset | Set for wind generation for operational reserves indexed by y,r,h                    |
 | $\theta^{solor}_{y,r,h}$   | solar_reserves            | Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h                    |
 | $\theta^{opres}_{y,r,h}$   | eligible_reserves         | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
 | $\theta^{scrm}_{y,r,seas}$ | capacity_sources          | Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas                         |
@@ -82,7 +82,7 @@ yet.
 | $UMLPEN$                          | unmet_load_penalty       | $\mathbb{R}^+_0$ | Unmet load penalty                                                                           | \$/GWh                     |
 | $WY_y$                            | weight_year              | $\mathbb{I}$     | number of years represented by a representative year (weight)                                | years/representative years |
 | $HW_h$                            | weight_hour              | $\mathbb{I}$     | number of hours represented by a representative hours(weight)                                | hours/representative hours |
-| $WeightDay_d$                     | weight_day               | $\mathbb{I}$     | number of days representated by a representative day (weight)                                | days/representative day    |
+| $WeightDay_d$                     | weight_day               | $\mathbb{I}$     | number of days represented by a representative day (weight)                                 | days/representative day    |
 | $MHD_h$                           | map_hour_day             | $\mathbb{I}$     | map representative hour to representative day                                                | unitless                   |
 | $WHS_{seas}$                      | weight_season            | $\mathbb{I}$     | number of hours (per year) in a season (weight)                                              | unitless                   |
 | $MHS_h$                           | map_hour_season          | $\mathbb{I}$     | map representative hour to season                                                            | unitless                   |
@@ -124,7 +124,7 @@ yet.
 | $RAMP^{up}_{t,y,r,s,h}$       | generation_ramp_up   | $\mathbb{R}^+_0$ | Ramp up (increase in generation for dispatchable cap)                 | GW    | Only created if ramping_required is True          |
 | $RAMP^{down}_{t,y,r,s,h}$     | generation_ramp_down | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap)               | GW    | Only created if ramping_required is True          |
 | $ORP_{o,t,y,r,s,h}$           | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount                                 | GW    | Only created if spinning_reserve_required is True |
-| $STOR^{avail}_{t,y,r,s,h}R$   | storage_avail_cap    | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin                 | GW    | Only created if reserve_margin_required is True   |
+| $STOR^{avail}_{t,y,r,s,h}$    | storage_avail_cap    | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin                 | GW    | Only created if reserve_margin_required is True   |
 
 ### Objective Function
 
@@ -136,7 +136,7 @@ cost, operating reserve cost and unmet load cost (note: unmet load cost should e
 Minimize total cost (\$)
 
 $$
-\begin{aligned} \min \mathbf{C_{tot}} = &C_{disp}+ C_{unload} \\ &+ C_{exp} + C_{fom} \quad (\text{if } \mathtt{capacity\_expansion})\\ &+ C_{tra} \quad (\text{if } \mathtt{regional\_exchange} )\\ &+ C_{ramp} \quad (\text{if } \mathtt{ramping\_required} )\\ &+ C_{or}\quad (\text{if } \mathtt{spinning\_reserve\_required} )
+\begin{aligned} \min \mathbf{C_{tot}} = &C_{disp}+ C_{unload} \\ &+ C_{exp} + C_{fom} \quad (\text{if } \mathtt{capacity\_expansion})\\ &+ C_{tra} \quad (\text{if } \mathtt{regional\_exchange} )\\ &+ C_{ramp} \quad (\text{if } \mathtt{ramping\_required} )\\ &+ C_{op}\quad (\text{if } \mathtt{spinning\_reserve\_required} )
 \end{aligned} \tag{1}
 $$
 
@@ -202,7 +202,7 @@ the first two years, while the linear mode builds what the disabled mode does.
 Fixed O\&M cost:
 
 $$
-\begin{aligned} C_{fom} = \sum_{{r,seas,t,s,y} \in \Theta_{sc} | seas=2}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,seas,t,s,y}} \end{aligned} \tag{5}
+\begin{aligned} C_{fom} = \sum_{{r,seas,t,s,y} \in \Theta_{SC} | seas=2}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,seas,t,s,y}} \end{aligned} \tag{5}
 $$
 
 Interregional trade cost:
@@ -214,20 +214,20 @@ $$
 Ramping cost:
 
 $$
-\begin{aligned} C_{ramp} = \sum_{{t,y,r,s,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{t,y,r,s,h} + RDC_t \times \mathbf{RAMP^{up}}_{t,y,r,s,h})} \end{aligned} \tag{7}
+\begin{aligned} C_{ramp} = \sum_{{t,y,r,s,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{t,y,r,s,h} + RDC_t \times \mathbf{RAMP^{down}}_{t,y,r,s,h})} \end{aligned} \tag{7}
 $$
 
 Operating reserve cost:
 
 $$
-\begin{aligned} C_{op} = \sum_{{o,t,y,r,s,h} \in \Theta_{orp}}{ WD_h \times WY_y \times ORC_t \times \mathbf{ORP}_{o,t,y,r,s,h} } \end{aligned} \tag{8}
+\begin{aligned} C_{op} = \sum_{{o,t,y,r,s,h} \in \Theta_{proc}}{ WD_h \times WY_y \times ORC_t \times \mathbf{ORP}_{o,t,y,r,s,h} } \end{aligned} \tag{8}
 $$
 
 ### Constraints
 
 #### Balance Constraints
 
-Balance constraints exist for generation as well as energy storage. For demand, this means that generation must equal to
+Balance constraints exist for generation as well as energy storage. For demand, this means that generation must equal
 or exceed demand for electricity.
 
 For energy storage technologies, the balance constraints ensure that the storage level in the current time segment is
@@ -293,7 +293,7 @@ $$
 Storage technology inflow upper bound:
 
 $$
-\begin{aligned} \mathbf{STOR^{in}}_{t,y,r,s,h} + &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\ &\forall {t,y,r,s,h} \in \Theta_{stor} \end{aligned} \tag{8}
+\begin{aligned} \mathbf{STOR^{in}}_{t,y,r,s,h} &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h\\ &\forall {t,y,r,s,h} \in \Theta_{stor} \end{aligned} \tag{8}
 $$
 
 Storage technology outflow upper bound:
@@ -317,7 +317,7 @@ any retirements. The retirement constraint ensures that retirements never exceed
 Total capacity balance:
 
 $$
-\begin{aligned} \mathbf{CAP^{tot}}_{r,seas,t,s,y} = &CAP^{exist}_{r,seas,t,s,y} \\ & (+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,cy,s}} \quad \text{if } \mathtt{capacity\_expansion})\\ & (+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \quad \text{if } \mathtt{capacity\_expansion})\\ &\forall {r,seas,t,s,y} \in \Theta_{SC} \end{aligned} \tag{11}
+\begin{aligned} \mathbf{CAP^{tot}}_{r,seas,t,s,y} = &CAP^{exist}_{r,seas,t,s,y} \\ & (+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,cy,s}} \quad \text{if } \mathtt{capacity\_expansion})\\ & (- \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \quad \text{if } \mathtt{capacity\_expansion})\\ &\forall {r,seas,t,s,y} \in \Theta_{SC} \end{aligned} \tag{11}
 $$
 
 Capacity retirement upper bound:
@@ -354,7 +354,7 @@ $$
 
 Reserve margin constraints ensure that there is additional quantity of capacity available beyond load requirements in
 each time segment. Available capacity that can contribute to the reserve margin is also potentially decremented based on
-capacity credit assumptions. Storage technologies have additional reserve margin constraints accounts for both the power
+capacity credit assumptions. Storage technologies have additional reserve margin constraints that account for both the power
 capacity and the energy capacity availability towards contributing to reserve margin requirements.
 
 Reserve margin requirement constraint:
@@ -407,8 +407,8 @@ $$
 #### Operating Reserves
 
 The model allows for three different types of operating reserves to be represented within the model, either spinning
-reserves, regulation reserves, or flexibility reserve requirements. These operating reserves reflect the need to
-additional capacity to be held in reserve to meet and short-term needs for generation based on un-expected changes in
+reserves, regulation reserves, or flexibility reserve requirements. These operating reserves reflect the need for
+additional capacity to be held in reserve to meet short-term needs for generation from unexpected changes in
 things like electricity demand or variable renewable generation output.
 
 Spinning reserve requirement constraint. 3\% of load required:
@@ -432,7 +432,7 @@ $$
 Operating reserve procurement upper bound:
 
 $$
-\begin{aligned} \mathbf{ORP}_{o,t,y,r,s,h} \leq &RTUB_{o,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}\\ &\forall {o,t,y,r,s,h} \in \Theta_{proc} \\ &\quad \text{if } \mathtt{spinning\_reserve\_required}\\ \end{aligned} \tag{26}
+\begin{aligned} \mathbf{ORP}_{o,t,y,r,s,h} \leq &RTUB_{o,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y}\\ &\forall {o,t,y,r,s,h} \in \Theta_{proc} \\ &\quad \text{if } \mathtt{spinning\_reserve\_required}\\ \end{aligned} \tag{26}
 $$
 
 ## Data Validation

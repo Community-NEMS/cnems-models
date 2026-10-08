@@ -925,6 +925,18 @@ class NGModel(ConcreteModel, IntegratedModel):
             for y in self.year
         )
 
+        # 1b) Committed production, priced at the curve's lowest price PBASE_1. production_total
+        #     adds QBASE_1, the committed floor QMIN, to the step volumes, but prod_cost charges
+        #     only the steps, so without this term that volume would cost nothing. It is a
+        #     constant in any one solve and moves no quantity or price; it is here so total_cost
+        #     reports the full producer cost. NGMM Eq 7 omits it. Both factors are mutable
+        #     Params, so update_supply_capacity() moves this term with the curve.
+        committed_cost = quicksum(
+            self.p_base[r, 1, y] * self.q_base[r, 1, y] * bcf
+            for r in self.region_analyze
+            for y in self.year
+        )
+
         # 2) Gathering charge (NGMM Eq 7, P^gath term)
         gathering_cost = quicksum(
             self.gathering_charge[r] * self.production_total[r, y] * bcf
@@ -1004,17 +1016,18 @@ class NGModel(ConcreteModel, IntegratedModel):
         #     expr=(prod_cost + gathering_cost + lng_backstop_cost
         #           + transport_cost + storage_cost - lng_consumer_surplus),
         #     sense=minimize)
-        # THE OBJECTIVE IS LEGITIMATELY NEGATIVE (about -371.8M at full resolution). The LNG
-        # consumer-surplus term is subtracted and dominates the positive cost terms. This is
-        # not a sign error: NGMM maximises surplus, and minimising the negative of it is the
+        # THE OBJECTIVE IS LEGITIMATELY NEGATIVE (about -272.7 billion USD on the test config).
+        # The LNG consumer-surplus term is subtracted and dominates the positive cost terms. This
+        # is not a sign error: NGMM maximises surplus, and minimising the negative of it is the
         # same optimisation, chosen so an integrator that expects a scalar to minimise, and
         # code that writes `meta.obj = ... + ng_model.total_cost`, both keep working.
         #
-        # Only prod_cost, transport_cost and lng_consumer_surplus carry quadratic terms; the
-        # other three blocks are linear.
+        # Only prod_cost, transport_cost and lng_consumer_surplus carry quadratic terms;
+        # committed_cost is a constant and the other blocks are linear.
         self.total_cost = Objective(
             expr=(
                 prod_cost
+                + committed_cost
                 + gathering_cost
                 + lng_backstop_cost
                 + transport_cost

@@ -21,6 +21,7 @@ from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
 from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
 from src.models.natural_gas.data import NGData, load_all
+from src.models.natural_gas.data_validation import validate_all
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import report
@@ -108,6 +109,9 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         ------
         NotImplementedError
             If an update package has no registered handler in ``data.py``.
+        DataValidationError
+            If the loaded data fails ``data_validation.validate_all`` and
+            ``common_config.strict_validation`` is set.
         """
         self._common_config = common_config
         self._ng_config = model_config
@@ -118,6 +122,10 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
             superseded=self._reader.superseded_sectors(update_packages),
         )
         self._reader.read(update_packages, data)
+
+        logger.info('Validating input data')
+        validate_all(data, strict=common_config.strict_validation)
+
         self._model = NGModel(model_data=data, common_config=common_config, ng_config=model_config)
         return self._model
 

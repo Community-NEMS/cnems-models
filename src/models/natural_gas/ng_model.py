@@ -1010,6 +1010,7 @@ class NGModel(ConcreteModel, IntegratedModel):
     # ordering of these calls is the caller's responsibility rather than something enforced
     # here.
 
+    @deprecated('not currently used.  leftover from alternate approach?')
     def set_reference_prices(self, prices: dict[GI, float]) -> None:
         """Store solved gas prices as the reference baseline for demand elasticities.
 
@@ -1026,6 +1027,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             self._ref_prices[(gi.region, gi.year)] = p
         logger.debug('C-NGMM: reference prices set for %d (region, year) pairs', len(prices))
 
+    @deprecated('not currently used.  leftover from alternate approach?')
     def update_demand_from_price(
         self,
         solved_prices: dict[GI, float],
@@ -1076,6 +1078,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             alpha,
         )
 
+    @deprecated('not currently used.  leftover from alternate approach?')
     def calculate_demand_from_price(
         self, solved_prices: dict[GI, float]
     ) -> dict[tuple[str, str, int], float]:
@@ -1131,6 +1134,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                     out[r, sector, y] = max(base_d * (price_ratio**elas), 0.0)
         return out
 
+    @deprecated('not currently used.  leftover from alternate approach?')
     def set_internal_demand(self, values: dict[tuple[str, str, int], float]) -> int:
         """Write internally owned demand cells exactly as given. No relaxation.
 
@@ -1231,6 +1235,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.demand[region, sector, year].set_value(qty)
         return len(values)
 
+    @deprecated('Only here to help with lookups in registry, which is deprecated')
     def _is_demand_cell(self, key: object) -> bool:
         """Return whether ``key`` is a flat ``(region, sector, year)`` index of ``demand``.
 
@@ -1255,6 +1260,7 @@ class NGModel(ConcreteModel, IntegratedModel):
             and key in self.demand.index_set()
         )
 
+    # dev note:  Not currently used, but a nice setup that should be preserved
     def update_demand(
         self,
         new_demand: dict[GI, float],
@@ -1290,6 +1296,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 qty = alpha * qty + (1.0 - alpha) * current
             self.demand[gi.region, sector, gi.year].set_value(qty)
 
+    @deprecated('Needs to be refactored to be generic.  OK to keep.')
     def update_canada_supply(self, supply: dict[GI, float]) -> None:
         """Update Canadian gas imports by region and year.
 

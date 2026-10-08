@@ -136,7 +136,7 @@ It differs from the Jacobi iterator in how the models are run, not in what they 
 
 Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
 the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
-logging, the monitor display and the final status) is in `src/integrator/control_loop.py`, which
+logging, the monitor display and the final status) is in `../../src/integrator/bookeeping_utilities.py`, which
 both iterators call. The number in brackets on each monitor arrow is how many
 entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
 iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
@@ -170,7 +170,7 @@ flowchart LR
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
   status is in `ALLOW_OUTBOUND_UPDATES` (`BEST`, `USABLE`, or `PENALTY`). After a failed
   solve, the model sends nothing new; the control loop resends that model's last accepted packages
-  instead (`accept_packages` in `control_loop.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
+  instead (`accept_packages` in `bookeeping_utilities.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
 - **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
   circuit. A receiver outside the circuit gets nothing, and a warning is logged.

@@ -24,7 +24,7 @@ from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import UpdatePackage
-from src.integrator.control_loop import (
+from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,

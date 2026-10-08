@@ -11,7 +11,7 @@ Both models are built once and held in the control process.  Each iteration solv
 the latest gas prices, then gas on that iteration's electricity burn, applying each model's
 inbound packages to its built instance with ``update_model`` rather than rebuilding it.  Package
 routing and the stopping test are the Jacobi iterator's, and the rest of the bookkeeping is
-shared with it through ``src/integrator/control_loop.py``.
+shared with it through ``src/integrator/bookeeping_utilities.py``.
 """
 
 import logging
@@ -40,7 +40,7 @@ from src.common.update_package import (
     NGPricePackage,
     UpdatePackage,
 )
-from src.integrator.control_loop import (
+from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,

@@ -101,16 +101,17 @@ def test_parse_steps_rejects_non_integers(raw: str):
 
 
 def test_tech_steps_matches_supply_curve(config_set):
-    """Every tech's declared steps match the steps actually present in SupplyCurve.csv."""
+    """Every tech's declared steps match the steps actually present in available_capacity.csv."""
     common_config, elec_config = config_set
     model_sets = ModelSets(common_config, elec_config)
 
-    supply_curve = pd.read_csv(
-        Path(PROJECT_ROOT, 'input/electricity/cem_inputs/SupplyCurve.csv'),
+    available_capacity = pd.read_csv(
+        Path(PROJECT_ROOT, 'input/electricity/parameters/available_capacity.csv'),
         dtype={'tech': str},
     )
     observed = {
-        tech: sorted(set(grp['step'])) for tech, grp in supply_curve.groupby('tech', sort=False)
+        tech: sorted(set(grp['step']))
+        for tech, grp in available_capacity.groupby('tech', sort=False)
     }
 
     assert model_sets.tech_steps, 'no tech steps parsed.  check test setup'

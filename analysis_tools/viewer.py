@@ -562,10 +562,12 @@ except TypeError:
 s_regions = sorted(pd.unique(df_generation['region']), key=str)
 s_technologies = pd.unique(df_capacitytotal['label'])
 # storage techs plot differently from generators (level / charge-discharge rather than output),
-# so each gets its own tab.  The split follows the T_stor membership flag each run exports with
-# its tech_data.csv; outputs predating that column fall back to whatever the storage files hold.
-if 'T_stor' in df_color.columns:
-    _storage_labels = set(df_color.loc[df_color['T_stor'].fillna(False).astype(bool), 'label'])
+# so each gets its own tab.  The split follows the is_storage membership flag each run exports
+# with its tech_data.csv (T_stor in runs that predate the rename); outputs predating either column
+# fall back to whatever the storage files hold.
+_storage_flag = next((c for c in ('is_storage', 'T_stor') if c in df_color.columns), None)
+if _storage_flag is not None:
+    _storage_labels = set(df_color.loc[df_color[_storage_flag].fillna(False).astype(bool), 'label'])
 else:
     _storage_labels = set(df_storagelevel['label']) if len(df_storagelevel) else set()
 s_storage_techs = [tech for tech in s_technologies if tech in _storage_labels]

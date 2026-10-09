@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/13/26
 
-Builds the electricity model's inter-regional transmission network from TranLimit.csv and
+Builds the electricity model's inter-regional transmission network from tran_limit.csv and
 reports node degree using networkx.
 """
 
@@ -20,13 +20,13 @@ from definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TRAN_LIMIT_CSV = PROJECT_ROOT / 'input' / 'electricity' / 'cem_inputs' / 'TranLimit.csv'
+DEFAULT_TRAN_LIMIT_CSV = PROJECT_ROOT / 'input' / 'electricity' / 'parameters' / 'tran_limit.csv'
 
-# Multiplier applied to each edge's average TranLimit value to get its plotted line width (in
-# pixels). TranLimit in the sample data ranges roughly 0.1-10, so a factor of 1.0 gives a
-# visible range of hairline-to-thick lines without any single edge dominating; tune if a
-# different TranLimit scale makes lines too thin/thick.
-LINE_WEIGHT_SCALING_FACTOR = 1.0
+# Multiplier applied to each edge's average tran_limit value (MW) to get its plotted line width
+# (in pixels). tran_limit in the sample data ranges roughly 100-10,000 MW, so a factor of 0.001
+# gives a visible range of hairline-to-thick lines without any single edge dominating; tune if a
+# different tran_limit scale makes lines too thin/thick.
+LINE_WEIGHT_SCALING_FACTOR = 0.001
 
 # Approximate (lat, lon) centroid per region ID, hand-estimated from the region boundaries in
 # EIA's AEO Electricity Market Module region map (https://www.eia.gov/outlooks/aeo/pdf/nerc_map.pdf).
@@ -63,27 +63,27 @@ REGION_COORDS: dict[int, tuple[float, float]] = {
 
 
 def build_transmission_network(csv_path: Path = DEFAULT_TRAN_LIMIT_CSV) -> nx.Graph:
-    """Build an undirected graph of the transmission network from TranLimit.csv.
+    """Build an undirected graph of the transmission network from tran_limit.csv.
 
     Parameters
     ----------
     csv_path : Path
-        Path to a TranLimit.csv-formatted file with `source_region`, `destination_region`,
-        and `value` columns.
+        Path to a tran_limit.csv-formatted file with `region_source`, `region_dest`,
+        and `tran_limit_mw` columns.
 
     Returns
     -------
     nx.Graph
         Undirected graph with one node per region and one edge per unique
-        (source_region, destination_region) pair (self-loops excluded). Each edge has a
-        `tran_limit` attribute: the TranLimit value averaged over both directions and all
+        (region_source, region_dest) pair (self-loops excluded). Each edge has a
+        `tran_limit` attribute: the tran_limit value (MW) averaged over both directions and all
         season/year rows for that region pair.
     """
     df = pd.read_csv(csv_path)
-    df = df[df['source_region'] != df['destination_region']].copy()
-    df['region_a'] = df[['source_region', 'destination_region']].min(axis=1)
-    df['region_b'] = df[['source_region', 'destination_region']].max(axis=1)
-    edge_limits = df.groupby(['region_a', 'region_b'])['value'].mean()
+    df = df[df['region_source'] != df['region_dest']].copy()
+    df['region_a'] = df[['region_source', 'region_dest']].min(axis=1)
+    df['region_b'] = df[['region_source', 'region_dest']].max(axis=1)
+    edge_limits = df.groupby(['region_a', 'region_b'])['tran_limit_mw'].mean()
 
     graph = nx.Graph()
     for (region_a, region_b), tran_limit in edge_limits.items():
@@ -143,12 +143,12 @@ def plot_network(
 ) -> None:
     """Draw the network on a US map.
 
-    Node size/color is scaled by degree and line thickness by TranLimit.
+    Node size/color is scaled by degree and line thickness by tran_limit.
 
     Nodes are placed at approximate region centroids from `REGION_COORDS` and drawn over an
     outline map of the US with state boundaries. Each edge's line width is
     `LINE_WEIGHT_SCALING_FACTOR * tran_limit`, where `tran_limit` is the edge's averaged
-    TranLimit attribute from `build_transmission_network`.
+    tran_limit attribute from `build_transmission_network`.
 
     Parameters
     ----------
@@ -182,7 +182,7 @@ def plot_network(
                     'width': LINE_WEIGHT_SCALING_FACTOR * tran_limit,
                     'color': 'rgba(138,51,36, 0.6)',
                 },
-                hovertext=f'Region {a} - Region {b}: TranLimit {tran_limit:.2f}',
+                hovertext=f'Region {a} - Region {b}: tran_limit {tran_limit:,.0f} MW',
                 hoverinfo='text',
                 showlegend=False,
             )

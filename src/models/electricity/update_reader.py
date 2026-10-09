@@ -27,6 +27,7 @@ from src.models.electricity.constants import (
     PRICE_COST_PROPORTION,
     SUPPLY_PRICE_CHANGE_WARN_FRACTION,
 )
+from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
@@ -73,21 +74,21 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
 
         Notes
         -----
-        ``supply_price`` is indexed by ``(region, tech, step, year, season)``, so the tech
+        ``generation_cost`` is indexed by ``(region, tech, step, year, season)``, so the tech
         filter is built from the index level rather than a column.  The frame is modified in
         place, in ``data.param_frames``.
         """
-        prices = data.param_frames['supply_price']
+        prices = data.param_frames['generation_cost']
         tech_mask = prices.index.get_level_values('tech').isin(electricity_price_scalar.techs)
         if not tech_mask.any():
             logger.warning(
-                'No supply_price rows matched techs %s; prices unchanged',
+                'No generation_cost rows matched techs %s; prices unchanged',
                 electricity_price_scalar.techs,
             )
             return
         prices.loc[tech_mask, :] *= electricity_price_scalar.scalar
         logger.info(
-            'Scaled supply_price by factor %0.3f for %d of %d rows (techs %s)',
+            'Scaled generation_cost by factor %0.3f for %d of %d rows (techs %s)',
             electricity_price_scalar.scalar,
             tech_mask.sum(),
             len(prices),
@@ -99,12 +100,13 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
     def _(self, ng_price_update: NGPricePackage, data: ParamData) -> None:
         """Move the supply price of the gas-linked techs with the received natural gas price.
 
-        A share ``PRICE_COST_PROPORTION`` of each ``NG_PRICE_LINKED_TECHS`` row of ``supply_price``
-        is taken to be fuel cost embedding a gas price of ``INITIAL_NG_PRICE``, so the row is
-        scaled by ``1 + PRICE_COST_PROPORTION * (price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE``
-        using the price received for its ``(region, year)``.  Held rows the package does not
-        cover keep their loaded values and are reported as warnings; package entries beyond the
-        held regions/years (filtered out of this run) are ignored.
+        A share ``PRICE_COST_PROPORTION`` of each ``NG_PRICE_LINKED_TECHS`` row of
+        ``generation_cost`` is taken to be fuel cost embedding a gas price of ``INITIAL_NG_PRICE``,
+        so the row is scaled by
+        ``1 + PRICE_COST_PROPORTION * (price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE`` using the
+        price received for its ``(region, year)``.  Held rows the package does not cover keep their
+        loaded values and are reported as warnings; package entries beyond the held regions/years
+        (filtered out of this run) are ignored.
 
         Parameters
         ----------
@@ -115,17 +117,16 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
 
         Notes
         -----
-        The adjustment is a ratio, so it is indifferent to the x1000 price hack in
-        ``ParamData.__init__``.
-        ``SupplyPrice`` is a dense pyomo Param with no default, which is why uncovered rows are
+        The adjustment is a ratio, so it is indifferent to the price units.
+        ``generation_cost`` is a dense pyomo Param with no default, which is why uncovered rows are
         retained rather than dropped.
         """
         # locate the NG-based techs in the parameter data for supply prices...
-        prices = data.param_frames['supply_price']
+        prices = data.param_frames['generation_cost']
         tech_mask = prices.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
         if not tech_mask.any():
             logger.warning(
-                'No supply_price rows matched gas-linked techs %s; prices unchanged',
+                'No generation_cost rows matched gas-linked techs %s; prices unchanged',
                 NG_PRICE_LINKED_TECHS,
             )
             return
@@ -136,15 +137,16 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
             names=NG_PRICE_INDEX,
         )
         self._report_index_gaps(
-            held_keys[tech_mask].unique(), new_price.index, name='supply_price (NG price)'
+            held_keys[tech_mask].unique(), new_price.index, name='generation_cost (NG price)'
         )
         row_factor = pd.Series(factor.reindex(held_keys).to_numpy(), index=prices.index)
         covered = tech_mask & row_factor.notna().to_numpy()
         if not covered.any():
             logger.warning('Received NG prices cover no held gas-linked rows; prices unchanged')
             return
-        prior = prices.loc[covered, 'cost'].copy()
-        prices.loc[covered, 'cost'] *= row_factor[covered]
+        cost_col = PARAM_SOURCES['generation_cost'].value_col
+        prior = prices.loc[covered, cost_col].copy()
+        prices.loc[covered, cost_col] *= row_factor[covered]
         # screen for large swings; the scaling is multiplicative, so the relative change is the
         # row factor less one (a zero prior stays zero and cannot swing)
         big_moves = (row_factor[covered] - 1).abs() >= SUPPLY_PRICE_CHANGE_WARN_FRACTION
@@ -153,20 +155,21 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
                 zip(
                     prior.index[big_moves].to_list(),
                     prior[big_moves].to_list(),
-                    prices.loc[covered, 'cost'][big_moves].to_list(),
+                    prices.loc[covered, cost_col][big_moves].to_list(),
                     strict=True,
                 )
             )
             logger.warning(
-                'Received NG prices changed supply_price by %d%% or more for %d gas-linked rows.  '
-                '(%s, prior, new) (up to 10 shown):  %s',
+                'Received NG prices changed generation_cost by %d%% or more for %d gas-linked '
+                'rows.  (%s, prior, new) (up to 10 shown):  %s',
                 round(SUPPLY_PRICE_CHANGE_WARN_FRACTION * 100),
                 len(flagged),
                 prices.index.names,
                 flagged[:10],
             )
         logger.info(
-            'Scaled supply_price for %d of %d gas-linked rows (techs %s) by factors %0.3f to %0.3f',
+            'Scaled generation_cost for %d of %d gas-linked rows (techs %s) by factors %0.3f to '
+            '%0.3f',
             covered.sum(),
             tech_mask.sum(),
             NG_PRICE_LINKED_TECHS,

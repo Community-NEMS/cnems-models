@@ -120,7 +120,7 @@ repos:
       # The baseline isn't here to whitelist known findings (there are none) -- it carries
       # the `--exclude-files` pattern, which is the only way to stop the hook scanning a
       # file at all. Without it the numeric input CSVs are scanned line by line, and
-      # input/electricity/cem_inputs/CapFactorVRE.csv alone costs ~45s per run.
+      # input/electricity/parameters/capacity_factor_vre.csv alone costs ~45s per run.
       # Regenerate with:
       #   detect-secrets scan --exclude-files '(^old_docs/|\.csv$)' > .secrets.baseline
       - id: detect-secrets

@@ -12,7 +12,7 @@ The curve, ``learning_multiplier`` and ``learning_cost``, is shared by both lear
 nonlinear objective calls ``learning_cost`` symbolically.  The linear mode calls
 ``learning_multiplier`` through ``cost_learning_func`` between solves.  In both, the experience is
 cumulative builds in earlier years and nothing else, so the linear mode's first solve, before any
-builds exist, is priced at ``cap_cost_initial``.
+builds exist, is priced at ``capital_cost_initial``.
 
 Nothing bounds ``capacity_builds`` from above, and under learning more builds make later builds
 cheaper, so check the builds in learning runs for implausibly large values.
@@ -28,7 +28,7 @@ cannot check it themselves, for the reason above.
 
 The linear-mode helpers, ``init_old_cap``, ``calculate_cap_growth``, ``cost_learning_func``,
 ``update_expansion_cost`` and ``calculate_tolerance``, are numeric.  They read solved values off an
-instance and rewrite its mutable ``cap_cost`` between the solves of
+instance and rewrite its mutable ``capital_cost`` between the solves of
 ``ElectricitySequencer.solve_model``.
 """
 
@@ -52,10 +52,10 @@ def learning_multiplier(quantity: Any, baseline_quantity: Any, learning_rate: An
     Parameters
     ----------
     quantity : float or pyomo expression
-        Experience beyond the baseline, in GW.  Cumulative builds in strictly prior years for the
+        Experience beyond the baseline, in MW.  Cumulative builds in strictly prior years for the
         nonlinear objective.
     baseline_quantity : float or pyomo ParamData
-        Capacity the curve is measured from, ``Q0``, in GW.  Must be strictly positive.
+        Capacity the curve is measured from, ``Q0``, in MW.  Must be strictly positive.
     learning_rate : float or pyomo ParamData
         Curve exponent ``b``, the ``learning_exponent`` column of the input file.  Each doubling of
         ``Q`` cuts cost by ``1 - 2 ** -b``, so a learning rate ``LR`` per doubling converts as
@@ -86,14 +86,14 @@ def learning_cost(
     Parameters
     ----------
     build_quantity : float or pyomo expression
-        Capacity built by this element, in GW.  What the cost is charged on.
+        Capacity built by this element, in MW.  What the cost is charged on.
     cumulative_quantity : float or pyomo expression
-        Experience already accumulated, in GW, which sets the discount.  Excludes
+        Experience already accumulated, in MW, which sets the discount.  Excludes
         ``build_quantity``, so a build never discounts its own cost.
     baseline_quantity : float or pyomo ParamData
-        Capacity the curve is measured from, ``Q0``, in GW.  Must be strictly positive.
+        Capacity the curve is measured from, ``Q0``, in MW.  Must be strictly positive.
     initial_cost : float or pyomo ParamData
-        Undiscounted capital cost per GW.
+        Undiscounted capital cost per MW.
     learning_rate : float or pyomo ParamData
         Curve exponent.  See :func:`learning_multiplier`.
 
@@ -117,18 +117,18 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
     Returns
     -------
     dict[tuple, float]
-        zero cumulative builds before each year, in GW, keyed by (tech, year)
+        zero cumulative builds before each year, in MW, keyed by (tech, year)
     """
     # no builds exist before the first solve; later solves are priced from solved builds
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    return {(tech, y): 0.0 for _r, tech, _step, y in instance.cap_cost}
+    return {(tech, y): 0.0 for _r, tech, _step, y in instance.capital_cost}
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
     """Calculate the current capacity of all buildable tech by year."""
     result = defaultdict(float)
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for r, tech, step, y in instance.cap_cost:
+    for r, tech, step, y in instance.capital_cost:
         # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
         result[(tech, y)] += sum(
             value(instance.capacity_builds[r, tech, step, year])
@@ -151,12 +151,12 @@ def cost_learning_func(instance: PowerModel, tech: Any, new_cap: float) -> float
     tech : str or int
         Technology.
     new_cap : float
-        Cumulative builds of ``tech`` in the years before the one being priced, in GW.
+        Cumulative builds of ``tech`` in the years before the one being priced, in MW.
 
     Returns
     -------
     float
-        Multiplier to apply to ``cap_cost_initial``.
+        Multiplier to apply to ``capital_cost_initial``.
     """
     return learning_multiplier(
         new_cap,
@@ -173,12 +173,12 @@ def update_expansion_cost(instance, new_cap: dict[tuple, float]):
         new_multiplier[tech, y] = cost_learning_func(instance, tech, new_cap[tech, y])
 
     # Assign new cost
-    for r, tech, step, y in instance.cap_cost:
-        new_cost = instance.cap_cost_initial[r, tech, step] * new_multiplier[tech, y]
-        old_value = value(instance.cap_cost[r, tech, step, y])
-        instance.cap_cost[r, tech, step, y] = new_cost
+    for r, tech, step, y in instance.capital_cost:
+        new_cost = instance.capital_cost_initial[r, tech, step] * new_multiplier[tech, y]
+        old_value = value(instance.capital_cost[r, tech, step, y])
+        instance.capital_cost[r, tech, step, y] = new_cost
         logger.debug(
-            'Reduced cap_cost[%s, %s, %s, %s] from %0.2f to %0.2f',
+            'Reduced capital_cost[%s, %s, %s, %s] from %0.2f to %0.2f',
             r,
             tech,
             step,
@@ -199,14 +199,14 @@ def calculate_tolerance(
     Parameters
     ----------
     cap_growth : dict[tuple, float]
-        Cumulative builds before each year, by ``(tech, year)``, from the previous iteration, in GW.
+        Cumulative builds before each year, by ``(tech, year)``, from the previous iteration, in MW.
     new_cap_growth : dict[tuple, float]
         The same from the current iteration.
 
     Returns
     -------
     float
-        Largest absolute difference over all keys, in GW, or 0.0 if there are none.
+        Largest absolute difference over all keys, in MW, or 0.0 if there are none.
 
     Raises
     ------

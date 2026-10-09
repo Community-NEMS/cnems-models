@@ -23,14 +23,15 @@ from typing import Literal
 from pandas import DataFrame
 
 from src.common.exceptions import DataValidationError
+from src.common.season import Season
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
 
 # ParamFrames keys indexed by season, and those ParamData has expanded from season to hour
-SeasonalParam = Literal['supply_price', 'hydro_cap_factor']
-HourlyParam = Literal['tran_limit', 'tran_limit_cap_int', 'tran_limit_gen_int']
+SeasonalParam = Literal['generation_cost', 'hydro_capacity_factor']
+HourlyParam = Literal['tran_limit', 'tran_limit_cap_intl', 'supply_limit_intl']
 
 
 def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = True) -> None:
@@ -59,7 +60,7 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     exchange = param_data.elec_config.regional_exchange
 
     # seasonal coverage in tables with season reference
-    seasonal_params: list[SeasonalParam] = ['supply_price', 'hydro_cap_factor']
+    seasonal_params: list[SeasonalParam] = ['generation_cost', 'hydro_capacity_factor']
     for name in seasonal_params:
         df = frames[name]
         if df.empty:
@@ -72,8 +73,8 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     if exchange:
         hourly_params: list[HourlyParam] = [
             'tran_limit',
-            'tran_limit_cap_int',
-            'tran_limit_gen_int',
+            'tran_limit_cap_intl',
+            'supply_limit_intl',
         ]
         for name in hourly_params:
             df = frames[name]
@@ -86,7 +87,7 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     # supply curve vs. price to ensure compatible coverage for supply & price
     try:
         all_valid &= validate_supply_price_coverage(
-            _frame_to_dict(frames['supply_curve']), _frame_to_dict(frames['supply_price'])
+            _frame_to_dict(frames['available_capacity']), _frame_to_dict(frames['generation_cost'])
         )
     except ValueError as e:
         logger.error(e)
@@ -118,7 +119,7 @@ def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:
 
 
 def validate_seasonal_coverage(
-    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[int | str]
+    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[Season]
 ) -> bool:
     """Validate full seasonal coverage for table data.
 

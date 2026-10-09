@@ -1,0 +1,1265 @@
+{
+  "resources": [
+    {
+      "name": "available_capacity",
+      "type": "table",
+      "path": "parameters/available_capacity.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Exogenous baseline capacity available in each region/tech/step/year: operating fleet plus announced additions minus announced retirements.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "available_capacity_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Available capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "base_load",
+      "type": "table",
+      "path": "base_load.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Base-year electricity demand by region and hour.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "base_load_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Load, MWh per hour."
+          }
+        ]
+      }
+    },
+    {
+      "name": "capacity_factor_vre",
+      "type": "table",
+      "path": "parameters/capacity_factor_vre.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Hourly capacity factor for variable renewable technologies by region, technology and supply step.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "capacity_factor_vre_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Capacity factor, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "capital_cost",
+      "type": "table",
+      "path": "parameters/capital_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Overnight capital cost of new capacity by region, technology, supply step and build year.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "capital_cost_usd_per_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Capital cost, USD/MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "capital_cost_initial",
+      "type": "table",
+      "path": "parameters/capital_cost_initial.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Base-year capital cost anchoring the endogenous learning curve, by region, technology and supply step.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "capital_cost_initial_usd_per_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Base-year capital cost, USD/MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "enduse_base_share",
+      "type": "table",
+      "path": "enduse_base_share.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Share of base-year electricity demand attributable to each end-use category.",
+      "schema": {
+        "fields": [
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "enduse_base_share_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Share of base-year demand, fraction."
+          }
+        ]
+      }
+    },
+    {
+      "name": "enduse_scalar",
+      "type": "table",
+      "path": "enduse_scalar.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Annual incremental demand growth by end-use category.",
+      "schema": {
+        "fields": [
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "enduse_scalar_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Annual increment, fraction of end-use base load."
+          }
+        ]
+      }
+    },
+    {
+      "name": "enduse_shape",
+      "type": "table",
+      "path": "enduse_shape.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Hourly load profile shape by end-use category.",
+      "schema": {
+        "fields": [
+          {
+            "name": "hour",
+            "type": "integer"
+          },
+          {
+            "name": "enduse_cat",
+            "type": "string"
+          },
+          {
+            "name": "enduse_shape_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Share of annual end-use load in the hour, fraction."
+          }
+        ]
+      }
+    },
+    {
+      "name": "fom_cost",
+      "type": "table",
+      "path": "parameters/fom_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Fixed operation and maintenance cost per unit of installed capacity per year, by region, technology and supply step.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "fom_cost_usd_per_mw_yr",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Fixed O&M cost, USD/MW-yr."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "generation_cost",
+      "type": "table",
+      "path": "parameters/generation_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Variable cost of generating one MWh from a given region/tech/step in a given year and season (fuel plus variable O&M).",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "string"
+          },
+          {
+            "name": "generation_cost_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Variable generation cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "hydro_capacity_factor",
+      "type": "table",
+      "path": "parameters/hydro_capacity_factor.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Seasonal average availability of hydroelectric capacity by region.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "season",
+            "type": "string"
+          },
+          {
+            "name": "hydro_capacity_factor_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Capacity factor, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "learning_rate",
+      "type": "table",
+      "path": "parameters/learning_rate.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Learning-curve exponent b by technology: each doubling of cumulative capacity scales capital cost by 2^-b.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "learning_exponent",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Learning-curve exponent b, dimensionless."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "load_scalar",
+      "type": "table",
+      "path": "load_scalar.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Multiplier scaling base-year load to each model year.",
+      "schema": {
+        "fields": [
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "load_scalar_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Load multiplier relative to the base year."
+          }
+        ]
+      }
+    },
+    {
+      "name": "planning_reserve_margin",
+      "type": "table",
+      "path": "parameters/planning_reserve_margin.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Planning reserve margin required above peak demand, by region.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "planning_reserve_margin_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Reserve margin, fraction of peak demand."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "ramp_down_cost",
+      "type": "table",
+      "path": "parameters/ramp_down_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Cost incurred per MWh of decreased output when a technology ramps down.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "ramp_down_cost_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Ramp-down cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "ramp_rate",
+      "type": "table",
+      "path": "parameters/ramp_rate.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Maximum fraction of installed capacity a technology can change its output by in one hour.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "ramp_rate_frac_per_hr",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Ramp rate, fraction of capacity per hour."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "ramp_up_cost",
+      "type": "table",
+      "path": "parameters/ramp_up_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Cost incurred per MWh of increased output when a technology ramps up.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "ramp_up_cost_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Ramp-up cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "region",
+      "type": "table",
+      "path": "properties/region.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Valid model regions, their display label and domestic/international membership.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "is_domestic",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_international",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "reserve_cost",
+      "type": "table",
+      "path": "parameters/reserve_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Cost of procuring one MWh of a given operating reserve from a given technology.  reserve_type must be a ReserveType member (spinning, regulation, flex).",
+      "schema": {
+        "fields": [
+          {
+            "name": "reserve_type",
+            "type": "string",
+            "constraints": {
+              "enum": [
+                "spinning",
+                "regulation",
+                "flex"
+              ]
+            }
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "reserve_cost_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Reserve procurement cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "reserve_tech_limit",
+      "type": "table",
+      "path": "parameters/reserve_tech_limit.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Maximum fraction of a technology's capacity that may be committed to a given operating reserve product.",
+      "schema": {
+        "fields": [
+          {
+            "name": "reserve_type",
+            "type": "string",
+            "constraints": {
+              "enum": [
+                "spinning",
+                "regulation",
+                "flex"
+              ]
+            }
+          },
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "reserve_tech_limit_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Reserve limit, fraction of capacity 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "storage_duration",
+      "type": "table",
+      "path": "parameters/storage_duration.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Hours of energy storage per unit of storage power capacity, by technology.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "storage_duration_hr",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Storage duration, hours."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "storage_efficiency",
+      "type": "table",
+      "path": "parameters/storage_efficiency.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Round-trip efficiency of each storage technology.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "storage_efficiency_frac",
+            "type": "number",
+            "constraints": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "description": "Round-trip efficiency, fraction 0-1."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "supply_curve_learning",
+      "type": "table",
+      "path": "parameters/supply_curve_learning.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Baseline cumulative capacity Q0 the learning curve is measured from, by technology.  Slated to be derived from available_capacity instead.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "supply_curve_learning_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Baseline capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "supply_limit_intl",
+      "type": "table",
+      "path": "parameters/supply_limit_intl.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Maximum power an international region can supply into the model in a given step, year and season.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region_intl",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "string"
+          },
+          {
+            "name": "supply_limit_intl_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Supply limit, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "tech",
+      "type": "table",
+      "path": "properties/tech.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Valid technologies, their valid supply steps, display attributes and subset membership (conventional, renewable, hydro, storage, VRE, wind, solar, hydrogen, dispatchable, generator).",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "steps",
+            "type": "string"
+          },
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "abbreviation",
+            "type": "string"
+          },
+          {
+            "name": "color",
+            "type": "string"
+          },
+          {
+            "name": "is_conventional",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_renewable",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_hydro",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_hydro_seasonal",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_hydro_regular",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_storage",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_vre",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_wind",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_solar",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_solar_utility",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_solar_end_use",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_hydrogen",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_dispatchable",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_generator",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tech_build",
+      "type": "table",
+      "path": "properties/tech_build.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Which (tech, step) pairs are eligible for new capacity construction.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "is_buildable",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tech_retire",
+      "type": "table",
+      "path": "properties/tech_retire.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Which (tech, step) pairs are eligible for early retirement.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "is_retirable",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tran_cost",
+      "type": "table",
+      "path": "parameters/tran_cost.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Cost of transmitting one MWh between two domestic regions in a given year.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region_dest",
+            "type": "string"
+          },
+          {
+            "name": "region_source",
+            "type": "string"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "tran_cost_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Transmission cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "tran_cost_intl",
+      "type": "table",
+      "path": "parameters/tran_cost_intl.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Cost of transmitting one MWh between a domestic region and an international region.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "region_intl",
+            "type": "string"
+          },
+          {
+            "name": "step",
+            "type": "integer"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "tran_cost_intl_usd_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Transmission cost, USD/MWh."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "tran_limit",
+      "type": "table",
+      "path": "parameters/tran_limit.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Maximum power flow between two domestic regions in a given year and season.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region_dest",
+            "type": "string"
+          },
+          {
+            "name": "region_source",
+            "type": "string"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "string"
+          },
+          {
+            "name": "tran_limit_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Transmission limit, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
+      "name": "tran_limit_cap_intl",
+      "type": "table",
+      "path": "parameters/tran_limit_cap_intl.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Maximum cross-border transmission capacity between a domestic and an international region, by year and season.",
+      "schema": {
+        "fields": [
+          {
+            "name": "region",
+            "type": "string"
+          },
+          {
+            "name": "region_intl",
+            "type": "string"
+          },
+          {
+            "name": "year",
+            "type": "integer"
+          },
+          {
+            "name": "season",
+            "type": "string"
+          },
+          {
+            "name": "tran_limit_cap_intl_mw",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Transmission capacity, MW."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -237,25 +237,25 @@ tech_data_columns = ['tech', 'label', 'abbreviation', 'color']
 
 
 def tech_property_columns() -> list[str]:
-    """Names of the ``tech_data`` membership columns (``T_conv``, ``T_stor``, ...), in file order.
+    """Names of the ``tech`` membership columns (``is_conventional``, ``is_storage``, ...).
 
     Returns
     -------
     list[str]
         The declared property columns minus the index column.
     """
-    source = PROPERTY_SOURCES['tech_data']
+    source = PROPERTY_SOURCES['tech']
     return [col for col in source.property_cols if col not in source.index_cols]
 
 
 def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.DataFrame:
     """Copy the tech descriptors and membership flags into a run's output dir.
 
-    Reads the input ``tech_data.csv`` through the same :func:`load_attribute_data` /
+    Reads the input ``tech.csv`` through the same :func:`load_attribute_data` /
     :func:`load_property_data` loaders ``ModelSets`` uses, so the exported ids match the model's
     tech set (including string ids such as ``10_seasonal``), and writes them as
     ``<output_dir>/tech_data.csv`` for downstream tools such as the results viewer. The
-    ``T_*`` membership columns are written as booleans, letting a consumer tell (for example)
+    ``is_*`` membership columns are written as booleans, letting a consumer tell (for example)
     a storage tech from a generator without re-reading the model inputs.
 
     Parameters
@@ -269,11 +269,11 @@ def transfer_tech_data(input_dir: Path | str, output_dir: Path | str) -> pd.Data
     -------
     pd.DataFrame
         The exported frame: ``tech, label, abbreviation, color`` plus one boolean column per
-        ``T_*`` property.
+        ``is_*`` property.
     """
     input_dir = Path(input_dir)
-    attrs = load_attribute_data(input_dir)['tech_data']
-    props = load_property_data(input_dir)['tech_data']
+    attrs = load_attribute_data(input_dir)['tech']
+    props = load_property_data(input_dir)['tech']
     techs = list(attrs['label'])
     df = pd.DataFrame(
         {

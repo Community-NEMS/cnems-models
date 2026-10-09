@@ -10,7 +10,7 @@ Jacobi iteration over the models selected in the run config, run in parallel
 """
 
 import logging
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
@@ -23,12 +23,11 @@ from src.common.integrated_model_sequencer import IterationResult
 from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
-from src.common.update_package import UpdatePackage
+from src.common.update_package import UpdatePackage, route_updates
 from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,
-    outbound_packages,
     show_iteration,
 )
 from src.integrator.convergence import ConvergenceTracker
@@ -81,48 +80,6 @@ class IterationCall:
     common_config: CommonConfig
     model_config: ModelConfig
     kwargs: dict
-
-
-def route_updates(
-    packages: Iterable[UpdatePackage], circuit: Collection[ModelType]
-) -> dict[ModelType, list[UpdatePackage]]:
-    """Bin update packages by the models that should receive them.
-
-    A package may name any number of receivers; :attr:`ModelType.ALL` means every model in the
-    circuit.  Receivers outside the circuit are dropped with a warning -- nothing is running to
-    consume them.
-
-    Parameters
-    ----------
-    packages : iterable of UpdatePackage
-        The packages emitted by this iteration's models.
-    circuit : collection of ModelType
-        The models participating in the run.
-
-    Returns
-    -------
-    dict of ModelType to list of UpdatePackage
-        One entry per circuit member, in circuit order; empty lists for models with no mail.
-        :attr:`ModelType.ALL` is never a key -- it is an indicator, not a destination.
-    """
-    routed: dict[ModelType, list[UpdatePackage]] = {model: [] for model in circuit}
-    for package in packages:
-        receivers = set(package.receivers)
-        to_all = ModelType.ALL in receivers
-        # iterate the circuit (not the receivers) to drop off-circuit destinations and to
-        # dedupe a package that names both ALL and a specific model
-        for model in circuit:
-            if to_all or model in receivers:
-                routed[model].append(package)
-        unreachable = receivers - {ModelType.ALL} - set(circuit)
-        if unreachable:
-            logger.warning(
-                'Dropping %s addressed to %s; not in the circuit %s',
-                type(package).__name__,
-                sorted(m.value for m in unreachable),
-                [m.value for m in circuit],
-            )
-    return routed
 
 
 def driver(iter_call: IterationCall) -> IterationResult:
@@ -332,7 +289,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         iteration_limit = self.config.iteration_limit
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
         converged = False
-        routed_updates = route_updates([], run_circuit)
+        routed_updates = route_updates({}, run_circuit)
         # the last accepted outbound packages per sender, resent while that sender's solves fail
         accepted: dict[ModelType, list[UpdatePackage]] = {}
 
@@ -369,9 +326,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 # refresh each sender's accepted packages from this iteration
                 for result in results:
                     accept_packages(result, accepted, iteration, logger)
-                routed_updates = route_updates(
-                    outbound_packages(accepted, run_circuit), run_circuit
-                )
+                routed_updates = route_updates(accepted, run_circuit)
 
                 converged = tracker.update(results)
                 log_progress(tracker, iteration, self.config.epsilon, iteration_limit, logger)

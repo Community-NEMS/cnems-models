@@ -10,8 +10,8 @@ Gauss-Seidel iteration between the electricity and natural gas models.
 Both models are built once and held in the control process.  Each iteration solves electricity on
 the latest gas prices, then gas on that iteration's electricity burn, applying each model's
 inbound packages to its built instance with ``update_model`` rather than rebuilding it.  Package
-routing and the stopping test are the Jacobi iterator's, and the rest of the bookkeeping is
-shared with it through ``src/integrator/bookeeping_utilities.py``.
+routing (``route_updates``) and the stopping test are shared with the Jacobi iterator, and the
+rest of the bookkeeping is shared with it through ``src/integrator/bookeeping_utilities.py``.
 """
 
 import logging
@@ -39,18 +39,18 @@ from src.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
     UpdatePackage,
+    route_updates,
 )
 from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,
-    outbound_packages,
     show_iteration,
 )
 from src.integrator.convergence import ConvergenceTracker
 from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.jacobi_iterator import _CONFIG_SECTIONS, route_updates
+from src.integrator.jacobi.jacobi_iterator import _CONFIG_SECTIONS
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -281,7 +281,7 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         while not converged and iteration <= self.config.iteration_limit:
             results: list[IterationResult] = []
             for model in GS_ORDER:
-                inbound = route_updates(outbound_packages(accepted, GS_ORDER), GS_ORDER)[model]
+                inbound = route_updates(accepted, GS_ORDER)[model]
                 # if model is ModelType.NATURAL_GAS:
                 #     inbound = add_topup(inbound, topup)
                 start = perf_counter()

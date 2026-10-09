@@ -72,26 +72,6 @@ def accept_packages(
     )
 
 
-def outbound_packages(
-    accepted: dict[ModelType, list[UpdatePackage]], circuit: Sequence[ModelType]
-) -> list[UpdatePackage]:
-    """Flatten the accepted packages in circuit order, which fixes the order receivers apply them.
-
-    Parameters
-    ----------
-    accepted : dict of ModelType to list of UpdatePackage
-        The last accepted packages per sender.
-    circuit : sequence of ModelType
-        The run's models, in order.
-
-    Returns
-    -------
-    list of UpdatePackage
-        Every accepted package, senders in circuit order.
-    """
-    return [package for model in circuit for package in accepted.get(model, [])]
-
-
 def show_iteration(
     iteration: int,
     results: Sequence[IterationResult],

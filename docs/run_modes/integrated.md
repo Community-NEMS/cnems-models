@@ -172,8 +172,10 @@ flowchart LR
   solve, the model sends nothing new; the control loop resends that model's last accepted packages
   instead (`accept_packages` in `bookeeping_utilities.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
-- **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
-  circuit. A receiver outside the circuit gets nothing, and a warning is logged.
+- **Routing.** `route_updates` (`src/common/update_package/routing.py`) delivers every package to
+  each receiver in the circuit. Each receiver gets its packages grouped by sender, senders in
+  circuit order, so the order they are applied in is fixed. A receiver outside the circuit gets
+  nothing, and a warning is logged.
 - **Reading.** Each model has an `UpdatePackageReader` (`update_reader.py`) that applies inbound
   packages to the model's loaded data *before* the model is built. It picks a handler by package
   type; a type with no registered handler raises an error. Handlers update individual parameters

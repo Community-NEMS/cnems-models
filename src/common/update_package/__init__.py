@@ -8,10 +8,11 @@ Created on:  9/21/26
 Update packages passed between models, plus the reader/writer ABCs that apply and create them.
 
 The package definitions live in ``update_package.py``; they are re-exported here so callers import
-from ``src.common.update_package`` directly.
+from ``src.common.update_package`` directly, as is ``route_updates`` from ``routing.py``.
 """
 
 from src.common.update_package.reader import UpdatePackageReader
+from src.common.update_package.routing import route_updates
 from src.common.update_package.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
@@ -39,4 +40,5 @@ __all__ = [
     'UpdatePackage',
     'UpdatePackageReader',
     'UpdatePackageWriter',
+    'route_updates',
 ]

@@ -10,7 +10,9 @@ Generic regional crosswalks between models.
 
 The weights bridging one model's regions to another's are CSV files under
 ``input/integrator/population_weighted_region_xwalk`` (see the README there for provenance),
-registered here by the ordered ``(source, destination)`` pair of ``ModelType`` they connect.
+registered here by the unordered pair of ``ModelType`` they connect.  Each pair registers two files,
+one normalised over each model's regions; both are loaded and checked against each other on every
+request, so a region or link present in only one direction is caught before any data moves.
 ``crosswalk_values`` maps a ``(region, year)``-indexed series from one model's regions to the
 other's, either allocating an extensive quantity (demand, volume) or averaging an intensive one
 (price, rate).
@@ -35,11 +37,14 @@ REGION_COLUMN: dict[ModelType, str] = {
     ModelType.NATURAL_GAS: 'ng_region',
 }
 
-# (source, destination) -> the file whose weights sum to 1.0 over each SOURCE region, i.e. the
-# share of a source region that lands in each destination region.  Add an entry per model pair.
-REGION_CROSSWALKS: dict[tuple[ModelType, ModelType], Path] = {
-    (ModelType.NATURAL_GAS, ModelType.ELECTRICITY): XWALK_DIR / 'ng_to_elec_crosswalk.csv',
-    (ModelType.ELECTRICITY, ModelType.NATURAL_GAS): XWALK_DIR / 'elec_to_ng_crosswalk.csv',
+# {model pair: {source model: file}}.  Each file's weights sum to 1.0 over each region of its
+# source model, i.e. the share of a source region that lands in each region of the other model.
+# Every pair registers both directions; lookup is order-free.  Add an entry per model pair.
+REGION_CROSSWALKS: dict[frozenset[ModelType], dict[ModelType, Path]] = {
+    frozenset({ModelType.ELECTRICITY, ModelType.NATURAL_GAS}): {
+        ModelType.ELECTRICITY: XWALK_DIR / 'elec_to_ng_crosswalk.csv',
+        ModelType.NATURAL_GAS: XWALK_DIR / 'ng_to_elec_crosswalk.csv',
+    },
 }
 
 WEIGHT_COLUMN = 'weight'
@@ -73,8 +78,126 @@ def _check_endpoints(source: ModelType, destination: ModelType) -> None:
         raise ValueError(f'A crosswalk needs two different models; got {source} twice.')
 
 
+def _read_weights(path: Path, source: ModelType, destination: ModelType) -> pd.DataFrame:
+    """Read one crosswalk file and check its weights are normalised over ``source`` regions.
+
+    Parameters
+    ----------
+    path : Path
+        The crosswalk CSV.
+    source : ModelType
+        Model whose regions the file's weights are normalised over.
+    destination : ModelType
+        The other model in the file.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``[REGION_COLUMN[source], REGION_COLUMN[destination], 'weight']`` with both region
+        ids as stripped strings.
+
+    Raises
+    ------
+    ValueError
+        If a required column is absent, or a source region's weights do not sum to 1.0 within
+        ``_WEIGHT_SUM_TOL``.
+    """
+    src_col, dst_col = REGION_COLUMN[source], REGION_COLUMN[destination]
+    weights = pd.read_csv(path, dtype={src_col: str, dst_col: str})
+    missing = sorted({src_col, dst_col, WEIGHT_COLUMN}.difference(weights.columns))
+    if missing:
+        raise ValueError(
+            f'{path} is missing required column(s) {missing}; header reads {list(weights.columns)}'
+        )
+    weights = weights[[src_col, dst_col, WEIGHT_COLUMN]].copy()
+    weights[src_col] = weights[src_col].str.strip()
+    weights[dst_col] = weights[dst_col].str.strip()
+    sums = weights.groupby(src_col)[WEIGHT_COLUMN].sum()
+    off = sums[(sums - 1.0).abs() > _WEIGHT_SUM_TOL]
+    if not off.empty:
+        raise ValueError(f'{path}: weights must sum to 1.0 per {src_col}; off for {off.to_dict()}')
+    logger.debug(
+        'Loaded %s -> %s region weights from %s: %d rows, %d source regions',
+        source.value,
+        destination.value,
+        path.name,
+        len(weights),
+        len(sums),
+    )
+    return weights
+
+
+def _check_reciprocal(
+    forward: pd.DataFrame,
+    reverse: pd.DataFrame,
+    source: ModelType,
+    destination: ModelType,
+    paths: tuple[Path, Path],
+) -> None:
+    """Check two crosswalk directions name the same regions and the same links.
+
+    Only rows with positive weight count.  A region or link present in one direction but not the
+    other is isolated:  allocated (extensive) and averaged (intensive) values would travel over
+    different connections, or a region would get no data at all.
+
+    Parameters
+    ----------
+    forward : pd.DataFrame
+        The ``source -> destination`` weights, as returned by :func:`_read_weights`.
+    reverse : pd.DataFrame
+        The ``destination -> source`` weights, as returned by :func:`_read_weights`.
+    source : ModelType
+        Source model of ``forward``.
+    destination : ModelType
+        Destination model of ``forward``.
+    paths : tuple of Path
+        The ``(forward, reverse)`` files, for messages.
+
+    Raises
+    ------
+    ValueError
+        If either model's region set differs between the directions, or, with matching regions,
+        the sets of ``(source region, destination region)`` links differ.
+    """
+    src_col, dst_col = REGION_COLUMN[source], REGION_COLUMN[destination]
+    fwd = forward[forward[WEIGHT_COLUMN] > 0.0]
+    rev = reverse[reverse[WEIGHT_COLUMN] > 0.0]
+    fwd_path, rev_path = paths
+
+    problems: list[str] = []
+    for model, col in ((source, src_col), (destination, dst_col)):
+        in_fwd, in_rev = set(fwd[col]), set(rev[col])
+        if in_fwd - in_rev:
+            problems.append(
+                f'{model.value} region(s) {sorted(in_fwd - in_rev)} are in {fwd_path.name} '
+                f'but not {rev_path.name}'
+            )
+        if in_rev - in_fwd:
+            problems.append(
+                f'{model.value} region(s) {sorted(in_rev - in_fwd)} are in {rev_path.name} '
+                f'but not {fwd_path.name}'
+            )
+    if problems:
+        raise ValueError(
+            f'Region crosswalk {source.value} <-> {destination.value} is not reciprocal:  '
+            + '; '.join(problems)
+        )
+
+    fwd_links = set(zip(fwd[src_col], fwd[dst_col], strict=True))
+    rev_links = set(zip(rev[src_col], rev[dst_col], strict=True))
+    if fwd_links != rev_links:
+        raise ValueError(
+            f'Region crosswalk {source.value} <-> {destination.value} links differ by direction '
+            f'({src_col}, {dst_col}):  only in {fwd_path.name} {sorted(fwd_links - rev_links)}; '
+            f'only in {rev_path.name} {sorted(rev_links - fwd_links)}'
+        )
+
+
 def load_region_weights(source: ModelType, destination: ModelType) -> pd.DataFrame:
     """Load the registered weights from ``source`` regions to ``destination`` regions.
+
+    Both directions of the pair are read and checked against each other with
+    :func:`_check_reciprocal`; only the requested direction is returned.
 
     Parameters
     ----------
@@ -92,44 +215,29 @@ def load_region_weights(source: ModelType, destination: ModelType) -> pd.DataFra
     Raises
     ------
     ValueError
-        If an endpoint is invalid, a required column is absent, or a source region's weights do
-        not sum to 1.0 within ``_WEIGHT_SUM_TOL``.
+        If an endpoint is invalid, a required column is absent, a source region's weights do not
+        sum to 1.0 within ``_WEIGHT_SUM_TOL``, or the two directions disagree on regions or links.
     KeyError
-        If no crosswalk is registered for the pair.
+        If no crosswalk is registered for the pair, or the pair lacks a file for either direction.
     """
     _check_endpoints(source, destination)
     try:
-        path = REGION_CROSSWALKS[(source, destination)]
+        files = REGION_CROSSWALKS[frozenset({source, destination})]
+        paths = (files[source], files[destination])
     except KeyError:
-        registered = [f'{s.value} -> {d.value}' for s, d in REGION_CROSSWALKS]
+        registered = [' <-> '.join(sorted(m.value for m in pair)) for pair in REGION_CROSSWALKS]
         raise KeyError(
             f'No region crosswalk registered for {source.value} -> {destination.value}; '
-            f'registered pairs: {registered}'
+            f'registered pairs (each needs a file per direction): {registered}'
         ) from None
-    src_col, dst_col = REGION_COLUMN[source], REGION_COLUMN[destination]
-    weights = pd.read_csv(path, dtype={src_col: str, dst_col: str})
-    missing = sorted({src_col, dst_col, WEIGHT_COLUMN}.difference(weights.columns))
-    if missing:
-        raise ValueError(
-            f'{path} is missing required column(s) {missing}; header reads {list(weights.columns)}'
-        )
-    weights = weights[[src_col, dst_col, WEIGHT_COLUMN]].copy()
-    weights[src_col] = weights[src_col].str.strip()
-    weights[dst_col] = weights[dst_col].str.strip()
-    sums = weights.groupby(src_col)[WEIGHT_COLUMN].sum()
-    off = sums[(sums - 1.0).abs() > _WEIGHT_SUM_TOL]
-    if not off.empty:
-        raise ValueError(f'{path}: weights must sum to 1.0 per {src_col}; off for {off.to_dict()}')
-    logger.debug(
-        'Loaded %s -> %s region weights: %d rows, %d source regions',
-        source.value,
-        destination.value,
-        len(weights),
-        len(sums),
-    )
-    return weights
+    forward = _read_weights(paths[0], source, destination)
+    reverse = _read_weights(paths[1], destination, source)
+    _check_reciprocal(forward, reverse, source, destination, paths)
+    return forward
 
 
+# TODO:  As this crosswalk matures, we will transition it to a stateful class so that we can
+#        Build it once and re-use within the UpdatePackage writers.  By-use rebuild OK for now.
 def crosswalk_values(
     values: pd.Series, source: ModelType, destination: ModelType, kind: QuantityKind
 ) -> pd.Series:

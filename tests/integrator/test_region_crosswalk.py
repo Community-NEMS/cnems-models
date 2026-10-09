@@ -11,6 +11,7 @@ Tests for the generic regional crosswalk between models.
 """
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -42,6 +43,20 @@ NG_REGIONS = [
 ]
 YEAR = 2030
 
+# every (source, destination) ordering of every registered pair, sorted:  frozenset iteration
+# order varies by process, and xdist workers must collect identical test ids
+REGISTERED_DIRECTIONS = sorted(
+    (
+        (source, destination)
+        for pair in REGION_CROSSWALKS
+        for source in pair
+        for destination in pair
+        if source is not destination
+    ),
+    key=lambda direction: (direction[0].value, direction[1].value),
+)
+ELEC_NG = frozenset({ModelType.ELECTRICITY, ModelType.NATURAL_GAS})
+
 
 def unit_series(ng_region: str, year: int = YEAR) -> pd.Series:
     """A price of 1.0 in ``ng_region`` and 0.0 in every other natural gas region."""
@@ -57,7 +72,7 @@ def by_elec_region(result: pd.Series) -> dict[str, float]:
 
 
 @pytest.mark.parametrize(
-    'pair', list(REGION_CROSSWALKS), ids=[f'{s.value}->{d.value}' for s, d in REGION_CROSSWALKS]
+    'pair', REGISTERED_DIRECTIONS, ids=[f'{s.value}->{d.value}' for s, d in REGISTERED_DIRECTIONS]
 )
 def test_weights_sum_to_one_per_source(pair: tuple[ModelType, ModelType]) -> None:
     """
@@ -184,3 +199,73 @@ def test_bad_index_names_raise() -> None:
         crosswalk_values(
             values, ModelType.NATURAL_GAS, ModelType.ELECTRICITY, QuantityKind.INTENSIVE
         )
+
+
+# a small reciprocal elec <-> ng pair:  (elec_region, ng_region, weight) rows per direction
+TOY_ELEC_TO_NG = [('1', 'a', 1.0), ('2', 'a', 0.5), ('2', 'b', 0.5)]
+TOY_NG_TO_ELEC = [('1', 'a', 0.6), ('2', 'a', 0.4), ('2', 'b', 1.0)]
+
+
+def write_toy_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    elec_to_ng: list[tuple[str, str, float]],
+    ng_to_elec: list[tuple[str, str, float]],
+) -> None:
+    """Write a toy crosswalk pair to ``tmp_path`` and register it for elec <-> ng."""
+    columns = ['elec_region', 'ng_region', WEIGHT_COLUMN]
+    files = {
+        ModelType.ELECTRICITY: tmp_path / 'elec_to_ng.csv',
+        ModelType.NATURAL_GAS: tmp_path / 'ng_to_elec.csv',
+    }
+    pd.DataFrame(elec_to_ng, columns=columns).to_csv(files[ModelType.ELECTRICITY], index=False)
+    pd.DataFrame(ng_to_elec, columns=columns).to_csv(files[ModelType.NATURAL_GAS], index=False)
+    monkeypatch.setitem(REGION_CROSSWALKS, ELEC_NG, files)
+
+
+def test_reciprocal_pair_loads_both_ways(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A consistent pair loads in either direction, returning that direction's weights."""
+    write_toy_pair(tmp_path, monkeypatch, TOY_ELEC_TO_NG, TOY_NG_TO_ELEC)
+    to_ng = load_region_weights(ModelType.ELECTRICITY, ModelType.NATURAL_GAS)
+    to_elec = load_region_weights(ModelType.NATURAL_GAS, ModelType.ELECTRICITY)
+    assert list(to_ng.columns) == ['elec_region', 'ng_region', WEIGHT_COLUMN]
+    assert list(to_elec.columns) == ['ng_region', 'elec_region', WEIGHT_COLUMN]
+    assert to_elec.groupby('ng_region')[WEIGHT_COLUMN].sum().to_dict() == {'a': 1.0, 'b': 1.0}
+
+
+@pytest.mark.parametrize(
+    'elec_to_ng, ng_to_elec, match',
+    [
+        # elec region 3 is only in the elec -> ng file
+        (TOY_ELEC_TO_NG + [('3', 'b', 1.0)], TOY_NG_TO_ELEC, r"\['3'\] are in elec_to_ng"),
+        # ng region c is only in the ng -> elec file
+        (TOY_ELEC_TO_NG, TOY_NG_TO_ELEC + [('2', 'c', 1.0)], r"\['c'\] are in ng_to_elec"),
+        # same regions both ways, but (2, a) and (1, b) each appear in one direction only
+        (
+            TOY_ELEC_TO_NG,
+            [('1', 'a', 1.0), ('1', 'b', 0.5), ('2', 'b', 0.5)],
+            'links differ',
+        ),
+    ],
+    ids=['isolated_source', 'isolated_destination', 'link_mismatch'],
+)
+@pytest.mark.parametrize(
+    'direction',
+    [
+        (ModelType.ELECTRICITY, ModelType.NATURAL_GAS),
+        (ModelType.NATURAL_GAS, ModelType.ELECTRICITY),
+    ],
+    ids=['elec->ng', 'ng->elec'],
+)
+def test_non_reciprocal_pair_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    elec_to_ng: list[tuple[str, str, float]],
+    ng_to_elec: list[tuple[str, str, float]],
+    match: str,
+    direction: tuple[ModelType, ModelType],
+) -> None:
+    """A region or link present in only one direction fails the load, whichever way is asked."""
+    write_toy_pair(tmp_path, monkeypatch, elec_to_ng, ng_to_elec)
+    with pytest.raises(ValueError, match=match):
+        load_region_weights(*direction)

@@ -47,10 +47,10 @@ from src.integrator.bookeeping_utilities import (
     log_progress,
     show_iteration,
 )
+from src.integrator.config_sections import CONFIG_SECTIONS
 from src.integrator.convergence import ConvergenceTracker
 from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.jacobi_iterator import _CONFIG_SECTIONS
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -204,7 +204,7 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             )
         configs: dict[ModelType, ModelConfig] = {}
         for model in GS_ORDER:
-            section, config_cls = _CONFIG_SECTIONS[model]
+            section, config_cls = CONFIG_SECTIONS[model]
             if section not in remainder:
                 raise ValueError(f'{model.value!r} needs a [{section}] section in the config')
             configs[model] = config_cls(**remainder[section])

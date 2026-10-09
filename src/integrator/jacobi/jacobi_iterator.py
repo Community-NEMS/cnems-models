@@ -30,6 +30,7 @@ from src.integrator.bookeeping_utilities import (
     log_progress,
     show_iteration,
 )
+from src.integrator.config_sections import CONFIG_SECTIONS, OPTIONAL_SECTIONS
 from src.integrator.convergence import ConvergenceTracker
 from src.integrator.iteration_monitor import IterationMonitor
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
@@ -47,15 +48,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CIRCUIT: tuple[ModelType, ...] = tuple(
     sorted((model for model in ModelType if model is not ModelType.ALL), key=lambda m: m.name)
 )
-
-# each model's config section in the run config, and the config class it builds.  MAGIC may run
-# without a section; the others need theirs
-_CONFIG_SECTIONS: dict[ModelType, tuple[str, type[ModelConfig]]] = {
-    ModelType.ELECTRICITY: ('elec_config', ElecConfig),
-    ModelType.NATURAL_GAS: ('natural_gas', NGConfig),
-    ModelType.MAGIC: ('magic_config', MagicConfig),
-}
-_OPTIONAL_SECTIONS: frozenset[ModelType] = frozenset({ModelType.MAGIC})
 
 
 @dataclass
@@ -196,10 +188,10 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         """
         configs: dict[ModelType, ModelConfig] = {}
         for model in resolve_models_to_run(common_config.models_to_run):
-            if model not in _CONFIG_SECTIONS:
+            if model not in CONFIG_SECTIONS:
                 raise ValueError(f'The Jacobi iterator cannot run {model.value!r}')
-            section, config_cls = _CONFIG_SECTIONS[model]
-            if section not in remainder and model not in _OPTIONAL_SECTIONS:
+            section, config_cls = CONFIG_SECTIONS[model]
+            if section not in remainder and model not in OPTIONAL_SECTIONS:
                 raise ValueError(
                     f'{model.value!r} is in models_to_run but the config has no [{section}] section'
                 )

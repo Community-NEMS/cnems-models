@@ -47,11 +47,10 @@ from src.integrator.bookeeping_utilities import (
     outbound_packages,
     show_iteration,
 )
+from src.integrator.convergence import ConvergenceTracker
 from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.convergence import ConvergenceTracker
 from src.integrator.jacobi.jacobi_iterator import _CONFIG_SECTIONS, route_updates
-from src.integrator.ng_preflight import build_preflight
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -263,14 +262,14 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             )
             build_seconds[model] = perf_counter() - start
 
-        elec_model = sequencers[ModelType.ELECTRICITY].model
-        ng_model = sequencers[ModelType.NATURAL_GAS].model
-        report = build_preflight(
-            elec_model, ng_model, allow_partial_coverage=self.config.allow_partial_coverage
-        )
-        for cell in report.ownership_cells:
-            ng_model.declare_external(*cell)
-        topup = dict(report.topup_by_cell)
+        # elec_model = sequencers[ModelType.ELECTRICITY].model
+        # ng_model = sequencers[ModelType.NATURAL_GAS].model
+        # report = build_preflight(
+        #     elec_model, ng_model, allow_partial_coverage=self.config.allow_partial_coverage
+        # )
+        # for cell in report.ownership_cells:
+        #     ng_model.declare_external(*cell)
+        # topup = dict(report.topup_by_cell)
 
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
         monitor = IterationMonitor(GS_ORDER, delta_mode=self.config.monitor_delta_mode)
@@ -283,8 +282,8 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             results: list[IterationResult] = []
             for model in GS_ORDER:
                 inbound = route_updates(outbound_packages(accepted, GS_ORDER), GS_ORDER)[model]
-                if model is ModelType.NATURAL_GAS:
-                    inbound = add_topup(inbound, topup)
+                # if model is ModelType.NATURAL_GAS:
+                #     inbound = add_topup(inbound, topup)
                 start = perf_counter()
                 self._in_model_log(
                     model, logs[model], 'update', sequencers[model].update_model, inbound

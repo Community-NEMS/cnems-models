@@ -31,8 +31,8 @@ from src.integrator.bookeeping_utilities import (
     outbound_packages,
     show_iteration,
 )
+from src.integrator.convergence import ConvergenceTracker
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.convergence import ConvergenceTracker
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer

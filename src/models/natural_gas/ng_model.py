@@ -1217,16 +1217,18 @@ class NGModel(ConcreteModel, IntegratedModel):
         ``update_demand`` still accepts undeclared cells, for callers that supply demand
         without taking ownership.
         """
+        # TODO:  rewrite the docstring above in light of removing the "external" characteristic
         problems = []
         for (region, year), qty in values.items():
-            if not self._is_demand_cell((region, sector, year)):
-                problems.append(f'  {region} {year}: not a {sector} demand cell here')
-            elif not self.is_external(self.DEMAND, region, sector, year):
-                problems.append(f'  {region} {year}: cell was never declared external')
-            elif not isfinite(qty) or qty < 0.0:
+            # if not self._is_demand_cell((region, sector, year)):
+            #     problems.append(f'  {region} {year}: not a {sector} demand cell here')
+            # elif not self.is_external(self.DEMAND, region, sector, year):
+            #     problems.append(f'  {region} {year}: cell was never declared external')
+            if not isfinite(qty) or qty < 0.0:
                 problems.append(f'  {region} {year}: value {qty} is not finite and >= 0')
         if problems:
             raise ValueError(
+                # TODO:  rewrite this message in light of removing the "external" characteristic
                 f'set_external_demand rejected {len(problems)} of {len(values)} cell(s), '
                 f'nothing was written:\n' + '\n'.join(problems[:10])
             )

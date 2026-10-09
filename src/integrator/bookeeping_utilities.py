@@ -27,8 +27,8 @@ from src.common.integrated_model_sequencer import (
 from src.common.iterative_sequencer import RunStatus
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
+from src.integrator.convergence import ConvergenceTracker
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.convergence import ConvergenceTracker
 
 logger = logging.getLogger(__name__)
 

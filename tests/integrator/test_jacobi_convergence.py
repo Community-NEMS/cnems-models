@@ -22,8 +22,8 @@ from src.common.integrated_model_sequencer import (
     IterationStatus,
 )
 from src.common.models_modes import ModelType
+from src.integrator.convergence import ConvergenceTracker, relative_change
 from src.integrator.iteration_monitor import DeltaMode
-from src.integrator.jacobi.convergence import ConvergenceTracker, relative_change
 from src.integrator.jacobi.jacobi_config import JacobiConfig
 
 ELEC, NG, MAGIC = ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC

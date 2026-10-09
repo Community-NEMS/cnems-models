@@ -34,12 +34,12 @@ from typing import Any
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
+from integrator.convergence import relative_change
 from src.common.common_config import parse_config_file
 from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
 from src.common.iterative_sequencer import IterativeSequencer
 from src.common.models_modes import ModelType
 from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator, exchange_summary
-from src.integrator.jacobi.convergence import relative_change
 from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 
 logger = logging.getLogger(__name__)

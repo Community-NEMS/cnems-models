@@ -11,6 +11,7 @@ A model that conforms to the "integration standards"
 
 from abc import ABC, abstractmethod
 from collections.abc import Hashable
+from warnings import deprecated
 
 
 class IntegratedModel(ABC):
@@ -28,6 +29,7 @@ class IntegratedModel(ABC):
         """Short human-readable name of the model, for run monitors and logs."""
         raise NotImplementedError()
 
+    @deprecated('not needed')
     def declare_external(self, quantity: str, *index: Hashable) -> None:
         """Record that another model owns this slice, so internal updates must leave it alone.
 
@@ -49,6 +51,7 @@ class IntegratedModel(ABC):
             owned = self._external_owned = set()
         owned.add((quantity, *index))
 
+    @deprecated('not needed')
     def is_external(self, quantity: str, *index: Hashable) -> bool:
         """Return whether this exact slice has been declared owned by another model.
 

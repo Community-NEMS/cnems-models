@@ -51,7 +51,8 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     """An update in place gives a rebuild's prices, and the kept solver re-solves to its objective.
 
     The first package's cheap gas moves dispatch, so a kept solver that ignored the update would
-    fail.  It is applied twice, then a narrower package must also undo it on the rows it leaves out.
+    fail.  It is applied twice, then a second, dearer package must replace it, and a package not
+    covering every held (region, year) is rejected.
     """
     common, remainder = CommonConfig.from_toml(
         Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
@@ -65,9 +66,9 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     solver = sequencer._opt
     region_years = sorted({(key[0], key[3]) for key in model.ng_fuel_adj})
     full = _price_package(region_years, INITIAL_NG_PRICE - 3.0)
-    part = _price_package(region_years[:1], INITIAL_NG_PRICE + 2.0)
-    rebuilt = {id(package): ElectricitySequencer() for package in (full, part)}
-    for package in (full, part):
+    dear = _price_package(region_years, INITIAL_NG_PRICE + 2.0)
+    rebuilt = {id(package): ElectricitySequencer() for package in (full, dear)}
+    for package in (full, dear):
         rebuilt[id(package)].build_model(common, elec_config, update_packages=[package])
 
     def assert_prices_match(package: NGPricePackage) -> None:
@@ -86,9 +87,11 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     assert held < stale * (1 - 1e-4)
     assert held == pytest.approx(expected, rel=1e-9)
 
-    for package in (full, part):
+    for package in (full, dear):
         assert sequencer.update_model([package]) is model
         assert_prices_match(package)
+    with pytest.raises(ValueError, match='must cover exactly'):
+        sequencer.update_model([_price_package(region_years[:1], INITIAL_NG_PRICE)])
 
 
 def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
@@ -105,16 +108,29 @@ def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
     for region, year in cells:
         model.declare_external(model.DEMAND, region, 'electric_power', year)
     burn = [1.3 * value(model.demand[r, 'electric_power', y]) for r, y in cells]
-    # a region the model does not hold is dropped, as a rebuild ignores it
     package = NGElectricalDemandPackage(
         elements=pd.DataFrame(
-            {NG_ELEC_DEMAND_VALUE: burn + [5.0]},
+            {NG_ELEC_DEMAND_VALUE: burn},
+            index=pd.MultiIndex.from_tuples(cells, names=NG_ELEC_DEMAND_INDEX),
+        ),
+        source=ModelType.ELECTRICITY,
+    )
+    # a region the model does not hold is rejected, both built and before a build
+    overage = NGElectricalDemandPackage(
+        elements=pd.DataFrame(
+            {NG_ELEC_DEMAND_VALUE: [*burn, 5.0]},
             index=pd.MultiIndex.from_tuples(
-                cells + [('not_a_region', cells[0][1])], names=NG_ELEC_DEMAND_INDEX
+                [*cells, ('not_a_region', cells[0][1])], names=NG_ELEC_DEMAND_INDEX
             ),
         ),
         source=ModelType.ELECTRICITY,
     )
+    for build in (False, True):
+        with pytest.raises(ValueError, match='not held'):
+            if build:
+                NGSequencer().build_model(common, ng_config, update_packages=[overage])
+            else:
+                sequencer.update_model([overage])
     rebuilt = NGSequencer()
     rebuilt.build_model(common, ng_config, update_packages=[package])
 

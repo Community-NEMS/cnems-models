@@ -15,12 +15,11 @@ rest of the bookkeeping is shared with it through ``src/integrator/bookeeping_ut
 """
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-import pandas as pd
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
@@ -33,7 +32,6 @@ from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import (
-    NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_VALUE,
     NGElectricalDemandPackage,
@@ -117,39 +115,6 @@ def format_exchange(summary: dict[str, dict[int, float]]) -> str:
     return 'Exchanged:  ' + ('; '.join(parts) if parts else 'nothing')
 
 
-def add_topup(
-    packages: Sequence[UpdatePackage], topup: dict[tuple[str, int], float]
-) -> list[UpdatePackage]:
-    """Add the preflight's top-up to the burn in each gas demand package.
-
-    Parameters
-    ----------
-    packages : Sequence[UpdatePackage]
-        Packages bound for the gas model.
-    topup : dict of (region, year) to float
-        Bcf to add per gas cell, from ``PreflightReport.topup_by_cell``.
-
-    Returns
-    -------
-    list[UpdatePackage]
-        The packages, with each ``NGElectricalDemandPackage`` replaced by one whose covered cells
-        carry the top-up.  Unchanged when ``topup`` is empty.
-    """
-    if not topup:
-        return list(packages)
-    out: list[UpdatePackage] = []
-    for package in packages:
-        if isinstance(package, NGElectricalDemandPackage):
-            frame = package.elements.copy()
-            extra = pd.Series(topup).rename_axis(NG_ELEC_DEMAND_INDEX)
-            frame[NG_ELEC_DEMAND_VALUE] = frame[NG_ELEC_DEMAND_VALUE].add(
-                extra.reindex(frame.index), fill_value=0.0
-            )
-            package = NGElectricalDemandPackage(elements=frame, source=package.source)
-        out.append(package)
-    return out
-
-
 class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
     """Gauss-Seidel iteration over the electricity and natural gas models.
 
@@ -218,10 +183,10 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         Each iteration solves electricity on the gas packages last accepted, then gas on the
         electricity packages just accepted, updating the held models in place.  A model whose
         status is outside ``ALLOW_OUTBOUND_UPDATES`` keeps its last accepted packages, and the
-        run stops as the Jacobi iterator's does (:class:`ConvergenceTracker`).  Before the first
-        solve, ``build_preflight`` checks coverage, and the gas cells the electricity model
-        supplies are declared external.  At the end, result files are written for each model
-        whose last solve did not fail.
+        run stops as the Jacobi iterator's does (:class:`ConvergenceTracker`).  The exchanges and
+        region crosswalks are built once, before the models (see :meth:`ExchangeSpec.build`); the
+        writers and readers check the crosswalked data against each model's regions.  At the end,
+        result files are written for each model whose last solve did not fail.
 
         Parameters
         ----------
@@ -244,9 +209,10 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         logger.info('Starting %s run for scenario "%s"', self.label, common_config.scenario_name)
         configs = self._process_configs(common_config, remainder)
 
+        exchange = self._build_exchange(GS_ORDER)
         sequencers: dict[ModelType, IntegratedModelSequencer[Any, Any, Any]] = {
-            ModelType.ELECTRICITY: ElectricitySequencer(),
-            ModelType.NATURAL_GAS: NGSequencer(),
+            ModelType.ELECTRICITY: ElectricitySequencer(exchange),
+            ModelType.NATURAL_GAS: NGSequencer(exchange),
         }
         logs = {m: common_config.output_folder / f'{m.value}.log' for m in GS_ORDER}
         build_seconds: dict[ModelType, float] = {}
@@ -262,15 +228,6 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             )
             build_seconds[model] = perf_counter() - start
 
-        # elec_model = sequencers[ModelType.ELECTRICITY].model
-        # ng_model = sequencers[ModelType.NATURAL_GAS].model
-        # report = build_preflight(
-        #     elec_model, ng_model, allow_partial_coverage=self.config.allow_partial_coverage
-        # )
-        # for cell in report.ownership_cells:
-        #     ng_model.declare_external(*cell)
-        # topup = dict(report.topup_by_cell)
-
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
         monitor = IterationMonitor(GS_ORDER, delta_mode=self.config.monitor_delta_mode)
         console = Console()
@@ -281,9 +238,9 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         while not converged and iteration <= self.config.iteration_limit:
             results: list[IterationResult] = []
             for model in GS_ORDER:
+                # TODO:  check the packages produced against exchange.expected, once it is decided
+                #        how a missing or unexpected exchange feeds routing and the run status
                 inbound = route_updates(accepted, GS_ORDER)[model]
-                # if model is ModelType.NATURAL_GAS:
-                #     inbound = add_topup(inbound, topup)
                 start = perf_counter()
                 self._in_model_log(
                     model, logs[model], 'update', sequencers[model].update_model, inbound

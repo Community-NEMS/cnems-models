@@ -10,6 +10,7 @@ gas model.
 """
 
 from collections import defaultdict
+from collections.abc import Callable, Mapping
 from logging import getLogger
 
 import pandas as pd
@@ -24,7 +25,7 @@ from src.common.update_package import (
     UpdatePackage,
     UpdatePackageWriter,
 )
-from src.integrator.region_crosswalk import QuantityKind, crosswalk_values
+from src.integrator.region_crosswalk import QuantityKind
 from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH
 from src.models.electricity.electricity_model import PowerModel
 from src.models.natural_gas.data import load_qp_scalars
@@ -42,12 +43,17 @@ _MMBTU_PER_BCF: float | None = None
 class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
     """Writes the electricity model's outbound packages:  its gas burn, for the NG model."""
 
-    def write(self, model: PowerModel) -> list[UpdatePackage]:
+    @property
+    def builders(self) -> Mapping[type[UpdatePackage], Callable[[PowerModel], UpdatePackage]]:
+        """The gas-burn package."""
+        return {NGElectricalDemandPackage: self.gas_demand_package}
+
+    def gas_demand_package(self, model: PowerModel) -> NGElectricalDemandPackage:
         """Package the solved gas burn for the natural gas model.
 
-        The annual gas demand of the gas-fired techs (:func:`gas_demand_by_region`, Bcf/yr by
-        electricity region) is allocated onto natural gas regions with the population-weighted
-        crosswalk and sent as one :class:`NGElectricalDemandPackage`.
+        The annual gas demand of the gas-fired techs (:func:`gas_demand_by_region`, Bcf/yr for
+        every region and year the model carries) is allocated onto natural gas regions with the
+        run's electricity <-> natural gas crosswalk.
 
         Parameters
         ----------
@@ -56,12 +62,22 @@ class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
 
         Returns
         -------
-        list[UpdatePackage]
-            A single ``NGElectricalDemandPackage``.
+        NGElectricalDemandPackage
+
+        Raises
+        ------
+        KeyError
+            If the writer holds no electricity <-> natural gas crosswalk.
+        ValueError
+            From ``RegionCrosswalk.apply``, if the model's regions are not closed under the
+            crosswalk.
         """
-        elec_demand = gas_demand_by_region(model)
-        ng_demand = crosswalk_values(
-            elec_demand, ModelType.ELECTRICITY, ModelType.NATURAL_GAS, QuantityKind.EXTENSIVE
+        crosswalk = self.crosswalks.get(ModelType.ELECTRICITY, ModelType.NATURAL_GAS)
+        ng_demand = crosswalk.apply(
+            gas_demand_by_region(model),
+            ModelType.ELECTRICITY,
+            QuantityKind.EXTENSIVE,
+            model_regions=model.regions,
         )
         for year, total in ng_demand.groupby(level='year').sum().items():
             logger.info(
@@ -70,10 +86,9 @@ class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
                 total,
                 ng_demand.xs(year, level='year').shape[0],
             )
-        package = NGElectricalDemandPackage(
+        return NGElectricalDemandPackage(
             elements=ng_demand.to_frame(), source=ModelType.ELECTRICITY
         )
-        return [package]
 
 
 def ng_mmbtu_per_bcf() -> float:
@@ -115,8 +130,8 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     -------
     pd.Series
         Demand in Bcf/yr named ``NG_ELEC_DEMAND_VALUE``, indexed by ``NG_ELEC_DEMAND_INDEX``
-        (electricity region id, model year), sorted.  A region with no gas-fired generation
-        appears with 0.0 as long as it holds a gas-fired tech.
+        (electricity region id as ``str``, model year), sorted.  Every region the model carries
+        (``instance.regions``) appears for every model year, with 0.0 where it burns no gas.
     """
     mmbtu: dict[tuple[str, int], float] = defaultdict(float)
     # pyrefly sees the pyomo components declared on PowerModel as None; they are Var/Param
@@ -129,16 +144,23 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
         days = value(instance.weight_day[instance.map_hour_day[hour]])
         # pyrefly: ignore[unsupported-operation]
         # TODO:  review this x1000 multiplier after we get the generation units squared away!
-        mmbtu[(region, int(year))] += gen_gwh * days * 1000.0 * heat_rate
-    mmbtu_per_bcf = ng_mmbtu_per_bcf()
-    series = pd.Series({k: v / mmbtu_per_bcf for k, v in mmbtu.items()}, name=NG_ELEC_DEMAND_VALUE)
-    if series.empty:
+        mmbtu[(str(region), int(year))] += gen_gwh * days * 1000.0 * heat_rate
+    if not mmbtu:
         logger.warning(
-            'No generation rows for gas-fired techs %s; gas demand is empty',
+            'No generation rows for gas-fired techs %s; gas demand is zero everywhere',
             list(NG_HEAT_RATE_MMBTU_PER_MWH),
         )
-        series.index = pd.MultiIndex.from_tuples([], names=NG_ELEC_DEMAND_INDEX)
-        return series
-    series.index = series.index.set_names(NG_ELEC_DEMAND_INDEX)
+    mmbtu_per_bcf = ng_mmbtu_per_bcf()
+    # every (region, year) the model carries, so a region without gas-fired techs is sent as 0.0
+    grid = pd.MultiIndex.from_product(
+        [sorted(instance.regions), sorted(int(y) for y in instance.year)],
+        names=NG_ELEC_DEMAND_INDEX,
+    )
+    series = pd.Series(
+        [mmbtu.get(key, 0.0) / mmbtu_per_bcf for key in grid],
+        index=grid,
+        name=NG_ELEC_DEMAND_VALUE,
+        dtype=float,
+    )
     logger.debug('Polled gas demand for %d (region, year) pairs', len(series))
-    return series.sort_index()
+    return series

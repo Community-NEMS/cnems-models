@@ -22,9 +22,7 @@ from pyomo.util.infeasible import log_infeasible_constraints
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import (
-    UpdatePackage,
-)
+from src.common.update_package import ExchangeSpec, UpdatePackage
 from src.integrator.utilities import select_solver
 from src.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
 from src.models.electricity.data_validation import validate_all
@@ -59,8 +57,15 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
     retained on the instance so the solve/postprocess steps can run without re-threading arguments.
     """
 
-    def __init__(self):
-        """Initialize the sequencer."""
+    def __init__(self, exchange: ExchangeSpec | None = None):
+        """Initialize the sequencer.
+
+        Parameters
+        ----------
+        exchange : ExchangeSpec, optional
+            The run's exchanges; this model's writer builds its share of them.  Omitted (a
+            standalone run), the writer writes nothing.
+        """
         self._model = None
         self._elec_config: ElecConfig | None = None
         self._common_config: CommonConfig | None = None
@@ -70,7 +75,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         self._built_with_packages = False
         self._reader = ElecUpdateReader()
         self._model_reader = ElecModelUpdateReader()
-        self._writer = ElecUpdateWriter()
+        exchange = exchange if exchange is not None else ExchangeSpec.empty()
+        self._writer = ElecUpdateWriter(
+            exchange.outbound_for(ModelType.ELECTRICITY), exchange.crosswalks
+        )
 
     @property
     def model(self) -> PowerModel:

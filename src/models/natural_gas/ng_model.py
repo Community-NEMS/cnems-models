@@ -151,6 +151,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         """Display name."""
         return 'Natural Gas'
 
+    @property
+    def regions(self) -> frozenset[str]:
+        """The regions this model solves (``region_analyze``), as ``str`` ids."""
+        return frozenset(str(r) for r in self.region_analyze)
+
     # Added `regions` (default None = all nine, so every
     def __init__(
         self,

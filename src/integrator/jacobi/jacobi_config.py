@@ -40,6 +40,8 @@ class JacobiConfig(IterativeSequencerConfig):
         Size of the worker pool the models solve in.
     monitor_delta_mode : DeltaMode
         How the iteration monitor shows each model's objective change.
+    exchanges : list of str
+        Inherited:  the update package exchanges, by package class name.
     """
 
     iteration_limit: PositiveInt

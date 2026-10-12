@@ -11,7 +11,7 @@ Jacobi iteration over the models selected in the run config, run in parallel
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,7 @@ from src.common.integrated_model_sequencer import IterationResult
 from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
-from src.common.update_package import UpdatePackage, route_updates
+from src.common.update_package import ExchangeSpec, UpdatePackage, route_updates
 from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
@@ -66,12 +66,16 @@ class IterationCall:
         The model-specific config, matching ``model``.
     kwargs : dict
         Extra arguments forwarded to the sequencer's ``full_run``.
+    exchange : ExchangeSpec
+        The run's exchanges and crosswalks, handed to the sequencer the worker builds.  Empty by
+        default, so the model writes nothing.
     """
 
     model_type: ModelType
     common_config: CommonConfig
     model_config: ModelConfig
     kwargs: dict
+    exchange: ExchangeSpec = field(default_factory=ExchangeSpec.empty)
 
 
 def driver(iter_call: IterationCall) -> IterationResult:
@@ -107,7 +111,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.ELECTRICITY needs an ElecConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return ElectricitySequencer().full_run(
+                    return ElectricitySequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case ModelType.NATURAL_GAS:
@@ -116,7 +120,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.NATURAL_GAS needs an NGConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return NGSequencer().full_run(
+                    return NGSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case ModelType.MAGIC:
@@ -125,7 +129,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.MAGIC needs a MagicConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return MagicSequencer().full_run(
+                    return MagicSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case _:
@@ -164,8 +168,9 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
     ) -> dict[ModelType, ModelConfig]:
         """Build the config of each model selected by ``common_config.models_to_run``.
 
-        ``ModelType.ALL`` expands as in :func:`resolve_models_to_run`.  Warns when a region filter
-        on the electricity or natural gas model leaves the other, also selected, partly uncovered.
+        ``ModelType.ALL`` expands as in :func:`resolve_models_to_run`.  Region filters are checked
+        where data crosses between models:  each writer requires its model's regions to be closed
+        under the crosswalk, and each reader requires the received regions to equal its own.
 
         Parameters
         ----------
@@ -197,24 +202,6 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 )
             configs[model] = config_cls(**remainder.get(section, {}))
 
-        elec_cfg = configs.get(ModelType.ELECTRICITY)
-        ng_cfg = configs.get(ModelType.NATURAL_GAS)
-        if isinstance(elec_cfg, ElecConfig) and elec_cfg.region_filter and ng_cfg is not None:
-            logger.warning(
-                'The electricity model is filtered to regions %s.  Packages it sends cover only '
-                'the gas regions those touch, and the natural gas model holds the rest at '
-                'base-year values, so excluding regions may lead to odd results in the '
-                'integrated run',
-                elec_cfg.region_filter,
-            )
-        if isinstance(ng_cfg, NGConfig) and ng_cfg.region_filter and elec_cfg is not None:
-            logger.warning(
-                'The natural gas model is filtered to regions %s.  Prices it sends cover only '
-                'the electricity regions those touch (averaged over partial coverage), and '
-                'demand it receives for other regions is ignored, so excluding regions may lead '
-                'to odd results in the integrated run',
-                ng_cfg.region_filter,
-            )
         return configs
 
     def run(
@@ -276,6 +263,10 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         run_circuit = tuple(model for model in circuit if model in configs)
         logger.info('Circuit: %s', [model.value for model in run_circuit])
 
+        # the exchanges the selected models can carry, and the crosswalks for them, built once and
+        # pickled to the workers with each call
+        exchange = self._build_exchange(run_circuit)
+
         # set up iterative solve
         iteration = 1
         iteration_limit = self.config.iteration_limit
@@ -301,7 +292,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                         # MAGIC fabricates its outputs from the iteration number
                         call_kwargs['sequence_number'] = iteration
                     iter_calls.append(
-                        IterationCall(model, common_config, configs[model], call_kwargs)
+                        IterationCall(model, common_config, configs[model], call_kwargs, exchange)
                     )
                 try:
                     results: list[IterationResult] = worker_pool.map(driver, iter_calls)
@@ -318,6 +309,8 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 # refresh each sender's accepted packages from this iteration
                 for result in results:
                     accept_packages(result, accepted, iteration, logger)
+                # TODO:  check the packages produced against exchange.expected, once it is decided
+                #        how a missing or unexpected exchange feeds routing and the run status
                 routed_updates = route_updates(accepted, run_circuit)
 
                 converged = tracker.update(results)

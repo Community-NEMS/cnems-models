@@ -31,7 +31,7 @@ Changes that would alter the answer itself are kept out of this comparison; §6 
 |---|---|---|
 | Framework | `IterativeSequencer`, `RunStatus`, `IterationResult`, `IntegratedModelSequencer` | `GaussSeidelIterator`, `gs_config.toml`; run mode `integrated gs` |
 | Data exchange | `UpdatePackage` types and each model's writer, so the same quantities cross the same crosswalk | Each model also has a reader for its *built* instance, behind `update_model` |
-| Regions | The population-weighted crosswalk (`region_crosswalk.py`) | `build_preflight` checks before the first solve that the regions cover each other |
+| Regions | The population-weighted crosswalk (`region_crosswalk.py`), checked by the writers and readers | none |
 | Routing | `route_updates`, and the resend-last-accepted rule after a failed solve | Solves in sequence: electricity, then gas |
 | Stopping | `ConvergenceTracker`, epsilon, `convergence_iterations`, `ALLOW_TERMINATION` | none |
 | Output | `MAIN.log` plus per-model logs, the iteration monitor | Writes result files for both models at the end |

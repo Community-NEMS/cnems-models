@@ -168,6 +168,7 @@ VALID = {
     'convergence_iterations': 2,
     'worker_processes': 6,
     'monitor_delta_mode': 'absolute',
+    'exchanges': ['NGPricePackage'],
 }
 
 

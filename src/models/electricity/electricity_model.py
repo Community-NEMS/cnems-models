@@ -47,6 +47,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         """Display name."""
         return 'Electricity'
 
+    @property
+    def regions(self) -> frozenset[str]:
+        """The regions this model solves (``region_analyze``), as ``str`` ids."""
+        return frozenset(str(r) for r in self.region_analyze)
+
     def __init__(
         self,
         model_sets: ModelSets,

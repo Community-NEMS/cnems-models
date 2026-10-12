@@ -724,33 +724,56 @@ class TestDemandGrowthGating:
         )
         assert demand[('mountain', 'electric_power', 2030)] == pytest.approx(100.0 * 1.10**5)
 
-    def test_handler_replaces_covered_entries_only(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Covered entries take the package value.
-
-        Uncovered ones are kept and warned about; entries beyond the held index are ignored.
-        """
+    def held_data(self) -> dict:
+        """Projected demand for mountain and pacific, the superseded sector held flat."""
+        regions = ['mountain', 'pacific']
         demand = ng_data.project_demand(
-            self.BASE,
-            self.GROWTH,
-            self.YEARS,
-            ['mountain', 'pacific'],
-            self.SECTORS,
-            superseded={'electric_power'},
+            self.BASE, self.GROWTH, self.YEARS, regions, self.SECTORS, superseded={'electric_power'}
         )
-        data = {'demand': demand}
-        package = self.demand_package(
-            {('mountain', 2030): 42.0, ('mountain', 2025): 41.0, ('new_england', 2030): 7.0}
-        )
-        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.update_reader'):
-            NGUpdateReader().apply_package(package, data)  # type: ignore[arg-type]
+        return {'demand': demand, 'regions_analyze': regions, 'years': self.YEARS}
 
-        assert demand[('mountain', 'electric_power', 2030)] == 42.0
-        assert demand[('mountain', 'electric_power', 2025)] == 41.0
-        assert demand[('pacific', 'electric_power', 2030)] == pytest.approx(80.0)  # flat, kept
+    def test_handler_replaces_superseded_entries(self) -> None:
+        """Every held (region, year) of the superseded sector takes the package value."""
+        data = self.held_data()
+        entries = {
+            (r, y): 10.0 * i
+            for i, (r, y) in enumerate(
+                [(r, y) for r in ('mountain', 'pacific') for y in self.YEARS], start=1
+            )
+        }
+        NGUpdateReader().apply_package(self.demand_package(entries), data)  # type: ignore[arg-type]
+
+        demand = data['demand']
+        for (region, year), bcf in entries.items():
+            assert demand[(region, 'electric_power', year)] == bcf
         assert demand[('mountain', 'industrial', 2030)] == pytest.approx(50.0 * 1.05**5)
-        assert ('new_england', 'electric_power', 2030) not in demand
-        warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-        assert any('does not cover 2 of 4' in msg for msg in warned), warned
+
+    @pytest.mark.parametrize(
+        'entries, match',
+        [
+            pytest.param({('mountain', 2030): 42.0}, '3 missing', id='underage'),
+            pytest.param(
+                {
+                    ('mountain', 2025): 1.0,
+                    ('mountain', 2030): 1.0,
+                    ('pacific', 2025): 1.0,
+                    ('pacific', 2030): 1.0,
+                    ('new_england', 2030): 7.0,
+                },
+                '1 not held',
+                id='overage',
+            ),
+        ],
+    )
+    def test_handler_requires_exact_coverage(
+        self, entries: dict[tuple[str, int], float], match: str
+    ) -> None:
+        """A package missing held entries, or carrying unheld ones, is rejected untouched."""
+        data = self.held_data()
+        before = dict(data['demand'])
+        with pytest.raises(ValueError, match=match):
+            NGUpdateReader().apply_package(self.demand_package(entries), data)  # type: ignore[arg-type]
+        assert data['demand'] == before
 
     def test_unknown_superseded_sector_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """A superseded sector absent from the sector list is reported, not silently ignored."""

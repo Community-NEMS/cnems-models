@@ -19,7 +19,7 @@ from src.common.common_config import CommonConfig, parse_config_file
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.log_setup import setup_control_loop_logging
 from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
+from src.common.update_package import ExchangeSpec, UpdatePackage
 from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
 from src.models.natural_gas.data import NGData, load_all
 from src.models.natural_gas.ng_config import NGConfig
@@ -34,8 +34,15 @@ logger = logging.getLogger(__name__)
 class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
     """Sequencer for Natural Gas models."""
 
-    def __init__(self):
-        """Initialize the sequencer."""
+    def __init__(self, exchange: ExchangeSpec | None = None):
+        """Initialize the sequencer.
+
+        Parameters
+        ----------
+        exchange : ExchangeSpec, optional
+            The run's exchanges; this model's writer builds its share of them.  Omitted (a
+            standalone run), the writer writes nothing.
+        """
         self._model = None
         self._ng_config: NGConfig | None = None
         self._common_config: CommonConfig | None = None
@@ -45,7 +52,10 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         self._solver_name: str | None = None
         self._reader = NGUpdateReader()
         self._model_reader = NGModelUpdateReader()
-        self._writer = NGUpdateWriter()
+        exchange = exchange if exchange is not None else ExchangeSpec.empty()
+        self._writer = NGUpdateWriter(
+            exchange.outbound_for(ModelType.NATURAL_GAS), exchange.crosswalks
+        )
 
     @property
     def model(self) -> NGModel:

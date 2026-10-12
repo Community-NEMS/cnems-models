@@ -10,7 +10,10 @@ Abstract reader that applies inbound update packages to a model's loaded data.
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
+
+import pandas as pd
 
 from src.common.update_package.update_package import UpdatePackage
 
@@ -62,3 +65,47 @@ class UpdatePackageReader[DataT](ABC):
             The loaded data, modified in place.
         """
         ...
+
+
+def check_region_year_keys(
+    received: pd.Index,
+    regions: Iterable[Any],
+    years: Iterable[Any],
+    name: str,
+    max_report: int = 10,
+) -> None:
+    """Require a received ``(region, year)`` index to be exactly the recipient's regions x years.
+
+    The receiving side of the crosswalk check:  with the sender closed under the crosswalk, the
+    regions it reaches must be exactly the regions the recipient carries, in every year it carries.
+
+    Parameters
+    ----------
+    received : pd.Index
+        The package's ``(region, year)`` index.
+    regions : Iterable
+        The regions the recipient carries (e.g. a pyomo Set); compared as ``str``.
+    years : Iterable
+        The years the recipient carries (e.g. a pyomo Set); compared as ``int``.
+    name : str
+        What was received, for the message.
+    max_report : int, default 10
+        Most entries to name for each of the overage and underage.
+
+    Raises
+    ------
+    ValueError
+        If any held ``(region, year)`` is not received (underage) or any received one is not held
+        (overage).
+    """
+    got = {(str(r), int(y)) for r, y in received}
+    held_years = [int(y) for y in years]
+    held = {(str(r), y) for r in regions for y in held_years}
+    over, under = sorted(got - held), sorted(held - got)
+    if over or under:
+        raise ValueError(
+            f'Received {name} must cover exactly the {len(held)} (region, year) entries the '
+            f'recipient holds:  {len(under)} missing {under[:max_report]}; {len(over)} not held '
+            f'{over[:max_report]} (up to {max_report} of each shown)'
+        )
+    logger.debug('Received %s covers all %d held (region, year) entries', name, len(held))

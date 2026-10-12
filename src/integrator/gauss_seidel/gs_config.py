@@ -37,13 +37,11 @@ class GaussSeidelConfig(IterativeSequencerConfig):
         How many consecutive iterations every model must be stable for the run to stop.
     monitor_delta_mode : DeltaMode
         How the iteration monitor shows each model's objective change.
-    allow_partial_coverage : bool
-        Passed to ``build_preflight``:  accept electricity and gas regions that do not fully
-        cover each other.
+    exchanges : list of str
+        Inherited:  the update package exchanges, by package class name.
     """
 
     iteration_limit: PositiveInt
     epsilon: Annotated[float, Field(gt=0, le=1)]
     convergence_iterations: PositiveInt
     monitor_delta_mode: DeltaMode
-    allow_partial_coverage: bool

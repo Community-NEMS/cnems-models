@@ -29,7 +29,7 @@ through the model configuration.
 | $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
 | $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse Set | Buildable capacity set                                       |
-| $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of  capacity costs                                     |
+| $\Theta_{cc}$          | cap_cost.index_set()                          | Sparse Set | Set of capacity costs                                     |
 | $\Theta_{cc0}$         | cap_cost_initial.index_set()                  | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index              | Sparse set | (non-first hour) storage balance set                         |

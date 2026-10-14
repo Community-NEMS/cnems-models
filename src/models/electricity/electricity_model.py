@@ -1012,7 +1012,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         def seasonal_hydro_discharge_ub(self, r, t_hydro, y, season):
             """Hydroelectric generation seasonal upper bound.
 
-            Hydo generation <= Hydo capacity * Hydro capacity factor.
+            Hydro generation <= Hydro capacity * Hydro capacity factor.
 
             Both sides accumulate over every supply curve step the tech holds, so the seasonal
             energy budget bounds the technology as a whole rather than one nominated step.
@@ -1621,7 +1621,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Returns
                 -------
                 pyomo.core.base.constraint.IndexedConstraint
-                    Ramp constraint for the first hour
+                    Ramp constraint for the hours after the first hour
                 """
                 return (
                     self.generation_total[r, t_conv, step, y, hr_most]
@@ -1634,7 +1634,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             def ramp_up_ub(self, r, t_conv, step, y, hr):
                 """Ramp rate up upper constraint.
 
-                Ramp Up <= Capaciry * Ramp Rate * Time.
+                Ramp Up <= Capacity * Ramp Rate * Time.
 
                 Parameters
                 ----------
@@ -1665,7 +1665,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             def ramp_down_ub(self, r, t_conv, step, y, hr):
                 """Ramp rate down upper constraint.
 
-                Ramp Up <= Capaciry * Ramp Rate * Time.
+                Ramp Down <= Capacity * Ramp Rate * Time.
 
                 Parameters
                 ----------

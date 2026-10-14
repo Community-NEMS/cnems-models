@@ -32,6 +32,7 @@ from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IterationStatus
 from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import (
     _LEARNING_TOLERANCE,
     ElectricitySequencer,
@@ -341,8 +342,53 @@ def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected
     assert str(poisoned['tech']) in message
 
 
+# Builds are in MW against a supply_curve_learning baseline of ~154,000 MW.  1 GW keeps the learning
+# discount ~50x above pytest.approx's tolerance, the scale the characterization test uses.
+_BUILD_MW = 1000.0
+
+
+@pytest.fixture
+def nonlinear_configs() -> tuple[CommonConfig, ElecConfig]:
+    """Basic test configs with expansion, reserve margin and nonlinear learning enabled."""
+    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    elec_config = ElecConfig(**remainder.pop('elec_config'))
+    elec_config.capacity_expansion = True
+    elec_config.reserve_margin_required = True
+    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
+    return common_config, elec_config
+
+
+@pytest.fixture
+def nonlinear_model(nonlinear_configs: tuple[CommonConfig, ElecConfig]) -> PowerModel:
+    """Unsolved model built from ``nonlinear_configs``."""
+    return ElectricitySequencer().build_model(*nonlinear_configs)
+
+
+def _expansion_cost_with(model: PowerModel, builds: dict[tuple, float]) -> float:
+    """Evaluate ``capacity_expansion_cost`` with only ``builds`` nonzero.
+
+    Parameters
+    ----------
+    model : PowerModel
+        Model built with nonlinear learning.
+    builds : dict[tuple, float]
+        ``capacity_builds`` key -> MW; every other build is set to 0.
+
+    Returns
+    -------
+    float
+        The evaluated expansion cost.
+    """
+    for key, var in model.capacity_builds.items():
+        var.set_value(builds.get(key, 0.0))
+    return value(model.capacity_expansion_cost)
+
+
 @pytest.mark.parametrize('regions', [None, [str(i) for i in range(1, 26)]], ids=['config', 'all'])
-def test_nonlinear_learning_index_domains(regions):
+def test_nonlinear_learning_index_domains(
+    nonlinear_configs: tuple[CommonConfig, ElecConfig], regions: list[str] | None
+) -> None:
     """Nonlinear learning borrows its variable index from the linear cost table.
 
     ``capacity_builds`` is created from ``capital_cost.keys()``, but the nonlinear objective reads
@@ -351,12 +397,7 @@ def test_nonlinear_learning_index_domains(regions):
     expression raises ``KeyError`` during construction.  This needs a build only, so it holds the
     invariant whether or not a nonlinear solver is installed.
     """
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.reserve_margin_required = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
+    common_config, elec_config = nonlinear_configs
     if regions is not None:
         elec_config.region_filter = regions
 
@@ -380,7 +421,7 @@ def test_nonlinear_learning_index_domains(regions):
     assert not missing_inner, f'capacity_builds missing keys: {sorted(missing_inner)[:5]}'
 
 
-def test_nonlinear_learning_objective_characterization():
+def test_nonlinear_learning_objective_characterization(nonlinear_model: PowerModel) -> None:
     """Record what the nonlinear expansion cost expression evaluates to today.
 
     This is a **characterization** test, not an acceptance test: it pins current behavior so that
@@ -391,20 +432,11 @@ def test_nonlinear_learning_objective_characterization():
     Evaluates the expression at fixed build levels rather than solving, so it needs no nonlinear
     solver and runs wherever the model can be constructed.
     """
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.reserve_margin_required = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
-
-    model = ElectricitySequencer().build_model(common_config, elec_config)
+    model = nonlinear_model
     assert len(model.capacity_builds) == 48
 
     def cost_at(level: float) -> float:
-        for var in model.capacity_builds.values():
-            var.set_value(level)
-        return value(model.capacity_expansion_cost)
+        return _expansion_cost_with(model, dict.fromkeys(model.capacity_builds, level))
 
     # No builds means no expansion cost, whatever the multiplier does.
     assert cost_at(0.0) == pytest.approx(0.0, abs=1e-9)
@@ -421,67 +453,46 @@ def test_nonlinear_learning_objective_characterization():
     assert at_two_and_a_half < 2.5 * at_one
 
 
-def test_nonlinear_objective_uses_lagged_cumulative_builds():
-    """The objective must discount a build by prior years' capacity, not by its own.
+def test_nonlinear_build_does_not_discount_itself(nonlinear_model: PowerModel) -> None:
+    """A build must be discounted by prior years' capacity, not by its own.
 
-    The shared curve cannot check this on its own: it takes whatever cumulative quantity it is
-    handed.  What is tested here is that the objective hands it the right one, which is the part of
-    the formulation the extraction could get wrong.  Needs a build only, no solver.
+    The shared curve takes whatever cumulative quantity it is handed; this checks the objective
+    hands it the right one.  First-year builds have no prior experience, so building only in the
+    first year must cost exactly the undiscounted price.  Needs a build only, no solver.
     """
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.reserve_margin_required = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
+    model = nonlinear_model
+    first_year = min(model.year)
+    keys = [k for k in model.capacity_builds if k[3] == first_year]
+    cost = _expansion_cost_with(model, dict.fromkeys(keys, _BUILD_MW))
+    undiscounted = sum(_BUILD_MW * value(model.capital_cost_initial[k[:3]]) for k in keys)
+    assert cost == pytest.approx(undiscounted)
 
-    model = ElectricitySequencer().build_model(common_config, elec_config)
-    years = sorted(model.year)
-    first_year, later_year = years[0], years[-1]
 
-    def reset():
-        for var in model.capacity_builds.values():
-            var.set_value(0.0)
+def test_nonlinear_experience_pools_across_regions(nonlinear_model: PowerModel) -> None:
+    """A later build is discounted by earlier builds of the same tech in *other* regions.
 
-    # Building only in the first year must not discount that same year's cost, so the expansion
-    # cost has to be exactly the undiscounted price of what was built.
-    reset()
-    first_year_keys = [k for k in model.capacity_builds if k[3] == first_year]
-    for key in first_year_keys:
-        model.capacity_builds[key].set_value(1.0)
-    undiscounted = sum(
-        value(model.capital_cost_initial[r, t, s]) for (r, t, s, _y) in first_year_keys
-    )
-    assert value(model.capacity_expansion_cost) == pytest.approx(undiscounted)
-
-    # Experience is pooled across regions and steps, not kept per region.  Build in ONE region in
-    # the first year, then price a later-year build in a DIFFERENT region of the same technology.
-    # If the cumulative term were region-local the second region would have no prior experience and
-    # would be charged the undiscounted price, so this is what separates the two readings.
+    Build in one region in the first year, then price a later-year build of the same technology in
+    a different region.  If the cumulative term were region-local the later build would be charged
+    the undiscounted price.  The closed form is asserted rather than an inequality, so a wrong
+    aggregation cannot pass by discounting some other amount.  Needs a build only, no solver.
+    """
+    model = nonlinear_model
     tech, step = '1', 3
-    source_region, other_region = '7', '8'
-    assert (source_region, tech, step, first_year) in model.capacity_builds
-    assert (other_region, tech, step, later_year) in model.capacity_builds
+    source = ('7', tech, step, min(model.year))
+    later = ('8', tech, step, max(model.year))
+    assert {source, later} <= set(model.capacity_builds)
+    source_cost = _BUILD_MW * value(model.capital_cost_initial[source[:3]])
+    later_cost = _BUILD_MW * value(model.capital_cost_initial[later[:3]])
 
-    reset()
-    model.capacity_builds[other_region, tech, step, later_year].set_value(1.0)
-    alone = value(model.capacity_expansion_cost)
-    assert alone == pytest.approx(value(model.capital_cost_initial[other_region, tech, step]))
+    # With no prior experience anywhere, the later build is charged undiscounted.
+    assert _expansion_cost_with(model, {later: _BUILD_MW}) == pytest.approx(later_cost)
 
-    model.capacity_builds[source_region, tech, step, first_year].set_value(1.0)
-    with_other_region_experience = value(model.capacity_expansion_cost)
-
-    # Assert the exact closed form rather than an inequality, so that a wrong aggregation cannot
-    # satisfy the assertion by discounting the later build by some other amount.  The source build
-    # is charged undiscounted because it is in the first year; the later build in a different
-    # region is discounted by the one unit of prior experience pooled from the source region.
-    baseline_capacity = value(model.supply_curve_learning[tech])
-    exponent = value(model.learning_rate[tech])
-    expected = value(model.capital_cost_initial[source_region, tech, step]) + value(
-        model.capital_cost_initial[other_region, tech, step]
-    ) * (((baseline_capacity + 1.0) / baseline_capacity) ** (-exponent))
-
-    assert with_other_region_experience == pytest.approx(expected)
+    pooled = _expansion_cost_with(model, {source: _BUILD_MW, later: _BUILD_MW})
+    baseline = value(model.supply_curve_learning[tech])
+    multiplier = ((baseline + _BUILD_MW) / baseline) ** -value(model.learning_rate[tech])
+    # Guard: the discount must be resolvable at approx's tolerance, or this test proves nothing.
+    assert pooled != pytest.approx(source_cost + later_cost)
+    assert pooled == pytest.approx(source_cost + later_cost * multiplier)
 
 
 def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):

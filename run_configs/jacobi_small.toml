@@ -13,7 +13,7 @@ mode = "integrated jacobi"
 models_to_run=['all']
 #models_to_run=['all', 'magic']
 
-common_data_path='input/electricity'
+common_data_path='input/electricity/properties'
 residential_data_path='input/residential'
 output_path='output'
 scenario_name = "green_chicken"
@@ -38,7 +38,7 @@ input_path = 'input/natural_gas'
 # region_filter = ...  # commented out for no filter == all regions
 
 [elec_config]
-input_path='input/electricity/cem_inputs'
+input_path='input/electricity/parameters'
 region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
 regional_exchange=true
 capacity_expansion=false

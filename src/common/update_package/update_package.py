@@ -76,17 +76,17 @@ class ElectricityPriceScaler(UpdatePackage):
     integration loop, not by any real model.
 
     Handled by ``ElecUpdateReader.apply_package``, which scales the matching rows of the
-    ``supply_price`` frame in place.
+    ``generation_cost`` frame in place.
 
     Attributes
     ----------
     techs : tuple of str
-        Tech codes to scale, matched against the ``tech`` level of the ``supply_price`` index.
+        Tech codes to scale, matched against the ``tech`` level of the ``generation_cost`` index.
     receivers : tuple of ModelType
         Fixed to the electricity model.
     scalar : float
         The multiplier to apply; 1.0 leaves prices unchanged.  Must be positive -- the model's
-        ``SupplyPrice`` param is declared ``within=NonNegativeReals``.
+        ``generation_cost`` param is declared ``within=NonNegativeReals``.
     """
 
     techs: tuple[str, ...]
@@ -110,7 +110,7 @@ class ElectricityPriceScaler(UpdatePackage):
         if self.scalar <= 0:
             raise ValueError(
                 f'{type(self).__name__} requires a positive scalar; got {self.scalar}.  A '
-                'non-positive multiplier drives SupplyPrice out of its NonNegativeReals domain.'
+                'non-positive multiplier drives generation_cost out of its NonNegativeReals domain.'
             )
 
 
@@ -235,7 +235,7 @@ class NGPricePackage(UpdatePackage):
         ------
         ValueError
             If the index is not ``NG_PRICE_INDEX`` or has duplicates, the ``NG_PRICE_VALUE`` column
-            is absent, or any price is missing or negative (which could drive SupplyPrice out of
+            is absent, or any price is missing or negative (which could drive generation_cost out of
             its NonNegativeReals domain).
         """
         _check_region_year_frame(self, self.elements, NG_PRICE_VALUE)

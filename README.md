@@ -53,8 +53,8 @@ configured by a TOML under `run_configs`.
 
 | Config | Input set | Regions | Trade | Expansion |
 |---|---|---|---|---|
-| `basic_elec_config.toml` | `input/electricity/cem_inputs` | 7, 8, 9 | off | off |
-| `exchange_elec_config.toml` | `input/electricity/cem_inputs` | 7, 8, 9 | off | off |
+| `basic_elec_config.toml` | `input/electricity/parameters` | 7, 8, 9 | off | off |
+| `exchange_elec_config.toml` | `input/electricity/parameters` | 7, 8, 9 | off | off |
 | `reduced_elec_config.toml` | `input/electricity_light` | CA, NY, TX | on | off |
 
 `exchange_elec_config.toml` currently differs from `basic_elec_config.toml` only in its scenario

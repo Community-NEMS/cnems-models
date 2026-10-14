@@ -37,11 +37,10 @@ def independent_gas_demand(model: PowerModel) -> pd.Series:
         for (r, t, _s, y, h), var in model.generation_total.items()
         if t in NG_HEAT_RATE_MMBTU_PER_MWH
     ]
-    df = pd.DataFrame(rows, columns=['region', 'tech', 'year', 'hour', 'gwh'])
+    df = pd.DataFrame(rows, columns=['region', 'tech', 'year', 'hour', 'mwh'])
     df['days'] = [value(model.weight_day[value(model.map_hour_day[h])]) for h in df['hour']]
     df['heat_rate'] = df['tech'].map(NG_HEAT_RATE_MMBTU_PER_MWH)
-    # TODO:  re-examine this x1000 multiplier after we get the model units fully standardized
-    df['bcf'] = df['gwh'] * df['days'] * 1000.0 * df['heat_rate'] / ng_mmbtu_per_bcf()
+    df['bcf'] = df['mwh'] * df['days'] * df['heat_rate'] / ng_mmbtu_per_bcf()
     return df.groupby(['region', 'year'])['bcf'].sum().sort_index()
 
 

@@ -29,7 +29,7 @@ from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.natural_gas.ng_model import GI
 
 
-def _mock_elec(gen_gwh: float = 100.0) -> pyo.ConcreteModel:
+def _mock_elec(gen_mwh: float = 100_000.0) -> pyo.ConcreteModel:
     """Build a minimal electricity-like model.
 
     This is a stand-in, not a real PowerModel: it declares only the four attributes the
@@ -40,7 +40,7 @@ def _mock_elec(gen_gwh: float = 100.0) -> pyo.ConcreteModel:
 
     Parameters
     ----------
-    gen_gwh : float
+    gen_mwh : float
         Constant generation assigned to every index entry, so expected values stay hand-checkable.
     """
     m = pyo.ConcreteModel()
@@ -65,7 +65,7 @@ def _mock_elec(gen_gwh: float = 100.0) -> pyo.ConcreteModel:
         ],
     )
 
-    m.generation_total = pyo.Var(m.gen_index, initialize=gen_gwh)
+    m.generation_total = pyo.Var(m.gen_index, initialize=gen_mwh)
     # Both representative hours map to day 1, which carries 182.5 days of weight. Two hours x
     # 182.5 is a half-year each, so the day-weighting arithmetic stays trivial to verify.
     m.map_hour_day = pyo.Param(m.hour, initialize={1: 1, 2: 1}, within=pyo.Any)
@@ -93,20 +93,20 @@ def _mock_elec(gen_gwh: float = 100.0) -> pyo.ConcreteModel:
 
 
 def test_gas_demand_matches_hand_calculation() -> None:
-    """Bcf = GWh x weight_day x heat rate / 1000, summed over gas techs and hours.
+    """Bcf = MWh x weight_day x heat rate / 1e6, summed over gas techs and hours.
 
     Pins the full unit chain against arithmetic done by hand. An error anywhere in it, a
     missing day weight, a wrong power of ten, MWh confused with GWh, shows up here as a
     clean multiple of the expected value, which is easier to diagnose than a coupled run
     that merely looks a bit off.
     """
-    m = _mock_elec(gen_gwh=100.0)
+    m = _mock_elec(gen_mwh=100_000.0)
     got = poll_ng_gas_demand(m, {'7': 'west_south_central', '8': 'south_atlantic'})
 
-    # per region-year: 2 hours x 1 step, techs '3' and '4'. 100 GWh x 182.5 day-weight x the
-    # tech's MMBtu/MWh, divided by 1e3 to land in Bcf. Tech '6' must not appear.
+    # per region-year: 2 hours x 1 step, techs '3' and '4'. 100,000 MWh x 182.5 day-weight x the
+    # tech's MMBtu/MWh, divided by 1e6 to land in Bcf. Tech '6' must not appear.
     expect = sum(
-        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in ('3', '4') for _ in range(2)
+        100_000.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e6 for t in ('3', '4') for _ in range(2)
     )
     assert got[GI('west_south_central', 2025)] == pytest.approx(expect)
 
@@ -121,7 +121,9 @@ def test_non_gas_techs_are_excluded() -> None:
     m = _mock_elec()
     got = poll_ng_gas_demand(m, {'7': 'west_south_central', '8': 'south_atlantic'})
     only_gas = sum(
-        100.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e3 for t in NG_GAS_TECHS for _ in range(2)
+        100_000.0 * 182.5 * NG_HEAT_RATE_MMBTUPERMWH[t] / 1e6
+        for t in NG_GAS_TECHS
+        for _ in range(2)
     )
     assert got[GI('west_south_central', 2025)] == pytest.approx(only_gas)
 
@@ -155,11 +157,11 @@ def test_fuel_adj_is_zero_when_price_equals_reference() -> None:
 
 
 def test_fuel_adj_sign_and_magnitude() -> None:
-    """A $1/MMBtu rise becomes heat_rate x 1000 $/GWh, positive.
+    """A $1/MMBtu rise becomes heat_rate $/MWh, positive.
 
-    Fixes both the direction and the conversion. $/MMBtu x MMBtu/MWh gives $/MWh; the factor
-    of 1000 lifts that to $/GWh, the unit generation_total is measured in. Getting the factor
-    wrong scales the entire coupling signal while leaving its sign and shape believable.
+    Fixes both the direction and the conversion. $/MMBtu x MMBtu/MWh gives $/MWh, the unit
+    generation_total is priced in. Getting the factor wrong scales the entire coupling signal
+    while leaving its sign and shape believable.
     """
     m = _mock_elec()
     xw = {'7': 'west_south_central', '8': 'south_atlantic'}
@@ -168,7 +170,7 @@ def test_fuel_adj_sign_and_magnitude() -> None:
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=1.0)
     assert pyo.value(m.ng_fuel_adj['7', '4', 1, 2025, 'spring']) == pytest.approx(
-        1.0 * NG_HEAT_RATE_MMBTUPERMWH['4'] * 1000.0
+        1.0 * NG_HEAT_RATE_MMBTUPERMWH['4']
     )
 
 
@@ -201,7 +203,7 @@ def test_under_relaxation_blends() -> None:
     now = {k: v + 1.0 for k, v in ref.items()}
 
     update_ng_fuel_adj(m, now, xw, ref, alpha=0.25)  # from 0 -> 25% of full
-    full = 1.0 * NG_HEAT_RATE_MMBTUPERMWH['4'] * 1000.0
+    full = 1.0 * NG_HEAT_RATE_MMBTUPERMWH['4']
     assert pyo.value(m.ng_fuel_adj['7', '4', 1, 2025, 'spring']) == pytest.approx(0.25 * full)
 
 

@@ -14,8 +14,9 @@ from analysis_tools.model_diagnostics import breakdown_obj_terms
 
 # variable names that should appear in the objective for the baseline test config
 # (capacity_expansion / regional_exchange / ramping / reserves all disabled, so
-# total_cost reduces to dispatch_cost + unmet_load_cost)
+# total_cost reduces to dispatch_cost + unmet_load_cost + fixed_om_cost)
 _EXPECTED_VAR_NAMES = {
+    'capacity_total',  # FOM, $/MW-yr, carries the largest coefficients
     'generation_total',
     'storage_inflow',
     'storage_outflow',

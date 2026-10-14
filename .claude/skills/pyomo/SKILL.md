@@ -67,7 +67,7 @@ A `default` is not a safety net — it is a silencer. It converts "this index sh
 have been asked for" into a plausible-looking zero, so an indexing bug shows up as a
 quietly wrong objective instead of a `ValueError` at build time. Prefer the loud failure.
 
-`supply_price` in `electricity_model.py` is the pattern to follow, and already says so:
+`generation_cost` in `electricity_model.py` is the pattern to follow, and already says so:
 
 ```python
 # dev note: A missing price value (sparse set) will cause fail w/o a default value here,
@@ -76,7 +76,7 @@ quietly wrong objective instead of a `ValueError` at build time. Prefer the loud
 
 Only two params there carry a `default=`, and each states its reason in place:
 `elec_load` (so `r, y, hr` can be iterated confidently, as all three should be defined)
-and `cap_factor_vre` (the indexing set is wider than the data's upper-bound limit). Both
+and `capacity_factor_vre` (the indexing set is wider than the data's upper-bound limit). Both
 are deliberate. What to avoid is the *undocumented* default added to make construction
 succeed — that is a smell, and the fix is usually a correctly sparse index set rather
 than a fabricated value.

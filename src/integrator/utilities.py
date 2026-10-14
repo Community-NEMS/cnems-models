@@ -7,6 +7,7 @@ models after it is decided if it is a utility job to do .... or a class method.
 Additionally, there is probably some renaming due here for consistency
 """
 
+import csv
 import typing
 
 # Import packages
@@ -22,6 +23,7 @@ from pyomo.opt import OptSolver
 
 # Import python modules
 from definitions import PROJECT_ROOT
+from src.common.season import Season
 
 if typing.TYPE_CHECKING:
     from src.models.electricity.electricity_model import PowerModel
@@ -343,7 +345,69 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
     return res
 
 
-def create_temporal_mapping(temporal_resolution):
+TEMPORAL_MAPPINGS_ROOT = Path(PROJECT_ROOT, 'input/integrator/temporal_data/temporal_mappings')
+"""Parent of the self-contained per-resolution folders (``default``, ``d8h12``, ...)."""
+
+
+def temporal_mapping_dir(temporal_resolution: str) -> Path:
+    """Resolve the folder holding the temporal data for a resolution.
+
+    Parameters
+    ----------
+    temporal_resolution : str
+        ``CommonConfig.temporal_resolution``; names a folder under ``TEMPORAL_MAPPINGS_ROOT``
+        containing ``cw_s_day.csv``, ``cw_hr.csv`` and ``seasons.csv``.
+
+    Returns
+    -------
+    Path
+        The resolution's folder.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no such folder exists.
+    """
+    folder = TEMPORAL_MAPPINGS_ROOT / temporal_resolution
+    if not folder.is_dir():
+        raise FileNotFoundError(f'No temporal mapping folder for {temporal_resolution!r}: {folder}')
+    return folder
+
+
+def _build_seasons(temporal_resolution: str = 'default') -> dict[str, Season]:
+    """Build a set of seasons from a resolution's ``seasons.csv``.
+
+    Parameters
+    ----------
+    temporal_resolution : str, optional
+        ``CommonConfig.temporal_resolution``; reads ``seasons.csv`` (``name`` and ``sort_order``
+        columns) from the matching folder under ``TEMPORAL_MAPPINGS_ROOT``. Defaults to
+        ``'default'``.
+
+    Returns
+    -------
+    set[Season]
+        One ``Season`` per row of the file.
+
+    Raises
+    ------
+    ValueError
+        If the file contains a duplicate season name.
+    """
+    path = temporal_mapping_dir(temporal_resolution) / 'seasons.csv'
+    result = {}
+    seen_names = set()
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            if row['name'] not in seen_names:
+                result[row['name']] = Season(row['name'], int(row['sort_order']))
+                seen_names.add(row['name'])
+            else:
+                raise ValueError('duplicate season names discovered in data file: %s', path)
+    return result
+
+
+def create_temporal_mapping(temporal_resolution: str) -> pd.DataFrame:
     """Combines the electricity model input mapping files into a master temporal mapping frame.
 
     The df is used to build multiple temporal parameters used within the  model. It creates a
@@ -354,8 +418,8 @@ def create_temporal_mapping(temporal_resolution):
     Parameters
     ----------
     temporal_resolution : str
-        ``CommonConfig.temporal_resolution``; ``'default'`` reads the base crosswalks, any
-        other value selects the matching pair under ``temporal_mapping/``.
+        ``CommonConfig.temporal_resolution``; reads ``cw_s_day.csv`` and ``cw_hr.csv`` from
+        the matching folder under ``TEMPORAL_MAPPINGS_ROOT``.
 
     Returns
     -------
@@ -363,17 +427,23 @@ def create_temporal_mapping(temporal_resolution):
         a dataframe with 8760 rows that include each hour, hour type, day, day type, and season.
         It also includes the weights for each day type and hour type.
     """
+    # gather the reference seasons
+    seasons = _build_seasons(temporal_resolution)
     # Temporal Sets - read data
     # SD = season/day; hr = hour
-    data_root = Path(PROJECT_ROOT, 'input/integrator')
-    if temporal_resolution == 'default':
-        sd_file = pd.read_csv(data_root / 'cw_s_day.csv')
-        hr_file = pd.read_csv(data_root / 'cw_hr.csv')
-    else:
-        cw_s_day = 'cw_s_day_' + temporal_resolution + '.csv'
-        cw_hr = 'cw_hr_' + temporal_resolution + '.csv'
-        sd_file = pd.read_csv(data_root / 'temporal_mapping' / cw_s_day)
-        hr_file = pd.read_csv(data_root / 'temporal_mapping' / cw_hr)
+    data_root = temporal_mapping_dir(temporal_resolution)
+    sd_file = pd.read_csv(data_root / 'cw_s_day.csv')
+
+    # up-convert the season-name references -> Season objects
+    season_names = sd_file['Map_s'].astype(str)
+    unknown = set(season_names) - seasons.keys()
+    if unknown:
+        raise ValueError(
+            f'cw_s_day.csv references seasons missing from seasons.csv: {sorted(unknown)}'
+        )
+    sd_file['Map_s'] = season_names.map(seasons)
+
+    hr_file = pd.read_csv(data_root / 'cw_hr.csv')
 
     # set up mapping for seasons and days
     df1 = sd_file
@@ -392,9 +462,5 @@ def create_temporal_mapping(temporal_resolution):
     df['hour'] = df.index
     df['hour'] = df['hour'] + 1
     df['Map_hour'] = (df['Map_day'] - 1) * df['Map_hour'].max() + df['Map_hour']
-    # df.to_csv(data_root/'temporal_map.csv',index=False)
-
-    # convert the Season to string
-    df['Map_s'] = df['Map_s'].astype(str)
 
     return df

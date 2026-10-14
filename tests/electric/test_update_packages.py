@@ -6,7 +6,7 @@ Contact:  jeff@westernspark.us
 Created on:  8/11/26
 
 Tests for detecting index mismatches in updates to param_data dataframes, and for the
-natural gas price update applied to supply_price.
+natural gas price update applied to generation_cost.
 
 """
 
@@ -113,7 +113,7 @@ def make_price_package(keys: list[tuple[str, int]], price: float) -> NGPricePack
 
 
 def held_region_years(prices: pd.DataFrame) -> list[tuple[str, int]]:
-    """The distinct ``(region, year)`` pairs a ``supply_price`` frame holds."""
+    """The distinct ``(region, year)`` pairs a ``generation_cost`` frame holds."""
     keys = zip(
         prices.index.get_level_values('region'),
         prices.index.get_level_values('year'),
@@ -134,12 +134,12 @@ def test_ng_price_package_scales_linked_techs(
     param_data: ParamData, price_ratio: float, expected_factor: float
 ) -> None:
     """Gas-linked tech rows scale with the relative gas price move; other techs are untouched."""
-    before = param_data.param_frames['supply_price'].copy()
+    before = param_data.param_frames['generation_cost'].copy()
     package = make_price_package(held_region_years(before), INITIAL_NG_PRICE * price_ratio)
 
     ElecUpdateReader().apply_package(package, param_data)
 
-    after = param_data.param_frames['supply_price']
+    after = param_data.param_frames['generation_cost']
     linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
     assert linked.any(), 'test data holds no gas-linked tech rows'
     pd.testing.assert_frame_equal(after[~linked], before[~linked])
@@ -148,7 +148,7 @@ def test_ng_price_package_scales_linked_techs(
 
 def test_ng_price_package_uncovered_rows_retained(param_data: ParamData, caplog) -> None:
     """Held (region, year) pairs the package omits keep their loaded values and are warned about."""
-    before = param_data.param_frames['supply_price'].copy()
+    before = param_data.param_frames['generation_cost'].copy()
     years = sorted(set(before.index.get_level_values('year')))
     assert len(years) > 1, 'test config needs at least two years'
     covered_year = years[0]
@@ -158,7 +158,7 @@ def test_ng_price_package_uncovered_rows_retained(param_data: ParamData, caplog)
     with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
         ElecUpdateReader().apply_package(package, param_data)
 
-    after = param_data.param_frames['supply_price']
+    after = param_data.param_frames['generation_cost']
     in_year = after.index.get_level_values('year') == covered_year
     linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
     pd.testing.assert_frame_equal(after[~in_year], before[~in_year])

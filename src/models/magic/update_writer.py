@@ -31,8 +31,8 @@ class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
         """Make mock updates from the model's sequence number.
 
         Fabricates a sinusoid from the sequence number with a 10-cycle diminishment, centered on
-        1.0 so the scaler stays positive: SupplyPrice is NonNegativeReals, and a bare cosine goes
-        negative for sequence numbers 3-5, 11-13, ...
+        1.0 so the scaler stays positive: generation_cost is NonNegativeReals, and a bare cosine
+        goes negative for sequence numbers 3-5, 11-13, ...
 
         Parameters
         ----------

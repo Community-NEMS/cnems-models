@@ -121,8 +121,11 @@ keeps the run going.
 - `postprocessor.py` (variable extraction / CSV export), `validators.py` (pyomo domain checks),
   `param_utilities.py` (param reshaping helpers), `utilities.py` (`annual_count` only).
 - `analysis_tools/` (top-level package) — `model_diagnostics.py`, `transmission_network.py`, `viewer.py`.
-- Input data lives under `input/electricity/` and `input/electricity/cem_inputs/`
-  (regionally/technology-indexed CSVs for costs, transmission, supply curves, etc.).
+- Input data lives under `input/electricity/`: `properties/` (region/tech set-membership CSVs,
+  `CommonConfig.common_data_path`), `parameters/` (regionally/technology-indexed CSVs for costs,
+  transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (currently empty).
+  `datapackage.json` sits at the top of `input/electricity/`. `input/electricity_light/` mirrors
+  this layout.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity
   model code without explicitly asking to do so.
 

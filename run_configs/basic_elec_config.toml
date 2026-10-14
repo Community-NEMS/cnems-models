@@ -4,7 +4,7 @@ mode = "standalone"
 # Modules to run (requires module input sections below)
 models_to_run=['electricity']
 
-common_data_path='input/electricity'
+common_data_path='input/electricity/properties'
 residential_data_path='input/residential'
 output_path='output'
 scenario_name = "baseline"
@@ -29,7 +29,7 @@ input_path = 'input/natural_gas'
 # region_filter = ...  # commented out for no filter == all regions
 
 [elec_config]
-input_path='input/electricity/cem_inputs'
+input_path='input/electricity/parameters'
 region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
 regional_exchange=false
 capacity_expansion=false

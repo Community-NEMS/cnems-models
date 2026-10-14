@@ -45,8 +45,8 @@ from src.models.electricity.update_writer import ElecUpdateWriter
 logger = getLogger(__name__)
 
 # convergence controls for the linear-learning outer iteration.  The tolerance is on the largest
-# change in cumulative builds for any (tech, year) between iterations, in GW.
-_LEARNING_TOLERANCE = 0.1
+# change in cumulative builds for any (tech, year) between iterations, in MW.
+_LEARNING_TOLERANCE = 100.0
 _LEARNING_MAX_ITER = 20
 
 
@@ -258,7 +258,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             if i >= _LEARNING_MAX_ITER and eps > _LEARNING_TOLERANCE:
                 logger.warning(
                     'Linear learning stopped at the %d iteration cap without converging; the '
-                    'last change was %0.4f GW against a tolerance of %0.4f GW',
+                    'last change was %0.4f MW against a tolerance of %0.4f MW',
                     _LEARNING_MAX_ITER,
                     eps,
                     _LEARNING_TOLERANCE,

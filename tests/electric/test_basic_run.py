@@ -136,11 +136,15 @@ _GATED_BY_SWITCH = {
 # itself is neutral.  The moves come from FOMCost, which was always in $/MW-yr but was charged
 # against GW capacity and so was 1000x understated.  The dispatch-only configs rise by exactly 999x
 # their prior fixed_om_cost; the expansion configs re-optimize (retiring capacity), rising 1.5-1.8x.
+# Note: the expansion_no_learning and ramping expected total costs were re-captured when
+# UNMET_LOAD_PRICE was raised from 500 to 50,000 $/MWh.  These are the two configs that solve with
+# some unmet load (PENALTY status), so the higher price raises their objectives by ~0.04%; the
+# other configs serve all load and are unchanged.  Variable and constraint counts do not move.
 configs = [
     ('basic', 8152448639.12, 17430, 19182),
     ('exchange', 7069030790.54, 20886, 22830),
-    ('expansion_no_learning', 6472076341.28, 17604, 19308),
-    ('ramping', 8222435833.87, 32406, 41646),
+    ('expansion_no_learning', 6474740524.53, 17604, 19308),
+    ('ramping', 8225257879.01, 32406, 41646),
     ('reserve_with_expansion_no_learning', 8070923124.59, 18756, 22188),
     # no good starting value,
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table

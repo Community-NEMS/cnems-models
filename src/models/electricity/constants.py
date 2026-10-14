@@ -14,7 +14,7 @@ TRANSMISSION_LOSS_FACTOR = 0.02  # Transmission losses %
 # 13.84 kwh/kg, for kwh/kg H2 -> 54.3, #conversion kwh/kg to GWh/kg
 H2_HEATRATE = 13.84 / 1000000  # currently NOT used
 
-UNMET_LOAD_PRICE = 500  # $/MWh  # TODO:  Re-evaluate
+UNMET_LOAD_PRICE = 50_000  # $/MWh  # TODO:  Re-evaluate
 
 # a solved unmet_load above this in any index puts the solve in PENALTY status; anything smaller
 # is treated as solver decimal dust

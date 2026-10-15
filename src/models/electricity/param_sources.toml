@@ -10,157 +10,161 @@
 # required = false -> only used when a specific ElecConfig switch is enabled (see comment
 #                      per entry); note load_param_data still loads every file
 #                      unconditionally today -- required is metadata only for now.
+#
+# Units are carried in each value_col name (MW, MWh, USD, frac, hr).  The model works in these
+# units directly; no scaling is applied on load.
 
 [[param_source]]
-key = "battery_efficiency"
-filename = "BatteryEfficiency.csv"
+key = "storage_efficiency"
+filename = "storage_efficiency.csv"
 index_cols = ["tech"]
-value_col = "efficiency"
+value_col = "storage_efficiency_frac"
 required = true
 
 [[param_source]]
-key = "cap_cost"
-filename = "CapCost.csv"
+key = "capital_cost"
+filename = "capital_cost.csv"
 index_cols = ["region", "tech", "step", "year"]
-value_col = "cost"
+value_col = "capital_cost_usd_per_mw"
 required = false  # capacity_expansion
 
 [[param_source]]
-key = "cap_cost_initial"
-filename = "CapCostInitial.csv"
+key = "capital_cost_initial"
+filename = "capital_cost_initial.csv"
 index_cols = ["region", "tech", "step"]
-value_col = "cost"
+value_col = "capital_cost_initial_usd_per_mw"
 required = false  # capacity_expansion + expansion_learning_type != DISABLED
 
 [[param_source]]
-key = "cap_factor_vre"
-filename = "CapFactorVRE.csv"
+key = "capacity_factor_vre"
+filename = "capacity_factor_vre.csv"
 index_cols = ["region", "tech", "step", "hour"]
-value_col = "value"
+value_col = "capacity_factor_vre_frac"
 required = true
 
 [[param_source]]
 key = "fom_cost"
-filename = "FOMCost.csv"
+filename = "fom_cost.csv"
 index_cols = ["region", "tech", "step"]
-value_col = "cost"
+value_col = "fom_cost_usd_per_mw_yr"
 required = true
 
 [[param_source]]
-key = "hours_to_buy"
-filename = "HourstoBuy.csv"
+key = "storage_duration"
+filename = "storage_duration.csv"
 index_cols = ["tech"]
-value_col = "hours"
+value_col = "storage_duration_hr"
 required = true
 
 [[param_source]]
-key = "hydro_cap_factor"
-filename = "HydroCapFactor.csv"
+key = "hydro_capacity_factor"
+filename = "hydro_capacity_factor.csv"
 index_cols = ["region", "season"]
-value_col = "value"
+value_col = "hydro_capacity_factor_frac"
 required = true
 
 [[param_source]]
 key = "learning_rate"
-filename = "LearningRate.csv"
+filename = "learning_rate.csv"
 index_cols = ["tech"]
 value_col = "learning_exponent"
 required = false  # capacity_expansion + expansion_learning_type != DISABLED
 
 [[param_source]]
 key = "ramp_down_cost"
-filename = "RampDownCost.csv"
+filename = "ramp_down_cost.csv"
 index_cols = ["tech"]
-value_col = "cost"
+value_col = "ramp_down_cost_usd_per_mwh"
 required = false  # ramping_required
 
 [[param_source]]
 key = "ramp_rate"
-filename = "RampRate.csv"
+filename = "ramp_rate.csv"
 index_cols = ["tech"]
-value_col = "rate"
+value_col = "ramp_rate_frac_per_hr"
 required = false  # ramping_required
 
 [[param_source]]
 key = "ramp_up_cost"
-filename = "RampUpCost.csv"
+filename = "ramp_up_cost.csv"
 index_cols = ["tech"]
-value_col = "cost"
+value_col = "ramp_up_cost_usd_per_mwh"
 required = false  # ramping_required
 
 [[param_source]]
-key = "reg_reserves_cost"
-filename = "RegReservesCost.csv"
-index_cols = ["tech"]
-value_col = "cost"
+# reserve_type values here and in reserve_tech_limit must be ReserveType members (elec_config.py)
+key = "reserve_cost"
+filename = "reserve_cost.csv"
+index_cols = ["reserve_type", "tech"]
+value_col = "reserve_cost_usd_per_mwh"
 required = false  # spinning_reserve_required
 
 [[param_source]]
-key = "reserve_margin"
-filename = "ReserveMargin.csv"
+key = "planning_reserve_margin"
+filename = "planning_reserve_margin.csv"
 index_cols = ["region"]
-value_col = "margin"
+value_col = "planning_reserve_margin_frac"
 required = false  # reserve_margin_required
 
 [[param_source]]
-key = "res_tech_upper_bound"
-filename = "ResTechUpperBound.csv"
-index_cols = ["restype", "tech"]
-value_col = "value"
+key = "reserve_tech_limit"
+filename = "reserve_tech_limit.csv"
+index_cols = ["reserve_type", "tech"]
+value_col = "reserve_tech_limit_frac"
 required = false  # spinning_reserve_required
 
 [[param_source]]
-key = "supply_curve"
-filename = "SupplyCurve.csv"
+key = "available_capacity"
+filename = "available_capacity.csv"
 index_cols = ["region", "tech", "step", "year"]
-value_col = "capacity"
+value_col = "available_capacity_mw"
 required = true
 
 [[param_source]]
 key = "supply_curve_learning"
-filename = "SupplyCurveLearning.csv"
+filename = "supply_curve_learning.csv"
 index_cols = ["tech"]
-value_col = "capacity"
+value_col = "supply_curve_learning_mw"
 required = false  # capacity_expansion + expansion_learning_type != DISABLED
 
 [[param_source]]
-key = "supply_price"
-filename = "SupplyPrice.csv"
+key = "generation_cost"
+filename = "generation_cost.csv"
 index_cols = ["region", "tech", "step", "year", "season"]
-value_col = "cost"
+value_col = "generation_cost_usd_per_mwh"
 required = true
 
 [[param_source]]
 key = "tran_cost"
-filename = "TranCost.csv"
-index_cols = ["destination_region", "source_region",  "year"]
-value_col = "cost"
+filename = "tran_cost.csv"
+index_cols = ["region_dest", "region_source", "year"]
+value_col = "tran_cost_usd_per_mwh"
 required = false  # regional_exchange
 
 [[param_source]]
-key = "tran_cost_int"
-filename = "TranCostInt.csv"
-index_cols = ["region", "region_international", "step", "year"]
-value_col = "cost"
+key = "tran_cost_intl"
+filename = "tran_cost_intl.csv"
+index_cols = ["region", "region_intl", "step", "year"]
+value_col = "tran_cost_intl_usd_per_mwh"
 required = false  # regional_exchange
 
 [[param_source]]
 key = "tran_limit"
-filename = "TranLimit.csv"
-index_cols = ["destination_region", "source_region", "season", "year"]
-value_col = "value"
+filename = "tran_limit.csv"
+index_cols = ["region_dest", "region_source", "year", "season"]
+value_col = "tran_limit_mw"
 required = false  # regional_exchange
 
 [[param_source]]
-key = "tran_limit_cap_int"
-filename = "TranLimitCapInt.csv"
-index_cols = ["region", "region_international", "year", "season"]
-value_col = "capacity"
+key = "tran_limit_cap_intl"
+filename = "tran_limit_cap_intl.csv"
+index_cols = ["region", "region_intl", "year", "season"]
+value_col = "tran_limit_cap_intl_mw"
 required = false  # regional_exchange
 
 [[param_source]]
-key = "tran_limit_gen_int"
-filename = "TranLimitGenInt.csv"
-index_cols = ["region_international", "step", "year", "season"]
-value_col = "generation"
+key = "supply_limit_intl"
+filename = "supply_limit_intl.csv"
+index_cols = ["region_intl", "step", "year", "season"]
+value_col = "supply_limit_intl_mw"
 required = false  # regional_exchange

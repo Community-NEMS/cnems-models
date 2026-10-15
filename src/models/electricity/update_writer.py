@@ -116,7 +116,7 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     the representative hours, weighting each hour by the days its representative day stands for
     (the same ``weight_day`` the objective applies), and converts with the tech's heat rate::
 
-        Bcf = GWh x 1000 MWh/GWh x MMBtu/MWh / mmbtu_per_bcf
+        Bcf = MWh x MMBtu/MWh / mmbtu_per_bcf
 
     with ``mmbtu_per_bcf`` taken from the gas model's ``ng_scalars.csv`` via
     :func:`ng_mmbtu_per_bcf`.
@@ -140,11 +140,10 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
         heat_rate = NG_HEAT_RATE_MMBTU_PER_MWH.get(tech)
         if heat_rate is None:
             continue
-        gen_gwh = value(instance.generation_total[region, tech, step, year, hour])
+        gen_mwh = value(instance.generation_total[region, tech, step, year, hour])
         days = value(instance.weight_day[instance.map_hour_day[hour]])
         # pyrefly: ignore[unsupported-operation]
-        # TODO:  review this x1000 multiplier after we get the generation units squared away!
-        mmbtu[(str(region), int(year))] += gen_gwh * days * 1000.0 * heat_rate
+        mmbtu[(str(region), int(year))] += gen_mwh * days * heat_rate
     if not mmbtu:
         logger.warning(
             'No generation rows for gas-fired techs %s; gas demand is zero everywhere',

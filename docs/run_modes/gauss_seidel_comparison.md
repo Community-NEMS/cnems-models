@@ -38,7 +38,7 @@ Changes that would alter the answer itself are kept out of this comparison; §6 
 
 The update contract. `update_model(packages)` leaves the built model the same optimization
 problem that a rebuild with those packages would give. For the electricity model, the gas price
-enters through `ng_fuel_adj`, a mutable parameter added to `supply_price` in the dispatch cost.
+enters through `ng_fuel_adj`, a mutable parameter added to `generation_cost` in the dispatch cost.
 Its value is computed by `ng_price_adjustment`, which for now is exactly Jacobi's multiplicative
 link. Tests check the contract entry by entry, to a relative 1e-12:
 - the effective electricity cost of every row

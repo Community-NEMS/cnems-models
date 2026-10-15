@@ -71,7 +71,7 @@ def test_seasonal_coverage_complete(validation_log, base_indices, season_idx_loc
     """Full coverage at any season position, for any number of base indices, logs nothing."""
     table = _seasonal_table(base_indices, SEASONS, season_idx_loc)
 
-    assert validate_seasonal_coverage('supply_price', table, season_idx_loc, SEASONS) is True
+    assert validate_seasonal_coverage('generation_cost', table, season_idx_loc, SEASONS) is True
 
     assert validation_log.records == []
 
@@ -81,15 +81,17 @@ def test_seasonal_coverage_accepts_unordered_and_repeated_expectation(validation
     table = _seasonal_table([('CA', 'NG', 1)], SEASONS, 3)
 
     unordered = ['fall', 'winter', 'summer', 'spring']
-    assert validate_seasonal_coverage('supply_price', table, 3, unordered) is True
-    assert validate_seasonal_coverage('supply_price', table, 3, list(SEASONS) + ['winter']) is True
+    assert validate_seasonal_coverage('generation_cost', table, 3, unordered) is True
+    assert (
+        validate_seasonal_coverage('generation_cost', table, 3, list(SEASONS) + ['winter']) is True
+    )
 
     assert validation_log.records == []
 
 
 def test_seasonal_coverage_empty_table_is_silent(validation_log):
     """An empty table has no base indices to check, so it is vacuously valid."""
-    assert validate_seasonal_coverage('supply_price', {}, 3, SEASONS) is True
+    assert validate_seasonal_coverage('generation_cost', {}, 3, SEASONS) is True
 
     assert validation_log.records == []
 
@@ -107,11 +109,11 @@ def test_seasonal_coverage_incomplete(validation_log, table_seasons, expected_se
     """Any mismatch between found and expected seasons is False and logs one error."""
     table = _seasonal_table([('CA', 'NG', 1)], table_seasons, 3)
 
-    assert validate_seasonal_coverage('supply_price', table, 3, expected_seasons) is False
+    assert validate_seasonal_coverage('generation_cost', table, 3, expected_seasons) is False
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == 1, f'expected a single error for the {reason} case'
-    assert 'supply_price' in errors[0].getMessage()
+    assert 'generation_cost' in errors[0].getMessage()
     assert "('CA', 'NG', 1)" in errors[0].getMessage()
 
 
@@ -122,7 +124,7 @@ def test_seasonal_coverage_reports_only_the_bad_indices(validation_log):
     table.update(_seasonal_table([('NY', 'NG', 1)], ('winter', 'spring'), 3))
     table.update(_seasonal_table([('FL', 'NG', 1)], SEASONS[:-1], 3))
 
-    assert validate_seasonal_coverage('supply_price', table, 3, SEASONS) is False
+    assert validate_seasonal_coverage('generation_cost', table, 3, SEASONS) is False
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == 2
@@ -136,11 +138,11 @@ def test_seasonal_coverage_reports_only_the_bad_indices(validation_log):
 def test_seasonal_coverage_integer_seasons(validation_log):
     """Seasons may be ints as well as strings."""
     complete = _seasonal_table([('CA', 'NG', 1)], (1, 2, 3, 4), 3)
-    assert validate_seasonal_coverage('supply_price', complete, 3, (1, 2, 3, 4)) is True
+    assert validate_seasonal_coverage('generation_cost', complete, 3, (1, 2, 3, 4)) is True
     assert validation_log.records == []
 
     incomplete = _seasonal_table([('CA', 'NG', 1)], (1, 2, 3), 3)
-    assert validate_seasonal_coverage('supply_price', incomplete, 3, (1, 2, 3, 4)) is False
+    assert validate_seasonal_coverage('generation_cost', incomplete, 3, (1, 2, 3, 4)) is False
     assert len([r for r in validation_log.records if r.levelno == logging.ERROR]) == 1
 
 
@@ -434,7 +436,10 @@ def test_domestic_network(validation_log, mutate, expected, expect_level, expect
 
 def _validate_all_inputs() -> tuple:
     """Minimal ModelSets / ParamData stand-ins for validate_all:  empty tables, exchange off."""
-    frames = {name: DataFrame() for name in ('supply_price', 'hydro_cap_factor', 'supply_curve')}
+    frames = {
+        name: DataFrame()
+        for name in ('generation_cost', 'hydro_capacity_factor', 'available_capacity')
+    }
     param_data = SimpleNamespace(
         param_frames=frames, elec_config=SimpleNamespace(regional_exchange=False)
     )

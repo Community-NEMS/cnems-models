@@ -61,7 +61,7 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     sequencer = ElectricitySequencer()
     model = sequencer.build_model(common, elec_config)
     # the two are added in dispatch_cost, so they must share an index
-    assert set(model.ng_fuel_adj.index_set()) == set(model.supply_price.index_set())
+    assert set(model.ng_fuel_adj.index_set()) == set(model.generation_cost.index_set())
     sequencer.solve_iteration()
     solver = sequencer._opt
     region_years = sorted({(key[0], key[3]) for key in model.ng_fuel_adj})
@@ -74,8 +74,8 @@ def test_electricity_update_and_kept_solver_match_a_rebuild() -> None:
     def assert_prices_match(package: NGPricePackage) -> None:
         target = rebuilt[id(package)].model
         for key in model.ng_fuel_adj:
-            effective = value(model.supply_price[key]) + value(model.ng_fuel_adj[key])
-            assert effective == pytest.approx(value(target.supply_price[key]), rel=1e-12)
+            effective = value(model.generation_cost[key]) + value(model.ng_fuel_adj[key])
+            assert effective == pytest.approx(value(target.generation_cost[key]), rel=1e-12)
 
     assert sequencer.update_model([full]) is model
     assert_prices_match(full)

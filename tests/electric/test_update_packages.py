@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  8/11/26
 
-Tests for the natural gas price update applied to supply_price.
+Tests for the natural gas price update applied to generation_cost.
 
 """
 
@@ -39,7 +39,7 @@ def make_price_package(keys: list[tuple[str, int]], price: float) -> NGPricePack
 
 
 def held_region_years(prices: pd.DataFrame) -> list[tuple[str, int]]:
-    """The distinct ``(region, year)`` pairs a ``supply_price`` frame holds."""
+    """The distinct ``(region, year)`` pairs a ``generation_cost`` frame holds."""
     keys = zip(
         prices.index.get_level_values('region'),
         prices.index.get_level_values('year'),
@@ -60,12 +60,12 @@ def test_ng_price_package_scales_linked_techs(
     param_data: ParamData, price_ratio: float, expected_factor: float
 ) -> None:
     """Gas-linked tech rows scale with the relative gas price move; other techs are untouched."""
-    before = param_data.param_frames['supply_price'].copy()
+    before = param_data.param_frames['generation_cost'].copy()
     package = make_price_package(held_region_years(before), INITIAL_NG_PRICE * price_ratio)
 
     ElecUpdateReader().apply_package(package, param_data)
 
-    after = param_data.param_frames['supply_price']
+    after = param_data.param_frames['generation_cost']
     linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
     assert linked.any(), 'test data holds no gas-linked tech rows'
     pd.testing.assert_frame_equal(after[~linked], before[~linked])
@@ -75,7 +75,7 @@ def test_ng_price_package_scales_linked_techs(
 @pytest.mark.parametrize('gap', ['underage', 'overage'])
 def test_ng_price_package_must_cover_held_entries(param_data: ParamData, gap: str) -> None:
     """A package not covering exactly the held (region, year) entries is rejected untouched."""
-    before = param_data.param_frames['supply_price'].copy()
+    before = param_data.param_frames['generation_cost'].copy()
     keys = held_region_years(before)
     keys = keys[1:] if gap == 'underage' else [*keys, ('not_a_region', keys[0][1])]
     package = make_price_package(keys, INITIAL_NG_PRICE * 2)
@@ -83,7 +83,7 @@ def test_ng_price_package_must_cover_held_entries(param_data: ParamData, gap: st
     with pytest.raises(ValueError, match='must cover exactly'):
         ElecUpdateReader().apply_package(package, param_data)
 
-    pd.testing.assert_frame_equal(param_data.param_frames['supply_price'], before)
+    pd.testing.assert_frame_equal(param_data.param_frames['generation_cost'], before)
 
 
 @pytest.mark.parametrize(

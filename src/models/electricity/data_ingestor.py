@@ -37,16 +37,16 @@ PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
 
 # param sources to convert to DF's for further processing.  "Load" handled separately
 TIME_BASED_DFS = (
-    'cap_cost',
-    'cap_factor_vre',
-    'hydro_cap_factor',
-    'supply_curve',
-    'supply_price',
+    'capital_cost',
+    'capacity_factor_vre',
+    'hydro_capacity_factor',
+    'available_capacity',
+    'generation_cost',
     'tran_cost',
-    'tran_cost_int',
+    'tran_cost_intl',
     'tran_limit',
-    'tran_limit_cap_int',
-    'tran_limit_gen_int',
+    'tran_limit_cap_intl',
+    'supply_limit_intl',
 )
 
 # Schema metadata (filename, property columns, index columns) for each property source, read
@@ -74,7 +74,7 @@ class FilterPackage:
     """
 
     region_filter: Iterable[str] | None = None
-    region_cols: Iterable[str] = ('region', 'destination_region', 'source_region')
+    region_cols: Iterable[str] = ('region', 'region_dest', 'region_source')
     year_filter: Iterable[int] | None = None
     year_col: Iterable[str] = ('year',)
 
@@ -130,6 +130,9 @@ def load_dataframes_w_datapackage(
         schema = from_frictionless_schema(resource['schema'])
         # Read the CSV and enforce the schema
         df = schema.validate(pd.read_csv(csv_path))
+        # TODO: the full CSV is returned, including the free-text 'notes' column.  Before this
+        #  feeds ParamData, either use PARAM_SOURCES (index_cols + value_col) to select columns
+        #  and set the index, or explicitly drop 'notes'.
 
         # Filter on region / year columns
         if filters is not None:
@@ -488,12 +491,12 @@ if __name__ == '__main__':
     regions = set('478')
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
-    source_dir = PROJECT_ROOT / 'input/electricity/cem_inputs'
+    source_dir = PROJECT_ROOT / 'input/electricity/parameters'
     param_data = load_param_data(source_dir, param_filter)
     for k, v in param_data.items():
         print(k, len(v))
         print(v)
-    source_dir = PROJECT_ROOT / 'input/electricity'
+    source_dir = PROJECT_ROOT / 'input/electricity/properties'
     print('\n*** property data ***\n')
     data = load_property_data(source_dir)
     for k, v in data.items():
@@ -513,7 +516,7 @@ if __name__ == '__main__':
     years = {2025, 2042}
     param_filter = FilterPackage(region_filter=regions, year_filter=years)
     new_dfs = load_dataframes_w_datapackage(
-        base_path=UPath('file://input/electricity/cem_inputs'),
+        base_path=UPath('file://input/electricity'),
         filters=param_filter,
         inputs_datapackage_branch='datapackage-updates',
     )

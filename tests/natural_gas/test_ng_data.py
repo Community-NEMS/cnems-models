@@ -340,7 +340,6 @@ DATA_DIR_LOADERS = [
     (ng_data.load_supply_anchors, 'ng_supply_anchors.csv'),
     (ng_data.load_lng_import, 'ng_lng_import.csv'),
     (ng_data.load_lng_export, 'ng_lng_export.csv'),
-    (ng_data.load_demand_elasticity, 'ng_demand_elasticity.csv'),
     (ng_data.load_base_demand, 'ng_base_demand.csv'),
     (ng_data.load_demand_growth, 'ng_demand_growth.csv'),
     (ng_data.load_pipeline_arcs, 'ng_pipeline_arcs.csv'),
@@ -630,46 +629,6 @@ class TestInterpLngExport:
     def test_unknown_region_is_zero(self) -> None:
         """A region with no LNG export terminal exports nothing, rather than raising."""
         assert ng_data.interp_lng_export(self.TABLE, 'mountain', 2030) == 0.0
-
-
-class TestSectorElasticityCoverage:
-    """Every sector in ng_sector_data.csv must have an entry in ng_demand_elasticity.csv.
-
-    The two files share no key, so a sector added to one and not the other would otherwise pass
-    silently: ng_model reads the elasticity per sector, and an absent one used to read as 0.0,
-    meaning perfectly inelastic demand. That is a modelling statement rather than a default, so
-    it has to be made deliberately.
-    """
-
-    def test_repo_inputs_are_consistent(self) -> None:
-        """The shipped pair covers all five sectors."""
-        data_dir = PROJECT_ROOT / 'input/natural_gas'
-        elasticity = ng_data.load_demand_elasticity(data_dir)
-        config = NGConfig(input_path=Path('input/natural_gas'))
-
-        assert all(sector in elasticity for sector in ng_data.load_sector_data(config))
-
-    def test_uncovered_sector_raises_naming_it(self, tmp_path: Path) -> None:
-        """Loading must fail at load time, naming the sector, not silently later."""
-        import shutil
-
-        from src.common.common_config import CommonConfig
-
-        for csv_file in (PROJECT_ROOT / 'input/natural_gas').glob('*.csv'):
-            shutil.copy(csv_file, tmp_path)
-        rows = (tmp_path / 'ng_demand_elasticity.csv').read_text().splitlines()
-        (tmp_path / 'ng_demand_elasticity.csv').write_text(
-            '\n'.join(r for r in rows if not r.startswith('transportation')) + '\n'
-        )
-
-        common_config, remainder = CommonConfig.from_toml(
-            PROJECT_ROOT / 'tests/natural_gas/basic_ng_config.toml'
-        )
-        ng_config = NGConfig(**remainder.pop('natural_gas'))
-        ng_config.input_path = tmp_path
-
-        with pytest.raises(ValueError, match=r"no entry for sector\(s\): \['transportation'\]"):
-            ng_data.load_all(ng_config, common_config)
 
 
 class TestDemandGrowthGating:

@@ -23,17 +23,6 @@ regions. Carried no provenance notes.
   the nearest 5 BCF. Only the sectoral totals were re-scaled to AEO2026; the cross-region
   distribution is still the NGA 2022 shape.
 
-## `ng_demand_elasticity.csv`
-
-- Own-price short-run demand elasticities by end-use sector (negative = demand falls when
-  price rises).
-- **Source:** EIA NEMS NGMM documentation; EIA STEO econometric estimates; Brown & Yucel 2008.
-- Consumed by `NGModel.update_demand_from_price()`, which applies
-  `demand = base x (price/reference)^elasticity` to add price-responsive demand behaviour,
-  matching NEMS NGMM's price-sensitive demand blocks. Intended to be driven once per
-  iteration by an integrator, but no such loop is wired up yet, so nothing calls the method
-  today.
-
 ## `ng_demand_growth.csv`
 
 - Annual NG demand growth by sector -- AEO2026 sectoral CAGR (Table 62).
@@ -162,12 +151,8 @@ regions. Carried no provenance notes.
 ## `ng_sector_data.csv`
 
 - The demand sectors, and the display label for each. **Required**, like the region file.
-- `name`: sector key, used in `ng_base_demand.csv`, `ng_demand_elasticity.csv` and
-  `ng_demand_growth.csv`.
+- `name`: sector key, used in `ng_base_demand.csv` and `ng_demand_growth.csv`.
 - `label`: display name used in reporting.
-- Every sector listed here must have an entry in `ng_demand_elasticity.csv`. `load_all` checks
-  this and raises naming any that do not, because a sector with no elasticity would read as
-  perfectly inelastic demand, which is a modelling statement rather than a default.
 
 ## `ng_storage.csv`
 

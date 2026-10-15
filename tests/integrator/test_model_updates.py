@@ -105,8 +105,6 @@ def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
     sequencer.solve_iteration()
     solver = sequencer._opt
     cells = [(str(r), int(y)) for r in model.region_analyze for y in model.year]
-    for region, year in cells:
-        model.declare_external(model.DEMAND, region, 'electric_power', year)
     burn = [1.3 * value(model.demand[r, 'electric_power', y]) for r, y in cells]
     package = NGElectricalDemandPackage(
         elements=pd.DataFrame(

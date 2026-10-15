@@ -142,10 +142,6 @@ class NGModel(ConcreteModel, IntegratedModel):
         model; replaces the ``'electric_power'`` sector demand for that region/year.
     """
 
-    #: Name of the demand quantity for ownership declarations. An integrator should use this
-    #: rather than repeat a string literal, so this model defines its own vocabulary.
-    DEMAND = 'demand'
-
     @property
     def label(self) -> str:
         """Display name."""
@@ -181,7 +177,6 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.region_labels = model_data['region_labels']
         lng_export_demand: dict[str, dict[int, float]] = model_data['lng_export']
         """Demand in BCF in region[year] format"""
-        self.demand_price_elasticity: dict[str, float] = model_data['demand_elasticity']
         # ── Pipeline Network ─────────────────────────────────────────────────────────
         pipeline_arcs_raw = model_data['pipeline_arcs']
 
@@ -274,7 +269,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # ── SETS ──────────────────────────────────────────────────────────────
         # Region subsetting. Every region-keyed Param below
         # is built from a rule function indexed off this Set, so subsetting here propagates
-        # automatically; only arcs, LNG regions, and _base_demand needed explicit filtering.
+        # automatically; only arcs and LNG regions needed explicit filtering.
         # Master region list and its two subsets, mirroring electricity_model.py. region_analyze
         # is the subset actually solved: ng_config.region_filter when given, all domestic
         # regions otherwise (see resolve_regions).
@@ -578,21 +573,6 @@ class NGModel(ConcreteModel, IntegratedModel):
             initialize=0.0,
             mutable=True,
         )
-
-        # ── Base demand snapshot for price-elasticity updates ──────────────────
-        # Stores the initial (no-price-adjustment) projected demand.
-        # update_demand_from_price() modifies self.demand relative to this base.
-        self._base_demand: dict[tuple[str, str, int], float] = {
-            (r, s, y): projected_demand.get((r, s, y), 0.0)
-            # Active regions only, so the elasticity update
-            # cannot reference a region this model does not carry.
-            for r in self.region_analyze
-            for s in self.sectors
-            for y in self.year
-        }
-        # Reference gas prices, set after first GS solve via set_reference_prices().
-        # Before being set, price-responsive demand has no effect (prices=reference).
-        self._ref_prices: dict[tuple[str, int], float] = {}
 
         # ── VARIABLES ─────────────────────────────────────────────────────────
         # Per-segment supply volume (NGMM SSTEP decision variable, Eq 8).
@@ -1049,203 +1029,25 @@ class NGModel(ConcreteModel, IntegratedModel):
 
     # ── Integration interface ─────────────────────────────────────────────────
     #
-    # The methods below, with declare_external from IntegratedModel, are the ENTIRE surface a
-    # Gauss-Seidel loop drives. They work because the Params they write (q0, p0, demand,
-    # canada_supply, q_lng / p_lng and the lng_surplus_* coefficients) were declared
-    # mutable=True during construction. Everything else is fixed once the model is built.
+    # The methods below are the ENTIRE surface a Gauss-Seidel loop drives. They work because the
+    # Params they write (q0, p0, demand, canada_supply, q_lng / p_lng and the lng_surplus_*
+    # coefficients) were declared mutable=True during construction. Everything else is fixed
+    # once the model is built.
     #
-    # Inbound: update_demand, update_demand_from_price, update_canada_supply,
-    # update_lng_export, update_supply_capacity, set_reference_prices, and set_external_demand
-    # for cells another model owns (see IntegratedModel.declare_external). The price response
-    # is also exposed as the pure calculate_demand_from_price and the exact set_internal_demand.
+    # Inbound: update_demand, update_canada_supply, update_lng_export, update_supply_capacity,
+    # and set_external_demand for demand another model supplies.
     # Outbound: poll_gas_price (the duals), poll_total_gas_demand
     #
     # No method here re-solves. The caller owns the loop and decides when to solve, so the
     # ordering of these calls is the caller's responsibility rather than something enforced
     # here.
 
-    @deprecated('not currently used.  leftover from alternate approach?')
-    def set_reference_prices(self, prices: dict[GI, float]) -> None:
-        """Store solved gas prices as the reference baseline for demand elasticities.
-
-        Call once after the first Gauss-Seidel solve so that subsequent calls
-        to ``update_demand_from_price()`` compute demand adjustments relative
-        to this equilibrium, not relative to an arbitrary initial price.
-
-        Parameters
-        ----------
-        prices : dict[GI, float]
-            Shadow prices from ``poll_gas_price()`` in $/MMBtu.
-        """
-        for gi, p in prices.items():
-            self._ref_prices[(gi.region, gi.year)] = p
-        logger.debug('C-NGMM: reference prices set for %d (region, year) pairs', len(prices))
-
-    @deprecated('not currently used.  leftover from alternate approach?')
-    def update_demand_from_price(
-        self,
-        solved_prices: dict[GI, float],
-        alpha: float = 1.0,
-    ) -> None:
-        """Adjust sector demands using own-price elasticities (NEMS NGMM demand blocks).
-
-        For each region, year, and sector:
-
-            demand_new = base_demand × (price / ref_price) ^ elasticity
-
-        where ``base_demand`` is the initial AEO-projected demand (stored at
-        construction) and ``ref_price`` is the reference shadow price set by
-        ``set_reference_prices()``.  Under-relaxation is applied when alpha < 1.
-
-        Returns without writing until ``set_reference_prices()`` has been called, and skips
-        region-years with no usable reference price. Cells declared external are left alone.
-
-        Parameters
-        ----------
-        solved_prices : dict[GI, float]
-            Current shadow prices from ``poll_gas_price()`` in $/MMBtu.
-        alpha : float
-            Under-relaxation factor (0 < alpha ≤ 1).
-
-        Raises
-        ------
-        ValueError
-            If the relaxed target holds a negative or non-finite value, for example from a NaN
-            price, or if ``alpha`` is outside (0, 1]. Nothing is written.
-        """
-        _check_alpha(alpha)
-        # SILENT NO-OP IF THE REFERENCE WAS NEVER SET. Deliberate, so the first iteration can run
-        # before any price exists, and kept here for standalone callers because
-        # calculate_demand_from_price raises instead. The cost: forgetting set_reference_prices()
-        # disables price-responsive demand for the whole run with no warning. If the non-electric
-        # sectors are not moving between iterations, check this first.
-        if not self._ref_prices:
-            return
-
-        target = self.calculate_demand_from_price(solved_prices)
-        if alpha < 1.0:
-            # Clamp after blending, as before, so a negative current value is floored at zero.
-            target = {
-                key: max(alpha * v + (1.0 - alpha) * value(self.demand[key]), 0.0)
-                for key, v in target.items()
-            }
-        n_updated = self.set_internal_demand(target)
-        logger.debug(
-            'C-NGMM.update_demand_from_price: updated %d demand entries (alpha=%.2f)',
-            n_updated,
-            alpha,
-        )
-
-    @deprecated('not currently used.  leftover from alternate approach?')
-    def calculate_demand_from_price(
-        self, solved_prices: dict[GI, float]
-    ) -> dict[tuple[str, str, int], float]:
-        """Return price-responsive demand for every internally owned cell, without writing it.
-
-        Cells another model owns are excluded here rather than filtered later, so a target never
-        contains one and relaxation can never blend into one. Region-years with no solved price
-        or no usable reference price are left out too, as are sectors with zero elasticity. A
-        NaN price propagates into the target, and ``set_internal_demand`` rejects it.
-
-        Parameters
-        ----------
-        solved_prices : dict[GI, float]
-            Shadow prices in $/MMBtu.
-
-        Returns
-        -------
-        dict[tuple[str, str, int], float]
-            ``(region, sector, year) -> BCF/yr`` for internally owned, price-responsive cells,
-            clamped at zero.
-
-        Raises
-        ------
-        RuntimeError
-            If reference prices were never set. ``update_demand_from_price`` keeps the old
-            silent no-op for standalone callers; a coupled driver should be told.
-        """
-        if not self._ref_prices:
-            raise RuntimeError(
-                'calculate_demand_from_price needs reference prices. Call '
-                'set_reference_prices() with solved prices before asking for a '
-                'price-responsive target.'
-            )
-
-        out: dict[tuple[str, str, int], float] = {}
-        for r in self.region_analyze:
-            for y in self.year:
-                price = solved_prices.get(GI(region=r, year=y))
-                if price is None:
-                    continue
-                ref_p = self._ref_prices.get((r, y))
-                if ref_p is None or ref_p < 1e-6:
-                    continue
-                price_ratio = max(price, 1e-6) / ref_p
-
-                for sector in self.sectors:
-                    elas = self.demand_price_elasticity[sector]
-                    if abs(elas) < 1e-9:
-                        continue
-                    if self.is_external(self.DEMAND, r, sector, y):
-                        continue
-                    base_d = self._base_demand.get((r, sector, y), 0.0)
-                    out[r, sector, y] = max(base_d * (price_ratio**elas), 0.0)
-        return out
-
-    @deprecated('not currently used.  leftover from alternate approach?')
-    def set_internal_demand(self, values: dict[tuple[str, str, int], float]) -> int:
-        """Write internally owned demand cells exactly as given. No relaxation.
-
-        A caller that relaxes has already done so. Blending again here would damp the signal
-        twice, so this method only writes.
-
-        Parameters
-        ----------
-        values : dict[tuple[str, str, int], float]
-            ``(region, sector, year) -> BCF/yr``.
-
-        Returns
-        -------
-        int
-            Number of cells written.
-
-        Raises
-        ------
-        ValueError
-            If any key is not a flat ``(region, sector, year)`` demand cell of this model or is
-            owned by another model, or any value is negative or non-finite. The whole batch is
-            checked before anything is written, so a rejected call leaves the model untouched.
-        """
-        unknown = [k for k in values if not self._is_demand_cell(k)]
-        if unknown:
-            raise ValueError(
-                f'set_internal_demand was given {len(unknown)} key(s) that are not flat '
-                f'(region, sector, year) demand cells of this model, first {unknown[0]}.'
-            )
-        owned = [k for k in values if self.is_external(self.DEMAND, *k)]
-        if owned:
-            raise ValueError(
-                f'set_internal_demand was given {len(owned)} externally owned cell(s), first '
-                f'{owned[0]}. Those belong to another model and are written through '
-                f'set_external_demand.'
-            )
-        bad = [(k, v) for k, v in values.items() if not isfinite(v) or v < 0.0]
-        if bad:
-            raise ValueError(
-                f'set_internal_demand was given {len(bad)} invalid value(s), first '
-                f'{bad[0][0]} = {bad[0][1]}. Demand must be finite and non-negative. This '
-                f'setter writes exactly what it is given, so it rejects rather than clamps.'
-            )
-        for key, v in values.items():
-            self.demand[key].set_value(v)
-        return len(values)
-
     def set_external_demand(
         self,
         values: dict[GI, float] | dict[tuple[str, int], float],
         sector: str = 'electric_power',
     ) -> int:
-        """Write externally supplied demand exactly as given. No relaxation.
+        """Write demand supplied by another model exactly as given. No relaxation.
 
         Parameters
         ----------
@@ -1262,31 +1064,24 @@ class NGModel(ConcreteModel, IntegratedModel):
         Raises
         ------
         ValueError
-            If any cell is not a demand cell of this model or was never declared external, or
-            any value is negative or non-finite. The whole batch is checked before anything is
-            written, so a rejected call leaves the model untouched.
+            If any cell is not a demand cell of this model, or any value is negative or
+            non-finite. The whole batch is checked before anything is written, so a rejected
+            call leaves the model untouched.
 
         Notes
         -----
-        Requiring a prior declaration is deliberate. The driver declares exactly the cells it
-        will supply, so a cell outside that set is a wiring error rather than something to
-        absorb quietly. For the same reason a caller must drop regions this model does not carry
-        before calling, since unlike ``update_demand`` this method does not skip them.
-        ``update_demand`` still accepts undeclared cells, for callers that supply demand
-        without taking ownership.
+        Any subset of the model's cells may be written; checking that a package covers every
+        cell is the update reader's job. Unlike ``update_demand``, this method does not skip
+        regions the model does not carry, so a caller must drop them first.
         """
-        # TODO:  rewrite the docstring above in light of removing the "external" characteristic
         problems = []
         for (region, year), qty in values.items():
-            # if not self._is_demand_cell((region, sector, year)):
-            #     problems.append(f'  {region} {year}: not a {sector} demand cell here')
-            # elif not self.is_external(self.DEMAND, region, sector, year):
-            #     problems.append(f'  {region} {year}: cell was never declared external')
-            if not isfinite(qty) or qty < 0.0:
+            if not self._is_demand_cell((region, sector, year)):
+                problems.append(f'  {region} {year}: not a {sector} demand cell here')
+            elif not isfinite(qty) or qty < 0.0:
                 problems.append(f'  {region} {year}: value {qty} is not finite and >= 0')
         if problems:
             raise ValueError(
-                # TODO:  rewrite this message in light of removing the "external" characteristic
                 f'set_external_demand rejected {len(problems)} of {len(values)} cell(s), '
                 f'nothing was written:\n' + '\n'.join(problems[:10])
             )
@@ -1295,13 +1090,12 @@ class NGModel(ConcreteModel, IntegratedModel):
             self.demand[region, sector, year].set_value(qty)
         return len(values)
 
-    @deprecated('Only here to help with lookups in registry, which is deprecated')
     def _is_demand_cell(self, key: object) -> bool:
         """Return whether ``key`` is a flat ``(region, sector, year)`` index of ``demand``.
 
         Pyomo flattens nested tuples on lookup, so ``(('r',), 's', y)`` reaches the same cell as
-        ``('r', 's', y)``, while the ownership registry matches exactly and would not see it as
-        owned. Only flat keys are accepted.
+        ``('r', 's', y)``. Only flat keys are accepted, so a malformed key is rejected rather than
+        written.
 
         Parameters
         ----------
@@ -1709,30 +1503,6 @@ class NGModel(ConcreteModel, IntegratedModel):
                 for y in self.year:
                     result[GI(region=r, year=y)] += value(self.demand[r, s, y])
         return dict(result)
-
-    @deprecated('reporting now does this w/o attaching to model')
-    def attach_results(self) -> None:
-        """Populate result DataFrames after an iterative solve.
-
-        Called by the integrator after convergence to make result tables
-        available for reporting without re-solving.  Equivalent to the
-        table-attachment step inside the standalone ``solve()`` function.
-        """
-        # Imported here rather than at module scope: postprocessor imports NGModel
-        # for type checking, so a top-level import would be circular.
-        from src.models.natural_gas.postprocessor import (
-            _extract_balance,
-            _extract_flows,
-            _extract_prices,
-            _extract_production,
-            _extract_storage,
-        )
-
-        self.results_production = _extract_production(self)
-        self.results_flows = _extract_flows(self)
-        self.results_prices = _extract_prices(self)
-        self.results_storage = _extract_storage(self)
-        self.results_balance = _extract_balance(self)
 
 
 def _check_alpha(alpha: float) -> None:

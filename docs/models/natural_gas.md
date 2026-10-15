@@ -53,7 +53,6 @@ entry per region-year than a variable indexed k.
 | λ_stor | `storage_loss[r]` | loss on storage withdrawal | fraction |
 | λ_dist | `distribution_loss[r]` | loss on residential/commercial delivery | fraction |
 | φ | `plant_fuel_frac[r]` | lease and plant fuel as a share of demand | fraction |
-| ε_s | `demand_price_elasticity[s]` | own-price demand elasticity by sector |, |
 | β | `bcf_to_mmbtu` | BCF -> MMBtu, `mmbtu_per_bcf` = 1.036e6 | MMBtu/BCF |
 
 #### Decision variables
@@ -290,7 +289,6 @@ the values a run solves on are always the values on disk. The two exceptions are
 | `ng_supply_anchors.csv` | region, year, q0_mult, p0_mult | year-varying path for Q0, P0 |
 | `ng_base_demand.csv` | region, sector, demand_bcf_2025 | base-year demand |
 | `ng_demand_growth.csv` | sector, annual_growth_rate | demand projection |
-| `ng_demand_elasticity.csv` | sector, own_price_elasticity | price-responsive demand |
 | `ng_pipeline_arcs.csv` | origin, destination, capacity_bcf, tariff_per_mmbtu | the arc network |
 | `ng_storage.csv` | region, working_cap_bcf, inject_cap_bcf_yr, withdraw_cap_bcf_yr | storage limits |
 | `ng_lng_export.csv` | region, year, demand_bcf | LNG export demand curve anchor |
@@ -467,7 +465,7 @@ model as it was when a call is rejected.
   `update_supply_capacity` also rejects non-finite capacities, and a negative one would otherwise
   be summed into Q0 alongside the positive ones. A zero total is accepted and sets Q0 = 0, the same
   as zero supply tiers at build.
-- **`update_demand`, `update_demand_from_price`, `update_supply_capacity`** — the
+- **`update_demand`, `update_supply_capacity`** — the
   under-relaxation factor `alpha` must lie in (0, 1]. Outside that range it extrapolates instead of
   blending.
 
@@ -494,14 +492,11 @@ for calibration.
 
 | Method | Direction | Purpose |
 |---|---|---|
-| `update_demand` | in | write sectoral demand without taking ownership of it |
-| `declare_external` | in | mark demand cells another model supplies, so the price response skips them |
-| `set_external_demand` | in | write supplied demand exactly, only to declared cells, e.g. electric-power gas burn |
+| `update_demand` | in | write sectoral demand, blended with the current value when `alpha` < 1 |
+| `set_external_demand` | in | write demand another model supplies exactly, e.g. electric-power gas burn |
 | `update_supply_capacity` | in | rebuild QBASE/PBASE from new Q0 |
 | `update_canada_supply` | in | set Canadian import volumes |
 | `update_lng_export` | in | reset LNG export capacity and/or world LNG price |
-| `set_reference_prices` | in | capture the reference for elastic demand |
-| `update_demand_from_price` | internal | apply own-price elasticities against that reference |
 | `poll_gas_price` | out | regional prices, the balance duals, $/MMBtu |
 | `poll_total_gas_demand` | out | total demand by region-year |
 

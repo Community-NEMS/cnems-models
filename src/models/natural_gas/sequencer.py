@@ -153,8 +153,8 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         Parameters
         ----------
         update_packages : Sequence[UpdatePackage]
-            Applied in order by :class:`NGModelUpdateReader`.  Supplied demand is written only to
-            cells declared external on the model.
+            Applied in order by :class:`NGModelUpdateReader`.  Supplied demand is written exactly,
+            through ``NGModel.set_external_demand``.
 
         Returns
         -------
@@ -327,15 +327,6 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
 
         self.model.solutions.load_from(results)
         logger.info('C-NGMM: solve complete, status %s', results.solver.termination_condition)
-
-        # ── attach result tables to the model for reporting ──────────────────────
-        # TODO:  Extraction below on hold till model running and then maybe refactor to not
-        #        "staple on" instance variables and do it cleaner
-        # m.results_production = postprocessor._extract_production(m)
-        # m.results_flows = postprocessor._extract_flows(m)
-        # m.results_prices = postprocessor._extract_prices(m)
-        # m.results_storage = postprocessor._extract_storage(m)
-        # m.results_balance = postprocessor._extract_balance(m)
 
         # A shortfall still solves, so it has to be said.  The status is PENALTY rather than
         # ERROR:  the price in a short region, the penalty within solver tolerance, is the signal

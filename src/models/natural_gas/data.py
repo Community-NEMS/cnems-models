@@ -255,23 +255,6 @@ def load_lng_export(
     return result
 
 
-def load_demand_elasticity(
-    data_dir: Path,
-) -> dict[str, float]:
-    """Load DEMAND_PRICE_ELASTICITY from ng_demand_elasticity.csv."""
-    df = _csv('ng_demand_elasticity.csv', data_dir)
-    if df is None:
-        raise ValueError(
-            f'ng_demand_elasticity.csv could not be read from {data_dir}; '
-            'this input has no fallback'
-        )
-    result = {str(row['sector']): float(row['own_price_elasticity']) for _, row in df.iterrows()}
-    if not result:
-        raise ValueError(f'ng_demand_elasticity.csv in {data_dir} yielded no rows')
-    logger.info('DEMAND_PRICE_ELASTICITY loaded from CSV')
-    return result
-
-
 def load_base_demand(
     data_dir: Path,
 ) -> dict[str, dict[str, float]]:
@@ -873,7 +856,6 @@ class NGData(TypedDict):
 
     # base_demand: dict[str, dict[str, float]]
     demand: dict[tuple[str, str, int], float]
-    demand_elasticity: dict[str, float]
     # demand_growth: dict[str, float]
     gathering: dict[str, float]
     lng_demand_curve: dict[str, list[float] | float]
@@ -916,8 +898,7 @@ def load_all(
     Raises
     ------
     ValueError
-        If a required input is missing or unparseable, or if a sector in ng_sector_data.csv has
-        no entry in ng_demand_elasticity.csv.
+        If a required input is missing or unparseable.
 
     Returns
     -------
@@ -938,19 +919,6 @@ def load_all(
         superseded=superseded,
     )
 
-    # Sectors and elasticities come from two separate files with no shared key, so a sector
-    # added to one and not the other would otherwise pass silently: ng_model reads the
-    # elasticity per sector, and an absent one reads as perfectly inelastic demand. That is a
-    # modelling statement, not a default, so it has to be made deliberately rather than by
-    # omission. Checked here because it is the only place both datasets are in scope.
-    demand_elasticity = load_demand_elasticity(data_path)
-    uncovered = [sector for sector in sectors if sector not in demand_elasticity]
-    if uncovered:
-        raise ValueError(
-            f'ng_demand_elasticity.csv in {data_path} has no entry for sector(s): {uncovered}. '
-            f'Every sector in ng_sector_data.csv needs one.'
-        )
-
     return {
         'regions': region_data['regions'],
         'regions_domestic': region_data['regions_domestic'],
@@ -964,7 +932,6 @@ def load_all(
         'supply_anchors': load_supply_anchors(data_path),
         'lng_import': load_lng_import(data_path),
         'lng_export': load_lng_export(data_path),
-        'demand_elasticity': demand_elasticity,
         'demand': demand,
         'pipeline_arcs': load_pipeline_arcs(data_path),
         'storage': load_storage(data_path),

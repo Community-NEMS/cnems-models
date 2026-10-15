@@ -50,7 +50,7 @@ through the model configuration.
 | $\Theta_{ramp23}$      | ramp_most_hours_balance_index                 | Sparse set | Set for ramping in non-first hour of each representative day |
 | $\Theta_{tra}$         | trade_interregional.index_set()               | Sparse set | Domestic interregional trade set                             |
 | $\Theta_{tracan}$      | international_trade_index                     | Sparse set | International trade set: (region, international region, supply step, year, hour) |
-| $\Theta_{traL^{int}}$  | trade_international_generation_ub.index_set() | Sparse set | International interregional trade limit set                  |
+| $\Theta_{traL^{int}}$  | trade_international_generation_ub.index_set() | Sparse set | International supply limit set: (international region, supply step, year, hour) |
 | $\Theta_{traLL}$       | tran_limit.keys()                             | Sparse set | Domestic interregional trade limit set                       |
 | $\Theta_{traLL^{int}}$ | trade_international_capacity_ub.index_set()   | Sparse set | International interregional trade line limit set             |
 
@@ -303,8 +303,10 @@ $$
 
 #### Balance Constraints
 
-Balance constraints exist for generation as well as energy storage. For demand, this means that generation must equal
-or exceed demand for electricity.
+Balance constraints exist for generation as well as energy storage. In each region and time segment, generation, plus
+storage discharge net of charging, plus unmet load, plus net imports when `regional_exchange` is true, must equal or
+exceed load (9). Imports arrive less the transmission loss $LL$. International regions only supply domestic regions,
+so the balance has no export term for them.
 
 For energy storage technologies, the balance constraints ensure that the storage level in the current time segment is
 equal to the storage level in the previous time-segment plus any storage charge and/or discharge (while also accounting
@@ -318,7 +320,7 @@ LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{GDB}_{r,y,h}}{\mathbf{GEN}_{r,t,s,y,h
 &+ \sum_{{t,s} \in \theta^{SDB}_{r,y,h}}{ (\mathbf{STOR^{out}}_{r,t,s,y,h} - \mathbf{STOR^{in}}_{r,t,s,y,h})} \\
 &+ \mathbf{UNLOAD}_{r,y,h} \\
 & (+ \sum_{r1 \in \theta^{TDB}_{r,y,h}}{\left (\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)} \quad \text{if regional exchange is on}) \\
-& (+ \sum_{r_{int},c \in \theta^{TCDB}_{r,y,h}}{ (\mathbf{TRA}^{int}_{r,r_{int},c,y,h} \times (1 - LL) - \mathbf{TRA}^{int}_{r_{int},r,c,y,h})} \quad \text{if regional exchange is on}) \\
+& (+ \sum_{(r^{int},c) \in \theta^{TCDB}_{r,y,h}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h} \times (1 - LL)} \quad \text{if regional exchange is on}) \\
 &\forall {r,y,h} \in \Theta_{load} \qquad (9)
 \end{aligned}
 $$
@@ -345,17 +347,19 @@ $$
 
 #### Generation Upper Bounds
 
-Generation upper bound constraints limit generation from generating technologies, accounting for reserve requirements,
-operating capacity, and capacity factors where:
+Generation upper bound constraints limit generation, plus any operating reserves held, to what the capacity can deliver
+over the time segment:
 
-$$ \text{Generation} + \text{Reserve procurement} \le \text{Capacity} \times \text{Capacity factor} $$
+$$ \text{Generation} + \text{Reserves} \le \text{Capacity} \times \text{Availability} \times HW_h $$
 
-This is the same constraint for dispatchable, hydroelectric, and intermittent technologies. For intermittent
-technologies, the capacity factors are exogenously specified in the input data. In addition, hydroelectric generation
-has an additional seasonal constraint, where hydroelectric capacity is seasonally limited based on assumed availability
-of water resources seasonally, as specified in the input data. Storage upper bound constraints need to account for the
-upper bounds on both the charge and discharge of the technology, as well as the operating level in any given time
-segment.
+Dispatchable technologies (13) have no availability factor: they can run at full capacity in every time segment, with no
+outage or maintenance derate. Regular hydro (14) uses the seasonal hydro capacity factor, and intermittent technologies
+(15) use their hourly capacity factors, both from the input data. Seasonal hydro instead has a seasonal energy budget
+(12), set by the same seasonal factor. Both hydro technologies are also in the dispatchable set, so (13) applies to them
+as well. Reserves enter these bounds only when `spinning_reserve_required` is true, and only for the reserve types a
+technology can supply ($RTUB_{rt,t} > 0$). Storage holds reserves on the discharge side only (17). Charging (16) and
+discharging plus reserves (17) are each limited by power capacity, and the stored energy (18) by power capacity times
+duration.
 
 Hydroelectric generation seasonal upper bound:
 
@@ -371,7 +375,7 @@ Dispatchable technology generation upper bound:
 $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+& (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{dt^{max}} \qquad (13)
 \end{aligned}
@@ -382,7 +386,7 @@ Hydroelectric technology generation upper bound:
 $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+& (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{ht^{max}} \qquad (14)
 \end{aligned}
@@ -393,7 +397,7 @@ Intermittent technology upper bound:
 $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+& (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times ICF_{r,t,s,y,h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{it^{max}} \qquad (15)
 \end{aligned}
@@ -413,7 +417,7 @@ Storage technology outflow upper bound:
 $$
 \begin{aligned}
 &\mathbf{STOR^{out}}_{r,t,s,y,h} \\
-& (+\sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+& (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (17)
 \end{aligned}
@@ -430,17 +434,23 @@ $$
 
 #### Capacity Expansion
 
-The model can build new generating technologies each year (when the expansion switch is turned on). The expansion
-constraint ensures that operating capacity is based on the capacity in the previous year, plus any additions and minus
-any retirements. The retirement constraint ensures that retirements never exceed the capacity available on the system.
+With `capacity_expansion` true, the model can build and retire capacity in each solved year. Total capacity in year $y$
+(19) is the existing capacity $CAP^{exist}$ given for year $y$, plus all builds in solved years up to and including $y$,
+minus all retirements in solved years up to and including $y$. A change placed in year $y$ therefore counts for the whole
+of year $y$; with year aggregation it also counts for every calendar year that $y$ stands for, and $CAP^{exist}$ is then
+the average over those years. Builds are possible only for the technology and step pairs marked buildable in
+`tech_build.csv`, and retirements only for those marked retirable in `tech_retire.csv`. The retirement bound (20) limits
+retirements in year $y$ to the existing capacity of year $y$, plus builds in earlier solved years, minus retirements in
+earlier solved years. With `capacity_expansion` false, (19) fixes total capacity at $CAP^{exist}$. The input data does
+not record whether $CAP^{exist}$ describes the start or the end of a year.
 
 Total capacity balance:
 
 $$
 \begin{aligned}
 \mathbf{CAP^{tot}}_{r,t,s,y} = &CAP^{exist}_{r,t,s,y} \\
-& (+ \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{new}}_{r,t,s,y'}} \quad \text{if capacity expansion is on}) \\
-& (- \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \quad \text{if capacity expansion is on}) \\
+& (+ \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{new}}_{r,t,s,y'}} \quad \text{if capacity expansion is on and } (t,s) \text{ is buildable}) \\
+& (- \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \quad \text{if capacity expansion is on and } (t,s) \text{ is retirable}) \\
 &\forall {r,t,s,y} \in \Theta_{SC} \qquad (19)
 \end{aligned}
 $$
@@ -449,7 +459,9 @@ Capacity retirement upper bound:
 
 $$
 \begin{aligned}
-\mathbf{CAP^{ret}}_{r,t,s,y} \leq &CAP^{exist}_{r,t,s,y} + \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{new}}_{r,t,s,y'}} - \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \\
+\mathbf{CAP^{ret}}_{r,t,s,y} \leq &CAP^{exist}_{r,t,s,y} \\
+& (+ \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{new}}_{r,t,s,y'}} \quad \text{if } (t,s) \text{ is buildable}) \\
+&- \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \\
 &\forall {r,t,s,y} \in \Theta_{ret} \\
 &\quad \text{if capacity expansion is on} \qquad (20)
 \end{aligned}
@@ -458,14 +470,15 @@ $$
 #### Trade
 
 Electricity trade constraints ensure that trade within any given time segment cannot exceed the capabilities of the
-transmission lines between the regions trading. In addition, there are supply quantity/price constraints for
-international trade, where supply from international regions cannot exceed the availability from the region.
+transmission lines between the regions trading. In addition, imports from an international region cannot exceed what
+the region offers at each supply step. The line and supply limits are read by season and apply to every representative
+hour of the season.
 
 International interregional trade line capacity upper bound:
 
 $$
 \begin{aligned}
-\sum_{c}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALINLIM^{int}_{r,r^{int},y,h} * HW_h \\
+\sum_{c | (r,r^{int},c,y,h) \in \Theta_{tracan}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALINLIM^{int}_{r,r^{int},y,h} \times HW_h \\
 &\forall {r,r^{int},y,h} \in \Theta_{traLL^{int}} \\
 &\quad \text{if regional exchange is on} \qquad (21)
 \end{aligned}
@@ -475,8 +488,8 @@ International interregional trade resource capacity upper bound:
 
 $$
 \begin{aligned}
-\sum_{r}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALIM^{int}_{r^{int},c,y,h} * HW_h \\
-&\forall {r,r^{int},y,h} \in \Theta_{traL^{int}} \\
+\sum_{r | (r,r^{int},c,y,h) \in \Theta_{tracan}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALIM^{int}_{r^{int},c,y,h} \times HW_h \\
+&\forall {r^{int},c,y,h} \in \Theta_{traL^{int}} \\
 &\quad \text{if regional exchange is on} \qquad (22)
 \end{aligned}
 $$
@@ -485,7 +498,7 @@ Domestic interregional trade line capacity upper bound:
 
 $$
 \begin{aligned}
-\mathbf{TRA}_{r,r1,y,h} \leq &TRALINLIM_{r,r1,y,h} * HW_h \\
+\mathbf{TRA}_{r,r1,y,h} \leq &TRALINLIM_{r,r1,y,h} \times HW_h \\
 &\forall {r,r1,y,h} \in \Theta_{traLL} \\
 &\quad \text{if regional exchange is on} \qquad (23)
 \end{aligned}
@@ -493,17 +506,20 @@ $$
 
 #### Reserve Margin
 
-Reserve margin constraints ensure that there is additional quantity of capacity available beyond load requirements in
-each time segment. Available capacity that can contribute to the reserve margin is also potentially decremented based on
-capacity credit assumptions. Storage technologies have additional reserve margin constraints that account for both the power
-capacity and the energy capacity availability towards contributing to reserve margin requirements.
+Reserve margin constraints ensure that, in each time segment, the capacity available exceeds load by the region's
+planning reserve margin $RM_r$. They exist only when `reserve_margin_required` is true, which requires
+`capacity_expansion`. Each technology counts at its capacity credit $CC$: the hourly capacity factor for intermittent
+technologies, the seasonal hydro capacity factor for hydro, and 1 for all other technologies, storage included. Storage
+counts through $STOR^{avail}$ rather than its capacity. (25) caps $STOR^{avail}$ at the power capacity, and (26) at the
+stored energy. (26) compares MW with MWh, as if the stored energy had to sustain $STOR^{avail}$ for one hour only,
+although (24) counts it over the $HW_h$ hours of the time segment.
 
 Reserve margin requirement constraint:
 
 $$
 \begin{aligned}
-LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \\
-&\sum_{{t,s} \in \theta^{scrm}_{r,y}}{CC_{r,t,s,y,h} \times (\mathbf{STOR^{avail}}_{r,t,s,y,h} + \mathbf{CAP^{tot}_{r,t,s,y}})} \\
+LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \notin T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \in T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{STOR^{avail}}_{r,t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if the reserve margin is on} \qquad (24)
 \end{aligned}
@@ -531,8 +547,20 @@ $$
 
 #### Ramping
 
-Ramping constraints ensure that generating technologies are limited in the rate in which they can increase or decrease
-their generation from one time segment to the next. Ramping capabilities are balanced within each day.
+Ramping constraints limit how much generation can change from one representative hour to the next. Each representative
+day is a cycle, so its first hour ramps from its last (27). The constraints exist only when `ramping_required` is true,
+and they apply to the conventional technologies ($T^{conv}$, `is_conventional` in `tech.csv`) at every supply step. With
+the shipped data (`ramp_rate.csv`, `ramp_up_cost.csv`, `ramp_down_cost.csv`):
+
+| Technology         | Code | $RR_t$ | Ramp up cost (USD/MWh) | Ramp down cost (USD/MWh) |
+|:-------------------|:-----|:------:|:----------------------:|:------------------------:|
+| Coal Steam         | 1    | 0.25   | 0.01                   | 0.01                     |
+| Oil Steam          | 2    | 0.40   | 0.01                   | 0.01                     |
+| Gas Turbine        | 3    | 0.40   | 0.01                   | 0.01                     |
+| Gas Combined Cycle | 4    | 0.45   | 0.01                   | 0.01                     |
+| Nuclear            | 6    | 0.25   | 0.01                   | 0.01                     |
+
+Other technologies have no ramping limit, including hydro, storage, the other renewables and the hydrogen turbine.
 
 First hour ramping balance constraint:
 
@@ -576,16 +604,53 @@ $$
 
 #### Operating Reserves
 
-The model allows for three different types of operating reserves to be represented within the model, either spinning
-reserves, regulation reserves, or flexibility reserve requirements. These operating reserves reflect the need for
-additional capacity to be held in reserve to meet short-term needs for generation from unexpected changes in
-things like electricity demand or variable renewable generation output.
+Operating reserves are capacity held back in each time segment to meet short-term needs from unexpected changes in
+demand or in variable renewable output. When `spinning_reserve_required` is true, the model requires all three reserve
+products together: spinning, regulation and flexibility (31 to 33).
+
+The requirement coefficients match the operating reserve requirements of the ReEDS model: spinning reserves of 3 percent
+of load; regulation reserves of 1 percent of load plus 0.5 percent of wind generation plus 0.3 percent of solar
+capacity; and flexibility reserves of 10 percent of wind generation plus 4 percent of solar capacity (Sergi and Cole,
+[Operating Reserves in ReEDS](https://docs.nlr.gov/docs/fy22osti/81706.pdf), NREL 2021, slide 3; Cole et al.,
+[Operating Reserves in Long-term Planning Models](https://docs.nlr.gov/docs/fy18osti/71148.pdf), NREL 2018, slide 10).
+ReEDS applies the solar terms during the day only, while this model applies them in every representative hour, night
+included. The solar terms are multiplied by $HW_h$ so that, like the load and wind terms, they are energy over the time
+segment.
+
+Which technologies can supply each reserve type, and how much, is set by $RTUB_{rt,t}$ in `reserve_tech_limit.csv`: the
+fraction of a technology's capacity, times $HW_h$, that it may hold as that reserve (34). A technology with a limit of 0
+gets no reserve variable of that type. Reserves and generation share the same capacity, in (13), (14), (15) and (17).
+With the shipped data, every supply step of these technologies is eligible:
+
+| Technology         | Code        | Spinning | Regulation | Flex |
+|:-------------------|:------------|:--------:|:----------:|:----:|
+| Coal Steam         | 1           | 0.40     | 0.20       | 1.00 |
+| Oil Steam          | 2           | 0.40     | 0.20       | 1.00 |
+| Gas Turbine        | 3           | 0.80     | 0.40       | 1.00 |
+| Gas Combined Cycle | 4           | 0.50     | 0.25       | 1.00 |
+| Biomass            | 7           | 0.40     | 0.20       | 1.00 |
+| Geothermal         | 8           | 0.40     | 0.20       | 1.00 |
+| Municipal Waste    | 9           | 0.40     | 0.20       | 1.00 |
+| Seasonal Hydro     | 10_seasonal | 1.00     | 1.00       | 1.00 |
+| Regular Hydro      | 10_regular  | 1.00     | 1.00       | 1.00 |
+| Pumped Hydro       | 11          | 1.00     | 1.00       | 1.00 |
+| Battery Storage    | 12          | 1.00     | 1.00       | 1.00 |
+
+The hydrogen turbine (5), nuclear (6), offshore and onshore wind (13, 14) and utility and end-use solar (15_utility,
+15_end_use) have a limit of 0 for all three types and supply no reserves.
+
+These limits match the ReEDS rule, which multiplies a technology's ramp rate, in percent of capacity per minute, by each
+product's response time (10 minutes for spinning, 5 for regulation, 60 for flexibility), capped at 100 percent. The ramp
+rates are those in Cole et al. (2018), slide 10: 8 for gas turbines, 5 for combined cycle, 4 for coal, oil and gas
+steam, geothermal and biopower, and 100 for hydro. Storage qualifies on that slide but has no listed ramp rate, and
+municipal waste is not listed; here storage has the limits of hydro, and municipal waste those of biomass. Sergi and
+Cole (2021), slide 5, use 2 percent per minute for coal, which would give 0.20 for spinning and 0.10 for regulation.
 
 Spinning reserve requirement constraint. 3\% of load required:
 
 $$
 \begin{aligned}
-0.03 \times LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{opres}_{r,1,y,h}}{\mathbf{ORP}_{r,1,t,s,y,h}} \\
+0.03 \times LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{spinning},y,h}}{\mathbf{ORP}_{r,\mathrm{spinning},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (31)
 \end{aligned}
@@ -598,7 +663,7 @@ $$
 &0.01 \times LOAD_{r,y,h} \\
 {+} &0.005 \times \sum_{{t^w,s} \in \theta^{windor}_{r,y,h}}{\mathbf{GEN}_{r,t^w,s,y,h}} \\
 {+} &0.003 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
-\leq &\sum_{{t,s} \in \theta^{opres}_{r,2,y,h}}{\mathbf{ORP}_{r,2,t,s,y,h}} \\
+\leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{regulation},y,h}}{\mathbf{ORP}_{r,\mathrm{regulation},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (32)
 \end{aligned}
@@ -610,11 +675,15 @@ $$
 \begin{aligned}
 &0.1 \times \sum_{{t^w,s} \in \theta^{windor}_{r,y,h}}{\mathbf{GEN}_{r,t^w,s,y,h}} \\
 {+} &0.04 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
-\leq &\sum_{{t,s} \in \theta^{opres}_{r,3,y,h}}{\mathbf{ORP}_{r,3,t,s,y,h}} \\
+\leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{flex},y,h}}{\mathbf{ORP}_{r,\mathrm{flex},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (33)
 \end{aligned}
 $$
+
+The code currently fills $\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ only from technologies with a reserve
+limit above 0, and the shipped data gives wind and solar a limit of 0 for every type. Both sets are therefore empty, so
+the regulation requirement is 1 percent of load and the flexibility requirement is zero (issue #67).
 
 Operating reserve procurement upper bound:
 
@@ -625,6 +694,8 @@ $$
 &\quad \text{if operating reserves are on} \qquad (34)
 \end{aligned}
 $$
+
+Storage reserves use discharge headroom (17) but are not limited by the state of charge.
 
 ## Data Validation
 

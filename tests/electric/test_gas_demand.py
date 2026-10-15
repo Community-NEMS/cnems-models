@@ -20,14 +20,19 @@ from src.common.models_modes import ModelType
 from src.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
+    ExchangeSpec,
     NGElectricalDemandPackage,
 )
-from src.integrator.region_crosswalk import load_region_weights
 from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH, NG_PRICE_LINKED_TECHS
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.electricity.update_writer import gas_demand_by_region, ng_mmbtu_per_bcf
+
+# the gas-burn exchange alone, with the electricity <-> natural gas crosswalk
+DEMAND_EXCHANGE = ExchangeSpec.build(
+    ['NGElectricalDemandPackage'], {ModelType.ELECTRICITY, ModelType.NATURAL_GAS}
+)
 
 
 def independent_gas_demand(model: PowerModel) -> pd.Series:
@@ -62,11 +67,15 @@ def test_gas_demand_matches_independent_sum(
 
     assert list(got.index.names) == NG_ELEC_DEMAND_INDEX
     assert got.name == NG_ELEC_DEMAND_VALUE
-    assert got.index.equals(expected.index)
-    assert got.to_numpy() == pytest.approx(expected.to_numpy())
+    # every region the model carries, in every year, with zero where it burns no gas
+    grid = pd.MultiIndex.from_product(
+        [sorted(elec_config.region_filter), sorted(common_config.summary_years)],
+        names=NG_ELEC_DEMAND_INDEX,
+    )
+    assert got.index.equals(grid)
+    expected.index = expected.index.set_levels(expected.index.levels[0].astype(str), level=0)
+    assert got.to_numpy() == pytest.approx(expected.reindex(grid, fill_value=0.0).to_numpy())
     assert (got >= 0).all()
-    assert set(got.index.get_level_values('year')) == set(common_config.summary_years)
-    assert set(got.index.get_level_values('region')) <= set(elec_config.region_filter)
 
 
 class TestOutboundDemandPackage:
@@ -75,30 +84,24 @@ class TestOutboundDemandPackage:
     def test_full_run_emits_crosswalked_demand(
         self, config_set: tuple[CommonConfig, ElecConfig]
     ) -> None:
-        """One package, allocated onto gas regions with the burn total conserved."""
+        """One package, allocated onto gas regions with the burn total conserved.
+
+        Electricity region 7 and New England cover each other exactly, so the region is closed
+        under the crosswalk.
+        """
         common_config, elec_config = config_set
-        sequencer = ElectricitySequencer()
+        elec_config = elec_config.model_copy(update={'region_filter': ['7']})
+        sequencer = ElectricitySequencer(DEMAND_EXCHANGE)
         result = sequencer.full_run(common_config, elec_config)
 
         assert result.status is IterationStatus.BEST
-        # select by type:  the outbound list may carry other package kinds in future
-        demand_packages = [
-            p for p in result.update_packages if isinstance(p, NGElectricalDemandPackage)
-        ]
-        assert len(demand_packages) == 1, result.update_packages
-        package = demand_packages[0]
+        assert [type(p) for p in result.update_packages] == [NGElectricalDemandPackage]
+        package = result.update_packages[0]
         assert package.source is ModelType.ELECTRICITY
         assert package.receivers == (ModelType.NATURAL_GAS,)
         sent = package.elements[NG_ELEC_DEMAND_VALUE]
         assert list(sent.index.names) == NG_ELEC_DEMAND_INDEX
-
-        # the gas regions the run's electricity regions touch, and no others
-        weights = load_region_weights(ModelType.ELECTRICITY, ModelType.NATURAL_GAS)
-
-        # locate the NG regions linked to the electrical regions used in the filter
-        # and check that they all receive data
-        linked = set(weights[weights['elec_region'].isin(elec_config.region_filter)]['ng_region'])
-        assert set(sent.index.get_level_values('region')) == linked
+        assert set(sent.index.get_level_values('region')) == {'new_england'}
 
         # allocation conserves the annual total
         polled = gas_demand_by_region(sequencer.model)
@@ -106,6 +109,20 @@ class TestOutboundDemandPackage:
             assert sent.xs(year, level='year').sum() == pytest.approx(
                 polled.xs(year, level='year').sum(), abs=1e-6
             )
+
+    def test_unclosed_regions_raise(self, config_set: tuple[CommonConfig, ElecConfig]) -> None:
+        """Regions 7, 8 and 9 reach gas regions that also draw on regions the run lacks."""
+        common_config, elec_config = config_set
+        with pytest.raises(ValueError, match='not closed'):
+            ElectricitySequencer(DEMAND_EXCHANGE).full_run(common_config, elec_config)
+
+    def test_standalone_sends_nothing(self, config_set: tuple[CommonConfig, ElecConfig]) -> None:
+        """Without exchanges, as in a standalone run, the writer builds no package."""
+        common_config, elec_config = config_set
+        result = ElectricitySequencer().full_run(common_config, elec_config)
+
+        assert result.status is IterationStatus.BEST
+        assert result.update_packages == []
 
     def test_no_package_on_solve_error(
         self, config_set: tuple[CommonConfig, ElecConfig], monkeypatch: pytest.MonkeyPatch
@@ -117,7 +134,7 @@ class TestOutboundDemandPackage:
             'solve_model',
             lambda self, **kwargs: (ModelType.ELECTRICITY, IterationStatus.ERROR),
         )
-        result = ElectricitySequencer().full_run(common_config, elec_config)
+        result = ElectricitySequencer(DEMAND_EXCHANGE).full_run(common_config, elec_config)
 
         assert result.status is IterationStatus.ERROR
         assert result.update_packages == []

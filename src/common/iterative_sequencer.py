@@ -14,6 +14,7 @@ solution
 import logging
 import tomllib
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from pydantic import BaseModel, ConfigDict
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model_sequencer import IterationResult
 from src.common.models_modes import ModelType
+from src.common.update_package import ExchangeSpec
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +51,20 @@ class RunStatus(Enum):
 
 
 class IterativeSequencerConfig(BaseModel):
-    """A clear label for iterative sequencer configurations.
+    """Settings every iterative sequencer shares.
 
     Unknown keys are rejected, so a mistyped setting in the TOML fails rather than being ignored.
+
+    Attributes
+    ----------
+    exchanges : list of str
+        The standard update package exchanges, by package class name (``PACKAGE_TYPES``).  A run
+        carries those whose sender and receivers it selects; see :meth:`ExchangeSpec.build`.
     """
 
     model_config = ConfigDict(extra='forbid')
+
+    exchanges: list[str]
 
 
 class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
@@ -130,10 +140,8 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
     ) -> dict[ModelType, ModelConfig]:
         """Build the config of each model selected by ``common_config.models_to_run``.
 
-        Implementations also warn about config combinations that may give odd integrated
-        results (e.g. region filters that leave a partner model partly uncovered).  The model
-        configs live with the models, outside ``src.common``, which is why this is left to the
-        implementation.
+        The model configs live with the models, outside ``src.common``, which is why this is left
+        to the implementation.
 
         Parameters
         ----------
@@ -148,6 +156,21 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
             One config per selected model.
         """
         ...
+
+    def _build_exchange(self, models: Collection[ModelType]) -> ExchangeSpec:
+        """Build the run's exchanges from :attr:`config` for the selected models.
+
+        Parameters
+        ----------
+        models : Collection of ModelType
+            The models the run selected.
+
+        Returns
+        -------
+        ExchangeSpec
+            See :meth:`ExchangeSpec.build`.
+        """
+        return ExchangeSpec.build(self.config.exchanges, models)
 
     @abstractmethod
     def run(

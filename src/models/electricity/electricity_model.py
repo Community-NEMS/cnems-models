@@ -46,6 +46,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         """Display name."""
         return 'Electricity'
 
+    @property
+    def regions(self) -> frozenset[str]:
+        """The regions this model solves (``region_analyze``), as ``str`` ids."""
+        return frozenset(str(r) for r in self.region_analyze)
+
     def __init__(
         self,
         model_sets: ModelSets,
@@ -379,6 +384,25 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             within=pyo.NonNegativeReals,
         )
 
+        # Gas fuel-cost adjustment, written by the natural gas coupling between solves and added
+        # to generation_cost in dispatch_cost, so it is indexed over the same sets. It is a delta
+        # against a reference gas price, not a price level, which keeps the fuel cost already in
+        # generation_cost. Zero by default, so an uncoupled run is unaffected.
+        #
+        # within=Reals is load-bearing: the delta is negative whenever gas is below its
+        # reference, and Pyomo raises ValueError on a negative write into NonNegativeReals.
+        # mutable=True lets the coupling rewrite it without a rebuild. Units are $/MWh, matching
+        # generation_cost.
+        self.ng_fuel_adj = pyo.Param(
+            self.region_analyze,
+            self.tech_step,
+            self.year,
+            self.season,
+            initialize=0.0,
+            within=pyo.Reals,
+            mutable=True,
+        )
+
         # dev note: We do not supply a built index set here, so we should iterate over the
         #           param keys where needed
         self.available_capacity = pyo.Param(
@@ -656,7 +680,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 * (
                     sum(
                         self.weight_year[y]
-                        * self.generation_cost[r, tech, step, y, season]
+                        * (
+                            self.generation_cost[r, tech, step, y, season]
+                            + self.ng_fuel_adj[r, tech, step, y, season]
+                        )
                         * self.generation_total[r, tech, step, y, hr]
                         for (r, tech, step, y) in self.generation_hour_index[hr]
                     )

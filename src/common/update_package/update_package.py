@@ -17,22 +17,46 @@ Dev Notes:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import ClassVar
 from uuid import UUID, uuid4
 
 import pandas as pd
 
 from src.common.models_modes import ModelType
 
+# Every concrete package type by class name:  the names the iterative configs' ``exchanges`` use.
+# Each class below adds itself with @register_package; a new package type must do the same.
+PACKAGE_TYPES: dict[str, type[UpdatePackage]] = {}
+
+
+def register_package[T: type[UpdatePackage]](cls: T) -> T:
+    """Class decorator adding a concrete package type to ``PACKAGE_TYPES`` under its class name.
+
+    Raises
+    ------
+    ValueError
+        If another type is already registered under the same name.
+    """
+    name = cls.__name__
+    if name in PACKAGE_TYPES and PACKAGE_TYPES[name] is not cls:
+        raise ValueError(f'An update package type named {name!r} is already registered')
+    PACKAGE_TYPES[name] = cls
+    # a class decorator must return the class; this one is returned unchanged
+    return cls
+
 
 @dataclass(frozen=True, kw_only=True)
 class UpdatePackage(ABC):
     """Base class for a serializable payload handed from one model to another.
 
-    Subclasses carry the actual update data and declare their own ``receivers``.  Frozen so a
-    package can be shared across processes without a recipient mutating it.
+    Subclasses carry the actual update data and declare their own ``receivers`` and ``sender``.
+    Frozen so a package can be shared across processes without a recipient mutating it.
 
     Attributes
     ----------
+    sender : ModelType
+        Class attribute:  the model whose writer produces this package type.  Used to decide which
+        exchanges a run can carry (see ``ExchangeSpec``).
     update_id : UUID
         Unique identifier for this package.
     timestamp : datetime
@@ -42,6 +66,8 @@ class UpdatePackage(ABC):
     version : int
         Payload schema version, to let handlers reject packages they predate.
     """
+
+    sender: ClassVar[ModelType]
 
     update_id: UUID = field(default_factory=uuid4)
     timestamp: datetime = field(default_factory=datetime.now)
@@ -68,6 +94,7 @@ class UpdatePackage(ABC):
 
 
 # Dev Note:  This will move later after some experimentation
+@register_package
 @dataclass(frozen=True)
 class ElectricityPriceScaler(UpdatePackage):
     """Multiply the electricity model's supply prices for a set of techs by a scalar.
@@ -89,6 +116,7 @@ class ElectricityPriceScaler(UpdatePackage):
         ``generation_cost`` param is declared ``within=NonNegativeReals``.
     """
 
+    sender: ClassVar[ModelType] = ModelType.MAGIC
     techs: tuple[str, ...]
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
     scalar: float = 1.0
@@ -117,6 +145,7 @@ class ElectricityPriceScaler(UpdatePackage):
 my_update_package = ElectricityPriceScaler(techs=('4', '6'), scalar=1.5)  # multiply by 1.5
 
 
+@register_package
 @dataclass(frozen=True)
 class NGDemandScaler(UpdatePackage):
     """Multiply the natural gas model's demand values by a scalar.
@@ -136,6 +165,7 @@ class NGDemandScaler(UpdatePackage):
         non-positive demand inverts the demand-balance constraints.
     """
 
+    sender: ClassVar[ModelType] = ModelType.MAGIC
     receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
     scalar: float = 1.0
     label: str = 'NG Demand Scaler'
@@ -202,6 +232,7 @@ NG_PRICE_INDEX = REGION_YEAR_INDEX
 NG_PRICE_VALUE = 'price'
 
 
+@register_package
 @dataclass(frozen=True)
 class NGPricePackage(UpdatePackage):
     """Solved natural gas prices, already crosswalked to electricity regions.
@@ -219,6 +250,7 @@ class NGPricePackage(UpdatePackage):
         Fixed to the electricity model.
     """
 
+    sender: ClassVar[ModelType] = ModelType.NATURAL_GAS
     elements: pd.DataFrame
     receivers: tuple[ModelType, ...] = (ModelType.ELECTRICITY,)
     label: str = 'NG Prices'
@@ -247,6 +279,7 @@ NG_ELEC_DEMAND_INDEX = REGION_YEAR_INDEX
 NG_ELEC_DEMAND_VALUE = 'demand_bcf'
 
 
+@register_package
 @dataclass(frozen=True)
 class NGElectricalDemandPackage(UpdatePackage):
     """Gas burned by the electricity model's generators, already crosswalked to gas regions.
@@ -266,6 +299,7 @@ class NGElectricalDemandPackage(UpdatePackage):
         Fixed to the natural gas model.
     """
 
+    sender: ClassVar[ModelType] = ModelType.ELECTRICITY
     elements: pd.DataFrame
     receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
     label: str = 'NG Demand'

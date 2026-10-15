@@ -2,10 +2,10 @@
 
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
-electricity model, electricity-sector gas burn in the natural gas model, and so on. The only
-integrated driver today is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
-subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`). It runs
-through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
+electricity model, electricity-sector gas burn in the natural gas model, and so on. The main
+integrated driver is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
+subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`); an
+experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
@@ -31,6 +31,44 @@ created. Every key is required, and an unknown key is an error:
 | `convergence_iterations` | How many consecutive stable iterations end the run                         |
 | `worker_processes`       | Size of the worker pool the models solve in                                |
 | `monitor_delta_mode`     | How the monitor shows objective changes: `absolute`/`percent`              |
+| `exchanges`              | The update packages the models exchange, by package class name             |
+
+### Exchanges and Region Crosswalks
+
+`exchanges` is the standard set of update packages a run may carry, named by class
+(`PACKAGE_TYPES` in `src/common/update_package/update_package.py`). At the start of a run,
+`ExchangeSpec.build` keeps each package whose sender and receivers are all selected. The rest
+are left out, and one warning names them. It also loads the region crosswalks between the
+selected models (`CrosswalkSet` in `src/integrator/region_crosswalk.py`), checking each pair's
+two files once: weights finite, non-negative and summing to 1 per source region, and the same
+links both ways.
+
+The spec is handed to each model's sequencer: in the `IterationCall` for Jacobi workers, at
+construction for Gauss-Seidel. Each writer builds only its model's share of the exchanges, so a
+standalone run, or a model with nothing to send, writes nothing.
+
+Region filters are allowed only when the filtered regions are closed under the crosswalk: every
+region one model reaches must draw solely on regions the other model carries. For example,
+electricity region `7` with gas region `new_england` is closed. A partial pairing fails on the
+first exchange.
+
+#### Region Coverage Rules
+
+Any data that crosses between two models' regions follows these rules. Rules 1 and 2 are checked
+once per run, when the crosswalk is built. Rules 3 to 5 are checked on every exchange, against the
+built models. Each model checks only its own side, so no step needs to know both models' regions.
+
+| # | Rule | Checked in | Builders' obligation |
+|:--|:-----|:-----------|:---------------------|
+| 1 | Each file's weights are finite and ≥ 0, and each source region's weights sum to 1 | `RegionCrosswalk` construction | Crosswalk files: supply one file per direction, each normalized over its own source regions |
+| 2 | The two files name the same regions and the same positive-weight links | `RegionCrosswalk` construction | Crosswalk files: a link is in both files or in neither |
+| 3 | The values sent are exactly the sending model's regions (`IntegratedModel.regions`), with one value per region for each year sent, and every region known to the crosswalk. The years are taken from the values; rule 5 checks them against the receiver | `RegionCrosswalk.apply`, called by the writer | Writer: map through `apply(..., model_regions=model.regions)`; send 0.0 rather than leaving a region out |
+| 4 | The sent regions are closed: every destination region they reach draws only on regions that were sent | `RegionCrosswalk.apply`, called by the writer | Writer: nothing beyond rule 3; `apply` checks it |
+| 5 | The `(region, year)` entries received are exactly the receiving model's regions × years | The reader's handler, via `check_region_year_keys` | Reader: call `check_region_year_keys` before writing anything, in both the pre-build and built-model handlers |
+
+Every check raises `ValueError` rather than warning: a package that doesn't line up is an error,
+never a partial update. Rules 3 to 5 together prove that the regions both models carry are closed
+under the crosswalk. With no region filters, that means full coverage.
 
 ## Jacobi Iteration
 
@@ -71,11 +109,16 @@ Within one iteration, each worker runs its model's `IntegratedModelSequencer.ful
 3. `get_objective_value()` and `get_outbound_updates()`: returned to the control process as an
    `IterationResult`.
 
+Steps 2 and 3 are `solve_iteration()`, which a driver that keeps its models calls after
+`update_model` instead of rebuilding.
+
 Things to know about the current loop:
 
 - **Iteration 1 starts with no packages**, so every model begins from its input files alone.
-- **Models are rebuilt every iteration.** `update_model` is not implemented yet, so a new model
-  instance is built from the inputs plus the latest packages each time.
+- **Models are rebuilt every iteration.** A new model instance is built from the inputs plus the
+  latest packages each time. `update_model` can instead apply packages to a model that is already
+  built, writing the fuel cost change implied by the gas price to `ng_fuel_adj` and the gas burn
+  to the gas model's owned demand cells, but the Jacobi loop does not use it.
 - **Each model logs to its own file.** Like a standalone run, the control process claims a fresh
   `<output_path>/<scenario_name>` folder, suffixed `_1`, `_2`, ... if it is taken, so a rerun never
   mixes with an earlier run's logs. Each worker writes a per-model log there
@@ -95,11 +138,51 @@ Things to know about the current loop:
 
 !!! warning "Region filters in integrated runs"
 
-    A model that is filtered to a subset of regions only sends packages covering the other
-    model's regions that overlap its own. It also ignores inbound entries for regions it doesn't
-    hold. The receiving model keeps loaded (base-year) values wherever coverage is missing, so
-    filtering either model can give odd results in an integrated run. `jacobi_iterator.py` logs a
-    warning when either model is filtered.
+    Filter the coupled models only to sets of regions that cover each other exactly, such as
+    electricity `7` with gas `new_england`. Any other filter fails the region coverage rules on the
+    first exchange (see [Region Coverage Rules](#region-coverage-rules)). With the shipped
+    crosswalk the only such sets are that pair, everything else, and both together. On its own,
+    New England loses its pipeline supply, and its production and LNG imports fall well short of
+    its demand, so it solves only with unserved demand. That makes it a test of the mechanics
+    rather than a model run.
+
+## Gauss-Seidel Iteration (experimental)
+
+`GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
+`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
+with `[common]` mode `"integrated gs"`:
+
+```sh
+pixi shell
+python main.py run_configs/gs_compare.toml
+pixi run gs            # the same
+pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
+```
+
+It differs from the Jacobi iterator in how the models are run, not in what they exchange:
+
+- Both models are built once and held. Each iteration applies the inbound packages to the
+  built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
+  its solver between solves.
+- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
+  the same iteration.
+- Region coverage is checked by the writers and readers, as for Jacobi (see *Exchanges and
+  Region Crosswalks*). A run whose regions are not closed under the crosswalk fails on the first
+  exchange.
+- Result files are written at the end for each model whose last solve did not fail.
+
+Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
+the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
+logging, the monitor display and the final status) is in `../../src/integrator/bookeeping_utilities.py`, which
+both iterators call. The number in brackets on each monitor arrow is how many
+entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
+iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
+burn and the mean gas price by year. The settings are in
+`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
+`monitor_delta_mode`, and `exchanges`.
+
+`python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
+same settings, and writes a side-by-side table to the output folder.
 
 ## Inter-model Communication
 
@@ -123,16 +206,18 @@ flowchart LR
 - **Writing.** Each model has an `UpdatePackageWriter` (`update_writer.py`) that turns its solved
   model into outbound packages. The sequencer only calls it after a usable solve: one whose
   status is in `ALLOW_OUTBOUND_UPDATES` (`BEST`, `USABLE`, or `PENALTY`). After a failed
-  solve, the model sends nothing new; `jacobi_iterator.py` resends that model's last accepted packages
-  instead, so its receivers keep seeing its last good solution. Only a model that has never
+  solve, the model sends nothing new; the control loop resends that model's last accepted packages
+  instead (`accept_packages` in `bookeeping_utilities.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
-- **Routing.** `route_updates` in `jacobi_iterator.py` delivers every package to each receiver in the
-  circuit. A receiver outside the circuit gets nothing, and a warning is logged.
+- **Routing.** `route_updates` (`src/common/update_package/routing.py`) delivers every package to
+  each receiver in the circuit. Each receiver gets its packages grouped by sender, senders in
+  circuit order, so the order they are applied in is fixed. A receiver outside the circuit gets
+  nothing, and a warning is logged.
 - **Reading.** Each model has an `UpdatePackageReader` (`update_reader.py`) that applies inbound
   packages to the model's loaded data *before* the model is built. It picks a handler by package
   type; a type with no registered handler raises an error. Handlers update individual parameters
-  in place: they replace or scale the matching entries, keep loaded values for any entries a
-  package does not cover, and log warnings about gaps and large changes.
+  in place, replacing or scaling the matching entries, and log warnings about large changes. A
+  regional package must cover exactly the receiver's regions and years (rule 5 above).
 
 The packages exchanged today:
 
@@ -181,8 +266,23 @@ written to the `MAIN` log.
 ### Adding a Package Type
 
 1. Define the dataclass in `src/common/update_package/update_package.py`, with validation in
-   `__post_init__`.
-2. Register a handler for it on the receiving model's reader.
-3. Produce it in the sending model's writer.
+   `__post_init__`, and give it a `sender` class attribute.
+2. Decorate it with `@register_package`, which adds it to `PACKAGE_TYPES`.
+3. Add a builder for it to the sending model's writer (`builders`). If the payload is regional,
+   map it with `RegionCrosswalk.apply` (rules 3 and 4).
+4. Register a handler for it on the receiving model's readers, both pre-build and built-model. If
+   the payload is regional, call `check_region_year_keys` first (rule 5).
+5. Name it in `exchanges` in the iterator configs that should carry it.
 
 Routing needs no changes, because it goes by each package's `receivers`.
+
+### Adding a Model Pair to the Crosswalk
+
+1. Add the two files, one normalized over each model's regions, to
+   `input/integrator/population_weighted_region_xwalk/`, or alongside them.
+2. Register the pair in `REGION_CROSSWALKS`, and each model's region-id column in `REGION_COLUMN`
+   (`src/integrator/region_crosswalk.py`).
+3. Implement `IntegratedModel.regions` on each model.
+
+The files must pass rules 1 and 2. `CrosswalkSet.for_models` loads the pair whenever both models
+run.

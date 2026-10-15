@@ -28,8 +28,8 @@ on this), but the economic structure matches NGMM:
 
 What is *not* implemented (Tier 2/3 items not in scope of this rewrite):
   * State-level hubs (NGMM uses 50 + 3 Texas hubs; this model keeps the
-    9 census-division grouping because the unified/Gauss-Seidel integrators
-    rely on it via load_ng_region_map).
+    9 census-division grouping because the electricity coupling's region
+    crosswalk, src/integrator/region_crosswalk.py, is built on it).
   * Monthly time resolution (NGMM solves each month independently).
   * STEO benchmarking and the separate capacity-expansion QP run.
   * NA/AD supply-type separation (the model keeps a single supply curve per
@@ -55,8 +55,8 @@ References
 ###############################################################################
 
 import logging
-import math
 from collections import defaultdict, namedtuple
+from math import isfinite
 from warnings import deprecated
 
 from pyomo.environ import (
@@ -147,6 +147,11 @@ class NGModel(ConcreteModel, IntegratedModel):
         """Display name."""
         return 'Natural Gas'
 
+    @property
+    def regions(self) -> frozenset[str]:
+        """The regions this model solves (``region_analyze``), as ``str`` ids."""
+        return frozenset(str(r) for r in self.region_analyze)
+
     # Added `regions` (default None = all nine, so every
     def __init__(
         self,
@@ -172,7 +177,6 @@ class NGModel(ConcreteModel, IntegratedModel):
         self.region_labels = model_data['region_labels']
         lng_export_demand: dict[str, dict[int, float]] = model_data['lng_export']
         """Demand in BCF in region[year] format"""
-        self.demand_price_elasticity: dict[str, float] = model_data['demand_elasticity']
         # ── Pipeline Network ─────────────────────────────────────────────────────────
         pipeline_arcs_raw = model_data['pipeline_arcs']
 
@@ -265,7 +269,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         # ── SETS ──────────────────────────────────────────────────────────────
         # Region subsetting. Every region-keyed Param below
         # is built from a rule function indexed off this Set, so subsetting here propagates
-        # automatically; only arcs, LNG regions, and _base_demand needed explicit filtering.
+        # automatically; only arcs and LNG regions needed explicit filtering.
         # Master region list and its two subsets, mirroring electricity_model.py. region_analyze
         # is the subset actually solved: ng_config.region_filter when given, all domestic
         # regions otherwise (see resolve_regions).
@@ -569,21 +573,6 @@ class NGModel(ConcreteModel, IntegratedModel):
             initialize=0.0,
             mutable=True,
         )
-
-        # ── Base demand snapshot for price-elasticity updates ──────────────────
-        # Stores the initial (no-price-adjustment) projected demand.
-        # update_demand_from_price() modifies self.demand relative to this base.
-        self._base_demand: dict[tuple[str, str, int], float] = {
-            (r, s, y): projected_demand.get((r, s, y), 0.0)
-            # Active regions only, so the elasticity update
-            # cannot reference a region this model does not carry.
-            for r in self.region_analyze
-            for s in self.sectors
-            for y in self.year
-        }
-        # Reference gas prices, set after first GS solve via set_reference_prices().
-        # Before being set, price-responsive demand has no effect (prices=reference).
-        self._ref_prices: dict[tuple[str, int], float] = {}
 
         # ── VARIABLES ─────────────────────────────────────────────────────────
         # Per-segment supply volume (NGMM SSTEP decision variable, Eq 8).
@@ -1040,103 +1029,92 @@ class NGModel(ConcreteModel, IntegratedModel):
 
     # ── Integration interface ─────────────────────────────────────────────────
     #
-    # The eight public methods below are the ENTIRE surface a Gauss-Seidel loop drives. They
-    # work because a handful of Params were declared mutable=True during construction, Q0, P0,
-    # demand, canada_supply, and q_lng / p_lng. Everything else is fixed once the model is
-    # built.
+    # The methods below are the ENTIRE surface a Gauss-Seidel loop drives. They work because the
+    # Params they write (q0, p0, demand, canada_supply, q_lng / p_lng and the lng_surplus_*
+    # coefficients) were declared mutable=True during construction. Everything else is fixed
+    # once the model is built.
     #
-    # Inbound: update_demand, update_demand_from_price, update_canada_supply,
-    # update_lng_export, update_supply_capacity, set_reference_prices
+    # Inbound: update_demand, update_canada_supply, update_lng_export, update_supply_capacity,
+    # and set_external_demand for demand another model supplies.
     # Outbound: poll_gas_price (the duals), poll_total_gas_demand
     #
     # No method here re-solves. The caller owns the loop and decides when to solve, so the
     # ordering of these calls is the caller's responsibility rather than something enforced
     # here.
 
-    def set_reference_prices(self, prices: dict[GI, float]) -> None:
-        """Store solved gas prices as the reference baseline for demand elasticities.
-
-        Call once after the first Gauss-Seidel solve so that subsequent calls
-        to ``update_demand_from_price()`` compute demand adjustments relative
-        to this equilibrium, not relative to an arbitrary initial price.
-
-        Parameters
-        ----------
-        prices : dict[GI, float]
-            Shadow prices from ``poll_gas_price()`` in $/MMBtu.
-        """
-        for gi, p in prices.items():
-            self._ref_prices[(gi.region, gi.year)] = p
-        logger.debug('C-NGMM: reference prices set for %d (region, year) pairs', len(prices))
-
-    def update_demand_from_price(
+    def set_external_demand(
         self,
-        solved_prices: dict[GI, float],
-        alpha: float = 1.0,
-    ) -> None:
-        """Adjust sector demands using own-price elasticities (NEMS NGMM demand blocks).
-
-        For each region, year, and sector:
-
-            demand_new = base_demand × (price / ref_price) ^ elasticity
-
-        where ``base_demand`` is the initial AEO-projected demand (stored at
-        construction) and ``ref_price`` is the reference shadow price set by
-        ``set_reference_prices()``.  Under-relaxation is applied when alpha < 1.
-
-        Has no effect until ``set_reference_prices()`` has been called (reference
-        prices default to empty → price ratio = 1 → no adjustment).
+        values: dict[GI, float] | dict[tuple[str, int], float],
+        sector: str = 'electric_power',
+    ) -> int:
+        """Write demand supplied by another model exactly as given. No relaxation.
 
         Parameters
         ----------
-        solved_prices : dict[GI, float]
-            Current shadow prices from ``poll_gas_price()`` in $/MMBtu.
-        alpha : float
-            Under-relaxation factor (0 < alpha ≤ 1).
+        values : dict[GI, float] | dict[tuple[str, int], float]
+            ``GI(region, year) -> BCF/yr``, or the same keyed by plain ``(region, year)`` tuples.
+        sector : str
+            Sector the values belong to.
+
+        Returns
+        -------
+        int
+            Number of cells written, ``len(values)`` on success.
 
         Raises
         ------
         ValueError
-            If ``alpha`` is outside (0, 1].
+            If any cell is not a demand cell of this model, or any value is negative or
+            non-finite. The whole batch is checked before anything is written, so a rejected
+            call leaves the model untouched.
+
+        Notes
+        -----
+        Any subset of the model's cells may be written; checking that a package covers every
+        cell is the update reader's job. Unlike ``update_demand``, this method does not skip
+        regions the model does not carry, so a caller must drop them first.
         """
-        _check_alpha(alpha)
-        # SILENT NO-OP IF THE REFERENCE WAS NEVER SET. Deliberate, it lets the first
-        # iteration run before any price exists, but it means forgetting the
-        # set_reference_prices() call disables price-responsive demand for the whole run with
-        # no warning. If the non-electric sectors are not moving between iterations, check
-        # this first.
-        if not self._ref_prices:
-            return  # no reference set yet; skip silently
+        problems = []
+        for (region, year), qty in values.items():
+            if not self._is_demand_cell((region, sector, year)):
+                problems.append(f'  {region} {year}: not a {sector} demand cell here')
+            elif not isfinite(qty) or qty < 0.0:
+                problems.append(f'  {region} {year}: value {qty} is not finite and >= 0')
+        if problems:
+            raise ValueError(
+                f'set_external_demand rejected {len(problems)} of {len(values)} cell(s), '
+                f'nothing was written:\n' + '\n'.join(problems[:10])
+            )
 
-        n_updated = 0
-        for r in self.region_analyze:
-            for y in self.year:
-                price = solved_prices.get(GI(region=r, year=y))
-                if price is None:
-                    continue
-                ref_p = self._ref_prices.get((r, y))
-                if ref_p is None or ref_p < 1e-6:
-                    continue
-                price_ratio = max(price, 1e-6) / ref_p
+        for (region, year), qty in values.items():
+            self.demand[region, sector, year].set_value(qty)
+        return len(values)
 
-                for sector in self.sectors:
-                    elas = self.demand_price_elasticity[sector]
-                    if abs(elas) < 1e-9:
-                        continue
-                    base_d = self._base_demand.get((r, sector, y), 0.0)
-                    new_d = base_d * (price_ratio**elas)
-                    if alpha < 1.0:
-                        current = value(self.demand[r, sector, y])
-                        new_d = alpha * new_d + (1.0 - alpha) * current
-                    self.demand[r, sector, y].set_value(max(new_d, 0.0))
-                    n_updated += 1
+    def _is_demand_cell(self, key: object) -> bool:
+        """Return whether ``key`` is a flat ``(region, sector, year)`` index of ``demand``.
 
-        logger.debug(
-            'C-NGMM.update_demand_from_price: updated %d demand entries (alpha=%.2f)',
-            n_updated,
-            alpha,
+        Pyomo flattens nested tuples on lookup, so ``(('r',), 's', y)`` reaches the same cell as
+        ``('r', 's', y)``. Only flat keys are accepted, so a malformed key is rejected rather than
+        written.
+
+        Parameters
+        ----------
+        key : object
+            Candidate demand index.
+
+        Returns
+        -------
+        bool
+            True when ``key`` is a flat 3-tuple in the demand index.
+        """
+        return (
+            isinstance(key, tuple)
+            and len(key) == 3
+            and not any(isinstance(part, tuple) for part in key)
+            and key in self.demand.index_set()
         )
 
+    # dev note:  Not currently used, but a nice setup that should be preserved
     def update_demand(
         self,
         new_demand: dict[GI, float],
@@ -1183,6 +1161,7 @@ class NGModel(ConcreteModel, IntegratedModel):
                 qty = alpha * qty + (1.0 - alpha) * current
             self.demand[gi.region, sector, gi.year].set_value(qty)
 
+    @deprecated('Needs to be refactored to be generic.  OK to keep.')
     def update_canada_supply(self, supply: dict[GI, float]) -> None:
         """Update Canadian gas imports by region and year.
 
@@ -1424,7 +1403,7 @@ class NGModel(ConcreteModel, IntegratedModel):
         bad = {
             key: cap
             for key, cap in capacity_updates.items()
-            if not (math.isfinite(float(cap)) and float(cap) >= 0.0)
+            if not (isfinite(float(cap)) and float(cap) >= 0.0)
         }
         if bad:
             raise ValueError(f'Supply capacity must be finite and >= 0; got {bad}')
@@ -1524,30 +1503,6 @@ class NGModel(ConcreteModel, IntegratedModel):
                 for y in self.year:
                     result[GI(region=r, year=y)] += value(self.demand[r, s, y])
         return dict(result)
-
-    @deprecated('reporting now does this w/o attaching to model')
-    def attach_results(self) -> None:
-        """Populate result DataFrames after an iterative solve.
-
-        Called by the integrator after convergence to make result tables
-        available for reporting without re-solving.  Equivalent to the
-        table-attachment step inside the standalone ``solve()`` function.
-        """
-        # Imported here rather than at module scope: postprocessor imports NGModel
-        # for type checking, so a top-level import would be circular.
-        from src.models.natural_gas.postprocessor import (
-            _extract_balance,
-            _extract_flows,
-            _extract_prices,
-            _extract_production,
-            _extract_storage,
-        )
-
-        self.results_production = _extract_production(self)
-        self.results_flows = _extract_flows(self)
-        self.results_prices = _extract_prices(self)
-        self.results_storage = _extract_storage(self)
-        self.results_balance = _extract_balance(self)
 
 
 def _check_alpha(alpha: float) -> None:

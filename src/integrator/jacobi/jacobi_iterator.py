@@ -10,8 +10,8 @@ Jacobi iteration over the models selected in the run config, run in parallel
 """
 
 import logging
-from collections.abc import Collection, Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any
@@ -19,17 +19,20 @@ from typing import Any
 from rich.console import Console
 
 from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import (
-    ALLOW_OUTBOUND_UPDATES,
-    ALLOW_TERMINATION,
-    IterationResult,
-)
+from src.common.integrated_model_sequencer import IterationResult
 from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
-from src.common.update_package import UpdatePackage
+from src.common.update_package import ExchangeSpec, UpdatePackage, route_updates
+from src.integrator.bookeeping_utilities import (
+    accept_packages,
+    final_status,
+    log_progress,
+    show_iteration,
+)
+from src.integrator.config_sections import CONFIG_SECTIONS, OPTIONAL_SECTIONS
+from src.integrator.convergence import ConvergenceTracker
 from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.convergence import ConvergenceTracker
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
@@ -45,15 +48,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CIRCUIT: tuple[ModelType, ...] = tuple(
     sorted((model for model in ModelType if model is not ModelType.ALL), key=lambda m: m.name)
 )
-
-# each model's config section in the run config, and the config class it builds.  MAGIC may run
-# without a section; the others need theirs
-_CONFIG_SECTIONS: dict[ModelType, tuple[str, type[ModelConfig]]] = {
-    ModelType.ELECTRICITY: ('elec_config', ElecConfig),
-    ModelType.NATURAL_GAS: ('natural_gas', NGConfig),
-    ModelType.MAGIC: ('magic_config', MagicConfig),
-}
-_OPTIONAL_SECTIONS: frozenset[ModelType] = frozenset({ModelType.MAGIC})
 
 
 @dataclass
@@ -72,54 +66,16 @@ class IterationCall:
         The model-specific config, matching ``model``.
     kwargs : dict
         Extra arguments forwarded to the sequencer's ``full_run``.
+    exchange : ExchangeSpec
+        The run's exchanges and crosswalks, handed to the sequencer the worker builds.  Empty by
+        default, so the model writes nothing.
     """
 
     model_type: ModelType
     common_config: CommonConfig
     model_config: ModelConfig
     kwargs: dict
-
-
-def route_updates(
-    packages: Iterable[UpdatePackage], circuit: Collection[ModelType]
-) -> dict[ModelType, list[UpdatePackage]]:
-    """Bin update packages by the models that should receive them.
-
-    A package may name any number of receivers; :attr:`ModelType.ALL` means every model in the
-    circuit.  Receivers outside the circuit are dropped with a warning -- nothing is running to
-    consume them.
-
-    Parameters
-    ----------
-    packages : iterable of UpdatePackage
-        The packages emitted by this iteration's models.
-    circuit : collection of ModelType
-        The models participating in the run.
-
-    Returns
-    -------
-    dict of ModelType to list of UpdatePackage
-        One entry per circuit member, in circuit order; empty lists for models with no mail.
-        :attr:`ModelType.ALL` is never a key -- it is an indicator, not a destination.
-    """
-    routed: dict[ModelType, list[UpdatePackage]] = {model: [] for model in circuit}
-    for package in packages:
-        receivers = set(package.receivers)
-        to_all = ModelType.ALL in receivers
-        # iterate the circuit (not the receivers) to drop off-circuit destinations and to
-        # dedupe a package that names both ALL and a specific model
-        for model in circuit:
-            if to_all or model in receivers:
-                routed[model].append(package)
-        unreachable = receivers - {ModelType.ALL} - set(circuit)
-        if unreachable:
-            logger.warning(
-                'Dropping %s addressed to %s; not in the circuit %s',
-                type(package).__name__,
-                sorted(m.value for m in unreachable),
-                [m.value for m in circuit],
-            )
-    return routed
+    exchange: ExchangeSpec = field(default_factory=ExchangeSpec.empty)
 
 
 def driver(iter_call: IterationCall) -> IterationResult:
@@ -155,7 +111,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.ELECTRICITY needs an ElecConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return ElectricitySequencer().full_run(
+                    return ElectricitySequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case ModelType.NATURAL_GAS:
@@ -164,7 +120,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.NATURAL_GAS needs an NGConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return NGSequencer().full_run(
+                    return NGSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case ModelType.MAGIC:
@@ -173,7 +129,7 @@ def driver(iter_call: IterationCall) -> IterationResult:
                             f'ModelType.MAGIC needs a MagicConfig, '
                             f'got {type(iter_call.model_config).__name__}'
                         )
-                    return MagicSequencer().full_run(
+                    return MagicSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
                 case _:
@@ -212,8 +168,9 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
     ) -> dict[ModelType, ModelConfig]:
         """Build the config of each model selected by ``common_config.models_to_run``.
 
-        ``ModelType.ALL`` expands as in :func:`resolve_models_to_run`.  Warns when a region filter
-        on the electricity or natural gas model leaves the other, also selected, partly uncovered.
+        ``ModelType.ALL`` expands as in :func:`resolve_models_to_run`.  Region filters are checked
+        where data crosses between models:  each writer requires its model's regions to be closed
+        under the crosswalk, and each reader requires the received regions to equal its own.
 
         Parameters
         ----------
@@ -236,33 +193,15 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         """
         configs: dict[ModelType, ModelConfig] = {}
         for model in resolve_models_to_run(common_config.models_to_run):
-            if model not in _CONFIG_SECTIONS:
+            if model not in CONFIG_SECTIONS:
                 raise ValueError(f'The Jacobi iterator cannot run {model.value!r}')
-            section, config_cls = _CONFIG_SECTIONS[model]
-            if section not in remainder and model not in _OPTIONAL_SECTIONS:
+            section, config_cls = CONFIG_SECTIONS[model]
+            if section not in remainder and model not in OPTIONAL_SECTIONS:
                 raise ValueError(
                     f'{model.value!r} is in models_to_run but the config has no [{section}] section'
                 )
             configs[model] = config_cls(**remainder.get(section, {}))
 
-        elec_cfg = configs.get(ModelType.ELECTRICITY)
-        ng_cfg = configs.get(ModelType.NATURAL_GAS)
-        if isinstance(elec_cfg, ElecConfig) and elec_cfg.region_filter and ng_cfg is not None:
-            logger.warning(
-                'The electricity model is filtered to regions %s.  Packages it sends cover only '
-                'the gas regions those touch, and the natural gas model holds the rest at '
-                'base-year values, so excluding regions may lead to odd results in the '
-                'integrated run',
-                elec_cfg.region_filter,
-            )
-        if isinstance(ng_cfg, NGConfig) and ng_cfg.region_filter and elec_cfg is not None:
-            logger.warning(
-                'The natural gas model is filtered to regions %s.  Prices it sends cover only '
-                'the electricity regions those touch (averaged over partial coverage), and '
-                'demand it receives for other regions is ignored, so excluding regions may lead '
-                'to odd results in the integrated run',
-                ng_cfg.region_filter,
-            )
         return configs
 
     def run(
@@ -324,12 +263,16 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         run_circuit = tuple(model for model in circuit if model in configs)
         logger.info('Circuit: %s', [model.value for model in run_circuit])
 
+        # the exchanges the selected models can carry, and the crosswalks for them, built once and
+        # pickled to the workers with each call
+        exchange = self._build_exchange(run_circuit)
+
         # set up iterative solve
         iteration = 1
         iteration_limit = self.config.iteration_limit
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
         converged = False
-        routed_updates = route_updates([], run_circuit)
+        routed_updates = route_updates({}, run_circuit)
         # the last accepted outbound packages per sender, resent while that sender's solves fail
         accepted: dict[ModelType, list[UpdatePackage]] = {}
 
@@ -349,7 +292,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                         # MAGIC fabricates its outputs from the iteration number
                         call_kwargs['sequence_number'] = iteration
                     iter_calls.append(
-                        IterationCall(model, common_config, configs[model], call_kwargs)
+                        IterationCall(model, common_config, configs[model], call_kwargs, exchange)
                     )
                 try:
                     results: list[IterationResult] = worker_pool.map(driver, iter_calls)
@@ -359,65 +302,22 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                         'Iteration %d: a model worker raised; stopping the run', iteration
                     )
                     raise
-                # log status of the model's solves
-                for result in results:
-                    logger.info('\n%s', result.pprint(indent=2))
                 all_results[iteration] = results
-                # show this iteration's objective deltas and package traffic
-                block = monitor.record(iteration, results)
-                logger.info('\n%s', block.plain)
-                console.print(block, highlight=False)
-                # refresh each sender's accepted packages from this iteration; a sender whose solve
-                # status isn't acceptable keeps its last accepted packages, so its receivers see
-                # its last good solution rather than falling back to raw input data
+                # log status of the model's solves, and show this iteration's objective deltas
+                # and package traffic
+                show_iteration(iteration, results, monitor, console, logger)
+                # refresh each sender's accepted packages from this iteration
                 for result in results:
-                    if result.status in ALLOW_OUTBOUND_UPDATES:
-                        accepted[result.model_type] = list(result.update_packages)
-                    else:
-                        held = accepted.get(result.model_type)
-                        logger.warning(
-                            'Iteration %d: rejected %d update package(s) from %s (status %s); %s',
-                            iteration,
-                            len(result.update_packages),
-                            result.model_type.value,
-                            result.status.name,
-                            f'resending its last accepted {len(held)} package(s)'
-                            if held is not None
-                            else 'it has no accepted packages to resend',
-                        )
-                # route in circuit order, which fixes the order receivers apply packages in
-                outbound = [pkg for model in run_circuit for pkg in accepted.get(model, [])]
-                routed_updates = route_updates(outbound, run_circuit)
+                    accept_packages(result, accepted, iteration, logger)
+                # TODO:  check the packages produced against exchange.expected, once it is decided
+                #        how a missing or unexpected exchange feeds routing and the run status
+                routed_updates = route_updates(accepted, run_circuit)
 
                 converged = tracker.update(results)
-                logger.info(
-                    'Iteration %d relative objective changes (epsilon %g): %s',
-                    iteration,
-                    self.config.epsilon,
-                    {
-                        model.value: 'n/a' if change is None else f'{change:.3g}'
-                        for model, change in tracker.changes.items()
-                    },
-                )
-                logger.info('Done with iteration %d/%d', iteration, iteration_limit)
+                log_progress(tracker, iteration, self.config.epsilon, iteration_limit, logger)
                 iteration += 1
 
-        status = RunStatus.UNKNOWN
-        if converged:
-            status = RunStatus.CONVERGED
-            logger.info('Converged after %d iteration(s)', iteration - 1)
-        elif iteration > iteration_limit:
-            status = RunStatus.ITERATION_LIMIT
-            final = all_results.get(iteration - 1, [])
-            holding = [
-                f'{r.model_type.value} ({r.status.name})'
-                for r in final
-                if r.status not in ALLOW_TERMINATION
-            ]
-            logger.warning(
-                'Did not converge within %d iterations%s',
-                iteration_limit,
-                f'; ended with {", ".join(holding)}' if holding else '',
-            )
-
+        status = final_status(
+            converged, iteration - 1, iteration_limit, all_results.get(iteration - 1, []), logger
+        )
         return status, all_results

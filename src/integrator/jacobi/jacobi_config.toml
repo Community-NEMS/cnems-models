@@ -17,3 +17,13 @@ worker_processes = 6
 
 # how the iteration monitor shows objective changes:  "absolute" or "percent"
 monitor_delta_mode = "absolute"
+
+# the update packages the models exchange, by package class name (see PACKAGE_TYPES in
+# src/common/update_package/update_package.py).  A package whose sender or receiver is not run is
+# left out with a warning.
+exchanges = [
+    "ElectricityPriceScaler",
+    "NGDemandScaler",
+    "NGElectricalDemandPackage",
+    "NGPricePackage",
+]

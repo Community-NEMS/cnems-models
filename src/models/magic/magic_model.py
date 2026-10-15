@@ -16,7 +16,7 @@ from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model import IntegratedModel
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
 from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
+from src.common.update_package import ExchangeSpec, UpdatePackage
 from src.models.magic.update_reader import MagicUpdateReader
 from src.models.magic.update_writer import MagicUpdateWriter
 
@@ -30,6 +30,11 @@ class MagicModel(IntegratedModel):
     def label(self) -> str:
         """Display name."""
         return 'Magic'
+
+    @property
+    def regions(self) -> frozenset[str]:
+        """None:  the magic model sends scalars, not regional data."""
+        return frozenset()
 
     def __init__(self, sequence_number: int = 0):
         """Initialize the magic model.
@@ -68,12 +73,23 @@ class MagicConfig(ModelConfig):
 class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig, None]):
     """Testing Implement."""
 
-    def __init__(self):
+    def __init__(self, exchange: ExchangeSpec | None = None):
+        """Initialize the sequencer.
+
+        Parameters
+        ----------
+        exchange : ExchangeSpec, optional
+            The run's exchanges; this model's writer builds its share of them.  Omitted (a
+            standalone run), the writer writes nothing.
+        """
         super().__init__()
         self._model_config: MagicConfig | None = None
         self._model: MagicModel | None = None
         self._reader = MagicUpdateReader()
-        self._writer = MagicUpdateWriter()
+        exchange = exchange if exchange is not None else ExchangeSpec.empty()
+        self._writer = MagicUpdateWriter(
+            exchange.outbound_for(ModelType.MAGIC), exchange.crosswalks
+        )
         self._last_status: IterationStatus | None = None
 
     @property
@@ -134,7 +150,7 @@ class MagicSequencer(IntegratedModelSequencer[MagicModel, MagicConfig, None]):
         self._model_config = model_config
         return self.model
 
-    def update_model(self, **kwargs) -> MagicModel:
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> MagicModel:
         """Not implemented; the magic model is rebuilt each iteration rather than updated.
 
         Raises

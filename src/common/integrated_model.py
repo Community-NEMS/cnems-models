@@ -20,3 +20,12 @@ class IntegratedModel(ABC):
     def label(self) -> str:
         """Short human-readable name of the model, for run monitors and logs."""
         raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def regions(self) -> frozenset[str]:
+        """The regions the built model carries, as ``str`` ids; empty for a model without regions.
+
+        Update package writers and readers check crosswalked data against this set.
+        """
+        raise NotImplementedError()

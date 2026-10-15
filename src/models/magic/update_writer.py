@@ -9,6 +9,7 @@ Update package writer for the magic model:  fabricates mock updates for the othe
 """
 
 import math
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
 from src.common.models_modes import ModelType
@@ -27,8 +28,16 @@ if TYPE_CHECKING:
 class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
     """Writes mock electricity price and NG demand updates."""
 
-    def write(self, model: MagicModel) -> list[UpdatePackage]:
-        """Make mock updates from the model's sequence number.
+    @property
+    def builders(self) -> Mapping[type[UpdatePackage], Callable[[MagicModel], UpdatePackage]]:
+        """The mock electricity price and NG demand scalers."""
+        return {
+            ElectricityPriceScaler: self.price_scaler,
+            NGDemandScaler: self.demand_scaler,
+        }
+
+    def price_scaler(self, model: MagicModel) -> ElectricityPriceScaler:
+        """Make a mock electricity price scaler from the model's sequence number.
 
         Fabricates a sinusoid from the sequence number with a 10-cycle diminishment, centered on
         1.0 so the scaler stays positive: generation_cost is NonNegativeReals, and a bare cosine
@@ -41,22 +50,30 @@ class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):
 
         Returns
         -------
-        list[UpdatePackage]
-            An ``ElectricityPriceScaler`` and an ``NGDemandScaler``.
+        ElectricityPriceScaler
         """
-        # # TODO:  Temp patch for isolating NG updates
-        # return []
         sequence_number = model.sequence_number
         cycle_point = sequence_number * math.pi / 4
         scale = 2 * 2 ** (-sequence_number / 3)
         scalar = 1 + scale * math.cos(cycle_point)
-        update = ElectricityPriceScaler(
+        return ElectricityPriceScaler(
             receivers=(ModelType.ELECTRICITY,), scalar=scalar, techs=('4', '6')
         )
 
-        # exponential decay toward 1.4:  exactly 1.0 at sequence number 1 (the first
-        # iteration in the control loop), approaching 1.4 as the sequence advances
-        ng_scalar = 1.4 - 0.4 * math.exp(-(sequence_number - 1) / 3)
-        ng_demand = NGDemandScaler(receivers=(ModelType.NATURAL_GAS,), scalar=ng_scalar)
+    def demand_scaler(self, model: MagicModel) -> NGDemandScaler:
+        """Make a mock NG demand scaler from the model's sequence number.
 
-        return [update, ng_demand]
+        Exponential decay toward 1.4:  exactly 1.0 at sequence number 1 (the first iteration in
+        the control loop), approaching 1.4 as the sequence advances.
+
+        Parameters
+        ----------
+        model : MagicModel
+            The solved magic model; only its ``sequence_number`` is read.
+
+        Returns
+        -------
+        NGDemandScaler
+        """
+        ng_scalar = 1.4 - 0.4 * math.exp(-(model.sequence_number - 1) / 3)
+        return NGDemandScaler(receivers=(ModelType.NATURAL_GAS,), scalar=ng_scalar)

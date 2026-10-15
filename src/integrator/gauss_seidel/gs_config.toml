@@ -1,0 +1,21 @@
+# Settings for the Gauss-Seidel iterator (src/integrator/gauss_seidel/gs_iterator.py), validated
+# by GaussSeidelConfig in gs_config.py.  Every key is required.  The stopping keys mean the same
+# as in the Jacobi iterator's jacobi_config.toml, so the two stop by the same rule.
+
+# the most iterations to run
+iteration_limit = 15
+
+# convergence tolerance, as a ratio in (0, 1]:  a model is stable in an iteration when its
+# objective changed by less than this fraction of the previous iteration's objective
+epsilon = 0.001
+
+# the run stops once every model has been stable for this many consecutive iterations
+convergence_iterations = 2
+
+# how the iteration monitor shows objective changes:  "absolute" or "percent"
+monitor_delta_mode = "absolute"
+
+# the update packages the models exchange, by package class name (see PACKAGE_TYPES in
+# src/common/update_package/update_package.py).  A package whose sender or receiver is not run is
+# left out with a warning.
+exchanges = ["NGElectricalDemandPackage", "NGPricePackage"]

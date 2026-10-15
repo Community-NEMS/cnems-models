@@ -22,10 +22,10 @@ in src/integrator/bookeeping_utilities.py. We might change some of these in the 
     pixi run gs-compare    # Jacobi then Gauss-Seidel on that config, side by side, 5 to 7 minutes
     pixi run jacobi        # Jacobi on run_configs/jacobi_small.toml, now every region
 
-gs-compare writes one folder per comparison, output/gs_compare_comparison (then _1, _2, ...),
-holding the two runs' folders, jacobi/ and gauss_seidel/, beside comparison.md,
-comparison.json and two figures. They hold the iterations, wall time, time per step, final objectives, and the burn and
-mean gas price for each iteration. gs_compare.toml is every electricity and gas region for 2025 and 2030. That is a
+gs-compare writes one folder per comparison, `output/gs_compare_comparison` (then `_1`, `_2`, ...),
+holding the two runs' folders, `jacobi/` and `gauss_seidel/`, beside `comparison.md`,
+`comparison.json` and two figures. They hold the iterations, wall time, time per step, final objectives, and the burn and
+mean gas price for each iteration. `gs_compare.toml` is every electricity and gas region for 2025 and 2030. That is a
 case where the two models' regions cover each other fully, so both schemes solve the same problem.
 
 Here's some comparison results:

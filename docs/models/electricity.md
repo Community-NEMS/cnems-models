@@ -53,14 +53,14 @@ remaining indices.
 | $\theta^{H2H}_h$           | h2_generation_hour_index  | Sparse subset | Set for H2 generation indexed by hour                                               |
 | $\theta^{GSH}_h$           | generation_hour_index     | Sparse subset | Set for generation indexed by hour                                                  |
 | $\theta^{SSH}_h$           | storage_hour_index        | Sparse subset | Set for storage indexed by hour                                                     |
-| $\theta^{GDB}_{y,r,h}$     | generation_demand_balance | Sparse subset | Set for generation indexed by y,r,h                                                 |
-| $\theta^{SDB}_{y,r,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by y,r,h                                                    |
-| $\theta^{TDB}_{y,r,h}$     | regional_sources          | Sparse subset | Set for trade indexed by y,r,h                                                      |
-| $\theta^{TCDB}_{y,r,h}$    | international_partners    | Sparse subset | Set for international trade indexed by y,r,h                                        |
-| $\theta^{windor}_{y,r,h}$  | wind_reserves             | Sparse subset | Set for wind generation for operational reserves indexed by y,r,h                    |
-| $\theta^{solor}_{y,r,h}$   | solar_reserves            | Sparse subset | Set for solar capacity for operational reserves indexed by y,r,h                    |
-| $\theta^{opres}_{y,r,h}$   | eligible_reserves         | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by y,r,h |
-| $\theta^{scrm}_{y,r,seas}$ | capacity_sources          | Sparse subset | Set for supply curve for reserve margin indexed by y,r,seas                         |
+| $\theta^{GDB}_{r,y,h}$     | generation_demand_balance | Sparse subset | Set for generation indexed by r,y,h                                                 |
+| $\theta^{SDB}_{r,y,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by r,y,h                                                    |
+| $\theta^{TDB}_{r,y,h}$     | regional_sources          | Sparse subset | Set for trade indexed by r,y,h                                                      |
+| $\theta^{TCDB}_{r,y,h}$    | international_partners    | Sparse subset | Set for international trade indexed by r,y,h                                        |
+| $\theta^{windor}_{r,y,h}$  | wind_reserves             | Sparse subset | Set for wind generation for operational reserves indexed by r,y,h                   |
+| $\theta^{solor}_{r,y,h}$   | solar_reserves            | Sparse subset | Set for solar capacity for operational reserves indexed by r,y,h                    |
+| $\theta^{opres}_{r,o,y,h}$ | eligible_reserves         | Sparse subset | Set for procurement of operating reserves for operational reserves indexed by r,o,y,h |
+| $\theta^{scrm}_{r,y}$      | capacity_sources          | Sparse subset | Set for supply curve for reserve margin indexed by r,y                              |
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
 
 ### Parameters
@@ -74,10 +74,10 @@ stands for, i.e. power times $HW_h$, so they are in MWh; capacities and line lim
 |:----------------------------------|:-------------------------|:-----------------|:---------------------------------------------------------------------------------------------|:---------------------------|
 | $N$                               | num_hr_day               | $\mathbb{I}$     | Number of representative hours in a representative day                                       | unitless                   |
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | MWh                        |
-| $CAP^{exist}_{r,seas,t,s,y}$      | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
-| $SPR_{r,seas,t,s,y}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
-| $ICF_{t,y,r,s,h}$                 | capacity_factor_vre      | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
-| $HCF_{t,y,r,s,h}$                 | hydro_capacity_factor    | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor                                             | fraction                   |
+| $CAP^{exist}_{r,t,s,y}$           | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
+| $SPR_{r,t,s,y,seas}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
+| $ICF_{r,t,s,y,h}$                 | capacity_factor_vre      | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
+| $HCF_{r,seas}$                    | hydro_capacity_factor    | $\mathbb{R}^+_0$ | Hydroelectric technology maximum capacity factor                                             | fraction                   |
 | $STORLC$                          | storage_level_cost       | $\mathbb{R}^+_0$ | Cost to hold storage (mimics losses)                                                         | USD/MWh                    |
 | $EFF_t$                           | storage_efficiency       | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
 | $STOR^{dur}_t$                    | storage_duration         | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
@@ -89,12 +89,12 @@ stands for, i.e. power times $HW_h$, so they are in MWh; capacities and line lim
 | $WHS_{seas}$                      | weight_season            | $\mathbb{I}$     | number of hours (per year) in a season (weight)                                              | unitless                   |
 | $MHS_h$                           | map_hour_season          | $\mathbb{I}$     | map representative hour to season                                                            | unitless                   |
 | $FOMC_{r,t,s}$                    | fom_cost                 | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | USD/MW-year                |
-| $CC_{t,y,r,s,h}$                  | capacity_credit          | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
+| $CC_{r,t,s,y,h}$                  | capacity_credit          | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
 | $RM_r$                            | planning_reserve_margin  | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
 | $RUC_{t}$                         | ramp_up_cost             | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | USD/MWh                    |
 | $RDC_{t}$                         | ramp_down_cost           | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | USD/MWh                    |
 | $RR_t$                            | ramp_rate                | $\mathbb{R}^+_0$ | Max ramp rate                                                                                | fraction of capacity per hour |
-| $TRALINLIM_{r,r1,seas,y}$         | tran_limit               | $\mathbb{R}^+_0$ | Domestic interregional trade line limit                                                      | MW                         |
+| $TRALINLIM_{r,r1,y,h}$            | tran_limit               | $\mathbb{R}^+_0$ | Domestic interregional trade line limit                                                      | MW                         |
 | $TRALIM^{int}_{r^{int},c,y,h}$    | supply_limit_intl        | $\mathbb{R}^+_0$ | International interregional trade limit                                                      | MW                         |
 | $TRALINLIM^{int}_{r,r^{int},y,h}$ | tran_limit_cap_intl      | $\mathbb{R}^+_0$ | International interregional trade line limit                                                 | MW                         |
 | $TRAC_{r,r1,y}$                   | tran_cost                | $\mathbb{R}^+_0$ | Transmission hurdle rate (cost)                                                              | USD/MWh                    |
@@ -102,7 +102,7 @@ stands for, i.e. power times $HW_h$, so they are in MWh; capacities and line lim
 | $LL$                              | TRANSMISSION_LOSS_FACTOR | $\mathbb{R}^+_0$ | Transmission line losses from 1 region to another                                            | fraction                   |
 | $ORC_{o,t}$                       | reserve_cost             | $\mathbb{R}^+_0$ | Cost of operating reserve procurement, by reserve type and technology                        | USD/MWh                    |
 | $RTUB_{o,t}$                      | reserve_tech_limit       | $\mathbb{R}^+_0$ | Maximum amount of capacity which can be used to procure operating reserves                   | fraction                   |
-| $CAPCL_{r,t,y,s}$                 | capital_cost             | $\mathbb{R}^+_0$ | Cost to build capacity, from `capital_cost`; the linear mode reprices it before each solve        | USD/MW                     |
+| $CAPCL_{r,t,s,y}$                 | capital_cost             | $\mathbb{R}^+_0$ | Cost to build capacity, from `capital_cost`; the linear mode reprices it before each solve   | USD/MW                     |
 | $CAPC0_{r,t,s}$                   | capital_cost_initial     | $\mathbb{R}^+_0$ | Initial cost to build capacity, scaled by the learning multiplier in the learning modes      | USD/MW                     |
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from.  Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | MW                         |
@@ -111,20 +111,20 @@ stands for, i.e. power times $HW_h$, so they are in MWh; capacities and line lim
 
 | Variable                      | Code                 | Domain           | Short Description                                                     | Units | Switch notes                                      |
 |:------------------------------|:---------------------|:-----------------|:----------------------------------------------------------------------|:------|:--------------------------------------------------|
-| $STOR^{in}_{t,y,r,s,h}$       | storage_inflow       | $\mathbb{R}^+_0$ | Storage inflow                                                        | MWh   |                                                   |
-| $STOR^{out}_{t,y,r,s,h}$      | storage_outflow      | $\mathbb{R}^+_0$ | Storage outflow                                                       | MWh   |                                                   |
-| $STOR^{level}_{t,y,r,s,h}$    | storage_level        | $\mathbb{R}^+_0$ | Storage level (state-of-charge)                                       | MWh   |                                                   |
-| $GEN_{t,y,r,s,h}$             | generation_total     | $\mathbb{R}^+_0$ | Generation in the time segment                                        | MWh   |                                                   |
+| $STOR^{in}_{r,t,s,y,h}$       | storage_inflow       | $\mathbb{R}^+_0$ | Storage inflow                                                        | MWh   |                                                   |
+| $STOR^{out}_{r,t,s,y,h}$      | storage_outflow      | $\mathbb{R}^+_0$ | Storage outflow                                                       | MWh   |                                                   |
+| $STOR^{level}_{r,t,s,y,h}$    | storage_level        | $\mathbb{R}^+_0$ | Storage level (state-of-charge)                                       | MWh   |                                                   |
+| $GEN_{r,t,s,y,h}$             | generation_total     | $\mathbb{R}^+_0$ | Generation in the time segment                                        | MWh   |                                                   |
 | $UNLOAD_{r,y,h}$              | unmet_load           | $\mathbb{R}^+_0$ | Unmet load                                                            | MWh   |                                                   |
-| $CAP^{tot}_{r,seas,t,s,y}$    | capacity_total       | $\mathbb{R}^+_0$ | Total capacity                                                        | MW    |                                                   |
-| $CAP^{new}_{r,t,y,s}$         | capacity_builds      | $\mathbb{R}^+_0$ | New capacity built                                                    | MW    | Only created if capacity_expansion is True        |
-| $CAP^{ret}_{t,y,r,s}$         | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity                                                   | MW    | Only created if capacity_expansion is True        |
+| $CAP^{tot}_{r,t,s,y}$         | capacity_total       | $\mathbb{R}^+_0$ | Total capacity                                                        | MW    |                                                   |
+| $CAP^{new}_{r,t,s,y}$         | capacity_builds      | $\mathbb{R}^+_0$ | New capacity built                                                    | MW    | Only created if capacity_expansion is True        |
+| $CAP^{ret}_{r,t,s,y}$         | capacity_retirements | $\mathbb{R}^+_0$ | Retirement capacity                                                   | MW    | Only created if capacity_expansion is True        |
 | $TRA_{r,r1,y,h}$              | trade_interregional  | $\mathbb{R}^+_0$ | Interregional trade from region $r1$ to region $r$                    | MWh   | Only created if regional_exchange is True         |
-| $TRA^{int}_{r,r^{int},y,c,h}$ | trade_international  | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | MWh   | Only created if regional_exchange is True         |
-| $RAMP^{up}_{t,y,r,s,h}$       | generation_ramp_up   | $\mathbb{R}^+_0$ | Ramp up (increase in generation for dispatchable cap)                 | MWh   | Only created if ramping_required is True          |
-| $RAMP^{down}_{t,y,r,s,h}$     | generation_ramp_down | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap)               | MWh   | Only created if ramping_required is True          |
-| $ORP_{o,t,y,r,s,h}$           | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount                                 | MWh   | Only created if spinning_reserve_required is True |
-| $STOR^{avail}_{t,y,r,s,h}$    | storage_avail_cap    | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin                 | MW    | Only created if reserve_margin_required is True   |
+| $TRA^{int}_{r,r^{int},c,y,h}$ | trade_international  | $\mathbb{R}^+_0$ | International interregional trade from region $r^{int}$ to region $r$ | MWh   | Only created if regional_exchange is True         |
+| $RAMP^{up}_{r,t,s,y,h}$       | generation_ramp_up   | $\mathbb{R}^+_0$ | Ramp up (increase in generation for dispatchable cap)                 | MWh   | Only created if ramping_required is True          |
+| $RAMP^{down}_{r,t,s,y,h}$     | generation_ramp_down | $\mathbb{R}^+_0$ | Ramp down (decrease in generation for dispatchable cap)               | MWh   | Only created if ramping_required is True          |
+| $ORP_{r,o,t,s,y,h}$           | reserves_procurement | $\mathbb{R}^+_0$ | Operating reserves procurement amount                                 | MWh   | Only created if spinning_reserve_required is True |
+| $STOR^{avail}_{r,t,s,y,h}$    | storage_avail_cap    | $\mathbb{R}^+_0$ | Available storage capacity to meet the reserve margin                 | MW    | Only created if reserve_margin_required is True   |
 
 ### Objective Function
 
@@ -151,10 +151,10 @@ Dispatch cost:
 
 $$
 \begin{aligned}
-C_{disp} = \sum_{h \in H | s=MHS_h}{} WD_h \Big (&\sum_{{t,y,r,s} \in \theta^{GSH}_h}{WY_y \times SPR_{r,seas,t,s,y} \times \mathbf{GEN}_{t,y,r,s,h}} \\
-&+\sum_{{t,y,r,s} \in \theta^{SSH}_h}{ (WY_y \times (0.5 \times SPR_{r,seas,t,s,y} \times (\mathbf{STOR^{in}}_{t,y,r,s,h} + \mathbf{STOR^{out}}_{t,y,r,s,h})} \\
-&+ (HW_h \times STORLC) \times \mathbf{STOR^{level}}_{t,y,r,s,h})) \\
-&+\sum_{{t,y,r,s} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,seas,t,s,y} \times H2HR \times \mathbf{GEN}_{t,y,r,1,h}}\Big) \qquad (2)
+C_{disp} = \sum_{h \in H | s=MHS_h}{} WD_h \Big (&\sum_{{r,t,s,y} \in \theta^{GSH}_h}{WY_y \times SPR_{r,t,s,y,seas} \times \mathbf{GEN}_{r,t,s,y,h}} \\
+&+\sum_{{r,t,s,y} \in \theta^{SSH}_h}{ (WY_y \times (0.5 \times SPR_{r,t,s,y,seas} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
+&+ (HW_h \times STORLC) \times \mathbf{STOR^{level}}_{r,t,s,y,h})) \\
+&+\sum_{{r,t,s,y} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,t,s,y,seas} \times H2HR \times \mathbf{GEN}_{r,t,1,y,h}}\Big) \qquad (2)
 \end{aligned}
 $$
 
@@ -171,8 +171,8 @@ Capacity expansion cost, (4a) when `expansion_learning_type` is `nonlinear` and 
 
 $$
 \begin{aligned}
-C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}} CAPC0_{r,t,s} \\
-&\times \left (\frac{ SCL_t + \sum_{{r',t',s'} \in \Theta_{cc0} | t' = t}{ \sum_{y' \in Y | y'\lt y}{\mathbf{CAP^{new}}_{r',t,y',s'}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,y,s} \\
+C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{cc}} CAPC0_{r,t,s} \\
+&\times \left (\frac{ SCL_t + \sum_{{r',t',s'} \in \Theta_{cc0} | t' = t}{ \sum_{y' \in Y | y'\lt y}{\mathbf{CAP^{new}}_{r',t,s',y'}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,s,y} \\
 &\quad \text{if expansion learning type} = \mathtt{nonlinear} \qquad (\text{4a})
 \end{aligned}
 $$
@@ -199,7 +199,7 @@ source data, which predates AEO2026; geothermal, for one, is 8 percent there and
 
 $$
 \begin{aligned}
-C_{exp} = &\sum_{{r,t,y,s} \in \Theta_{cc}}{ CAPCL_{r,t,y,s} \times \mathbf{CAP^{new}}_{r,t,y,s}} \\
+C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{cc}}{ CAPCL_{r,t,s,y} \times \mathbf{CAP^{new}}_{r,t,s,y}} \\
 &\quad \text{if expansion learning type} \neq \mathtt{nonlinear} \qquad (\text{4b})
 \end{aligned}
 $$
@@ -221,7 +221,7 @@ Fixed O\&M cost:
 
 $$
 \begin{aligned}
-C_{fom} = \sum_{{r,seas,t,s,y} \in \Theta_{SC} | seas=2}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,seas,t,s,y}} \qquad (5)
+C_{fom} = \sum_{{r,t,s,y} \in \Theta_{SC}}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \qquad (5)
 \end{aligned}
 $$
 
@@ -230,7 +230,7 @@ Interregional trade cost:
 $$
 \begin{aligned}
 C_{tra} = &\sum_{{r,r1,y,h} \in \Theta_{tra}}{ WD_h \times WY_y \times TRAC_{r,r1,y} \times \mathbf{TRA}_{r,r1,y,h}} \\
-&+ \sum_{{r,r^{int},y,c,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}_{r,r^{int},y,c,h}}} \qquad (6)
+&+ \sum_{{r,r^{int},c,y,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}_{r,r^{int},c,y,h}}} \qquad (6)
 \end{aligned}
 $$
 
@@ -238,7 +238,7 @@ Ramping cost:
 
 $$
 \begin{aligned}
-C_{ramp} = \sum_{{t,y,r,s,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{t,y,r,s,h} + RDC_t \times \mathbf{RAMP^{down}}_{t,y,r,s,h})} \qquad (7)
+C_{ramp} = \sum_{{r,t,s,y,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{r,t,s,y,h} + RDC_t \times \mathbf{RAMP^{down}}_{r,t,s,y,h})} \qquad (7)
 \end{aligned}
 $$
 
@@ -246,7 +246,7 @@ Operating reserve cost:
 
 $$
 \begin{aligned}
-C_{op} = \sum_{{o,t,y,r,s,h} \in \Theta_{proc}}{ WD_h \times WY_y \times ORC_{o,t} \times \mathbf{ORP}_{o,t,y,r,s,h} } \qquad (8)
+C_{op} = \sum_{{r,o,t,s,y,h} \in \Theta_{proc}}{ WD_h \times WY_y \times ORC_{o,t} \times \mathbf{ORP}_{r,o,t,s,y,h} } \qquad (8)
 \end{aligned}
 $$
 
@@ -265,11 +265,11 @@ Demand balance constraint:
 
 $$
 \begin{aligned}
-LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{GDB}_{y,r,h}}{\mathbf{GEN}_{t,y,r,s,h}} \\
-&+ \sum_{{t,s} \in \theta^{SDB}_{y,r,h}}{ (\mathbf{STOR^{out}}_{t,y,r,s,h} - \mathbf{STOR^{in}}_{t,y,r,s,h})} \\
+LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{GDB}_{r,y,h}}{\mathbf{GEN}_{r,t,s,y,h}} \\
+&+ \sum_{{t,s} \in \theta^{SDB}_{r,y,h}}{ (\mathbf{STOR^{out}}_{r,t,s,y,h} - \mathbf{STOR^{in}}_{r,t,s,y,h})} \\
 &+ \mathbf{UNLOAD}_{r,y,h} \\
-& (+ \sum_{r1 \in \theta^{TDB}_{y,r,h}}{\left (\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)} \quad \text{if regional exchange is on}) \\
-& (+ \sum_{r_{int},c \in \theta^{TCDB}_{y,r,h}}{ (\mathbf{TRA}^{int}_{r,r_{int},y,c,h} \times (1 - LL) - \mathbf{TRA}^{int}_{r_{int},r,y,c,h})} \quad \text{if regional exchange is on}) \\
+& (+ \sum_{r1 \in \theta^{TDB}_{r,y,h}}{\left (\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)} \quad \text{if regional exchange is on}) \\
+& (+ \sum_{r_{int},c \in \theta^{TCDB}_{r,y,h}}{ (\mathbf{TRA}^{int}_{r,r_{int},c,y,h} \times (1 - LL) - \mathbf{TRA}^{int}_{r_{int},r,c,y,h})} \quad \text{if regional exchange is on}) \\
 &\forall {r,y,h} \in \Theta_{load} \qquad (9)
 \end{aligned}
 $$
@@ -278,9 +278,9 @@ First hour storage balance constraint:
 
 $$
 \begin{aligned}
-\mathbf{STOR^{level}}_{t,y,r,s,h} = &\mathbf{STOR^{level}}_{t,y,r,s,h+N - 1} \\
-&+ EFF_t \times \mathbf{STOR^{in}}_{t,y,r,s,h} - \mathbf{STOR^{out}}_{t,y,r,s,h} \\
-&\forall {t,y,r,s,h} \in \Theta_{SBFH} \qquad (10)
+\mathbf{STOR^{level}}_{r,t,s,y,h} = &\mathbf{STOR^{level}}_{r,t,s,y,h+N - 1} \\
+&+ EFF_t \times \mathbf{STOR^{in}}_{r,t,s,y,h} - \mathbf{STOR^{out}}_{r,t,s,y,h} \\
+&\forall {r,t,s,y,h} \in \Theta_{SBFH} \qquad (10)
 \end{aligned}
 $$
 
@@ -288,9 +288,9 @@ Storage balance (not first hour) constraint:
 
 $$
 \begin{aligned}
-\mathbf{STOR^{level}}_{t,y,r,s,h} = &\mathbf{STOR^{level}}_{t,y,r,s,h - 1} \\
-&+ EFF_t \times \mathbf{STOR^{in}}_{t,y,r,s,h} - \mathbf{STOR^{out}}_{t,y,r,s,h} \\
-&\forall {t,y,r,s,h} \in \Theta_{SBH} \qquad (11)
+\mathbf{STOR^{level}}_{r,t,s,y,h} = &\mathbf{STOR^{level}}_{r,t,s,y,h - 1} \\
+&+ EFF_t \times \mathbf{STOR^{in}}_{r,t,s,y,h} - \mathbf{STOR^{out}}_{r,t,s,y,h} \\
+&\forall {r,t,s,y,h} \in \Theta_{SBH} \qquad (11)
 \end{aligned}
 $$
 
@@ -312,8 +312,8 @@ Hydroelectric generation seasonal upper bound:
 
 $$
 \begin{aligned}
-&\sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{t,y,r,1,h} \times WeightDay_{MHD_{h}}} \leq \mathbf{CAP^{tot}}_{r,seas,t,1,y} \times HCF_{r,seas} \times WHS_{seas} \\
-&\forall {t,y,r,seas} \in \Theta_{hs} \qquad (12)
+&\sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,1,y,h} \times WeightDay_{MHD_{h}}} \leq \mathbf{CAP^{tot}}_{r,t,1,y} \times HCF_{r,seas} \times WHS_{seas} \\
+&\forall {r,t,y,seas} \in \Theta_{hs} \qquad (12)
 \end{aligned}
 $$
 
@@ -321,10 +321,10 @@ Dispatchable technology generation upper bound:
 
 $$
 \begin{aligned}
-&\mathbf{GEN}_{t,y,r,s,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}} \quad \text{if the reserve margin is on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h \\
-&\forall {t,y,r,s,h} \in \Theta_{dt^{max}} \qquad (13)
+&\mathbf{GEN}_{r,t,s,y,h} \\
+& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
+&\forall {r,t,s,y,h} \in \Theta_{dt^{max}} \qquad (13)
 \end{aligned}
 $$
 
@@ -332,10 +332,10 @@ Hydroelectric technology generation upper bound:
 
 $$
 \begin{aligned}
-&\mathbf{GEN}_{t,y,r,s,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}} \quad \text{if the reserve margin is on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
-&\forall {t,y,r,s,h} \in \Theta_{ht^{max}} \qquad (14)
+&\mathbf{GEN}_{r,t,s,y,h} \\
+& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
+&\forall {r,t,s,y,h} \in \Theta_{ht^{max}} \qquad (14)
 \end{aligned}
 $$
 
@@ -343,10 +343,10 @@ Intermittent technology upper bound:
 
 $$
 \begin{aligned}
-&\mathbf{GEN}_{t,y,r,s,h} \\
-& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}} \quad \text{if the reserve margin is on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times ICF_{t,y,r,s,h} \times HW_h \\
-&\forall {t,y,r,s,h} \in \Theta_{it^{max}} \qquad (15)
+&\mathbf{GEN}_{r,t,s,y,h} \\
+& (+ \sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times ICF_{r,t,s,y,h} \times HW_h \\
+&\forall {r,t,s,y,h} \in \Theta_{it^{max}} \qquad (15)
 \end{aligned}
 $$
 
@@ -354,8 +354,8 @@ Storage technology inflow upper bound:
 
 $$
 \begin{aligned}
-\mathbf{STOR^{in}}_{t,y,r,s,h} &\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h \\
-&\forall {t,y,r,s,h} \in \Theta_{stor} \qquad (16)
+\mathbf{STOR^{in}}_{r,t,s,y,h} &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
+&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (16)
 \end{aligned}
 $$
 
@@ -363,10 +363,10 @@ Storage technology outflow upper bound:
 
 $$
 \begin{aligned}
-&\mathbf{STOR^{out}}_{t,y,r,s,h} \\
-& (+\sum_{rt \in RT}{\mathbf{OPRP}_{rt,t,y,r,s,h}} \quad \text{if the reserve margin is on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times HW_h \\
-&\forall {t,y,r,s,h} \in \Theta_{stor} \qquad (17)
+&\mathbf{STOR^{out}}_{r,t,s,y,h} \\
+& (+\sum_{rt \in RT}{\mathbf{OPRP}_{r,rt,t,s,y,h}} \quad \text{if the reserve margin is on}) \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
+&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (17)
 \end{aligned}
 $$
 
@@ -374,8 +374,8 @@ Storage technology level upper bound:
 
 $$
 \begin{aligned}
-&\mathbf{STOR^{level}}_{t,y,r,s,h} \leq \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \times STOR^{dur}_t \\
-&\forall {t,y,r,s,h} \in \Theta_{stor} \qquad (18)
+&\mathbf{STOR^{level}}_{r,t,s,y,h} \leq \mathbf{CAP^{tot}}_{r,t,s,y} \times STOR^{dur}_t \\
+&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (18)
 \end{aligned}
 $$
 
@@ -389,10 +389,10 @@ Total capacity balance:
 
 $$
 \begin{aligned}
-\mathbf{CAP^{tot}}_{r,seas,t,s,y} = &CAP^{exist}_{r,seas,t,s,y} \\
-& (+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,cy,s}} \quad \text{if capacity expansion is on}) \\
-& (- \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \quad \text{if capacity expansion is on}) \\
-&\forall {r,seas,t,s,y} \in \Theta_{SC} \qquad (19)
+\mathbf{CAP^{tot}}_{r,t,s,y} = &CAP^{exist}_{r,t,s,y} \\
+& (+ \sum_{cy \in Y \leq y}{\mathbf{CAP^{new}}_{r,t,s,cy}} \quad \text{if capacity expansion is on}) \\
+& (- \sum_{cy \in Y \leq y}{\mathbf{CAP^{ret}}_{r,t,s,cy}} \quad \text{if capacity expansion is on}) \\
+&\forall {r,t,s,y} \in \Theta_{SC} \qquad (19)
 \end{aligned}
 $$
 
@@ -400,8 +400,8 @@ Capacity retirement upper bound:
 
 $$
 \begin{aligned}
-\mathbf{CAP^{ret}}_{t,y,r,s} \leq &CAP^{exist}_{r,2,t,s,y} + \sum_{cy \in Y \lt y}{\mathbf{CAP^{new}}_{r,t,cy,s}} - \sum_{cy \in Y \lt y}{\mathbf{CAP^{ret}}_{t,cy,r,s}} \\
-&\forall {t,y,r,s} \in \Theta_{ret} \\
+\mathbf{CAP^{ret}}_{r,t,s,y} \leq &CAP^{exist}_{r,t,s,y} + \sum_{cy \in Y \lt y}{\mathbf{CAP^{new}}_{r,t,s,cy}} - \sum_{cy \in Y \lt y}{\mathbf{CAP^{ret}}_{r,t,s,cy}} \\
+&\forall {r,t,s,y} \in \Theta_{ret} \\
 &\quad \text{if capacity expansion is on} \qquad (20)
 \end{aligned}
 $$
@@ -416,7 +416,7 @@ International interregional trade line capacity upper bound:
 
 $$
 \begin{aligned}
-\sum_{c}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq &TRALINLIM^{int}_{r,r^{int},y,h} * HW_h \\
+\sum_{c}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALINLIM^{int}_{r,r^{int},y,h} * HW_h \\
 &\forall {r,r^{int},y,h} \in \Theta_{traLL^{int}} \\
 &\quad \text{if regional exchange is on} \qquad (21)
 \end{aligned}
@@ -426,7 +426,7 @@ International interregional trade resource capacity upper bound:
 
 $$
 \begin{aligned}
-\sum_{r}{\mathbf{TRA^{int}}_{r,r^{int},y,c,h}} \leq &TRALIM^{int}_{r^{int},c,y,h} * HW_h \\
+\sum_{r}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALIM^{int}_{r^{int},c,y,h} * HW_h \\
 &\forall {r,r^{int},y,h} \in \Theta_{traL^{int}} \\
 &\quad \text{if regional exchange is on} \qquad (22)
 \end{aligned}
@@ -436,7 +436,7 @@ Domestic interregional trade line capacity upper bound:
 
 $$
 \begin{aligned}
-\mathbf{TRA}_{r,r1,y,h} \leq &TRALINLIM_{r,r1,MHS_h,y} * HW_h \\
+\mathbf{TRA}_{r,r1,y,h} \leq &TRALINLIM_{r,r1,y,h} * HW_h \\
 &\forall {r,r1,y,h} \in \Theta_{traLL} \\
 &\quad \text{if regional exchange is on} \qquad (23)
 \end{aligned}
@@ -454,7 +454,7 @@ Reserve margin requirement constraint:
 $$
 \begin{aligned}
 LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \\
-&\sum_{{t,s} \in \theta^{scrm}_{y,r,MHS_h}}{CC_{t,y,r,s,h} \times (\mathbf{STOR^{avail}}_{t,y,r,s,h} + \mathbf{CAP^{tot}_{r,MHS_h,t,s,y}})} \\
+&\sum_{{t,s} \in \theta^{scrm}_{r,y}}{CC_{r,t,s,y,h} \times (\mathbf{STOR^{avail}}_{r,t,s,y,h} + \mathbf{CAP^{tot}_{r,t,s,y}})} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if the reserve margin is on} \qquad (24)
 \end{aligned}
@@ -464,8 +464,8 @@ Constraint to ensure available storage capacity to meet RM <= power cap, upper b
 
 $$
 \begin{aligned}
-\mathbf{STOR^{avail}}_{t,y,r,s,h} \leq &\mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \\
-&\forall {t,y,r,s,h} \in \Theta_{stor} \\
+\mathbf{STOR^{avail}}_{r,t,s,y,h} \leq &\mathbf{CAP^{tot}}_{r,t,s,y} \\
+&\forall {r,t,s,y,h} \in \Theta_{stor} \\
 &\quad \text{if the reserve margin is on} \qquad (25)
 \end{aligned}
 $$
@@ -474,8 +474,8 @@ Constraint to ensure available storage capacity to meet RM <= existing storage l
 
 $$
 \begin{aligned}
-\mathbf{STOR^{avail}}_{t,y,r,s,h} \leq &\mathbf{STOR^{level}}_{t,y,r,s,h} \\
-&\forall {t,y,r,s,h} \in \Theta_{stor} \\
+\mathbf{STOR^{avail}}_{r,t,s,y,h} \leq &\mathbf{STOR^{level}}_{r,t,s,y,h} \\
+&\forall {r,t,s,y,h} \in \Theta_{stor} \\
 &\quad \text{if the reserve margin is on} \qquad (26)
 \end{aligned}
 $$
@@ -489,8 +489,8 @@ First hour ramping balance constraint:
 
 $$
 \begin{aligned}
-\mathbf{GEN}_{t,y,r,s,h} = &\mathbf{GEN}_{t,y,r,s,h+N-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h} \\
-&\forall {t,y,r,s,h} \in \Theta_{ramp1} \\
+\mathbf{GEN}_{r,t,s,y,h} = &\mathbf{GEN}_{r,t,s,y,h+N-1} + \mathbf{RAMP^{up}}_{r,t,s,y,h} - \mathbf{RAMP^{down}}_{r,t,s,y,h} \\
+&\forall {r,t,s,y,h} \in \Theta_{ramp1} \\
 &\quad \text{if ramping is on} \qquad (27)
 \end{aligned}
 $$
@@ -499,8 +499,8 @@ Ramping balance (not first hour) constraint:
 
 $$
 \begin{aligned}
-\mathbf{GEN}_{t,y,r,s,h} = &\mathbf{GEN}_{t,y,r,s,h-1} + \mathbf{RAMP^{up}}_{t,y,r,s,h} - \mathbf{RAMP^{down}}_{t,y,r,s,h} \\
-&\forall {t,y,r,s,h} \in \Theta_{ramp23} \\
+\mathbf{GEN}_{r,t,s,y,h} = &\mathbf{GEN}_{r,t,s,y,h-1} + \mathbf{RAMP^{up}}_{r,t,s,y,h} - \mathbf{RAMP^{down}}_{r,t,s,y,h} \\
+&\forall {r,t,s,y,h} \in \Theta_{ramp23} \\
 &\quad \text{if ramping is on} \qquad (28)
 \end{aligned}
 $$
@@ -509,8 +509,8 @@ Ramp up upper bound:
 
 $$
 \begin{aligned}
-\mathbf{RAMP^{up}}_{t,y,r,s,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \\
-&\forall {t,y,r,s,h} \in \Theta_{ramp} \\
+\mathbf{RAMP^{up}}_{r,t,s,y,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
+&\forall {r,t,s,y,h} \in \Theta_{ramp} \\
 &\quad \text{if ramping is on} \qquad (29)
 \end{aligned}
 $$
@@ -519,8 +519,8 @@ Ramp down upper bound:
 
 $$
 \begin{aligned}
-\mathbf{RAMP^{down}}_{t,y,r,s,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \\
-&\forall {t,y,r,s,h} \in \Theta_{ramp} \\
+\mathbf{RAMP^{down}}_{r,t,s,y,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
+&\forall {r,t,s,y,h} \in \Theta_{ramp} \\
 &\quad \text{if ramping is on} \qquad (30)
 \end{aligned}
 $$
@@ -536,7 +536,7 @@ Spinning reserve requirement constraint. 3\% of load required:
 
 $$
 \begin{aligned}
-0.03 \times LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{opres}_{1,r,y,h}}{\mathbf{ORP}_{1,t,y,r,s,h}} \\
+0.03 \times LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{opres}_{r,1,y,h}}{\mathbf{ORP}_{r,1,t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (31)
 \end{aligned}
@@ -547,9 +547,9 @@ Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind generatio
 $$
 \begin{aligned}
 &0.01 \times LOAD_{r,y,h} \\
-{+} &0.005 \times \sum_{{t^w,s} \in \theta^{windor}_{y,r,h}}{\mathbf{GEN}_{t^w,y,r,s,h}} \\
-{+} &0.003 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{y,r,h}}{\mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}} \\
-\leq &\sum_{{t,s} \in \theta^{opres}_{2,r,y,h}}{\mathbf{ORP}_{2,t,y,r,s,h}} \\
+{+} &0.005 \times \sum_{{t^w,s} \in \theta^{windor}_{r,y,h}}{\mathbf{GEN}_{r,t^w,s,y,h}} \\
+{+} &0.003 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
+\leq &\sum_{{t,s} \in \theta^{opres}_{r,2,y,h}}{\mathbf{ORP}_{r,2,t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (32)
 \end{aligned}
@@ -559,9 +559,9 @@ Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of sol
 
 $$
 \begin{aligned}
-&0.1 \times \sum_{{t^w,s} \in \theta^{windor}_{y,r,h}}{\mathbf{GEN}_{t^w,y,r,s,h}} \\
-{+} &0.04 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{y,r,h}}{\mathbf{CAP^{tot}}_{r,MHS_h,t^s,s,y}} \\
-\leq &\sum_{{t,s} \in \theta^{opres}_{3,r,y,h}}{\mathbf{ORP}_{3,t,y,r,s,h}} \\
+&0.1 \times \sum_{{t^w,s} \in \theta^{windor}_{r,y,h}}{\mathbf{GEN}_{r,t^w,s,y,h}} \\
+{+} &0.04 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
+\leq &\sum_{{t,s} \in \theta^{opres}_{r,3,y,h}}{\mathbf{ORP}_{r,3,t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if operating reserves are on} \qquad (33)
 \end{aligned}
@@ -571,8 +571,8 @@ Operating reserve procurement upper bound:
 
 $$
 \begin{aligned}
-\mathbf{ORP}_{o,t,y,r,s,h} \leq &RTUB_{o,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,MHS_h,t,s,y} \\
-&\forall {o,t,y,r,s,h} \in \Theta_{proc} \\
+\mathbf{ORP}_{r,o,t,s,y,h} \leq &RTUB_{o,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
+&\forall {r,o,t,s,y,h} \in \Theta_{proc} \\
 &\quad \text{if operating reserves are on} \qquad (34)
 \end{aligned}
 $$

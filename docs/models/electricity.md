@@ -32,7 +32,6 @@ through the model configuration.
 | $T^{conv}$             | tech_conv                                     | Subset     | Conventional technologies, the ones with ramping constraints |
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
-| $\Theta_{H2gen}$       | h2_generation_index                           | Sparse set | All hydrogen generation sparse set                           |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
 | $\Theta_{um}$          | unmet_load.index_set()                        | Sparse set | All unmet load set                                           |
 | $\Theta_{SC}$          | capacity_index                                | Sparse set | Capacity set: the (region, technology, step, year) keys of available_capacity |
@@ -42,7 +41,6 @@ through the model configuration.
 | $\Theta_{hs}$          | seasonal_hydro_index                          | Sparse set | Seasonal hydro energy budget set: (region, technology, year, season) |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse set | Retirable capacity set                                       |
 | $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse set | Buildable capacity set: the (region, technology, step, year) keys of capital_cost |
-| $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse set | Set of capacity costs                                        |
 | $\Theta_{cc0}$         | capital_cost_initial.keys()                   | Sparse set | The (region, technology, step) keys of capital_cost_initial (learning modes only) |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index              | Sparse set | (non-first hour) storage balance set                         |
@@ -83,7 +81,6 @@ remaining indices.
 | Set                        | Code                      | Data Type     | Short Description                                                                   |
 |:---------------------------|:--------------------------|:--------------|:------------------------------------------------------------------------------------|
 | $S_t$                      | steps_for_tech            | Sparse subset | Set for supply steps indexed by technology                                          |
-| $\theta^{H2H}_h$           | h2_generation_hour_index  | Sparse subset | Set for H2 generation indexed by hour                                               |
 | $\theta^{GSH}_h$           | generation_hour_index     | Sparse subset | Set for generation indexed by hour                                                  |
 | $\theta^{SSH}_h$           | storage_hour_index        | Sparse subset | Set for storage indexed by hour                                                     |
 | $\theta^{GDB}_{r,y,h}$     | generation_demand_balance | Sparse subset | Set for generation indexed by r,y,h                                                 |
@@ -110,6 +107,7 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | MWh                        |
 | $CAP^{exist}_{r,t,s,y}$           | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
 | $SPR_{r,t,s,y,seas}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
+| $NGADJ_{r,t,s,y,seas}$            | ng_fuel_adj              | $\mathbb{R}$     | Gas fuel-cost adjustment, set by the natural gas coupling; zero in a standalone run          | USD/MWh                    |
 | $ICF_{r,t,s,y,h}$                 | capacity_factor_vre      | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
 | $HCF_{r,seas}$                    | hydro_capacity_factor    | $\mathbb{R}^+_0$ | Hydroelectric capacity factor, by region and season                                          | fraction                   |
 | $STORLC$                          | storage_level_cost       | $\mathbb{R}^+_0$ | Cost of holding stored energy, per MWh held per hour; a constant (1e-11), so negligible. Storage losses come from $EFF_t$ | USD/MWh per hour           |
@@ -162,17 +160,20 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 
 ### Objective Function
 
-Objective is to minimize costs to the electric power system. Costs include dispatch cost (e.g., variable O&M cost),
-fixed operation and maintenance (FOM)
-cost, capacity expansion cost component (nonlinear and linear options available), interregional trade cost, ramping
-cost, operating reserve cost and unmet load cost (note: unmet load cost should equal zero).
+The objective is to minimize costs to the electric power system: dispatch cost (fuel and variable O&M), fixed
+operation and maintenance (FOM) cost, capacity expansion cost (priced without learning, or with linear or nonlinear
+learning), interregional trade cost, ramping cost, operating reserve cost and unmet load cost. The expansion cost
+applies only when `capacity_expansion` is true, the trade cost when `regional_exchange` is, the ramping cost when
+`ramping_required` is, and the operating reserve cost when `spinning_reserve_required` is. Unmet load is
+penalized at $UMLPEN$, so the model uses it only where serving load is infeasible or would cost more. A solve with
+more than 0.1 MWh of unmet load in any (region, year, hour) is reported with PENALTY status.
 
 Minimize total cost (USD)
 
 $$
 \begin{aligned}
-\min \mathbf{C_{tot}} = &C_{disp}+ C_{unload} \\
-&+ C_{exp} + C_{fom} \quad (\text{if capacity expansion is on}) \\
+\min \mathbf{C_{tot}} = &C_{disp} + C_{unload} + C_{fom} \\
+&+ C_{exp} \quad (\text{if capacity expansion is on}) \\
 &+ C_{tra} \quad (\text{if regional exchange is on} ) \\
 &+ C_{ramp} \quad (\text{if ramping is on} ) \\
 &+ C_{op}\quad (\text{if operating reserves are on} ) \qquad (1)
@@ -185,12 +186,25 @@ Dispatch cost:
 
 $$
 \begin{aligned}
-C_{disp} = \sum_{h \in H | seas=MHS_h}{} WD_h \Big (&\sum_{{r,t,s,y} \in \theta^{GSH}_h}{WY_y \times SPR_{r,t,s,y,seas} \times \mathbf{GEN}_{r,t,s,y,h}} \\
-&+\sum_{{r,t,s,y} \in \theta^{SSH}_h}{ (WY_y \times (0.5 \times SPR_{r,t,s,y,seas} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
-&+ (HW_h \times STORLC) \times \mathbf{STOR^{level}}_{r,t,s,y,h})) \\
-&+\sum_{{r,t,s,y} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,t,s,y,seas} \times H2HR \times \mathbf{GEN}_{r,t,1,y,h}}\Big) \qquad (2)
+C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s,y) \in \theta^{GSH}_h}{(SPR_{r,t,s,y,MHS_h} + NGADJ_{r,t,s,y,MHS_h}) \times \mathbf{GEN}_{r,t,s,y,h}} \\
+&+ \sum_{(r,t,s) | (r,t,s,y) \in \theta^{SSH}_h}{\big( 0.5 \times SPR_{r,t,s,y,MHS_h} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
+&+ HW_h \times STORLC \times \mathbf{STOR^{level}}_{r,t,s,y,h} \big) \Big) \qquad (2)
 \end{aligned}
 $$
+
+$NGADJ$ is zero in a standalone run. In an integrated run with the natural gas model, the
+generation cost of the gas-linked technologies (the gas turbine in the shipped constants) follows
+the gas price $p$ received for its region and year: half of $SPR$ is taken to be fuel bought at
+4 USD/MMBtu, so the cost becomes $SPR \times (1 + 0.5 (p - 4)/4)$. Gauss-Seidel writes the change
+into $NGADJ$ on the built model, and Jacobi rescales $SPR$ before each build; both give the same
+cost.
+
+Storage pays half its price $SPR$ on each MWh charged and half on each MWh discharged. With the efficiency
+$EFF_t$ applied on charging, that is $0.5 \times SPR \times (1 + 1/EFF_t)$ per MWh discharged, about 1.09 to
+1.10 times $SPR$ for the shipped efficiencies of 0.85 and 0.83. The shipped storage price is 0.0001 USD/MWh, so
+this is a small charge on throughput; the split is the model's assumption, and its rationale is not recorded.
+$STORLC$ is charged on the stored level for the $HW_h$ hours each time segment stands for. Hydrogen turbines are
+generators, so their generation is priced by $SPR$ like any other.
 
 Unmet load cost:
 
@@ -201,19 +215,20 @@ C_{unload} = \sum_{{r,y,h} \in \Theta_{um}}{ WD_h \times WY_y \times UMLPEN \tim
 $$
 
 Capacity expansion cost, (4a) when `expansion_learning_type` is `nonlinear` and (4b) when it is `linear` or
-`disabled`:
+`disabled`. It applies only when `capacity_expansion` is true; otherwise $C_{exp} = 0$.
 
 $$
 \begin{aligned}
-C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{cc}} CAPC0_{r,t,s} \\
+C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{new}} CAPC0_{r,t,s} \\
 &\times \left (\frac{ SCL_t + \sum_{{r',t',s'} \in \Theta_{cc0} | t' = t}{ \sum_{y' \in Y | y'\lt y}{\mathbf{CAP^{new}}_{r',t,s',y'}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,s,y} \\
 &\quad \text{if expansion learning type} = \mathtt{nonlinear} \qquad (\text{4a})
 \end{aligned}
 $$
 
 The multiplier is driven solely by cumulative builds in strictly prior years, so a build never
-discounts its own cost. The cumulative term pools that technology's builds across **all**
-regions and steps, written above as $r'$ and $s'$, so experience is national rather than regional.
+discounts its own cost. The cumulative term pools that technology's builds across all modeled
+regions and steps, written above as $r'$ and $s'$, so experience is shared rather than regional.
+When `region_filter` limits the run, only the selected regions count.
 
 The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
 modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
@@ -228,12 +243,12 @@ Note $LR_t$ is the **curve exponent**, the `learning_exponent` column of `learni
 doubling of $SCL_t$ plus prior builds cuts cost by $1 - 2^{-LR_t}$, so a learning rate $LR$ per
 doubling converts as $LR_t = -\ln(1-LR)/\ln 2$. The file holds the exponents for rates of 1, 10
 and 20 percent, rounded to 0.0145, 0.152 and 0.322. Those are the component learning rates in
-NEMS (AEO2026 EMM Assumptions, Table 5, page 11). Which technology gets which rate comes from the
+NEMS (AEO2026 EMM Assumptions, Table 5, page 10). Which technology gets which rate comes from the
 source data, which predates AEO2026; geothermal, for one, is 8 percent there and 10 percent here.
 
 $$
 \begin{aligned}
-C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{cc}}{ CAPCL_{r,t,s,y} \times \mathbf{CAP^{new}}_{r,t,s,y}} \\
+C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{new}}{ CAPCL_{r,t,s,y} \times \mathbf{CAP^{new}}_{r,t,s,y}} \\
 &\quad \text{if expansion learning type} \neq \mathtt{nonlinear} \qquad (\text{4b})
 \end{aligned}
 $$
@@ -248,8 +263,8 @@ The two learning modes are different formulations, not two ways of solving one p
 linear mode takes each solve's costs as given and iterates until they match its builds, so it
 never builds early to lower later costs. The nonlinear mode puts the curve in the objective, so
 it can; the problem is nonconvex, and IPOPT returns a local solution. The two can choose
-different builds. On the linear learning test case, the nonlinear mode builds ahead of load in
-the first two years, while the linear mode builds what the disabled mode does.
+different builds. On the linear learning test case they do not: load forces every build, so the
+disabled, linear and nonlinear modes build the same capacity and differ only in price.
 
 Fixed O\&M cost:
 
@@ -264,7 +279,7 @@ Interregional trade cost:
 $$
 \begin{aligned}
 C_{tra} = &\sum_{{r,r1,y,h} \in \Theta_{tra}}{ WD_h \times WY_y \times TRAC_{r,r1,y} \times \mathbf{TRA}_{r,r1,y,h}} \\
-&+ \sum_{{r,r^{int},c,y,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}_{r,r^{int},c,y,h}}} \qquad (6)
+&+ \sum_{{r,r^{int},c,y,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \qquad (6)
 \end{aligned}
 $$
 

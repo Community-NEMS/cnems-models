@@ -14,13 +14,13 @@ iterator and inside the same IterativeSequencer framework. Right now it's experi
 The economics are main's unchanged: the same multiplicative price link, gas turbine only, the same
 4 USD/MMBtu reference. The packages, the population-weighted crosswalk, route_updates, the
 ConvergenceTracker and the monitor are Jacobi's. The per-iteration bookkeeping both loops share is
-in src/integrator/control_loop.py. We might change some of these in the future, but I wanted it to match Jacobi right now so we can compare and verify both methods.
+in src/integrator/bookeeping_utilities.py. We might change some of these in the future, but I wanted it to match Jacobi right now so we can compare and verify both methods.
 
 ## How to try it
 
     pixi run gs            # Gauss-Seidel on run_configs/gs_compare.toml, about 1.5 minutes
     pixi run gs-compare    # Jacobi then Gauss-Seidel on that config, side by side, 5 to 7 minutes
-    pixi run jacobi        # as before
+    pixi run jacobi        # Jacobi on run_configs/jacobi_small.toml, now every region
 
 gs-compare writes one folder per comparison, output/gs_compare_comparison (then _1, _2, ...),
 holding the two runs' folders, jacobi/ and gauss_seidel/, beside comparison.md,
@@ -36,6 +36,10 @@ Here's some comparison results:
 | Epsilon 0.001, run 2: iterations, wall time | 6, 306 s | 4, 75 s |
 | Epsilon 1e-5: iterations, wall time | 8, 432 s | 5, 80 s |
 | Final objectives, burn and mean gas prices | | identical to Jacobi's in every run (largest relative objective difference 5e-8) |
+
+These runs predate the move of the electricity model to MW (PR 61). In a rerun on the current
+branch the two schemes still agree on the objectives, and Gauss-Seidel's burn and prices are
+unchanged; see the comparison page.
 
 Good news is results match! There are some computational efficiencies worth considering. Most of the difference is rebuilding. Summed over the run, Jacobi spent 212 to 301 s loading data
 and building models; Gauss-Seidel spent about 35 s, once. Updating a held model takes about 0.01 s,
@@ -59,7 +63,7 @@ in pairs of iterations, each model reacting to the other's previous iteration.
 ## The commits, in order
 
 1. Add the gas fuel cost adjustment to the dispatch objective: ng_fuel_adj, a mutable parameter
-   added to supply_price in dispatch_cost, zero by default.
+   added to the generation cost in dispatch_cost, zero by default.
 2. Let a model declare which of its inputs another model owns: declare_external and is_external on
    IntegratedModel, and exact setters on the gas model.
 3. Resolve the coupled footprint before the first solve: build_preflight checks that the regions
@@ -75,12 +79,16 @@ in pairs of iterations, each model reacting to the other's previous iteration.
 9. Draw how the iterators approach the answer in the comparison, one folder per comparison.
 10. Add the comparison write-up and these notes to the docs.
 
+The exchange refactor that followed replaced the preflight in 3 with the crosswalk checks in the
+region coverage rules, and removed the ownership declarations in 2 as unused.
+
 ## Shared code it touches
 
 - src/common/integrated_model_sequencer.py: update_model takes update_packages; solve_iteration is
   split from full_run; IterationResult gains a timings field. Jacobi's path through full_run is
   unchanged.
-- src/common/integrated_model.py: declare_external and is_external.
-- src/integrator/jacobi/jacobi_iterator.py: its bookkeeping now calls control_loop.py, with the
-  same behaviour and log messages.
+- src/common/integrated_model.py: a regions property, which the update package writers and
+  readers check crosswalked data against.
+- src/integrator/jacobi/jacobi_iterator.py: its bookkeeping now calls bookeeping_utilities.py,
+  with the same behaviour and log messages.
 - Each model's update_reader.py gains a reader for the built model, beside the pre-build one.

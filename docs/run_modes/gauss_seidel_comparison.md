@@ -73,7 +73,7 @@ link. Tests check the contract entry by entry, to a relative 1e-12:
 
 | Check | Result |
 |---|---|
-| Electricity, after a price package applied twice and then a narrower one | every row's effective price matches a rebuild to a relative 1e-12 |
+| Electricity, after a price package applied twice and then a dearer one (a package that does not cover every held region and year is rejected) | every row's effective price matches a rebuild to a relative 1e-12 |
 | Gas, after a burn package covering every power-sector cell | every demand cell matches a rebuild to a relative 1e-12 |
 | Updating a held electricity model | about 0.01 s at 25 regions (test config, all regions), against 35 s to build that model |
 
@@ -92,7 +92,7 @@ Per iteration, from the electricity worker's log, one run each:
 
 | Config | Per iteration | Preprocessing | Build | Solve |
 |---|---|---|---|---|
-| `jacobi_small`, 3 regions, 2 years | ~35 s | 20 to 24 s | 6 to 7 s | ~7 s |
+| 3 electricity regions, 2 years (`jacobi_small` at the time) | ~35 s | 20 to 24 s | 6 to 7 s | ~7 s |
 | All 25 regions, 4 years, no MAGIC | ~77 s | ~29 s | ~18 s | ~29 s |
 
 Every iteration repeats the preprocessing and the build. Gauss-Seidel does them once.
@@ -122,6 +122,22 @@ Final values, the same in all four runs:
 | Mean gas price, USD/MMBtu, 2025 / 2030 | 2.117 / 2.345 | 2.117 / 2.345 |
 
 The relative difference in the final objectives is 4.6e-8 for electricity and 0 for gas.
+
+Rerun on the branch at `ee20792` (2026-10-15), one run each, after the electricity model moved to
+MW and its fixed O&M cost was corrected (PR 61), and after the gas objective gained the cost of
+committed production (PR 64):
+
+| | Jacobi | Gauss-Seidel |
+|---|---|---|
+| Iterations | 6 | 4 |
+| Time from the start of the run log to convergence, s | about 324 | about 63 |
+| Electricity objective | 1.359311e+11 | 1.359311e+11 |
+| Gas objective | -1.141580e+11 | -1.141580e+11 |
+
+The objective levels moved with those changes, and the two schemes still agree: the relative
+difference is 1.7e-8 for electricity and 0 for gas. Gauss-Seidel's final burn and mean gas prices
+match the earlier runs to the digits shown (248.3 / 512 Bcf, 2.117 / 2.345 USD/MMBtu); Jacobi's
+run log does not record them. The other timings on this page are from the earlier runs.
 
 Where the time goes.
 - Jacobi rebuilds both models every iteration: 212 to 222 s of its 306 to 312.
@@ -170,7 +186,9 @@ final values.
 ### 4.6 How the two runs approach the answer
 
 The figures are from the epsilon 1e-5 run (§4.5). The default-tolerance runs (§4.4) follow the
-same paths and stop earlier. `pixi run gs-compare` draws both figures for any run.
+same paths and stop earlier. `pixi run gs-compare` draws both figures for any run. They predate
+PR 61 and PR 64, so the objective levels in the first have since moved. In the rerun,
+Gauss-Seidel's exchanged values match the ones quoted below to the digits shown.
 
 ![Objectives by iteration](images/gs_compare_objectives.png)
 
@@ -217,14 +235,15 @@ change of link is argued separately (§6).
 | Additive price link | Fuel cost moves by heat rate x price change, whatever a row's cost mix. The multiplicative link assumes every gas row is 50% fuel | Objectives, burn and prices under each link; effect size |
 | Combined cycle linked | It burns gas but is not coupled with price yet | Changes burn accounting as well as price response |
 | Declared reference price | The 4 USD/MMBtu is a placeholder | Source, and sensitivity |
-| Coverage top-up on filtered runs | Jacobi replaces a partly covered gas region's power-sector demand with the partial burn, and holds uncovered regions flat at their 2025 value | Check the population-share assumption against the full run's burn by region; demand under each policy |
+| Coverage top-up on filtered runs | A run whose regions are not closed under the crosswalk is now rejected. A top-up would add back the uncovered share of each gas region's power-sector demand, so that such runs could go ahead | Check the population-share assumption against the full run's burn by region; demand under each policy |
 | Stopping on exchanged quantities | On the 4-year 25-region run the electricity objective moved by only 1e-5 to 1e-7 in the last iterations, which may stop a run before burn and prices settle | Runs where the objective rule and a residual rule disagree |
 
 ## 7. Not claimed here
 
 - Nothing about convergence of either scheme in general. The runs above stopped by the
   objective-change rule on these configurations.
-- Nothing about region-filtered runs. They depend on the coverage policy (§6).
+- Nothing about region-filtered runs. A filter must be closed under the crosswalk to run at all
+  (see the region coverage rules in [Integrated Runs](integrated.md#region-coverage-rules)).
 - Each timing is one run on one machine, unless repeats are shown.
 
 ## 8. Reproduce

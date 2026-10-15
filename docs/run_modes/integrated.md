@@ -62,7 +62,7 @@ built models. Each model checks only its own side, so no step needs to know both
 |:--|:-----|:-----------|:---------------------|
 | 1 | Each file's weights are finite and ≥ 0, and each source region's weights sum to 1 | `RegionCrosswalk` construction | Crosswalk files: supply one file per direction, each normalized over its own source regions |
 | 2 | The two files name the same regions and the same positive-weight links | `RegionCrosswalk` construction | Crosswalk files: a link is in both files or in neither |
-| 3 | The values sent are exactly the sending model's regions (`IntegratedModel.regions`) × years, with one value each and every region known to the crosswalk | `RegionCrosswalk.apply`, called by the writer | Writer: map through `apply(..., model_regions=model.regions)`; send 0.0 rather than leaving a region out |
+| 3 | The values sent are exactly the sending model's regions (`IntegratedModel.regions`), with one value per region for each year sent, and every region known to the crosswalk. The years are taken from the values; rule 5 checks them against the receiver | `RegionCrosswalk.apply`, called by the writer | Writer: map through `apply(..., model_regions=model.regions)`; send 0.0 rather than leaving a region out |
 | 4 | The sent regions are closed: every destination region they reach draws only on regions that were sent | `RegionCrosswalk.apply`, called by the writer | Writer: nothing beyond rule 3; `apply` checks it |
 | 5 | The `(region, year)` entries received are exactly the receiving model's regions × years | The reader's handler, via `check_region_year_keys` | Reader: call `check_region_year_keys` before writing anything, in both the pre-build and built-model handlers |
 
@@ -140,7 +140,11 @@ Things to know about the current loop:
 
     Filter the coupled models only to sets of regions that cover each other exactly, such as
     electricity `7` with gas `new_england`. Any other filter fails the region coverage rules on the
-    first exchange (see [Region Coverage Rules](#region-coverage-rules)).
+    first exchange (see [Region Coverage Rules](#region-coverage-rules)). With the shipped
+    crosswalk the only such sets are that pair, everything else, and both together. On its own,
+    New England loses its pipeline supply, and its production and LNG imports fall well short of
+    its demand, so it solves only with unserved demand. That makes it a test of the mechanics
+    rather than a model run.
 
 ## Gauss-Seidel Iteration (experimental)
 

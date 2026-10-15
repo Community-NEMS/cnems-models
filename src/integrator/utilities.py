@@ -346,7 +346,7 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
 
 
 TEMPORAL_MAPPINGS_ROOT = Path(PROJECT_ROOT, 'input/integrator/temporal_data/temporal_mappings')
-"""Parent of the self-contained per-resolution folders (``default``, ``d8h12``, ...)."""
+"""Parent of the self-contained per-resolution folders (``default``, ``d6h12``, ...)."""
 
 
 def temporal_mapping_dir(temporal_resolution: str) -> Path:

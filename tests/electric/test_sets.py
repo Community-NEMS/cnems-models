@@ -64,12 +64,12 @@ def test_hours_set():
 
     # total load for 4 days, 24 hours per day
     tot_load_d4h24 = get_tot_load('d4h24')
-    # total load for 8 days, 12 hours per day
-    tot_load_d8h12 = get_tot_load('d8h12')
+    # total load for 6 days, 12 hours per day
+    tot_load_d6h12 = get_tot_load('d6h12')
 
     # check that sum of load matches regardless of hours per day
     assert tot_load_d4h24 > 0.0, 'no load discovered.  check test setup'
-    assert tot_load_d4h24 == pytest.approx(tot_load_d8h12), (
+    assert tot_load_d4h24 == pytest.approx(tot_load_d6h12), (
         'some diff in load calculated via different hour mappings'
     )
 

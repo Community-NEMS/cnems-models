@@ -18,7 +18,7 @@ scenario_name = "gs_compare"
 
 # Temporal resolution (inter-annual)
 # default = 24 representative (rep) days and 4 rep hours
-# d8h12 = 8 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
+# d6h12 = 6 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
 temporal_resolution = "default"
 
 # Temporal resolution (annual)

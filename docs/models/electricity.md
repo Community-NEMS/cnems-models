@@ -700,16 +700,17 @@ Storage reserves use discharge headroom (17) but are not limited by the state of
 ## Data Validation
 
 The raw input data is checked before the pyomo model is built. `ElectricitySequencer.build_model`
-constructs the `ModelSets` and `ParamData` as usual and then calls
-`validate_all(model_sets, param_data)` from `src/models/electricity/data_validation.py`. Validation
-therefore sees the ingested parameter tables — after region/year filtering and the season-to-hour
-expansions performed by `ParamData`, but before the data is handed to the model — so coverage gaps
-and structural problems in the input CSVs are reported against the data the model will actually use,
-rather than surfacing later as an obscure `KeyError` or an unexpectedly infeasible solve.
+constructs the `ModelSets` and `ParamData`, applies any inbound update packages, and then calls
+`validate_all(model_sets, param_data, strict=...)` from `src/models/electricity/data_validation.py`,
+with `strict` taken from `strict_validation`. Validation therefore sees the parameter tables as the
+model will use them: after region and year filtering, year and hour averaging, and the season-to-hour
+expansion of the transmission tables, but before the data is handed to the model. Coverage gaps and
+structural problems in the input CSVs are reported against that data, rather than surfacing later as
+an obscure `KeyError` or an unexpectedly infeasible solve.
 
 Each validation is independent and every one runs on each pass, so a single build reports all of the
-problems found rather than stopping at the first. Findings are written to the log: recoverable
-issues as warnings, showstoppers as errors.
+problems found rather than stopping at the first. Findings are written to the log, the less serious
+as warnings and the rest as errors. Any finding, warning or error, marks the validation as failed.
 
 ### Strict validation
 
@@ -718,7 +719,7 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 
 - `strict_validation = true` — a failed validation raises `DataValidationError`
   (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
-  are in the log. This is the normal setting.
+  are in the log. Warning-level findings stop the build too. This is the normal setting.
 - `strict_validation = false` — failures are logged and the run continues with the data as read.
   Useful when working with known-incomplete input data, at the risk of a downstream failure or a
   silently mis-specified model.
@@ -731,13 +732,14 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
   `supply_limit_intl`), reporting the missing and unexpected hours for each offending base index.
-- **Supply curve vs. supply price coverage** (`validate_supply_price_coverage`) — the supply curve
-  and the supply price tables must cover each other. A price with no matching supply entry is a
-  warning; a supply entry with no price is fatal.
+- **Supply curve vs. supply price coverage** (`validate_supply_price_coverage`) — `available_capacity`
+  and `generation_cost` must cover the same (region, technology, step, year) entries. A cost with no
+  capacity entry is logged as a warning, and a capacity entry with no cost as an error.
 - **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
-  warnings; a limit without a matching cost is fatal.
+  logged as warnings, and a limit without a matching cost as an error. A self-loop stops the coverage
+  comparison, so coverage gaps show up only once the loops are removed.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
@@ -755,10 +757,10 @@ section of the run configuration (`CommonConfig`):
 |:-----------------------|:--------------|:----------------------------------------------------------------------------------------|
 | `summary_years`        | `list[int]`   | The representative (solved) years. These are the only members of the model's year set. |
 | `aggregate_years`      | `bool`        | Turns aggregation on. When `false`, each summary year represents only itself.          |
-| `aggregate_start_year` | `int`, optional | The first calendar year covered by aggregation.                                         |
+| `aggregate_start_year` | `int`         | The first calendar year covered by aggregation. The key must be present even when `aggregate_years = false`, where it is ignored. |
 
-`CommonConfig` requires `aggregate_start_year` whenever `aggregate_years = true`, and rejects an
-`aggregate_start_year` later than the earliest summary year.
+When `aggregate_years = true`, `CommonConfig` rejects an `aggregate_start_year` later than the earliest summary
+year.
 
 #### Year mapping and weights
 
@@ -792,21 +794,25 @@ CSVs with a year filter of all the years in `year_map`: `aggregate_start_year` t
 summary year when aggregating, and `summary_years` alone otherwise. Averaging is applied to:
 
 - `elec_load` — the load for a representative year is the mean load over its block of calendar
-  years.
+  years. It is also averaged over the hours each representative hour stands for, and then multiplied
+  by $HW_h$.
 - The year-indexed time-based tables: `available_capacity`, `generation_cost`, `capital_cost`,
   `tran_cost`, `tran_cost_intl`, `tran_limit`, `tran_limit_cap_intl`, and `supply_limit_intl`.
 
 **Missing data stops the run.** `avg_by_group` requires complete data within every block it
-averages. It logs an error and raises a `ValueError`, naming the table, in either of two cases:
+averages. It runs two checks, and on a failure it logs an error and raises a `ValueError` naming
+the table:
 
-- the table lacks a year (or, for the hourly aggregation in the same step, an hour) that the map
-  expects, anywhere in the table;
-- some rows of the table (for example one region/technology/step combination) lack a year that
-  other rows carry. The error gives how many such groups there are and lists the first few.
+- the table lacks a value the map expects, anywhere in the table;
+- some rows of the table (for example one region, technology and step) lack a value within a block
+  that other rows carry. The error gives how many such groups there are and lists the first few.
 
-A combination with no rows at all in a block is ordinary sparsity and passes, and an empty table
-is not checked. The check applies with aggregation off as well. There the map is one-to-one, so
-it only catches a summary year missing from a table.
+The year checks run on every year-indexed table listed above, against `year_map`. With aggregation
+off that map is one-to-one, so they only catch a summary year missing from a table. The hour checks
+run on the tables with an hour column, `elec_load` and `capacity_factor_vre`, against the map from
+the hours of the year to the representative hours, whether or not years are aggregated. A
+combination with no rows at all in a block is ordinary sparsity and passes, and an empty table is
+not checked.
 
 This is deliberately a showstopper rather than a warning. An average over an incomplete block
 cannot tell what the missing years mean. A missing row might be a retired plant (really zero), a
@@ -817,8 +823,10 @@ enters the sparse index sets and the objective with no sign of where it came fro
 makes the data owner decide: fill the missing years explicitly (zeros where appropriate), or
 choose `summary_years` / `aggregate_start_year` so that the blocks match the data.
 
-`capacity_factor_vre` and `hydro_capacity_factor` have no year index and are not aggregated.
-Neither are the parameters loaded as plain dictionaries, such as `fom_cost` and
+`capacity_factor_vre` has no year index, and the model uses the same factors in every summary
+year. Like `elec_load`, it is still averaged over the hours each representative hour stands for,
+whether or not years are aggregated. `hydro_capacity_factor`, indexed by region and season only, is
+used as read, and so are the parameters loaded as plain dictionaries, such as `fom_cost` and
 `capital_cost_initial`.
 
 **Cost weighting.** $WY_y$ multiplies the recurring, per-year costs in the objective so that each

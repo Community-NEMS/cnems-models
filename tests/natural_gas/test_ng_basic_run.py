@@ -42,8 +42,8 @@ verbose = True
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type          Total Cost ($)   Variables   Constraints
 # ----------------  ---------------  ----------  -----------
-# basic_config      -480902641083.88       1530         1530
-# partial_regions   -319146064790.54        342          342
+# basic_config      -272727069445.47       1530         1530
+# partial_regions   -227961456539.82        342          342
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
@@ -76,9 +76,14 @@ verbose = True
 #     until then created only for a region subset, was created for every run: 9 regions x 6
 #     years = 54 variables.  It is zero at this demand level, so the objective and the
 #     constraint count did not move, and partial_regions, which always had it, is unchanged.
+# 7.  THESE VALUES MOVED when the committed production floor QMIN was charged in the objective,
+#     at the curve's lowest price PBASE_1, so that total_cost reports the full producer cost.
+#     The term is a constant in each solve: the objectives rise by exactly that constant,
+#     208,175,571,638.41 (basic_config) and 91,184,608,250.72 (partial_regions), and no
+#     quantity, flow or price moved. The counts are unchanged.
 configs = [
-    ('basic_config', -480902641083.88, 1530, 1530),
-    ('partial_regions', -319146064790.54, 342, 342),
+    ('basic_config', -272727069445.47, 1530, 1530),
+    ('partial_regions', -227961456539.82, 342, 342),
 ]
 
 # the same captured objective values, keyed by case name, so the full_run tests below pin to the

@@ -87,7 +87,7 @@ Minimize total system cost net of LNG consumer surplus, which is equivalent to m
 surplus:
 
 ```
-min   C_prod + C_gath + C_lngimp + C_trans + C_stor − S_lng
+min   C_prod + C_qmin + C_gath + C_lngimp + C_trans + C_stor − S_lng
 ```
 
 Each curve-based term is the area under its piecewise-linear curve. For the supply block, the
@@ -102,6 +102,8 @@ and integrating the segment gives a linear term plus a quadratic:
 ```
 C_prod  = Σ_r Σ_y Σ_k ( PBASE[r,k,y]·q + ½ σ_k·q² ) · β          q = sstep[r,k,y]
 
+C_qmin  = Σ_r Σ_y  PBASE[r,1,y] · QMIN[r,y] · β
+
 C_gath  = Σ_r Σ_y  γ[r] · production_total[r,y] · β
 
 C_lngimp= Σ_r Σ_y  c_LNG[r] · lng_import[r,y] · β
@@ -112,6 +114,10 @@ C_stor  = Σ_r Σ_y  θ · stor_inject[r,y] · β
 
 S_lng   = Σ_ℓ Σ_y Σ_m ( PLNG[ℓ,m,y]·x + ½ π_m·x² ) · β           π_m = LNG demand slope
 ```
+
+`C_qmin` charges the committed floor QMIN, which `production_total` adds to the step volumes,
+at the curve's lowest price. It is a constant in any one solve, so it moves no quantity or
+price; it is there so that `total_cost` reports the full producer cost.
 
 `S_lng` enters with a negative sign because the LNG export demand curve slopes downward and the
 area beneath it is consumer surplus. A zero-width segment would divide by zero in its slope. On the
@@ -526,11 +532,13 @@ for term it is the same expression this model minimizes the negative of:
 | Pipeline tariff area | trapezoid area under the tariff curve | identical |
 | Gathering charge | `Σ P_gath · FLOWS2H` | identical, on production |
 | LNG export demand area | `Σ PLNG·LNG + ½·LNG²·(ΔPLNG/ΔQLNG)` | identical |
+| Committed production QMIN | not in Eq 7 | added, a constant |
 | Storage operating cost | not in Eq 7 | **added** |
 | Backstop LNG import cost | not in Eq 7, imports are exogenous | **added** |
 
 The two quadratic surplus integrals are algebraically the same expression.
-The two extra terms are additions on this side, both linear.
+The three extra terms are additions on this side: the two operating costs are linear, and the
+QMIN charge is a constant that changes the objective's value but no solution.
 
 ### The supply curve, same structure
 

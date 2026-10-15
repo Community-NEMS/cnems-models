@@ -195,6 +195,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
                 idx[region, res_type, year, hour].append((tech, step))
                 associated_res_types[region, tech, step, year, hour].append(res_type)
+            # Wind and solar set the regulation and flex requirements whether or not they can
+            # supply reserves, so their members come from the VRE generation index, not from the
+            # reserve suppliers above.
+            for region, tech, step, year, hour in model_sets.generation_vre_ub_index:
                 if tech in self.tech_wind:
                     wind_idx[region, year, hour].add((tech, step))
                 elif tech in self.tech_solar:
@@ -210,8 +214,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
             """The valid reserve types for this index combo"""
 
-            # The wind/solar members are accumulated as sets to drop the duplicate (tech, step)
-            # seen once per reserve type, so sort them for a deterministic build order.  These stay
+            # The wind/solar members are sorted for a deterministic build order.  These stay
             # defaultdicts because the data is sparse but the consumers are not: the reserve
             # requirement constraints index wind_reserves/solar_reserves for every
             # (region, year, hour) in elec_load.index_set().  Pyomo re-invokes the initializer

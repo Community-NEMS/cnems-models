@@ -17,6 +17,8 @@ through the model configuration.
 | $D$                    | day                                           | Set        | All representative days                                      |
 | $R$                    | region                                        | Set        | All selected model domestic regions                          |
 | $R^{int}$              | region_int                                    | Set        | All selected model international regions                     |
+| $S$                    | step                                          | Set        | Technology supply steps (see Supply Steps below)             |
+| $C$                    | step of international_trade_index             | Set        | International supply steps, separate from $S$                |
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{H2gen}$       | h2_generation_index                           | Sparse set | All hydrogen generation sparse set                           |
@@ -43,6 +45,25 @@ through the model configuration.
 | $\Theta_{traLL}$       | tran_limit.keys()                             | Sparse set | Domestic interregional trade limit set                       |
 | $\Theta_{traLL^{int}}$ | trade_international_capacity_ub.index_set()   | Sparse set | International interregional trade line limit set             |
 
+### Supply Steps
+
+A supply step $s \in S$ is a tranche of a technology's capacity in a region, with its own existing
+capacity, generation cost, fixed O&M cost and, where it can be built, capital cost. Each step has its
+own variables, bounded by its own capacity, and the load, reserve margin and operating reserve
+requirements add up every step that can contribute to them. The steps of each technology, $S_t$, are
+declared in the `steps` column of `tech.csv`, and `tech_build.csv` and `tech_retire.csv` say which
+steps can be built and retired.
+
+In the shipped data, coal steam, oil steam, gas turbine and gas combined cycle have three steps of
+equal capacity in each region, each with its own generation cost. New coal steam, gas turbine and
+combined cycle capacity can be built only on step 3, and oil steam cannot be built. Every other
+technology has one step. Steps are not vintages, since capacity built in any year joins its step.
+They also no longer mark sub-types: seasonal and regular hydro, and utility and end-use solar, are
+separate technologies.
+
+International supply steps $c \in C$ are separate. They belong to an international region, and each
+has its own supply limit $TRALIM^{int}$ and cost $TRACC$.
+
 ### Re-Indexed Sets
 
 These sets are re-indexed for specific constraints. They are all sub-sets accessed by certain indices to return the
@@ -50,6 +71,7 @@ remaining indices.
 
 | Set                        | Code                      | Data Type     | Short Description                                                                   |
 |:---------------------------|:--------------------------|:--------------|:------------------------------------------------------------------------------------|
+| $S_t$                      | steps_for_tech            | Sparse subset | Set for supply steps indexed by technology                                          |
 | $\theta^{H2H}_h$           | h2_generation_hour_index  | Sparse subset | Set for H2 generation indexed by hour                                               |
 | $\theta^{GSH}_h$           | generation_hour_index     | Sparse subset | Set for generation indexed by hour                                                  |
 | $\theta^{SSH}_h$           | storage_hour_index        | Sparse subset | Set for storage indexed by hour                                                     |
@@ -151,7 +173,7 @@ Dispatch cost:
 
 $$
 \begin{aligned}
-C_{disp} = \sum_{h \in H | s=MHS_h}{} WD_h \Big (&\sum_{{r,t,s,y} \in \theta^{GSH}_h}{WY_y \times SPR_{r,t,s,y,seas} \times \mathbf{GEN}_{r,t,s,y,h}} \\
+C_{disp} = \sum_{h \in H | seas=MHS_h}{} WD_h \Big (&\sum_{{r,t,s,y} \in \theta^{GSH}_h}{WY_y \times SPR_{r,t,s,y,seas} \times \mathbf{GEN}_{r,t,s,y,h}} \\
 &+\sum_{{r,t,s,y} \in \theta^{SSH}_h}{ (WY_y \times (0.5 \times SPR_{r,t,s,y,seas} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
 &+ (HW_h \times STORLC) \times \mathbf{STOR^{level}}_{r,t,s,y,h})) \\
 &+\sum_{{r,t,s,y} \in \theta^{H2SH}_h}{WY_y \times H2PR_{r,t,s,y,seas} \times H2HR \times \mathbf{GEN}_{r,t,1,y,h}}\Big) \qquad (2)
@@ -312,7 +334,7 @@ Hydroelectric generation seasonal upper bound:
 
 $$
 \begin{aligned}
-&\sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,1,y,h} \times WeightDay_{MHD_{h}}} \leq \mathbf{CAP^{tot}}_{r,t,1,y} \times HCF_{r,seas} \times WHS_{seas} \\
+&\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WeightDay_{MHD_{h}}} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \times HCF_{r,seas} \times WHS_{seas} \\
 &\forall {r,t,y,seas} \in \Theta_{hs} \qquad (12)
 \end{aligned}
 $$

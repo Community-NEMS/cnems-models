@@ -63,8 +63,9 @@ def mock_model() -> pyo.ConcreteModel:
         mutable=True,
     )
 
-    m.capacity_builds = pyo.Var(list(m.capital_cost.keys()), within=pyo.NonNegativeReals)
-    for r, tech, s, y in m.capital_cost:
+    m.capacity_build_index = pyo.Set(dimen=4, initialize=list(m.capital_cost.keys()))
+    m.capacity_builds = pyo.Var(m.capacity_build_index, within=pyo.NonNegativeReals)
+    for r, tech, s, y in m.capacity_build_index:
         m.capacity_builds[r, tech, s, y].set_value(10.0 if tech == 2 else 20.0)
 
     return m

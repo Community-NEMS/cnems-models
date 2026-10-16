@@ -434,6 +434,74 @@ def test_domestic_network(validation_log, mutate, expected, expect_level, expect
         assert expect_message in ' '.join(r.getMessage() for r in hits)
 
 
+# ---------------------------------------------------------------------------
+# validate_build_cost_coverage
+# ---------------------------------------------------------------------------
+
+BUILD_REGIONS = ('A', 'B')
+BUILDABLE = (('gas', 3), ('solar', 1))
+BUILD_YEARS = (2030, 2035)
+
+
+def _build_costs(with_years: bool) -> dict[tuple, float]:
+    """Full region x buildable (x year) cost table."""
+    if with_years:
+        return {
+            (r, tech, step, y): 1.0
+            for r in BUILD_REGIONS
+            for tech, step in BUILDABLE
+            for y in BUILD_YEARS
+        }
+    return {(r, tech, step): 1.0 for r in BUILD_REGIONS for tech, step in BUILDABLE}
+
+
+@pytest.mark.parametrize('with_years', [True, False], ids=['capital_cost', 'initial'])
+@pytest.mark.parametrize(
+    'drop,add,valid,expect_message',
+    [
+        ((), (), True, None),
+        ((), (('A', 'wind', 1),), True, None),
+        ((('B', 'solar', 1),), (), False, "('B', 'solar', 1)"),
+        ((('A', 'gas', 3), ('B', 'gas', 3)), (), False, "('A', 'gas', 3)"),
+    ],
+    ids=['complete', 'extra_ok', 'missing_one', 'missing_tech_in_all_regions'],
+)
+def test_build_cost_coverage(validation_log, with_years, drop, add, valid, expect_message):
+    """Missing buildable keys fail and are named; extra (non-buildable) keys are tolerated."""
+    costs = _build_costs(with_years)
+    for base in drop:
+        for key in [k for k in costs if k[:3] == base]:
+            del costs[key]
+    for base in add:
+        costs[base + ((BUILD_YEARS[0],) if with_years else ())] = 1.0
+
+    years = BUILD_YEARS if with_years else None
+    result = data_validation.validate_build_cost_coverage(
+        'costs', costs, BUILD_REGIONS, BUILDABLE, years
+    )
+
+    assert result is valid
+    errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
+    if expect_message is None:
+        assert errors == []
+    else:
+        assert expect_message in ' '.join(r.getMessage() for r in errors)
+
+
+def test_build_cost_coverage_names_missing_year(validation_log):
+    """A single missing year fails and is reported against its (region, tech, step)."""
+    costs = _build_costs(with_years=True)
+    del costs['A', 'gas', 3, 2035]
+
+    assert not data_validation.validate_build_cost_coverage(
+        'capital_cost', costs, BUILD_REGIONS, BUILDABLE, BUILD_YEARS
+    )
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "('A', 'gas', 3)" in errors[0]
+    assert '[2035]' in errors[0]
+
+
 def _validate_all_inputs() -> tuple:
     """Minimal ModelSets / ParamData stand-ins for validate_all:  empty tables, exchange off."""
     frames = {
@@ -441,7 +509,8 @@ def _validate_all_inputs() -> tuple:
         for name in ('generation_cost', 'hydro_capacity_factor', 'available_capacity')
     }
     param_data = SimpleNamespace(
-        param_frames=frames, elec_config=SimpleNamespace(regional_exchange=False)
+        param_frames=frames,
+        elec_config=SimpleNamespace(regional_exchange=False, capacity_expansion=False),
     )
     model_sets = SimpleNamespace(season=SEASONS, hour=HOURS)
     return (

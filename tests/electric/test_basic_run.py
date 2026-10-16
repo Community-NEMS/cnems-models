@@ -385,42 +385,6 @@ def _expansion_cost_with(model: PowerModel, builds: dict[tuple, float]) -> float
     return value(model.capacity_expansion_cost)
 
 
-@pytest.mark.parametrize('regions', [None, [str(i) for i in range(1, 26)]], ids=['config', 'all'])
-def test_nonlinear_learning_index_domains(
-    nonlinear_configs: tuple[CommonConfig, ElecConfig], regions: list[str] | None
-) -> None:
-    """Nonlinear learning borrows its variable index from the linear cost table.
-
-    ``capacity_builds`` is created from ``capital_cost.keys()``, but the nonlinear objective reads
-    ``capital_cost_initial`` and, for the cumulative term, indexes ``capacity_builds`` by every
-    ``capital_cost_initial`` key crossed with every earlier year.  Both lookups must be total or the
-    expression raises ``KeyError`` during construction.  This needs a build only, so it holds the
-    invariant whether or not a nonlinear solver is installed.
-    """
-    common_config, elec_config = nonlinear_configs
-    if regions is not None:
-        elec_config.region_filter = regions
-
-    model = ElectricitySequencer().build_model(common_config, elec_config)
-
-    builds = set(model.capacity_builds)
-    initial = set(model.capital_cost_initial)
-
-    missing_outer = {(r, tech, step) for (r, tech, step, _y) in builds} - initial
-    assert not missing_outer, (
-        f'capital_cost_initial missing keys for builds: {sorted(missing_outer)[:5]}'
-    )
-
-    techs_built = {tech for (_r, tech, _s, _y) in builds}
-    missing_inner = {
-        (r, tech, step, y)
-        for (r, tech, step) in initial
-        for y in model.year
-        if tech in techs_built and (r, tech, step, y) not in builds
-    }
-    assert not missing_inner, f'capacity_builds missing keys: {sorted(missing_inner)[:5]}'
-
-
 def test_nonlinear_learning_objective_characterization(nonlinear_model: PowerModel) -> None:
     """Record what the nonlinear expansion cost expression evaluates to today.
 
@@ -534,9 +498,9 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
             for idx in elec_model.capital_cost_initial
         }
         print(f'\ncap_cost_initial: {initial_costs}')
-        # one record per capital_cost key per iteration; recover the iteration index by
+        # one record per capacity_build_index key per iteration; recover the iteration index by
         # chunking
-        n_keys = len(elec_model.capital_cost)
+        n_keys = len(elec_model.capacity_build_index)
         table = [
             (i // n_keys, y, old, new)
             for i, (_r, _tech, _step, y, old, new) in enumerate(cost_rows)
@@ -577,7 +541,7 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     model = sequencer.build_model(common_config, elec_config)
     assert sequencer.solve_model()[-1] is IterationStatus.BEST
 
-    for r, tech, step, y in model.capital_cost:
+    for r, tech, step, y in model.capacity_build_index:
         prior = sum(
             value(model.capacity_builds[idx])
             for idx in model.capacity_builds

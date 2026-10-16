@@ -28,7 +28,7 @@ through the model configuration.
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
 | $\Theta_{hs}$          | capacity_hydro_ub_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
-| $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse Set | Buildable capacity set                                       |
+| $\Theta_{new}$         | capacity_build_index                          | Sparse Set | Buildable capacity set: capital_cost keys in tech_buildable  |
 | $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
 | $\Theta_{cc0}$         | capital_cost_initial.index_set()              | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
@@ -476,6 +476,10 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
   warnings; a limit without a matching cost is fatal.
+- **Build cost coverage** (`validate_build_cost_coverage`) — when `capacity_expansion` is on,
+  `capital_cost` must cover every `region_analyze` × `tech_buildable` × year, and (with learning
+  enabled) `capital_cost_initial` every `region_analyze` × `tech_buildable`. Extra cost entries are
+  allowed (and not built); a missing one is an error naming the key.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

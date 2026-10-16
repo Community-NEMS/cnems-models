@@ -4,4 +4,4 @@ NG_Fired_Plant,2,False
 NG_Fired_Plant,3,True
 Hydro_Plant,1,False
 Battery_Storage,1,False
-Solar,1,True
+Solar,1,False

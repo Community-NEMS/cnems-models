@@ -17,13 +17,14 @@ file and/or halt on showstoppers
 
 import logging
 from collections import defaultdict, namedtuple
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Literal
 
 from pandas import DataFrame
 
 from src.common.exceptions import DataValidationError
 from src.common.season import Season
+from src.models.electricity.elec_config import ExpansionLearningType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
@@ -103,6 +104,23 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
         except ValueError as e:
             logger.error(e)
             all_valid = False
+
+    # build costs must cover everything buildable in every analyzed region (and year)
+    if param_data.elec_config.capacity_expansion:
+        all_valid &= validate_build_cost_coverage(
+            'capital_cost',
+            _frame_to_dict(frames['capital_cost']),
+            model_sets.region_analyze,
+            model_sets.tech_builds,
+            set(model_sets.year_map.values()),
+        )
+        if param_data.elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
+            all_valid &= validate_build_cost_coverage(
+                'capital_cost_initial',
+                param_data.param_dicts['capital_cost_initial'],
+                model_sets.region_analyze,
+                model_sets.tech_builds,
+            )
 
     if not all_valid:
         message = 'Data validation failed.  See log for details.'
@@ -256,6 +274,67 @@ def validate_supply_price_coverage(capacity: dict[tuple, float], price: dict[tup
         raise ValueError('Capacity without corresponding price.  See log for details.')
 
     return valid
+
+
+def validate_build_cost_coverage(
+    element_name: str,
+    costs: dict[tuple, float],
+    regions: Iterable,
+    buildable: Iterable,
+    years: Iterable[int] | None = None,
+) -> bool:
+    """Validate that a build-cost table covers every buildable (tech, step) in every region.
+
+    The expected keys are ``regions x buildable`` (``x years`` when given).  Extra cost entries
+    (e.g. for non-buildable techs) are allowed; missing ones are not, because ``capacity_builds``
+    is indexed from the costs while the capacity constraints reach it through ``tech_buildable``.
+
+    Parameters
+    ----------
+    element_name : str
+        Name of the cost table, used for logging only.
+    costs : dict[tuple, float]
+        Cost data keyed (region, tech, step[, year]).
+    regions : Iterable
+        The analyzed regions, e.g. ``ModelSets.region_analyze``.
+    buildable : Iterable
+        Buildable (tech, step) pairs, e.g. ``ModelSets.tech_builds``.
+    years : Iterable[int] | None
+        Model years when the table is year-indexed (``capital_cost``); None for
+        ``capital_cost_initial``.
+
+    Returns
+    -------
+    bool
+        True if every expected key is present, False otherwise.  Each missing (region, tech, step)
+        is logged as an error, with the missing years where the table is year-indexed.
+    """
+    base = {(r, tech, step) for r in regions for tech, step in buildable}
+    if years is None:  # screening for initial costs
+        missing = sorted(base - costs.keys())
+        for idx in missing:
+            logger.error('Missing %s for buildable index %s', element_name, idx)
+        expected = len(base)
+    else:  # screening for yearly costs
+        year_set = set(years)
+        found_years: defaultdict[tuple, set[int]] = defaultdict(set)
+        for idx in costs:
+            found_years[idx[:3]].add(idx[3])
+        missing = sorted(idx for idx in base if not year_set <= found_years[idx])
+        for idx in missing:
+            logger.error(
+                'Missing %s for buildable index %s in years %s',
+                element_name,
+                idx,
+                sorted(year_set - found_years[idx]),
+            )
+        expected = len(base) * len(year_set)
+
+    # with full coverage, anything beyond the expected count is an (allowed) extra
+    extra = len(costs) - expected
+    if not missing and extra > 0:
+        logger.debug('%s has %d entries beyond the buildable set (ignored)', element_name, extra)
+    return not missing
 
 
 def validate_domestic_network(

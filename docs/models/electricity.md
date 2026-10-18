@@ -176,8 +176,8 @@ $$
 &+ C_{exp} \quad (\text{if capacity expansion is on}) \\
 &+ C_{tra} \quad (\text{if regional exchange is on} ) \\
 &+ C_{ramp} \quad (\text{if ramping is on} ) \\
-&+ C_{op}\quad (\text{if operating reserves are on} ) \qquad (1)
-\end{aligned}
+&+ C_{op}\quad (\text{if operating reserves are on} )
+\end{aligned} \tag{1}
 $$
 
 where:
@@ -188,8 +188,8 @@ $$
 \begin{aligned}
 C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s,y) \in \theta^{GSH}_h}{(SPR_{r,t,s,y,MHS_h} + NGADJ_{r,t,s,y,MHS_h}) \times \mathbf{GEN}_{r,t,s,y,h}} \\
 &+ \sum_{(r,t,s) | (r,t,s,y) \in \theta^{SSH}_h}{\big( 0.5 \times SPR_{r,t,s,y,MHS_h} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
-&+ HW_h \times STORLC \times \mathbf{STOR^{level}}_{r,t,s,y,h} \big) \Big) \qquad (2)
-\end{aligned}
+&+ HW_h \times STORLC \times \mathbf{STOR^{level}}_{r,t,s,y,h} \big) \Big)
+\end{aligned} \tag{2}
 $$
 
 $NGADJ$ is zero in a standalone run. In an integrated run with the natural gas model, the
@@ -210,8 +210,8 @@ Unmet load cost:
 
 $$
 \begin{aligned}
-C_{unload} = \sum_{{r,y,h} \in \Theta_{um}}{ WD_h \times WY_y \times UMLPEN \times \mathbf{UNLOAD}_{r,y,h}} \qquad (3)
-\end{aligned}
+C_{unload} = \sum_{{r,y,h} \in \Theta_{um}}{ WD_h \times WY_y \times UMLPEN \times \mathbf{UNLOAD}_{r,y,h}}
+\end{aligned} \tag{3}
 $$
 
 Capacity expansion cost, (4a) when `expansion_learning_type` is `nonlinear` and (4b) when it is `linear` or
@@ -221,8 +221,8 @@ $$
 \begin{aligned}
 C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{new}} CAPC0_{r,t,s} \\
 &\times \left (\frac{ SCL_t + \sum_{{r',t',s'} \in \Theta_{cc0} | t' = t}{ \sum_{y' \in Y | y'\lt y}{\mathbf{CAP^{new}}_{r',t,s',y'}}} }{SCL_t} \right) ^{-LR_t} \times \mathbf{CAP^{new}}_{r,t,s,y} \\
-&\quad \text{if expansion learning type} = \mathtt{nonlinear} \qquad (\text{4a})
-\end{aligned}
+&\quad \text{if expansion learning type} = \mathtt{nonlinear}
+\end{aligned} \tag{4a}
 $$
 
 The multiplier is driven solely by cumulative builds in strictly prior years, so a build never
@@ -249,8 +249,8 @@ source data, which predates AEO2026; geothermal, for one, is 8 percent there and
 $$
 \begin{aligned}
 C_{exp} = &\sum_{{r,t,s,y} \in \Theta_{new}}{ CAPCL_{r,t,s,y} \times \mathbf{CAP^{new}}_{r,t,s,y}} \\
-&\quad \text{if expansion learning type} \neq \mathtt{nonlinear} \qquad (\text{4b})
-\end{aligned}
+&\quad \text{if expansion learning type} \neq \mathtt{nonlinear}
+\end{aligned} \tag{4b}
 $$
 
 With learning disabled, builds are priced from `capital_cost`, which falls by 2 percent of its 2023
@@ -270,8 +270,8 @@ Fixed O\&M cost:
 
 $$
 \begin{aligned}
-C_{fom} = \sum_{{r,t,s,y} \in \Theta_{SC}}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \qquad (5)
-\end{aligned}
+C_{fom} = \sum_{{r,t,s,y} \in \Theta_{SC}}{ WY_y \times FOMC_{r,t,s} \times \mathbf{CAP^{tot}}_{r,t,s,y}}
+\end{aligned} \tag{5}
 $$
 
 Interregional trade cost:
@@ -279,24 +279,24 @@ Interregional trade cost:
 $$
 \begin{aligned}
 C_{tra} = &\sum_{{r,r1,y,h} \in \Theta_{tra}}{ WD_h \times WY_y \times TRAC_{r,r1,y} \times \mathbf{TRA}_{r,r1,y,h}} \\
-&+ \sum_{{r,r^{int},c,y,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \qquad (6)
-\end{aligned}
+&+ \sum_{{r,r^{int},c,y,h} \in \Theta_{tracan}}{WD_h \times WY_y \times TRACC_{r,r^{int},c,y} \times \mathbf{TRA^{int}}_{r,r^{int},c,y,h}}
+\end{aligned} \tag{6}
 $$
 
 Ramping cost:
 
 $$
 \begin{aligned}
-C_{ramp} = \sum_{{r,t,s,y,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{r,t,s,y,h} + RDC_t \times \mathbf{RAMP^{down}}_{r,t,s,y,h})} \qquad (7)
-\end{aligned}
+C_{ramp} = \sum_{{r,t,s,y,h} \in \Theta_{ramp}}{ WD_h \times WY_y \times (RUC_t \times \mathbf{RAMP^{up}}_{r,t,s,y,h} + RDC_t \times \mathbf{RAMP^{down}}_{r,t,s,y,h})}
+\end{aligned} \tag{7}
 $$
 
 Operating reserve cost:
 
 $$
 \begin{aligned}
-C_{op} = \sum_{{r,rt,t,s,y,h} \in \Theta_{proc}}{ WD_h \times WY_y \times ORC_{rt,t} \times \mathbf{ORP}_{r,rt,t,s,y,h} } \qquad (8)
-\end{aligned}
+C_{op} = \sum_{{r,rt,t,s,y,h} \in \Theta_{proc}}{ WD_h \times WY_y \times ORC_{rt,t} \times \mathbf{ORP}_{r,rt,t,s,y,h} }
+\end{aligned} \tag{8}
 $$
 
 ### Constraints
@@ -321,8 +321,8 @@ LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{GDB}_{r,y,h}}{\mathbf{GEN}_{r,t,s,y,h
 &+ \mathbf{UNLOAD}_{r,y,h} \\
 & (+ \sum_{r1 \in \theta^{TDB}_{r,y,h}}{\left (\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)} \quad \text{if regional exchange is on}) \\
 & (+ \sum_{(r^{int},c) \in \theta^{TCDB}_{r,y,h}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h} \times (1 - LL)} \quad \text{if regional exchange is on}) \\
-&\forall {r,y,h} \in \Theta_{load} \qquad (9)
-\end{aligned}
+&\forall {r,y,h} \in \Theta_{load}
+\end{aligned} \tag{9}
 $$
 
 First hour storage balance constraint:
@@ -331,8 +331,8 @@ $$
 \begin{aligned}
 \mathbf{STOR^{level}}_{r,t,s,y,h} = &\mathbf{STOR^{level}}_{r,t,s,y,h+N - 1} \\
 &+ EFF_t \times \mathbf{STOR^{in}}_{r,t,s,y,h} - \mathbf{STOR^{out}}_{r,t,s,y,h} \\
-&\forall {r,t,s,y,h} \in \Theta_{SBFH} \qquad (10)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{SBFH}
+\end{aligned} \tag{10}
 $$
 
 Storage balance (not first hour) constraint:
@@ -341,8 +341,8 @@ $$
 \begin{aligned}
 \mathbf{STOR^{level}}_{r,t,s,y,h} = &\mathbf{STOR^{level}}_{r,t,s,y,h - 1} \\
 &+ EFF_t \times \mathbf{STOR^{in}}_{r,t,s,y,h} - \mathbf{STOR^{out}}_{r,t,s,y,h} \\
-&\forall {r,t,s,y,h} \in \Theta_{SBH} \qquad (11)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{SBH}
+\end{aligned} \tag{11}
 $$
 
 #### Generation Upper Bounds
@@ -366,8 +366,8 @@ Hydroelectric generation seasonal upper bound:
 $$
 \begin{aligned}
 &\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WD_h} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \times HCF_{r,seas} \times WHS_{seas} \\
-&\forall {r,t,y,seas} \in \Theta_{hs} \qquad (12)
-\end{aligned}
+&\forall {r,t,y,seas} \in \Theta_{hs}
+\end{aligned} \tag{12}
 $$
 
 Dispatchable technology generation upper bound:
@@ -377,8 +377,8 @@ $$
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
-&\forall {r,t,s,y,h} \in \Theta_{dt^{max}} \qquad (13)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{dt^{max}}
+\end{aligned} \tag{13}
 $$
 
 Hydroelectric technology generation upper bound:
@@ -388,8 +388,8 @@ $$
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
-&\forall {r,t,s,y,h} \in \Theta_{ht^{max}} \qquad (14)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{ht^{max}}
+\end{aligned} \tag{14}
 $$
 
 Intermittent technology upper bound:
@@ -399,8 +399,8 @@ $$
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times ICF_{r,t,s,y,h} \times HW_h \\
-&\forall {r,t,s,y,h} \in \Theta_{it^{max}} \qquad (15)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{it^{max}}
+\end{aligned} \tag{15}
 $$
 
 Storage technology inflow upper bound:
@@ -408,8 +408,8 @@ Storage technology inflow upper bound:
 $$
 \begin{aligned}
 \mathbf{STOR^{in}}_{r,t,s,y,h} &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
-&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (16)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{stor}
+\end{aligned} \tag{16}
 $$
 
 Storage technology outflow upper bound:
@@ -419,8 +419,8 @@ $$
 &\mathbf{STOR^{out}}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
 &\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HW_h \\
-&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (17)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{stor}
+\end{aligned} \tag{17}
 $$
 
 Storage technology level upper bound:
@@ -428,8 +428,8 @@ Storage technology level upper bound:
 $$
 \begin{aligned}
 &\mathbf{STOR^{level}}_{r,t,s,y,h} \leq \mathbf{CAP^{tot}}_{r,t,s,y} \times STOR^{dur}_t \\
-&\forall {r,t,s,y,h} \in \Theta_{stor} \qquad (18)
-\end{aligned}
+&\forall {r,t,s,y,h} \in \Theta_{stor}
+\end{aligned} \tag{18}
 $$
 
 #### Capacity Expansion
@@ -451,8 +451,8 @@ $$
 \mathbf{CAP^{tot}}_{r,t,s,y} = &CAP^{exist}_{r,t,s,y} \\
 & (+ \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{new}}_{r,t,s,y'}} \quad \text{if capacity expansion is on and } (t,s) \text{ is buildable}) \\
 & (- \sum_{y' \in Y | y' \leq y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \quad \text{if capacity expansion is on and } (t,s) \text{ is retirable}) \\
-&\forall {r,t,s,y} \in \Theta_{SC} \qquad (19)
-\end{aligned}
+&\forall {r,t,s,y} \in \Theta_{SC}
+\end{aligned} \tag{19}
 $$
 
 Capacity retirement upper bound:
@@ -463,8 +463,8 @@ $$
 & (+ \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{new}}_{r,t,s,y'}} \quad \text{if } (t,s) \text{ is buildable}) \\
 &- \sum_{y' \in Y | y' \lt y}{\mathbf{CAP^{ret}}_{r,t,s,y'}} \\
 &\forall {r,t,s,y} \in \Theta_{ret} \\
-&\quad \text{if capacity expansion is on} \qquad (20)
-\end{aligned}
+&\quad \text{if capacity expansion is on}
+\end{aligned} \tag{20}
 $$
 
 #### Trade
@@ -480,8 +480,8 @@ $$
 \begin{aligned}
 \sum_{c | (r,r^{int},c,y,h) \in \Theta_{tracan}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALINLIM^{int}_{r,r^{int},y,h} \times HW_h \\
 &\forall {r,r^{int},y,h} \in \Theta_{traLL^{int}} \\
-&\quad \text{if regional exchange is on} \qquad (21)
-\end{aligned}
+&\quad \text{if regional exchange is on}
+\end{aligned} \tag{21}
 $$
 
 International interregional trade resource capacity upper bound:
@@ -490,8 +490,8 @@ $$
 \begin{aligned}
 \sum_{r | (r,r^{int},c,y,h) \in \Theta_{tracan}}{\mathbf{TRA^{int}}_{r,r^{int},c,y,h}} \leq &TRALIM^{int}_{r^{int},c,y,h} \times HW_h \\
 &\forall {r^{int},c,y,h} \in \Theta_{traL^{int}} \\
-&\quad \text{if regional exchange is on} \qquad (22)
-\end{aligned}
+&\quad \text{if regional exchange is on}
+\end{aligned} \tag{22}
 $$
 
 Domestic interregional trade line capacity upper bound:
@@ -500,8 +500,8 @@ $$
 \begin{aligned}
 \mathbf{TRA}_{r,r1,y,h} \leq &TRALINLIM_{r,r1,y,h} \times HW_h \\
 &\forall {r,r1,y,h} \in \Theta_{traLL} \\
-&\quad \text{if regional exchange is on} \qquad (23)
-\end{aligned}
+&\quad \text{if regional exchange is on}
+\end{aligned} \tag{23}
 $$
 
 #### Reserve Margin
@@ -521,8 +521,8 @@ $$
 LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \notin T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
 &+ HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \in T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{STOR^{avail}}_{r,t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
-&\quad \text{if the reserve margin is on} \qquad (24)
-\end{aligned}
+&\quad \text{if the reserve margin is on}
+\end{aligned} \tag{24}
 $$
 
 Constraint to ensure available storage capacity to meet RM <= power cap, upper bound:
@@ -531,8 +531,8 @@ $$
 \begin{aligned}
 \mathbf{STOR^{avail}}_{r,t,s,y,h} \leq &\mathbf{CAP^{tot}}_{r,t,s,y} \\
 &\forall {r,t,s,y,h} \in \Theta_{stor} \\
-&\quad \text{if the reserve margin is on} \qquad (25)
-\end{aligned}
+&\quad \text{if the reserve margin is on}
+\end{aligned} \tag{25}
 $$
 
 Constraint to ensure available storage capacity to meet RM <= existing storage level, upper bound:
@@ -541,8 +541,8 @@ $$
 \begin{aligned}
 \mathbf{STOR^{avail}}_{r,t,s,y,h} \leq &\mathbf{STOR^{level}}_{r,t,s,y,h} \\
 &\forall {r,t,s,y,h} \in \Theta_{stor} \\
-&\quad \text{if the reserve margin is on} \qquad (26)
-\end{aligned}
+&\quad \text{if the reserve margin is on}
+\end{aligned} \tag{26}
 $$
 
 #### Ramping
@@ -568,8 +568,8 @@ $$
 \begin{aligned}
 \mathbf{GEN}_{r,t,s,y,h} = &\mathbf{GEN}_{r,t,s,y,h+N-1} + \mathbf{RAMP^{up}}_{r,t,s,y,h} - \mathbf{RAMP^{down}}_{r,t,s,y,h} \\
 &\forall {r,t,s,y,h} \in \Theta_{ramp1} \\
-&\quad \text{if ramping is on} \qquad (27)
-\end{aligned}
+&\quad \text{if ramping is on}
+\end{aligned} \tag{27}
 $$
 
 Ramping balance (not first hour) constraint:
@@ -578,8 +578,8 @@ $$
 \begin{aligned}
 \mathbf{GEN}_{r,t,s,y,h} = &\mathbf{GEN}_{r,t,s,y,h-1} + \mathbf{RAMP^{up}}_{r,t,s,y,h} - \mathbf{RAMP^{down}}_{r,t,s,y,h} \\
 &\forall {r,t,s,y,h} \in \Theta_{ramp23} \\
-&\quad \text{if ramping is on} \qquad (28)
-\end{aligned}
+&\quad \text{if ramping is on}
+\end{aligned} \tag{28}
 $$
 
 Ramp up upper bound:
@@ -588,8 +588,8 @@ $$
 \begin{aligned}
 \mathbf{RAMP^{up}}_{r,t,s,y,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
 &\forall {r,t,s,y,h} \in \Theta_{ramp} \\
-&\quad \text{if ramping is on} \qquad (29)
-\end{aligned}
+&\quad \text{if ramping is on}
+\end{aligned} \tag{29}
 $$
 
 Ramp down upper bound:
@@ -598,8 +598,8 @@ $$
 \begin{aligned}
 \mathbf{RAMP^{down}}_{r,t,s,y,h} \leq &HW_h \times RR_t \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
 &\forall {r,t,s,y,h} \in \Theta_{ramp} \\
-&\quad \text{if ramping is on} \qquad (30)
-\end{aligned}
+&\quad \text{if ramping is on}
+\end{aligned} \tag{30}
 $$
 
 #### Operating Reserves
@@ -652,8 +652,8 @@ $$
 \begin{aligned}
 0.03 \times LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{spinning},y,h}}{\mathbf{ORP}_{r,\mathrm{spinning},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
-&\quad \text{if operating reserves are on} \qquad (31)
-\end{aligned}
+&\quad \text{if operating reserves are on}
+\end{aligned} \tag{31}
 $$
 
 Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind generation + 0.3\% of solar capacity required:
@@ -665,8 +665,8 @@ $$
 {+} &0.003 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
 \leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{regulation},y,h}}{\mathbf{ORP}_{r,\mathrm{regulation},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
-&\quad \text{if operating reserves are on} \qquad (32)
-\end{aligned}
+&\quad \text{if operating reserves are on}
+\end{aligned} \tag{32}
 $$
 
 Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of solar capacity required:
@@ -677,8 +677,8 @@ $$
 {+} &0.04 \times HW_h \times \sum_{{t^s,s} \in \theta^{solor}_{r,y,h}}{\mathbf{CAP^{tot}}_{r,t^s,s,y}} \\
 \leq &\sum_{{t,s} \in \theta^{opres}_{r,\mathrm{flex},y,h}}{\mathbf{ORP}_{r,\mathrm{flex},t,s,y,h}} \\
 &\forall {r,y,h} \in \Theta_{load} \\
-&\quad \text{if operating reserves are on} \qquad (33)
-\end{aligned}
+&\quad \text{if operating reserves are on}
+\end{aligned} \tag{33}
 $$
 
 The code currently fills $\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ only from technologies with a reserve
@@ -691,8 +691,8 @@ $$
 \begin{aligned}
 \mathbf{ORP}_{r,rt,t,s,y,h} \leq &RTUB_{rt,t} \times HW_h \times \mathbf{CAP^{tot}}_{r,t,s,y} \\
 &\forall {r,rt,t,s,y,h} \in \Theta_{proc} \\
-&\quad \text{if operating reserves are on} \qquad (34)
-\end{aligned}
+&\quad \text{if operating reserves are on}
+\end{aligned} \tag{34}
 $$
 
 Storage reserves use discharge headroom (17) but are not limited by the state of charge.

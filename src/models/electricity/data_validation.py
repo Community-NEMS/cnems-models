@@ -84,9 +84,9 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 name, _frame_to_dict(df), df.index.names.index('hour'), model_sets.hour
             )
 
-    # supply curve vs. price to ensure compatible coverage for supply & price
+    # available capacity vs. generation cost to ensure the two tables cover each other
     try:
-        all_valid &= validate_supply_price_coverage(
+        all_valid &= validate_generation_cost_coverage(
             _frame_to_dict(frames['available_capacity']), _frame_to_dict(frames['generation_cost'])
         )
     except ValueError as e:
@@ -215,29 +215,31 @@ def validate_hourly_coverage(
     return valid
 
 
-def validate_supply_price_coverage(capacity: dict[tuple, float], price: dict[tuple, float]) -> bool:
-    """Compare the supply curve (capacity) to the price coverage.
+def validate_generation_cost_coverage(
+    capacity: dict[tuple, float], price: dict[tuple, float]
+) -> bool:
+    """Compare the ``available_capacity`` coverage to the ``generation_cost`` coverage.
 
-    This test omits the coverage of seasons within the price table, which is inspected separately.
-    The season is assumed to occupy the last position of the price index.
+    This test omits the coverage of seasons within the cost table, which is inspected separately.
+    The season is assumed to occupy the last position of the cost index.
 
     Parameters
     ----------
     capacity : dict[tuple, float]
-        Supply curve data keyed by tuple index.
+        ``available_capacity`` data keyed by tuple index.
     price : dict[tuple, float]
-        Supply price data keyed by the same index plus a trailing season.
+        ``generation_cost`` data keyed by the same index plus a trailing season.
 
     Returns
     -------
     bool
-        True if the two tables cover each other exactly, False if price entries exist without a
-        matching supply entry (logged as warnings; not fatal).
+        True if the two tables cover each other exactly, False if cost entries exist without a
+        matching capacity entry (logged as warnings; not fatal).
 
     Raises
     ------
     ValueError
-        If any capacity index has no corresponding price entry.
+        If any capacity index has no corresponding cost entry.
     """
     valid = True
     price_coverage = {idx[:-1] for idx in price}  # trim "season" off

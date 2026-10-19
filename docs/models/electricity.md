@@ -469,9 +469,9 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
   `supply_limit_intl`), reporting the missing and unexpected hours for each offending base index.
-- **Supply curve vs. supply price coverage** (`validate_supply_price_coverage`) — the supply curve
-  and the supply price tables must cover each other. A price with no matching supply entry is a
-  warning; a supply entry with no price is fatal.
+- **Available capacity vs. generation cost coverage** (`validate_generation_cost_coverage`) — the
+  `available_capacity` and `generation_cost` tables must cover each other. A cost with no matching
+  capacity entry is a warning; a capacity entry with no cost is fatal.
 - **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are

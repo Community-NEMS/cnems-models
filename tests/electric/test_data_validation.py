@@ -21,9 +21,9 @@ from src.common.exceptions import DataValidationError
 from src.models.electricity import data_validation
 from src.models.electricity.data_validation import (
     validate_domestic_network,
+    validate_generation_cost_coverage,
     validate_hourly_coverage,
     validate_seasonal_coverage,
-    validate_supply_price_coverage,
 )
 
 VALIDATION_LOGGER = 'src.models.electricity.data_validation'
@@ -220,7 +220,7 @@ def test_hourly_coverage_reports_only_the_bad_indices(validation_log):
 
 
 # ---------------------------------------------------------------------------
-# validate_supply_price_coverage
+# validate_generation_cost_coverage
 # ---------------------------------------------------------------------------
 
 
@@ -239,37 +239,37 @@ def _price_table(indices, seasons=SEASONS) -> dict[tuple, float]:
     return {idx + (season,): 10.0 for idx in indices for season in seasons}
 
 
-def test_supply_price_coverage_exact_match(validation_log, capacity_table):
+def test_generation_cost_coverage_exact_match(validation_log, capacity_table):
     """Matching coverage is valid: nothing raised, nothing logged."""
     price = _price_table(capacity_table)
 
-    assert validate_supply_price_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage(capacity_table, price) is True
 
     assert validation_log.records == []
 
 
-def test_supply_price_coverage_single_season_price(validation_log, capacity_table):
+def test_generation_cost_coverage_single_season_price(validation_log, capacity_table):
     """Season count in the price table is irrelevant here -- only the trimmed index matters."""
     price = _price_table(capacity_table, seasons=('winter',))
 
-    assert validate_supply_price_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage(capacity_table, price) is True
 
     assert validation_log.records == []
 
 
-def test_supply_price_coverage_both_empty(validation_log):
+def test_generation_cost_coverage_both_empty(validation_log):
     """Empty inputs are trivially consistent."""
-    assert validate_supply_price_coverage({}, {}) is True
+    assert validate_generation_cost_coverage({}, {}) is True
 
     assert validation_log.records == []
 
 
-def test_supply_price_extra_price_warns_only(validation_log, capacity_table):
+def test_generation_cost_coverage_extra_price_warns_only(validation_log, capacity_table):
     """Price without capacity is invalid but not a showstopper: False, warning, no raise."""
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030)]))
 
-    assert validate_supply_price_coverage(capacity_table, price) is False
+    assert validate_generation_cost_coverage(capacity_table, price) is False
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
@@ -277,45 +277,47 @@ def test_supply_price_extra_price_warns_only(validation_log, capacity_table):
     assert not [r for r in validation_log.records if r.levelno >= logging.ERROR]
 
 
-def test_supply_price_extra_price_warns_once_per_omission(validation_log, capacity_table):
+def test_generation_cost_coverage_extra_price_warns_once_per_omission(
+    validation_log, capacity_table
+):
     """Each uncovered price index gets its own warning, de-duplicated across seasons."""
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030), ('NY', 'NG', 2, 2030)]))
 
-    assert validate_supply_price_coverage(capacity_table, price) is False
+    assert validate_generation_cost_coverage(capacity_table, price) is False
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2
 
 
-def test_supply_price_missing_price_raises(validation_log, capacity_table):
+def test_generation_cost_coverage_missing_price_raises(validation_log, capacity_table):
     """Capacity without price is fatal: it raises rather than returning a validity flag."""
     price = _price_table([idx for idx in capacity_table if idx[0] != 'TX'])
 
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_supply_price_coverage(capacity_table, price)
+        validate_generation_cost_coverage(capacity_table, price)
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == 1
     assert "('TX', 'Coal', 1, 2030)" in errors[0].getMessage()
 
 
-def test_supply_price_empty_price_raises(validation_log, capacity_table):
+def test_generation_cost_coverage_empty_price_raises(validation_log, capacity_table):
     """An entirely missing price table reports every capacity index before raising."""
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_supply_price_coverage(capacity_table, {})
+        validate_generation_cost_coverage(capacity_table, {})
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == len(capacity_table)
 
 
-def test_supply_price_both_directions_missing(validation_log, capacity_table):
+def test_generation_cost_coverage_both_directions_missing(validation_log, capacity_table):
     """Warnings for surplus price are emitted before the missing-price ValueError."""
     price = _price_table([idx for idx in capacity_table if idx[0] != 'TX'])
     price.update(_price_table([('NY', 'NG', 1, 2030)]))
 
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_supply_price_coverage(capacity_table, price)
+        validate_generation_cost_coverage(capacity_table, price)
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]

@@ -132,7 +132,7 @@ keeps the run going.
 ### Temporal/spatial resolution
 
 Representative days/hours (not full 8760h) drive the model's time dimension, configurable via
-`temporal_resolution` in `CommonConfig` (`"default"`, `"d8h12"`, `"d4h24"`, or custom crosswalks — see
+`temporal_resolution` in `CommonConfig` (`"default"`, `"d6h12"`, `"d4h24"`, or custom crosswalks — see
 `src/integrator/old_README.md` for the temporal mapping crosswalk format). Regions are filtered via
 `ElecConfig.region_filter`. Year aggregation (`aggregate_years`/`aggregate_start_year` in `CommonConfig`)
 lets a run represent multiple actual years with one solved representative year, weighted accordingly.

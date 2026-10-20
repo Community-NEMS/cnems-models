@@ -312,7 +312,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             def _buildable_keys(keys: Iterable[tuple], buildable: pyo.Set) -> list[tuple]:
                 """Keep the (region, tech, step, year) keys whose (tech, step) is buildable."""
-                return [(r, t, s, y) for (r, t, s, y) in keys if (t, s) in buildable]
+                return [
+                    (r, t, s, y)
+                    for (r, t, s, y) in keys
+                    if r in self.region_analyze and (t, s) in buildable
+                ]
 
             # builds are indexed from the capital cost keys, screened to what is buildable.
             # data_validation guarantees the costs cover region_analyze x tech_buildable x year.

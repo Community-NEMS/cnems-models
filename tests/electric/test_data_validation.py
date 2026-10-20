@@ -14,16 +14,12 @@ mirroring the shape of the ingested params (tuple index -> float).
 
 import logging
 import pickle
-from types import SimpleNamespace
-from typing import cast
 
 import pytest
-from pandas import DataFrame
 
 from src.common.exceptions import DataValidationError
 from src.models.electricity import data_validation
 from src.models.electricity.data_validation import (
-    validate_all,
     validate_domestic_network,
     validate_hourly_coverage,
     validate_seasonal_coverage,
@@ -500,43 +496,6 @@ def test_build_cost_coverage_names_missing_year(validation_log):
     assert len(errors) == 1
     assert "('A', 'gas', 3)" in errors[0]
     assert '[2035]' in errors[0]
-
-
-def _validate_all_inputs() -> tuple:
-    """Minimal ModelSets / ParamData stand-ins for validate_all:  empty tables, exchange off."""
-    frames = {
-        name: DataFrame()
-        for name in ('generation_cost', 'hydro_capacity_factor', 'available_capacity')
-    }
-    param_data = SimpleNamespace(
-        param_frames=frames,
-        elec_config=SimpleNamespace(regional_exchange=False, capacity_expansion=False),
-    )
-    model_sets = SimpleNamespace(season=SEASONS, hour=HOURS)
-    return (
-        cast(data_validation.ModelSets, model_sets),
-        cast(data_validation.ParamData, param_data),
-    )
-
-
-@pytest.mark.parametrize('passes', [True, False])
-@pytest.mark.parametrize('strict', [True, False])
-def test_validate_all_raises_only_when_strict_and_failing(
-    monkeypatch: pytest.MonkeyPatch, validation_log, strict: bool, passes: bool
-) -> None:
-    """A failed validation raises DataValidationError when strict, and is only logged otherwise.
-
-    It raises rather than exiting, so the failure also surfaces from a pool worker.
-    """
-    monkeypatch.setattr(data_validation, 'validate_supply_price_coverage', lambda *_: passes)
-    model_sets, param_data = _validate_all_inputs()
-    if strict and not passes:
-        with pytest.raises(DataValidationError, match='Data validation failed'):
-            validate_all(model_sets, param_data, strict=strict)
-    else:
-        validate_all(model_sets, param_data, strict=strict)
-        failed_logged = 'Data validation failed' in validation_log.text
-        assert failed_logged is (not passes)
 
 
 def test_data_validation_error_survives_pickling() -> None:

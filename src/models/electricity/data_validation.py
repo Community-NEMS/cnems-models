@@ -60,6 +60,13 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     frames = param_data.param_frames
     exchange = param_data.elec_config.regional_exchange
 
+    # region coverage
+    all_valid &= validate_region_sets(
+        model_sets.region,
+        domestic=model_sets.region_domestic,
+        international=model_sets.region_international,
+    )
+
     # seasonal coverage in tables with season reference
     seasonal_params: list[SeasonalParam] = ['generation_cost', 'hydro_capacity_factor']
     for name in seasonal_params:
@@ -134,6 +141,24 @@ def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:
     if df.empty:
         return {}
     return {k if isinstance(k, tuple) else (k,): v for k, v in df.iloc[:, 0].items()}
+
+
+def validate_region_sets(
+    all_regions: Iterable[str], domestic: Iterable[str], international: Iterable[str]
+) -> bool:
+    """Validate the region sets non-overlap and coverage."""
+    all_regions = set(all_regions)
+    domestic = set(domestic)
+    international = set(international)
+    dual_marked = domestic & international
+    if dual_marked:
+        logger.error('Regions marked as both domestic and international: %s', dual_marked)
+        return False
+    non_declared = all_regions - domestic - international
+    if non_declared:
+        logger.error('Regions not marked as either domestic or international: %s', non_declared)
+        return False
+    return True
 
 
 def validate_seasonal_coverage(

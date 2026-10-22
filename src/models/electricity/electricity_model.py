@@ -5,7 +5,6 @@ constraints, plus additional misc support functions.
 """
 
 from collections import defaultdict
-from collections.abc import Iterable
 from logging import getLogger
 
 import pyomo.environ as pyo
@@ -310,22 +309,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=model_sets.retirement_index,
             )
 
-            def _buildable_keys(keys: Iterable[tuple], buildable: pyo.Set) -> list[tuple]:
-                """Keep the (region, tech, step, year) keys whose (tech, step) is buildable."""
-                return [
-                    (r, t, s, y)
-                    for (r, t, s, y) in keys
-                    if r in self.region_analyze and (t, s) in buildable
-                ]
-
             # builds are indexed from the capital cost keys, screened to what is buildable.
             # data_validation guarantees the costs cover region_analyze x tech_buildable x year.
             self.capacity_build_index = pyo.Set(
                 dimen=4,
                 within=self.region_analyze * self.tech_buildable * self.year,
-                initialize=_buildable_keys(
-                    param_data.param_frames['capital_cost'].index, self.tech_buildable
-                ),
+                initialize=model_sets.buildable_capacity,
             )
 
         # if capacity expansion and learning are on
@@ -1334,8 +1323,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return self.capacity_total[r, tech, step, y] == self.available_capacity[
                 (r, tech, step, y)
             ] + (
-                sum(self.capacity_builds[r, tech, step, year] for year in self.year if year <= y)
-                if elec_config.capacity_expansion and (tech, step) in self.tech_buildable
+                sum(
+                    self.capacity_builds[r, tech, step, year]
+                    for year in self.year
+                    if year <= y and (r, tech, step, year) in self.capacity_builds
+                )
+                if elec_config.capacity_expansion
                 else 0
             ) - (
                 sum(

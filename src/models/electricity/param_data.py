@@ -29,7 +29,7 @@ from src.models.electricity.data_ingestor import (
     load_param_data,
 )
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
-from src.models.electricity.model_sets import SCI, ModelSets
+from src.models.electricity.model_sets import CI, ModelSets
 from src.models.electricity.param_utilities import add_season_index, avg_by_group, time_map
 
 logger = logging.getLogger(__name__)
@@ -201,8 +201,12 @@ class ParamData:
 
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
-        supply_curve_index_vals = [SCI(*t) for t in self.param_frames['available_capacity'].index]
-        model_sets.build_sc_indexes(supply_curve_index_vals)
+        supply_curve_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
+        cap_cost_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
+        model_sets.build_advanced_indexes(
+            available_capacity_index=supply_curve_index_vals,
+            cap_cost_index=cap_cost_index_vals,  # <-- informs buildable tech
+        )
 
         # populate the trade indices based on gathered parameter data
         model_sets.build_international_trade_index(

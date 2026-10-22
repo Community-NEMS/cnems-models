@@ -455,17 +455,21 @@ def _build_costs(with_years: bool) -> dict[tuple, float]:
 
 @pytest.mark.parametrize('with_years', [True, False], ids=['capital_cost', 'initial'])
 @pytest.mark.parametrize(
-    'drop,add,valid,expect_message',
+    'drop,add,expect_message',
     [
-        ((), (), True, None),
-        ((), (('A', 'wind', 1),), True, None),
-        ((('B', 'solar', 1),), (), False, "('B', 'solar', 1)"),
-        ((('A', 'gas', 3), ('B', 'gas', 3)), (), False, "('A', 'gas', 3)"),
+        ((), (), None),
+        ((), (('A', 'wind', 1),), None),
+        ((('B', 'solar', 1),), (), "('B', 'solar', 1)"),
+        ((('A', 'gas', 3), ('B', 'gas', 3)), (), "('A', 'gas', 3)"),
     ],
     ids=['complete', 'extra_ok', 'missing_one', 'missing_tech_in_all_regions'],
 )
-def test_build_cost_coverage(validation_log, with_years, drop, add, valid, expect_message):
-    """Missing buildable keys fail and are named; extra (non-buildable) keys are tolerated."""
+def test_build_cost_coverage(validation_log, with_years, drop, add, expect_message):
+    """Missing buildable keys are named in the log; extra (non-buildable) keys are tolerated.
+
+    Missing initial costs (no year index) are errors and fail validation.  Missing yearly costs
+    are advisory only: they are logged at INFO and validation still passes.
+    """
     costs = _build_costs(with_years)
     for base in drop:
         for key in [k for k in costs if k[:3] == base]:
@@ -478,26 +482,29 @@ def test_build_cost_coverage(validation_log, with_years, drop, add, valid, expec
         'costs', costs, BUILD_REGIONS, BUILDABLE, years
     )
 
-    assert result is valid
-    errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
+    expect_level = logging.INFO if with_years else logging.ERROR
+    assert result is (with_years or expect_message is None)
+    hits = [r for r in validation_log.records if r.levelno == expect_level]
     if expect_message is None:
-        assert errors == []
+        assert hits == []
     else:
-        assert expect_message in ' '.join(r.getMessage() for r in errors)
+        assert expect_message in ' '.join(r.getMessage() for r in hits)
+    if with_years:
+        assert not [r for r in validation_log.records if r.levelno >= logging.WARNING]
 
 
 def test_build_cost_coverage_names_missing_year(validation_log):
-    """A single missing year fails and is reported against its (region, tech, step)."""
+    """A single missing year is advisory: it passes and is logged against its region/tech/step."""
     costs = _build_costs(with_years=True)
     del costs['A', 'gas', 3, 2035]
 
-    assert not data_validation.validate_build_cost_coverage(
+    assert data_validation.validate_build_cost_coverage(
         'capital_cost', costs, BUILD_REGIONS, BUILDABLE, BUILD_YEARS
     )
-    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
-    assert len(errors) == 1
-    assert "('A', 'gas', 3)" in errors[0]
-    assert '[2035]' in errors[0]
+    infos = [r.getMessage() for r in validation_log.records if r.levelno == logging.INFO]
+    assert len(infos) == 1
+    assert "('A', 'gas', 3)" in infos[0]
+    assert '[2035]' in infos[0]
 
 
 def test_data_validation_error_survives_pickling() -> None:

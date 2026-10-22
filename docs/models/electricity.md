@@ -742,9 +742,21 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   logged as warnings, and a limit without a matching cost as an error. A self-loop stops the coverage
   comparison, so coverage gaps show up only once the loops are removed.
 - **Build cost coverage** (`validate_build_cost_coverage`) — when `capacity_expansion` is on,
-  `capital_cost` must cover every `region_analyze` × `tech_buildable` × year, and (with learning
-  enabled) `capital_cost_initial` every `region_analyze` × `tech_buildable`. Extra cost entries are
-  allowed (and not built); a missing one is an error naming the key.
+  `capital_cost` is screened against every `region_analyze` × `tech_buildable` × year. This check
+  is advisory: a gap is logged at INFO, naming the (region, tech, step) and the missing years, and
+  does not fail validation, since the build set is indexed from the `capital_cost` keys and a gap
+  simply leaves that key unbuildable. With learning enabled, `capital_cost_initial` must cover every
+  `region_analyze` × `tech_buildable`, and a missing entry is an error naming the key. Extra
+  entries in either table are allowed and ignored.
+
+  To make a technology buildable in a region and year:
+
+  - Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
+  - Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
+    `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
+    out of a region or year by leaving out its cost.
+  - If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
+    entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

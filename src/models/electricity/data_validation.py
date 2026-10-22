@@ -337,20 +337,26 @@ def validate_build_cost_coverage(
         is logged as an error, with the missing years where the table is year-indexed.
     """
     base = {(r, tech, step) for r in regions for tech, step in buildable}
+    valid = True
     if years is None:  # screening for initial costs
         missing = sorted(base - costs.keys())
         for idx in missing:
             logger.error('Missing %s for buildable index %s', element_name, idx)
         expected = len(base)
+        if missing:
+            valid = False
     else:  # screening for yearly costs
+        # note:  this is *advisory* only.  the costs need not cover every buildable location as
+        #        some may be intentionally omitted.  It cannot claim invalidity
         year_set = set(years)
         found_years: defaultdict[tuple, set[int]] = defaultdict(set)
         for idx in costs:
             found_years[idx[:3]].add(idx[3])
         missing = sorted(idx for idx in base if not year_set <= found_years[idx])
         for idx in missing:
-            logger.error(
-                'Missing %s for buildable index %s in years %s',
+            logger.info(
+                'Parameter %s has no cost entry for %s in years %s and '
+                'is implicitly omitted from buildable',
                 element_name,
                 idx,
                 sorted(year_set - found_years[idx]),
@@ -361,7 +367,7 @@ def validate_build_cost_coverage(
     extra = len(costs) - expected
     if not missing and extra > 0:
         logger.debug('%s has %d entries beyond the buildable set (ignored)', element_name, extra)
-    return not missing
+    return valid
 
 
 def validate_domestic_network(

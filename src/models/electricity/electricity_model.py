@@ -309,6 +309,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=model_sets.retirement_index,
             )
 
+            # builds are indexed from the capital cost keys, screened to what is buildable.
+            # data_validation guarantees the costs cover region_analyze x tech_buildable x year.
+            self.capacity_build_index = pyo.Set(
+                dimen=4,
+                within=self.region_analyze * self.tech_buildable * self.year,
+                initialize=model_sets.buildable_capacity,
+            )
+
         # if capacity expansion and learning are on
         # this block of code demonstrates the application of the switch option,
         # but in general we found it easier to read if we continued to use if statements
@@ -469,7 +477,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 # so PositiveReals rejects zero, negatives and NaN at construction, naming the
                 # offending technology rather than failing later inside the objective.
 
-            # capital_cost is declared in every mode because capacity_builds is indexed from its
+            # capital_cost is declared in every mode because capacity_build_index is drawn from its
             # keys; only DISABLED and LINEAR consume its values in the objective.
             if elec_config.expansion_learning_type in {
                 ExpansionLearningType.DISABLED,
@@ -623,11 +631,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # TODO:  Review this creation of var index from parameter keys.
-            #        Done in a few spots, seems like best plan.
-            self.capacity_builds = pyo.Var(
-                list(self.capital_cost.keys()), within=pyo.NonNegativeReals
-            )
+            self.capacity_builds = pyo.Var(self.capacity_build_index, within=pyo.NonNegativeReals)
             self.capacity_retirements = pyo.Var(
                 self.capacity_retirements_index, within=pyo.NonNegativeReals
             )
@@ -767,17 +771,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             # Experience is this technology's builds across every region and step,
                             # in years strictly before y, so a build never discounts its own cost.
                             cumulative_quantity=sum(
-                                self.capacity_builds[region, tech, other_step, year]
-                                for (region, other_tech, other_step) in self.capital_cost_initial
-                                if other_tech == tech
-                                for year in self.year
-                                if year < y
+                                self.capacity_builds[region, other_tech, other_step, year]
+                                for (
+                                    region,
+                                    other_tech,
+                                    other_step,
+                                    year,
+                                ) in self.capacity_build_index
+                                if other_tech == tech and year < y
                             ),
                             baseline_quantity=self.supply_curve_learning[tech],
                             initial_cost=self.capital_cost_initial[r, tech, step],
                             learning_rate=self.learning_rate[tech],
                         )
-                        for (r, tech, step, y) in self.capacity_builds
+                        for (r, tech, step, y) in self.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -800,7 +807,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     """
                     return sum(
                         self.capital_cost[r, tech, step, y] * self.capacity_builds[r, tech, step, y]
-                        for (r, tech, step, y) in self.capital_cost
+                        for (r, tech, step, y) in self.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -1316,8 +1323,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             return self.capacity_total[r, tech, step, y] == self.available_capacity[
                 (r, tech, step, y)
             ] + (
-                sum(self.capacity_builds[r, tech, step, year] for year in self.year if year <= y)
-                if elec_config.capacity_expansion and (tech, step) in self.tech_buildable
+                sum(
+                    self.capacity_builds[r, tech, step, year]
+                    for year in self.year
+                    if year <= y and (r, tech, step, year) in self.capacity_builds
+                )
+                if elec_config.capacity_expansion
                 else 0
             ) - (
                 sum(

@@ -14,16 +14,12 @@ mirroring the shape of the ingested params (tuple index -> float).
 
 import logging
 import pickle
-from types import SimpleNamespace
-from typing import cast
 
 import pytest
-from pandas import DataFrame
 
 from src.common.exceptions import DataValidationError
 from src.models.electricity import data_validation
 from src.models.electricity.data_validation import (
-    validate_all,
     validate_domestic_network,
     validate_generation_cost_coverage,
     validate_hourly_coverage,
@@ -436,40 +432,79 @@ def test_domestic_network(validation_log, mutate, expected, expect_level, expect
         assert expect_message in ' '.join(r.getMessage() for r in hits)
 
 
-def _validate_all_inputs() -> tuple:
-    """Minimal ModelSets / ParamData stand-ins for validate_all:  empty tables, exchange off."""
-    frames = {
-        name: DataFrame()
-        for name in ('generation_cost', 'hydro_capacity_factor', 'available_capacity')
-    }
-    param_data = SimpleNamespace(
-        param_frames=frames, elec_config=SimpleNamespace(regional_exchange=False)
-    )
-    model_sets = SimpleNamespace(season=SEASONS, hour=HOURS)
-    return (
-        cast(data_validation.ModelSets, model_sets),
-        cast(data_validation.ParamData, param_data),
-    )
+# ---------------------------------------------------------------------------
+# validate_build_cost_coverage
+# ---------------------------------------------------------------------------
+
+BUILD_REGIONS = ('A', 'B')
+BUILDABLE = (('gas', 3), ('solar', 1))
+BUILD_YEARS = (2030, 2035)
 
 
-@pytest.mark.parametrize('passes', [True, False])
-@pytest.mark.parametrize('strict', [True, False])
-def test_validate_all_raises_only_when_strict_and_failing(
-    monkeypatch: pytest.MonkeyPatch, validation_log, strict: bool, passes: bool
-) -> None:
-    """A failed validation raises DataValidationError when strict, and is only logged otherwise.
+def _build_costs(with_years: bool) -> dict[tuple, float]:
+    """Full region x buildable (x year) cost table."""
+    if with_years:
+        return {
+            (r, tech, step, y): 1.0
+            for r in BUILD_REGIONS
+            for tech, step in BUILDABLE
+            for y in BUILD_YEARS
+        }
+    return {(r, tech, step): 1.0 for r in BUILD_REGIONS for tech, step in BUILDABLE}
 
-    It raises rather than exiting, so the failure also surfaces from a pool worker.
+
+@pytest.mark.parametrize('with_years', [True, False], ids=['capital_cost', 'initial'])
+@pytest.mark.parametrize(
+    'drop,add,expect_message',
+    [
+        ((), (), None),
+        ((), (('A', 'wind', 1),), None),
+        ((('B', 'solar', 1),), (), "('B', 'solar', 1)"),
+        ((('A', 'gas', 3), ('B', 'gas', 3)), (), "('A', 'gas', 3)"),
+    ],
+    ids=['complete', 'extra_ok', 'missing_one', 'missing_tech_in_all_regions'],
+)
+def test_build_cost_coverage(validation_log, with_years, drop, add, expect_message):
+    """Missing buildable keys are named in the log; extra (non-buildable) keys are tolerated.
+
+    Missing initial costs (no year index) are errors and fail validation.  Missing yearly costs
+    are advisory only: they are logged at INFO and validation still passes.
     """
-    monkeypatch.setattr(data_validation, 'validate_generation_cost_coverage', lambda *_: passes)
-    model_sets, param_data = _validate_all_inputs()
-    if strict and not passes:
-        with pytest.raises(DataValidationError, match='Data validation failed'):
-            validate_all(model_sets, param_data, strict=strict)
+    costs = _build_costs(with_years)
+    for base in drop:
+        for key in [k for k in costs if k[:3] == base]:
+            del costs[key]
+    for base in add:
+        costs[base + ((BUILD_YEARS[0],) if with_years else ())] = 1.0
+
+    years = BUILD_YEARS if with_years else None
+    result = data_validation.validate_build_cost_coverage(
+        'costs', costs, BUILD_REGIONS, BUILDABLE, years
+    )
+
+    expect_level = logging.INFO if with_years else logging.ERROR
+    assert result is (with_years or expect_message is None)
+    hits = [r for r in validation_log.records if r.levelno == expect_level]
+    if expect_message is None:
+        assert hits == []
     else:
-        validate_all(model_sets, param_data, strict=strict)
-        failed_logged = 'Data validation failed' in validation_log.text
-        assert failed_logged is (not passes)
+        assert expect_message in ' '.join(r.getMessage() for r in hits)
+    if with_years:
+        assert not [r for r in validation_log.records if r.levelno >= logging.WARNING]
+
+
+def test_build_cost_coverage_names_missing_year(validation_log):
+    """A single missing year is advisory: it passes and is logged against its region/tech/step."""
+    costs = _build_costs(with_years=True)
+    del costs['A', 'gas', 3, 2035]
+
+    assert data_validation.validate_build_cost_coverage(
+        'capital_cost', costs, BUILD_REGIONS, BUILDABLE, BUILD_YEARS
+    )
+    infos = [r.getMessage() for r in validation_log.records if r.levelno == logging.INFO]
+    assert len(infos) == 1
+    assert "('A', 'gas', 3)" in infos[0]
+    assert '[2035]' in infos[0]
 
 
 def test_data_validation_error_survives_pickling() -> None:

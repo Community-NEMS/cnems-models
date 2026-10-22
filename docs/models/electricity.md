@@ -33,15 +33,16 @@ through the model configuration.
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
-| $\Theta_{um}$          | unmet_load.index_set()                        | Sparse set | All unmet load set                                           |
-| $\Theta_{SC}$          | capacity_index                                | Sparse set | Capacity set: the (region, technology, step, year) keys of available_capacity |
-| $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse set | Dispatchable technology generation upper bound set           |
-| $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse set | Intermittent technology generation upper bound set           |
-| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse set | Regular hydro generation upper bound set                     |
-| $\Theta_{hs}$          | seasonal_hydro_index                          | Sparse set | Seasonal hydro energy budget set: (region, technology, year, season) |
-| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse set | Retirable capacity set                                       |
-| $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse set | Buildable capacity set: the (region, technology, step, year) keys of capital_cost |
-| $\Theta_{cc0}$         | capital_cost_initial.keys()                   | Sparse set | The (region, technology, step) keys of capital_cost_initial (learning modes only) |
+| $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
+| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Existing capacity set                                        |
+| $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
+| $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
+| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
+| $\Theta_{hs}$          | seasonal_hydro_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
+| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
+| $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set                                       |
+| $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
+| $\Theta_{cc0}$         | capital_cost_initial.keys()              | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index              | Sparse set | (non-first hour) storage balance set                         |
 | $\Theta_{proc}$        | reserves_procurement_index                    | Sparse set | Operating reserve procurement set: (region, reserve type, technology, step, year, hour) with $RTUB_{rt,t} > 0$ |
@@ -740,6 +741,22 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
   logged as warnings, and a limit without a matching cost as an error. A self-loop stops the coverage
   comparison, so coverage gaps show up only once the loops are removed.
+- **Build cost coverage** (`validate_build_cost_coverage`) — when `capacity_expansion` is on,
+  `capital_cost` is screened against every `region_analyze` × `tech_buildable` × year. This check
+  is advisory: a gap is logged at INFO, naming the (region, tech, step) and the missing years, and
+  does not fail validation, since the build set is indexed from the `capital_cost` keys and a gap
+  simply leaves that key unbuildable. With learning enabled, `capital_cost_initial` must cover every
+  `region_analyze` × `tech_buildable`, and a missing entry is an error naming the key. Extra
+  entries in either table are allowed and ignored.
+
+  To make a technology buildable in a region and year:
+
+  - Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
+  - Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
+    `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
+    out of a region or year by leaving out its cost.
+  - If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
+    entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

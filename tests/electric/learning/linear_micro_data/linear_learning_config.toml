@@ -5,8 +5,8 @@
 [common]
 mode = "standalone"
 models_to_run=['electricity']
-common_data_path='tests/electric/test_data_linear_learning_test'
-residential_data_path='tests/electric/test_data_linear_learning_test/residential'
+common_data_path='tests/electric/learning/linear_micro_data'
+residential_data_path='tests/electric/learning/linear_micro_data/residential'
 output_path='output'
 scenario_name = "linear_learning_test"
 temporal_resolution = "default"
@@ -15,7 +15,7 @@ aggregate_start_year = 2030
 summary_years = [2030, 2031, 2032, 2033, 2034, 2035]
 
 [elec_config]
-input_path='tests/electric/test_data_linear_learning_test/param_data'
+input_path='tests/electric/learning/linear_micro_data/param_data'
 region_filter = ['CA']
 regional_exchange=false
 capacity_expansion=true

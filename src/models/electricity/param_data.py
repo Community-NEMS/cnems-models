@@ -202,7 +202,7 @@ class ParamData:
         # use the supply curve df BEFORE augmentation with seasons (below)
         # to populate other sets in ModelSets
         supply_curve_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
-        cap_cost_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
+        cap_cost_index_vals = {CI(*t) for t in self.param_frames['capital_cost'].index}
         model_sets.build_advanced_indexes(
             available_capacity_index=supply_curve_index_vals,
             cap_cost_index=cap_cost_index_vals,  # <-- informs buildable tech

@@ -310,11 +310,13 @@ def validate_build_cost_coverage(
     buildable: Iterable,
     years: Iterable[int] | None = None,
 ) -> bool:
-    """Validate that a build-cost table covers every buildable (tech, step) in every region.
+    """Screen a build-cost table against every buildable (tech, step) in every region.
 
     The expected keys are ``regions x buildable`` (``x years`` when given).  Extra cost entries
-    (e.g. for non-buildable techs) are allowed; missing ones are not, because ``capacity_builds``
-    is indexed from the costs while the capacity constraints reach it through ``tech_buildable``.
+    (e.g. for non-buildable techs) are allowed and ignored.  For the year-indexed table
+    (``capital_cost``) gaps are also allowed: ``capacity_build_index`` is the cost keys screened
+    to ``tech_buildable``, so omitting a cost is how a (region, tech, step, year) is excluded from
+    expansion.  Gaps in the year-less table (``capital_cost_initial``) are errors.
 
     Parameters
     ----------
@@ -333,8 +335,9 @@ def validate_build_cost_coverage(
     Returns
     -------
     bool
-        True if every expected key is present, False otherwise.  Each missing (region, tech, step)
-        is logged as an error, with the missing years where the table is year-indexed.
+        False only if the year-less table is missing an expected key (each logged as an error).
+        Always True for the year-indexed table; each (region, tech, step) with missing years is
+        logged at INFO with those years.
     """
     base = {(r, tech, step) for r in regions for tech, step in buildable}
     valid = True

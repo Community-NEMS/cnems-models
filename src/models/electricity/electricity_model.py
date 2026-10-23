@@ -310,7 +310,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
 
             # builds are indexed from the capital cost keys, screened to what is buildable.
-            # data_validation guarantees the costs cover region_analyze x tech_buildable x year.
             self.capacity_build_index = pyo.Set(
                 dimen=4,
                 within=self.region_analyze * self.tech_buildable * self.year,
@@ -1294,7 +1293,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 <= self.capacity_total[r, tech, step, y] * self.storage_duration[tech]
             )
 
-        # TODO:  internalize this set from the inputs ?   maybe?
         @self.Constraint(model_sets.capacity_index)
         def capacity_balance(self, r, tech, step, y):
             """Capacity Equality constraint.
@@ -1320,25 +1318,29 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Capacity Equality
 
             """
-            return self.capacity_total[r, tech, step, y] == self.available_capacity[
-                (r, tech, step, y)
-            ] + (
-                sum(
+            # pyomo's IndexedParam has no .get(), so SIM401's suggested rewrite would fail
+            existing = (
+                self.available_capacity[r, tech, step, y]  # noqa: SIM401
+                if (r, tech, step, y) in self.available_capacity
+                else 0
+            )
+            if elec_config.capacity_expansion:
+                built_to_date = sum(
                     self.capacity_builds[r, tech, step, year]
                     for year in self.year
                     if year <= y and (r, tech, step, year) in self.capacity_builds
                 )
-                if elec_config.capacity_expansion
-                else 0
-            ) - (
-                sum(
+                retired_to_date = sum(
                     self.capacity_retirements[r, tech, step, year]
                     for year in self.year
-                    if year <= y
+                    if year <= y and (r, tech, step, year) in self.capacity_retirements
                 )
-                if elec_config.capacity_expansion
-                and (r, tech, step, y) in self.capacity_retirements_index
-                else 0
+            else:
+                built_to_date = 0
+                retired_to_date = 0
+
+            return (
+                self.capacity_total[r, tech, step, y] == existing + built_to_date - retired_to_date
             )
 
         # if capacity expansion is on
@@ -1370,8 +1372,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return self.capacity_retirements[r, tech, step, y] <= (
                     (
-                        self.available_capacity[r, tech, step, y]
-                        if (r, tech, step, y) in self.capacity_total
+                        self.available_capacity[r, tech, step, y]  # noqa: SIM401
+                        if (r, tech, step, y) in self.available_capacity
                         else 0
                     )
                     + (
@@ -1379,9 +1381,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             self.capacity_builds[r, tech, step, year]
                             for year in self.year
                             if year < y
+                            if (r, tech, step, year) in self.capacity_builds
                         )
-                        if (tech, step) in self.tech_buildable
-                        else 0
                     )
                     - sum(
                         self.capacity_retirements[r, tech, step, year]

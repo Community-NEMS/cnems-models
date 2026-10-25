@@ -13,7 +13,7 @@ held in pandas dataframes.
 """
 
 import logging
-from collections.abc import Collection
+from collections.abc import Iterable
 from typing import TypedDict
 
 import pandas as pd
@@ -30,7 +30,7 @@ from src.models.electricity.data_ingestor import (
 )
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
 from src.models.electricity.model_sets import CI, ModelSets
-from src.models.electricity.param_utilities import add_season_index, avg_by_group, time_map
+from src.models.electricity.param_utilities import avg_by_group, time_map
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +52,12 @@ class ParamFrames(TypedDict, total=False):
 
     # constructed
     elec_load: DataFrame
-    capacity_credit: DataFrame
 
     # loaded (TIME_BASED_DFS); empty DataFrame if no data survives filtering
     capital_cost: DataFrame
-    capacity_factor_vre: DataFrame
-    hydro_capacity_factor: DataFrame
+    capacity_factor_hourly: DataFrame
+    capacity_factor_seasonal: DataFrame
+    # capacity_factor_seasonal: DataFrame
     available_capacity: DataFrame
     generation_cost: DataFrame
     tran_cost: DataFrame
@@ -94,25 +94,25 @@ class ParamData:
     DataFrames.
     """
 
-    # constructed temporal dataframes
-    weight_year: DataFrame
-    weight_season: DataFrame
-    weight_day: DataFrame
-    weight_hour: DataFrame
-    map_hour_day: DataFrame
-    map_hour_season: DataFrame
-    map_day_season: DataFrame
-
-    # other constructed dataframes
-    elec_load: DataFrame
+    # # constructed temporal dataframes
+    # weight_year: DataFrame
+    # weight_season: DataFrame
+    # weight_day: DataFrame
+    # weight_hour: DataFrame
+    # map_hour_day: DataFrame
+    # map_hour_season: DataFrame
+    # map_day_season: DataFrame
+    #
+    # # other constructed dataframes
+    # elec_load: DataFrame
 
     # loaded frames and dicts
     param_frames: ParamFrames
     param_dicts: ParamDicts
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig, model_sets: ModelSets):
-        self.param_frames = {}
-        self.param_dicts = {}
+        self.param_frames = ParamFrames()
+        self.param_dicts = ParamDicts()
 
         # capture config items
         self.elec_config = elec_config
@@ -148,22 +148,30 @@ class ParamData:
                 df = ParamData._convert_seasons(df, season_lut, name)
             # aggregate the time in the dataframe
             df = self.aggregate_time(df, name)
+            if name == 'capacity_factor_seasonal':
+                # catch the hydro capacity factor and augment it
+                # with the hydro techs (others later?)
+                hydro_tech_steps = filter(
+                    lambda x: x[0] in model_sets.tech_hydro, model_sets.tech_steps.items()
+                )
+                df = ParamData._pair_tech_with_seasonal_cap_factor(hydro_tech_steps, df)
             # set the index properly
             df = df.set_index(list(df.columns[:-1]))
+
             # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
             self.param_frames[name] = df
 
-        # augment capacity_factor_vre with year.... ugh
-        # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
-        df = pd.merge(
-            self.param_frames['capacity_factor_vre'].reset_index(),
-            pd.DataFrame({'year': common_config.summary_years}),
-            how='cross',
-        )
-        # re-sequence columns
-        df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_factor_vre_frac']]
-        # set proper index
-        self.param_frames['capacity_factor_vre'] = df.set_index(list(df.columns)[:-1])
+        # # augment capacity_factor_hourly with year.... ugh
+        # # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
+        # df = pd.merge(
+        #     self.param_frames['capacity_factor_hourly'].reset_index(),
+        #     pd.DataFrame({'year': common_config.summary_years}),
+        #     how='cross',
+        # )
+        # # re-sequence columns
+        # df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_factor_vre_frac']]
+        # # set proper index
+        # self.param_frames['capacity_factor_hourly'] = df.set_index(list(df.columns)[:-1])
 
         # expand season columns to the appropriate rep-hours for the season where season is used
         # we can skip this if no international connections:
@@ -199,7 +207,7 @@ class ParamData:
                 len(self.param_frames['tran_limit']),
             )
 
-        # use the supply curve df BEFORE augmentation with seasons (below)
+        # use the available capacity and buildable capacity (cap cost)
         # to populate other sets in ModelSets
         supply_curve_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
         cap_cost_index_vals = {CI(*t) for t in self.param_frames['capital_cost'].index}
@@ -212,21 +220,6 @@ class ParamData:
         model_sets.build_international_trade_index(
             intl_capacity=self.param_frames['tran_limit_cap_intl'],
             intl_gen_limit=self.param_frames['supply_limit_intl'],
-        )
-
-        # augment the supply curve dataframe w/ season x-product in temp var to enable x-product
-        df = add_season_index(
-            model_sets.cw_temporal, self.param_frames['available_capacity'].reset_index(), 4
-        )
-        augmented_supply_curve = df.set_index(list(df.columns)[:-1])
-
-        # use the augmented available_capacity DF to make the capacity_credit df
-        self.param_frames['capacity_credit'] = self.build_capacity_credit(
-            augmented_supply_curve=augmented_supply_curve,
-            hour_season_map=self.param_frames['map_hour_season'],
-            capacity_factor_vre=self.param_frames['capacity_factor_vre'],
-            hydro_capacity_factor=self.param_frames['hydro_capacity_factor'],
-            tech_hydro=model_sets.tech_hydro,
         )
 
         # Load the remainder directly into dictionary objects
@@ -359,82 +352,6 @@ class ParamData:
         df = df.set_index(list(df.columns[:-1]))
         return df
 
-    # supersedes param_utilities.capacity_credit_df(all_frames, setin)
-    def build_capacity_credit(
-        self,
-        augmented_supply_curve: DataFrame,
-        hour_season_map: DataFrame,
-        capacity_factor_vre: DataFrame,
-        hydro_capacity_factor: DataFrame,
-        tech_hydro: Collection[str],
-    ) -> DataFrame:
-        """Builds the capacity credit dataframe.
-
-        Parameters
-        ----------
-        augmented_supply_curve : DataFrame
-            supply curve providing the (region, tech, step, year) basis to expand to hours
-        hour_season_map : DataFrame
-            crosswalk mapping each hour to its season
-        capacity_factor_vre : DataFrame
-            capacity factors for the variable renewable techs
-        hydro_capacity_factor : DataFrame
-            seasonal capacity factors for the hydro techs
-        tech_hydro : Collection[str]
-            techs treated as hydro, which draw their credit from ``hydro_capacity_factor``
-
-        Returns
-        -------
-        pd.DataFrame
-            formatted capacity credit data frame
-        """
-        basis = self.create_hourly_params(
-            target=augmented_supply_curve,
-            hour_season_map=hour_season_map,
-            new_col_sequence=None,
-            set_index=False,
-        )
-
-        # capacity credit is hourly capacity factor for vre technologies
-        df = pd.merge(
-            basis,
-            capacity_factor_vre,
-            how='left',
-            on=['tech', 'year', 'region', 'step', 'hour'],
-        ).rename(columns={'capacity_factor_vre_frac': 'capacity_credit'})
-        # df now has all rows in it.  We just need to correct entries for non-VRE
-        # technologies and hydro techs
-
-        # capacity credit = 1 for dispatchable technologies
-        df['capacity_credit'] = df['capacity_credit'].fillna(1)  # everything non-VRE
-
-        # capacity credit is seasonal limit for hydro, map it out to hourly
-        hydro_capacity = self.create_hourly_params(
-            target=hydro_capacity_factor,
-            hour_season_map=hour_season_map,
-            new_col_sequence=None,
-            set_index=False,
-        )
-
-        # merge hydro capacity factors onto df by keys, then update only hydro technologies
-        df = pd.merge(
-            df,
-            hydro_capacity[['region', 'hour', 'hydro_capacity_factor_frac']],
-            how='left',
-            on=['region', 'hour'],
-        )
-
-        hydro_mask = df['tech'].isin(tech_hydro)
-        df.loc[hydro_mask, 'capacity_credit'] = df.loc[hydro_mask, 'hydro_capacity_factor_frac']
-
-        # drop unnecessary columns
-        df = df.drop(columns=['available_capacity_mw', 'hydro_capacity_factor_frac'])
-
-        # reorder columns
-        df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_credit']]
-        df = df.set_index(list(df.columns)[:-1])
-        return df
-
     @staticmethod
     def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
         """Filter a dataframe by a column and a list of values."""
@@ -529,3 +446,21 @@ class ParamData:
                 logger.error('Invalid reserve type %s for tech %s', reserve_type, tech)
                 raise
         return res
+
+    @staticmethod
+    def _pair_tech_with_seasonal_cap_factor(
+        tech_steps: Iterable[tuple[str, list]], df: DataFrame
+    ) -> DataFrame:
+        """Augment this dataframe with tech x step combos.
+
+        Dev Note:  This is likely temporary as the 'seasonal capacity factor' table this
+        is used to augment does NOT reference tech explicitly now.  It is only applied to seasonal
+        hydro.
+
+        Perhaps in future, if other techs are added, we can force the data to cover this
+        """
+        tech_step_records = [(t[0], s) for t in tech_steps for s in t[1]]
+        tech_step_df = pd.DataFrame(tech_step_records, columns=['tech', 'step'])
+        df = df.merge(tech_step_df, how='cross')
+        df = df[['region', 'tech', 'step', 'season', 'hydro_capacity_factor_frac']]
+        return df

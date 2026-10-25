@@ -44,8 +44,8 @@ _ALWAYS_REQUIRED = frozenset(
     {
         'storage_efficiency',
         'storage_duration',
-        'capacity_factor_vre',
-        'hydro_capacity_factor',
+        'capacity_factor_hourly',
+        'capacity_factor_seasonal',
         'generation_cost',
         'available_capacity',
         'fom_cost',

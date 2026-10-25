@@ -31,7 +31,7 @@ from src.models.electricity.param_data import ParamData
 logger = logging.getLogger(__name__)
 
 # ParamFrames keys indexed by season, and those ParamData has expanded from season to hour
-SeasonalParam = Literal['generation_cost', 'hydro_capacity_factor']
+SeasonalParam = Literal['generation_cost', 'capacity_factor_seasonal']
 HourlyParam = Literal['tran_limit', 'tran_limit_cap_intl', 'supply_limit_intl']
 
 
@@ -68,7 +68,7 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     )
 
     # seasonal coverage in tables with season reference
-    seasonal_params: list[SeasonalParam] = ['generation_cost', 'hydro_capacity_factor']
+    seasonal_params: list[SeasonalParam] = ['generation_cost', 'capacity_factor_seasonal']
     for name in seasonal_params:
         df = frames[name]
         if df.empty:

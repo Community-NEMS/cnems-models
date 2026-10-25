@@ -728,7 +728,7 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 ### Validations performed
 
 - **Seasonal coverage** (`validate_seasonal_coverage`) — for `generation_cost` and
-  `hydro_capacity_factor`, every base index (the index with the season removed) must carry exactly
+  `capacity_factor_seasonal`, every base index (the index with the season removed) must carry exactly
   the model's expected set of seasons: no gaps and no strays.
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
@@ -826,7 +826,7 @@ the table:
 
 The year checks run on every year-indexed table listed above, against `year_map`. With aggregation
 off that map is one-to-one, so they only catch a summary year missing from a table. The hour checks
-run on the tables with an hour column, `elec_load` and `capacity_factor_vre`, against the map from
+run on the tables with an hour column, `elec_load` and `capacity_factor_hourly`, against the map from
 the hours of the year to the representative hours, whether or not years are aggregated. A
 combination with no rows at all in a block is ordinary sparsity and passes, and an empty table is
 not checked.
@@ -840,9 +840,9 @@ enters the sparse index sets and the objective with no sign of where it came fro
 makes the data owner decide: fill the missing years explicitly (zeros where appropriate), or
 choose `summary_years` / `aggregate_start_year` so that the blocks match the data.
 
-`capacity_factor_vre` has no year index, and the model uses the same factors in every summary
+`capacity_factor_hourly` has no year index, and the model uses the same factors in every summary
 year. Like `elec_load`, it is still averaged over the hours each representative hour stands for,
-whether or not years are aggregated. `hydro_capacity_factor`, indexed by region and season only, is
+whether or not years are aggregated. `capacity_factor_seasonal`, indexed by region and season only, is
 used as read, and so are the parameters loaded as plain dictionaries, such as `fom_cost` and
 `capital_cost_initial`.
 

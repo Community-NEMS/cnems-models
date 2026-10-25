@@ -38,8 +38,8 @@ PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
 # param sources to convert to DF's for further processing.  "Load" handled separately
 TIME_BASED_DFS = (
     'capital_cost',
-    'capacity_factor_vre',
-    'hydro_capacity_factor',
+    'capacity_factor_hourly',
+    'capacity_factor_seasonal',
     'available_capacity',
     'generation_cost',
     'tran_cost',

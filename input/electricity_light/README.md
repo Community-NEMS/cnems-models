@@ -11,8 +11,8 @@ Added in commit `77d7264` (2026-07-21) with no script retained. The mapping belo
 2026-09-02 by exact value matching between the light CSVs and `input/electricity/parameters`, and
 re-verified on 2026-10-06 after the MW unit change and file renames: applying it to the light
 files reproduces the upstream values exactly for every row that has an upstream counterpart
-(`capacity_factor_vre` 52,560 rows, `generation_cost` 648, `available_capacity` 162, `fom_cost`
-27, `hydro_capacity_factor` 12, `tran_cost` 54, `tran_cost_intl` 72, `supply_limit_intl` 96,
+(`capacity_factor_hourly` 52,560 rows, `generation_cost` 648, `available_capacity` 162, `fom_cost`
+27, `capacity_factor_seasonal` 12, `tran_cost` 54, `tran_cost_intl` 72, `supply_limit_intl` 96,
 `tran_limit` 48 of 144, plus `storage_efficiency` and `storage_duration` — zero difference on all
 of them).
 

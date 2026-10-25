@@ -76,7 +76,7 @@ quietly wrong objective instead of a `ValueError` at build time. Prefer the loud
 
 Only two params there carry a `default=`, and each states its reason in place:
 `elec_load` (so `r, y, hr` can be iterated confidently, as all three should be defined)
-and `capacity_factor_vre` (the indexing set is wider than the data's upper-bound limit). Both
+and `capacity_factor_hourly` (the indexing set is wider than the data's upper-bound limit). Both
 are deliberate. What to avoid is the *undocumented* default added to make construction
 succeed — that is a smell, and the fix is usually a correctly sparse index set rather
 than a fabricated value.

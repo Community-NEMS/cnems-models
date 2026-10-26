@@ -240,9 +240,10 @@ class ParamData:
             self.param_dicts['reserve_cost']
         )
 
-        # build the reserves set, using supply + the UB to be used as a filter in construction
+        # build the reserves set from the full capacity index (existing + buildable), using the
+        # UB as a filter in construction
         model_sets.build_reserves_index(
-            supply_curve_index=supply_curve_index_vals,
+            supply_curve_index=model_sets.capacity_index,
             reserve_ub_limits=self.param_dicts['reserve_tech_limit'],
         )
 

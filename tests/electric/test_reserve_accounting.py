@@ -11,6 +11,9 @@ Operating reserve accounting on the mini model (``tests/electric/mini_model.py``
 Wind generation and solar capacity set part of the regulation and flex requirements.  Their
 contribution to the requirement is independent of whether those techs can also supply reserves
 to meet it.
+
+Reserve suppliers are drawn from the full capacity index, so capacity that is buildable but not
+yet existing can supply reserves, and a reserve requirement can drive new builds.
 """
 
 import pyomo.environ as pyo
@@ -105,3 +108,64 @@ def test_vre_requirements_procured(build_mini, mini_data):
                 for (tech, step) in model.eligible_reserves[r, res_type, y, hr]
             )
             assert procured == pytest.approx(requirement), (r, y, hr, res_type)
+
+
+PEAKER_LIMIT = 1.0
+
+
+def add_buildable_peaker(data: MiniModelData) -> MiniModelData:
+    """Add a buildable Peaker, with no existing capacity, as the only reserve supplier.
+
+    Peaker is buildable in both regions and years at $1000/MW, generates at $50/MWh (above
+    Gas), and can supply ``PEAKER_LIMIT`` of its capacity for every reserve type.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the base mini data, edited in place.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    data.add_tech('Peaker', flags=['is_dispatchable', 'is_generator'], buildable=[1])
+    data.add_operating_costs('Peaker', generation_cost=50.0, fom_cost=1.0)
+    data.add_rows(
+        'capital_cost', {(r, 'Peaker', 1, y): 1000.0 for r, y in data.every('region', 'year')}
+    )
+    res_types = [rt.value for rt in ReserveType]
+    data.add_rows('reserve_tech_limit', {(rt, 'Peaker'): PEAKER_LIMIT for rt in res_types})
+    data.add_rows('reserve_cost', {(rt, 'Peaker'): 1.0 for rt in res_types})
+    return data
+
+
+def test_buildable_capacity_supplies_reserves(build_mini, mini_data):
+    """A buildable location with no existing capacity gets a reserve variable for every type."""
+    add_buildable_peaker(mini_data)
+    _, model = build_mini(spinning_reserve_required=True, capacity_expansion=True)
+
+    for r, y, hr in model.elec_load.index_set():
+        assert (r, 'Peaker', 1, y) not in model.available_capacity
+        for res_type in ReserveType:
+            assert (r, res_type, 'Peaker', 1, y, hr) in model.reserves_procurement
+
+
+def test_reserve_requirement_drives_builds(build_mini, mini_data):
+    """With Peaker the only supplier, each region builds exactly the capacity reserves need.
+
+    Per hour (unit weights, no VRE):  spinning 0.03 x 80 = 2.4 and regulation 0.01 x 80 = 0.8,
+    flex 0.  Both share Peaker's capacity, which does not generate (Gas is cheaper), so each
+    region builds 3.2 MW in the first year and nothing after.
+    """
+    add_buildable_peaker(mini_data)
+    sequencer, model = build_mini(spinning_reserve_required=True, capacity_expansion=True)
+    _, status = sequencer.solve_model()
+    assert status is IterationStatus.BEST
+
+    first, second = mini_data.years
+    needed = (0.03 + 0.01) * LOAD_MW
+    for r in mini_data.regions:
+        assert pyo.value(model.capacity_builds[r, 'Peaker', 1, first]) == pytest.approx(needed)
+        assert pyo.value(model.capacity_builds[r, 'Peaker', 1, second]) == pytest.approx(0.0)
+    assert sum(pyo.value(v) for v in model.unmet_load.values()) == pytest.approx(0.0)

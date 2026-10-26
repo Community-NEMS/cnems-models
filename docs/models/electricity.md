@@ -34,7 +34,7 @@ through the model configuration.
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
 | $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
-| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Existing capacity set                                        |
+| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus buildable capacity when capacity_expansion is on |
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
@@ -88,10 +88,12 @@ remaining indices.
 | $\theta^{SDB}_{r,y,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by r,y,h                                                    |
 | $\theta^{TDB}_{r,y,h}$     | regional_sources          | Sparse subset | Set for trade indexed by r,y,h                                                      |
 | $\theta^{TCDB}_{r,y,h}$    | international_partners    | Sparse subset | Set for (international region, international supply step) pairs indexed by r,y,h    |
-| $\theta^{windor}_{r,y,h}$  | wind_reserves             | Sparse subset | Wind (technology, step) pairs whose generation adds to the regulation and flex requirements, indexed by r,y,h |
-| $\theta^{solor}_{r,y,h}$   | solar_reserves            | Sparse subset | Solar (technology, step) pairs whose capacity adds to the regulation and flex requirements, indexed by r,y,h |
+| $\theta^{windor}_{r,y,h}$  | wind_generation           | Sparse subset | Wind (technology, step) pairs whose generation adds to the regulation and flex requirements, indexed by r,y,h |
+| $\theta^{solor}_{r,y,h}$   | solar_generation          | Sparse subset | Solar (technology, step) pairs whose capacity adds to the regulation and flex requirements, indexed by r,y,h |
 | $\theta^{opres}_{r,rt,y,h}$ | eligible_reserves         | Sparse subset | (technology, step) pairs that can provide reserve type $rt$, indexed by r,rt,y,h    |
-| $\theta^{scrm}_{r,y}$      | capacity_sources          | Sparse subset | (technology, step) pairs with capacity, for the reserve margin, indexed by r,y      |
+| $\theta^{rmh}_{r,y}$       | capacity_sources_hourly_factor   | Sparse subset | Intermittent (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their hourly factor, indexed by r,y |
+| $\theta^{rms}_{r,y}$       | capacity_sources_seasonal_factor | Sparse subset | Hydro (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their seasonal factor, indexed by r,y |
+| $\theta^{rmc}_{r,y}$       | capacity_sources_constant_factor | Sparse subset | All other (technology, step) pairs in $\Theta_{SC}$, storage included, counted in the reserve margin at a factor of 1, indexed by r,y |
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
 
 ### Parameters
@@ -109,8 +111,8 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $CAP^{exist}_{r,t,s,y}$           | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
 | $SPR_{r,t,s,y,seas}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
 | $NGADJ_{r,t,s,y,seas}$            | ng_fuel_adj              | $\mathbb{R}$     | Gas fuel-cost adjustment, set by the natural gas coupling; zero in a standalone run          | USD/MWh                    |
-| $ICF_{r,t,s,y,h}$                 | capacity_factor_vre      | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
-| $HCF_{r,seas}$                    | hydro_capacity_factor    | $\mathbb{R}^+_0$ | Hydroelectric capacity factor, by region and season                                          | fraction                   |
+| $CF^{hr}_{r,t,s,h}$               | capacity_factor_hourly   | $\mathbb{R}^+_0$ | Hourly capacity factor of the intermittent technologies; the same in every year, and 0 where no profile is given | fraction                   |
+| $CF^{seas}_{r,t,s,seas}$          | capacity_factor_seasonal | $\mathbb{R}^+_0$ | Seasonal capacity factor of the hydro technologies                                           | fraction                   |
 | $STORLC$                          | storage_level_cost       | $\mathbb{R}^+_0$ | Cost of holding stored energy, per MWh held per hour; a constant (1e-11), so negligible. Storage losses come from $EFF_t$ | USD/MWh per hour           |
 | $EFF_t$                           | storage_efficiency       | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
 | $STOR^{dur}_t$                    | storage_duration         | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
@@ -122,7 +124,6 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $WHS_{seas}$                      | weight_season            | $\mathbb{I}$     | Number of hours (per year) in a season (weight)                                              | hours                      |
 | $MHS_h$                           | map_hour_season          | $SEAS$           | Map representative hour to season                                                            | unitless                   |
 | $FOMC_{r,t,s}$                    | fom_cost                 | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | USD/MW-year                |
-| $CC_{r,t,s,y,h}$                  | capacity_credit          | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
 | $RM_r$                            | planning_reserve_margin  | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
 | $RUC_{t}$                         | ramp_up_cost             | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | USD/MWh                    |
 | $RDC_{t}$                         | ramp_down_cost           | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | USD/MWh                    |
@@ -366,7 +367,7 @@ Hydroelectric generation seasonal upper bound:
 
 $$
 \begin{aligned}
-&\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WD_h} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \times HCF_{r,seas} \times WHS_{seas} \\
+&\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WD_h} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{seas}_{r,t,s,seas}} \times WHS_{seas} \\
 &\forall {r,t,y,seas} \in \Theta_{hs}
 \end{aligned} \tag{12}
 $$
@@ -388,7 +389,7 @@ $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{seas}_{r,t,s,MHS_h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{ht^{max}}
 \end{aligned} \tag{14}
 $$
@@ -399,7 +400,7 @@ $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times ICF_{r,t,s,y,h} \times HW_h \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{hr}_{r,t,s,h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{it^{max}}
 \end{aligned} \tag{15}
 $$
@@ -509,9 +510,10 @@ $$
 
 Reserve margin constraints ensure that, in each time segment, the capacity available exceeds load by the region's
 planning reserve margin $RM_r$. They exist only when `reserve_margin_required` is true, which requires
-`capacity_expansion`. Each technology counts at its capacity credit $CC$: the hourly capacity factor for intermittent
-technologies, the seasonal hydro capacity factor for hydro, and 1 for all other technologies, storage included. Storage
-counts through $STOR^{avail}$ rather than its capacity. (25) caps $STOR^{avail}$ at the power capacity, and (26) at the
+`capacity_expansion`. Each (technology, step) in $\Theta_{SC}$ counts in exactly one of three groups: intermittent
+technologies at their hourly capacity factor $CF^{hr}$ ($\theta^{rmh}$), hydro at its seasonal capacity factor
+$CF^{seas}$ for the season of hour $h$ ($\theta^{rms}$), and all other technologies, storage included, at a factor of 1
+($\theta^{rmc}$). Storage counts through $STOR^{avail}$ rather than its capacity. (25) caps $STOR^{avail}$ at the power capacity, and (26) at the
 stored energy. (26) compares MW with MWh, as if the stored energy had to sustain $STOR^{avail}$ for one hour only,
 although (24) counts it over the $HW_h$ hours of the time segment.
 
@@ -519,8 +521,10 @@ Reserve margin requirement constraint:
 
 $$
 \begin{aligned}
-LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \notin T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
-&+ HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \in T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{STOR^{avail}}_{r,t,s,y,h}} \\
+LOAD_{r,y,h} \times (1 + RM_r ) \leq HW_h \times \Big( &\sum_{(t,s) \in \theta^{rmh}_{r,y}}{CF^{hr}_{r,t,s,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rms}_{r,y}}{CF^{seas}_{r,t,s,MHS_h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rmc}_{r,y} | t \notin T^{stor}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rmc}_{r,y} | t \in T^{stor}}{\mathbf{STOR^{avail}}_{r,t,s,y,h}} \Big) \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if the reserve margin is on}
 \end{aligned} \tag{24}
@@ -682,9 +686,9 @@ $$
 \end{aligned} \tag{33}
 $$
 
-The code currently fills $\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ only from technologies with a reserve
-limit above 0, and the shipped data gives wind and solar a limit of 0 for every type. Both sets are therefore empty, so
-the regulation requirement is 1 percent of load and the flexibility requirement is zero (issue #67).
+$\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ hold every wind and solar (technology, step) in $\Theta_{SC}$,
+whether or not it can supply reserves. Wind and solar have a reserve limit of 0 for every type in the shipped data, so
+they add to the regulation and flexibility requirements without helping to meet them.
 
 Operating reserve procurement upper bound:
 

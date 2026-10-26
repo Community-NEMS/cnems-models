@@ -752,28 +752,35 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   does not fail validation, since the build set is indexed from the `capital_cost` keys and a gap
   simply leaves that key unbuildable. With learning enabled, `capital_cost_initial` must cover every
   `region_analyze` × `tech_buildable`, and a missing entry is an error naming the key. Extra
-  entries in either table are allowed and ignored.
-
-  To make a technology buildable in a region and year:
-
-  - Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
-  - Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
-    `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
-    out of a region or year by leaving out its cost.
-  - If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
-    entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
-  - Give it a `generation_cost` entry for every year and season. A buildable location joins the
-    capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
-    missing entry fails validation (and would otherwise fail the model build).
-  - Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
-    and has no default.
-  - For a VRE tech, give it `capacity_factor_hourly` entries for that region. These default to
-    0.0, so a missing profile is not an error: the location can be built but generates nothing.
+  entries in either table are allowed and ignored. See
+  [Making a Technology Buildable](#making-a-technology-buildable) for the full set of inputs a
+  buildable technology needs.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
 
 ## Model Features
+
+### Making a Technology Buildable
+
+Builds happen only when `capacity_expansion` is on. To make a technology buildable in a region
+and year:
+
+- Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
+- Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
+  `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
+  out of a region or year by leaving out its cost.
+- If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
+  entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
+- Give it a `generation_cost` entry for every year and season. A buildable location joins the
+  capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
+  missing entry fails validation (and would otherwise fail the model build).
+- Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
+  and has no default.
+- For a VRE tech, give it `capacity_factor_hourly` entries for that region. These default to
+  0.0, so a missing profile is not an error: the location can be built but generates nothing.
+  The 0.0 default is temporary, pending updates to the input data. Once it is removed, a VRE tech
+  added without `capacity_factor_hourly` entries will fail with an error.
 
 ### Year Aggregation
 

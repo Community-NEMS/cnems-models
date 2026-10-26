@@ -1418,7 +1418,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     - sum(
                         self.capacity_retirements[r, tech, step, year]
                         for year in self.year
-                        if year < y
+                        if year < y and (r, tech, step, year) in self.capacity_retirements
                     )
                 )
 

@@ -246,7 +246,9 @@ class ModelSets:
             # we must augment the total capacity index by what is buildable, which may be a
             # superset of what is already built
             buildable_capacity = {
-                idx for idx in cap_cost_index if (idx.tech, idx.step) in self.tech_builds
+                idx
+                for idx in cap_cost_index
+                if (idx.tech, idx.step) in self.tech_builds and idx.region in self.region_analyze
             }
             newly_buildable = buildable_capacity - existing_capacity_index
             logger.info('Buildable capacity index size: %d', len(buildable_capacity))
@@ -263,6 +265,8 @@ class ModelSets:
 
         logger.info('Built Capacity Index of size: %d', len(capacity_index))
 
+        # TODO:  A nice improvement here would be to avail retirements to ALL years, not
+        #        restrict it to the capacity index.
         self.retirement_index = [
             (idx.region, idx.tech, idx.step, idx.year)
             for idx in capacity_index

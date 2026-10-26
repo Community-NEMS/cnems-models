@@ -133,6 +133,12 @@ _GATED_BY_SWITCH = {
 # UNMET_LOAD_PRICE was raised from 500 to 50,000 $/MWh.  These are the two configs that solve with
 # some unmet load (PENALTY status), so the higher price raises their objectives by ~0.04%; the
 # other configs serve all load and are unchanged.  Variable and constraint counts do not move.
+# Note: the reserve_spinning_with_expansion_no_learning expected total cost was re-captured
+# (8079497724.77 -> 8081343408.89, ~+0.02%) when the wind and solar members of the regulation and
+# flex requirements were taken from the VRE generation index instead of the reserve suppliers.
+# Wind and solar supply no reserves, so the old source left both sets empty: regulation was 1% of
+# load and the flex requirement was zero.  Only this config turns on operating reserves, and its
+# variable and constraint counts do not move, since the fix adds terms to existing constraints.
 configs = [
     ('basic', 8152448639.12, 17430, 19182),
     ('exchange', 7069030790.54, 20886, 22830),
@@ -143,7 +149,7 @@ configs = [
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        8079497724.77,
+        8081343408.89,
         51588,
         56748,
     ),

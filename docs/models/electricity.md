@@ -651,7 +651,7 @@ steam, geothermal and biopower, and 100 for hydro. Storage qualifies on that sli
 municipal waste is not listed; here storage has the limits of hydro, and municipal waste those of biomass. Sergi and
 Cole (2021), slide 5, use 2 percent per minute for coal, which would give 0.20 for spinning and 0.10 for regulation.
 
-Spinning reserve requirement constraint. 3\% of load required:
+Spinning reserve requirement constraint. 3% of load required:
 
 $$
 \begin{aligned}
@@ -661,7 +661,7 @@ $$
 \end{aligned} \tag{31}
 $$
 
-Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind generation + 0.3\% of solar capacity required:
+Regulation reserve requirement constraint. 1% of load + 0.5% of wind generation + 0.3% of solar capacity required:
 
 $$
 \begin{aligned}
@@ -674,7 +674,7 @@ $$
 \end{aligned} \tag{32}
 $$
 
-Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of solar capacity required:
+Flexibility reserve requirement constraint. 10% of wind generation + 4% of solar capacity required:
 
 $$
 \begin{aligned}

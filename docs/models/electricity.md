@@ -861,9 +861,13 @@ choose `summary_years` / `aggregate_start_year` so that the blocks match the dat
 
 `capacity_factor_hourly` has no year index, and the model uses the same factors in every summary
 year. Like `elec_load`, it is still averaged over the hours each representative hour stands for,
-whether or not years are aggregated. `capacity_factor_seasonal`, indexed by region and season only, is
-used as read, and so are the parameters loaded as plain dictionaries, such as `fom_cost` and
-`capital_cost_initial`.
+whether or not years are aggregated. `capacity_factor_seasonal` has no year or hour index and is not
+averaged, and neither are the parameters loaded as plain dictionaries, such as `fom_cost` and
+`capital_cost_initial`. Its full key is (region, tech, step, season), matching the parameter table
+and the `PowerModel` input. The data file, `hydro_capacity_factor.csv`, is currently hydro-centric
+and carries only region and season. `ParamData` inserts tech and step by pairing each row with
+every hydro (tech, step), in anticipation of a future structure in which the data file is likely to
+carry those columns itself.
 
 **Cost weighting.** $WY_y$ multiplies the recurring, per-year costs in the objective so that each
 representative year is charged for every calendar year it stands in for:

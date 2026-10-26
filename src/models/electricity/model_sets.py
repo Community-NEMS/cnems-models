@@ -436,8 +436,12 @@ class ModelSets:
     ) -> list[tuple]:
         """Create the valid international trading index.
 
-        Relies on the capacity and the step from generation limits.
+        Relies on the capacity and the step from generation limits.  Either frame being empty (no
+        international connections) yields an empty index.
         """
+        if intl_capacity.empty or intl_gen_limit.empty:
+            self.international_trade_index = []
+            return []
         df = (
             pd.merge(
                 intl_capacity.reset_index(),

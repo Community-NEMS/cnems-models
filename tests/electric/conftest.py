@@ -9,7 +9,9 @@ Common test fixtures
 
 """
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -18,6 +20,7 @@ from src.common.common_config import CommonConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import ElectricitySequencer
+from tests.electric.mini_model import MiniModelData, mini_configs, patch_loaders
 
 
 @pytest.fixture
@@ -63,3 +66,33 @@ def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
     elec_model = sequencer.build_model(common_config, elec_config)
     sequencer.solve_model()
     return common_config, elec_config, elec_model
+
+
+@pytest.fixture
+def mini_data() -> MiniModelData:
+    """A fresh copy of the bare mini model data (see ``tests/electric/mini_model.py``).
+
+    Mutate it with the ``MiniModelData`` helpers before calling ``build_mini``.
+    """
+    return MiniModelData.default()
+
+
+@pytest.fixture
+def build_mini(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
+) -> Callable[..., tuple[ElectricitySequencer, PowerModel]]:
+    """Factory building a PowerModel from the current state of ``mini_data``.
+
+    The model goes through the real ``ElectricitySequencer.build_model`` (so ``validate_all``
+    runs, strict).  Keyword arguments are ``ElecConfig`` overrides, e.g.
+    ``build_mini(capacity_expansion=True)``; all switches default to off.
+    """
+    patch_loaders(monkeypatch, mini_data)
+
+    def _build(**elec_switches: Any) -> tuple[ElectricitySequencer, PowerModel]:
+        common_config, elec_config = mini_configs(tmp_path, mini_data.years, **elec_switches)
+        sequencer = ElectricitySequencer()
+        model = sequencer.build_model(common_config, elec_config)
+        return sequencer, model
+
+    return _build

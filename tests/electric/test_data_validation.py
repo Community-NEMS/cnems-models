@@ -265,11 +265,11 @@ def test_generation_cost_coverage_both_empty(validation_log):
 
 
 def test_generation_cost_coverage_extra_price_warns_only(validation_log, capacity_table):
-    """Price without capacity is invalid but not a showstopper: False, warning, no raise."""
+    """Price without capacity is allowed and ignored: True, warning, no raise."""
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030)]))
 
-    assert validate_generation_cost_coverage(capacity_table, price) is False
+    assert validate_generation_cost_coverage(capacity_table, price) is True
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
@@ -284,7 +284,7 @@ def test_generation_cost_coverage_extra_price_warns_once_per_omission(
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030), ('NY', 'NG', 2, 2030)]))
 
-    assert validate_generation_cost_coverage(capacity_table, price) is False
+    assert validate_generation_cost_coverage(capacity_table, price) is True
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2

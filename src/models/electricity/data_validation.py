@@ -92,10 +92,10 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 name, _frame_to_dict(df), df.index.names.index('hour'), model_sets.hour
             )
 
-    # available capacity vs. generation cost to ensure the two tables cover each other
+    # capacity index (existing + buildable) vs. generation cost:  every location needs a price
     try:
         all_valid &= validate_generation_cost_coverage(
-            _frame_to_dict(frames['available_capacity']), _frame_to_dict(frames['generation_cost'])
+            model_sets.capacity_index, _frame_to_dict(frames['generation_cost'])
         )
     except ValueError as e:
         logger.error(e)
@@ -259,48 +259,47 @@ def validate_hourly_coverage(
 
 
 def validate_generation_cost_coverage(
-    capacity: dict[tuple, float], price: dict[tuple, float]
+    capacity_index: Iterable[tuple], price: dict[tuple, float]
 ) -> bool:
-    """Compare the ``available_capacity`` coverage to the ``generation_cost`` coverage.
+    """Compare the capacity index coverage to the ``generation_cost`` coverage.
 
-    This test omits the coverage of seasons within the cost table, which is inspected separately.
+    The capacity index is existing capacity plus anything buildable (``ModelSets.capacity_index``),
+    so a location with no ``available_capacity`` still needs a price if it can be built.  This
+    test omits the coverage of seasons within the cost table, which is inspected separately.
     The season is assumed to occupy the last position of the cost index.
 
     Parameters
     ----------
-    capacity : dict[tuple, float]
-        ``available_capacity`` data keyed by tuple index.
+    capacity_index : Iterable[tuple]
+        (region, tech, step, year) of every location in the model's capacity index.
     price : dict[tuple, float]
         ``generation_cost`` data keyed by the same index plus a trailing season.
 
     Returns
     -------
     bool
-        True if the two tables cover each other exactly, False if cost entries exist without a
-        matching capacity entry (logged as warnings; not fatal).
+        True.  Cost entries without a matching capacity index entry are allowed and ignored
+        (logged as warnings).
 
     Raises
     ------
     ValueError
         If any capacity index has no corresponding cost entry.
     """
-    valid = True
+    capacity_keys = set(capacity_index)
     price_coverage = {idx[:-1] for idx in price}  # trim "season" off
-    capacity_omissions = price_coverage - capacity.keys()
-    if capacity_omissions:
-        valid = False
-        for omission in capacity_omissions:
-            logger.warning('Price exists for %s without corresponding entry in supply:', omission)
+    for omission in sorted(price_coverage - capacity_keys):
+        logger.warning('Price exists for %s without corresponding capacity index entry', omission)
 
-    price_omissions = capacity.keys() - price_coverage
+    price_omissions = sorted(capacity_keys - price_coverage)
     if price_omissions:
         for omission in price_omissions:
             logger.error(
-                'Capacity exists for %s without corresponding entry in price data:', omission
+                'Capacity index entry %s has no corresponding entry in price data', omission
             )
         raise ValueError('Capacity without corresponding price.  See log for details.')
 
-    return valid
+    return True
 
 
 def validate_build_cost_coverage(

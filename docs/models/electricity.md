@@ -733,9 +733,10 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
   `supply_limit_intl`), reporting the missing and unexpected hours for each offending base index.
-- **Available capacity vs. generation cost coverage** (`validate_generation_cost_coverage`) — the
-  `available_capacity` and `generation_cost` tables must cover each other. A cost with no matching
-  capacity entry is a warning; a capacity entry with no cost is fatal.
+- **Capacity index vs. generation cost coverage** (`validate_generation_cost_coverage`) — every
+  location in the capacity index (existing `available_capacity` plus anything buildable) must have a
+  `generation_cost`; a location with no cost is fatal. A cost with no matching capacity index entry
+  is allowed and ignored (logged as a warning).
 - **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
@@ -757,6 +758,13 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
     out of a region or year by leaving out its cost.
   - If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
     entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
+  - Give it a `generation_cost` entry for every year and season. A buildable location joins the
+    capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
+    missing entry fails validation (and would otherwise fail the model build).
+  - Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
+    and has no default.
+  - For a VRE tech, give it `capacity_factor_hourly` entries for that region. These default to
+    0.0, so a missing profile is not an error: the location can be built but generates nothing.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

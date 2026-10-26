@@ -149,6 +149,15 @@ Learning tests live in the `tests/electric/learning/` subpackage: the shared cur
 (`test_learning_linear.py`), and the nonlinear objective checks (`test_learning_nonlinear.py`, with
 its `nonlinear_configs` / `nonlinear_model` fixtures in `learning/conftest.py`).
 
+For new tests, prefer the CSV-free **mini model** (`tests/electric/mini_model.py`) over the shipped
+data: 2 regions (R1, R2), 2 techs (Gas, Solar), 2 years, 2 rep days x 2 hours, and unit time weights.
+The base has only Gas capacity and costs, and Solar is declared with no data. Its `patch_loaders`
+monkeypatches the raw loaders, so the real `ModelSets` / `ParamData` / `validate_all` / sequencer
+run on it. To use it, take the `mini_data` fixture and augment it with the `MiniModelData` helpers
+(`add_tech`, `add_capacity`, `add_operating_costs`, `add_rows`, `set_buildable`, `set_load`, `every`).
+Then call the `build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`.
+`tests/electric/test_mini_model.py` has worked examples, including adding storage.
+
 `analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,
 `gather_param_data`, `gather_constraint_data`, `breakdown_obj_elements`, `capacity_inspector`,
 `load_inspector`) for inspecting a solved/unsolved `PowerModel` instance — reach for these instead of

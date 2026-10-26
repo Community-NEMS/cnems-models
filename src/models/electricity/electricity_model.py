@@ -458,7 +458,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.hour,
             initialize=all_frames['capacity_factor_hourly'],
             within=pyo.NonNegativeReals,
-            default=0.0,  # TODO:  Work to remove this
+            # TODO:  Work to remove this.  Currently needed due to many zeros in available cap data
+            default=0.0,
         )
 
         self.capacity_factor_seasonal = pyo.Param(
@@ -483,13 +484,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # self.capacity_credit_vre = pyo.Param(
-            #     self.region_analyze,
-            #     self.tech_step,
-            #     self.hour,
-            #     initialize=all_frames['capacity_factor_hourly'],
-            # )
-
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
                 self.learning_rate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])

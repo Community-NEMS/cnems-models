@@ -125,7 +125,7 @@ Notes on each:
 
 ## Where this bit us
 
-`electricity_model.py` built `wind_reserves` / `solar_reserves` (then named
+`electricity_model.py` built `wind_generation` / `solar_generation` (then named
 `WindSetReserves` / `SolarSetReserves`) with `initialize=sorted(wind_idx)`. On the current dataset no VRE tech survives the reserve
 upper-bound sparsity filter, so `wind_idx` is empty, `sorted({})` is `[]`, and the model
 constructed 576 empty sets and behaved correctly by accident. With any nonzero VRE
@@ -139,7 +139,7 @@ KeyError: ('7', 2025, 1)
 ```
 
 because `reserve_requirement_reg_lb` and `reserve_requirement_flex_lb` are declared over
-`self.elec_load.index_set()` — all 576 `(region, year, hour)` — and index `wind_reserves`
+`self.elec_load.index_set()` — all 576 `(region, year, hour)` — and index `wind_generation`
 unconditionally. Sparse data, dense consumer. The landed fix wraps the sorted mapping in
 a `defaultdict(list)`, and says so in a comment above `wind_members` / `solar_members`.
 

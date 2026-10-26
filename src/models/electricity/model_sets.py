@@ -89,7 +89,7 @@ class ModelSets:
     generation_hydro_ub_index: list[tuple]
     generation_index: list[tuple]
     generation_ramp_index: list[tuple]
-    generation_vre_ub_index: list[tuple]
+    generation_vre_index: list[tuple]
     h2_generation_hour_index: defaultdict
     h2_generation_index: list[tuple]
     hydro_seasonal_step_index: defaultdict
@@ -424,14 +424,14 @@ class ModelSets:
         ]
         if not self.generation_dispatchable_ub_index:
             logger.warning('generation_dispatchable_ub_index is empty')
-        self.generation_vre_ub_index = [
+        self.generation_vre_index = [
             (idx.region, idx.tech, idx.step, idx.year, hour)
             for idx in capacity_index
             if idx.tech in self.tech_vre
             for hour in self.hour
         ]
-        if not self.generation_vre_ub_index:
-            logger.warning('generation_vre_ub_index is empty')
+        if not self.generation_vre_index:
+            logger.warning('generation_vre_index is empty')
 
         self.capacity_index = capacity_index
 

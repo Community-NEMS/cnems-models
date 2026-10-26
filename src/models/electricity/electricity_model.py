@@ -172,7 +172,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
 
-        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
+        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_index)
 
         # international trade indices.  Note:  "step" here is different from "tech" steps and
         # is represented by an integer value
@@ -197,10 +197,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
                 idx[region, res_type, year, hour].append((tech, step))
                 associated_res_types[region, tech, step, year, hour].append(res_type)
-            # Wind and solar set the regulation and flex requirements whether or not they can
-            # supply reserves, so their members come from the VRE generation index, not from the
-            # reserve suppliers above.
-            for region, tech, step, year, hour in model_sets.generation_vre_ub_index:
+
+            # Wind and solar drive the regulation and flex requirements whether or not they can
+            # supply reserves, so we gather the contributors from VRE generation:
+            for region, tech, step, year, hour in model_sets.generation_vre_index:
                 if tech in self.tech_wind:
                     wind_idx[region, year, hour].add((tech, step))
                 elif tech in self.tech_solar:
@@ -218,7 +218,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             # The wind/solar members are sorted for a deterministic build order.  These stay
             # defaultdicts because the data is sparse but the consumers are not: the reserve
-            # requirement constraints index wind_reserves/solar_reserves for every
+            # requirement constraints index wind_generation/solar_generation for every
             # (region, year, hour) in elec_load.index_set().  Pyomo re-invokes the initializer
             # for an index absent from the data, where a plain dict raises KeyError and a
             # defaultdict yields an empty set.
@@ -233,14 +233,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 within=self.tech_step,
                 initialize=idx,
             )
-            self.wind_reserves = pyo.Set(
+            self.wind_generation = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
                 within=self.tech_wind_step,
                 initialize=wind_members,
             )
-            self.solar_reserves = pyo.Set(
+            self.solar_generation = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
@@ -1832,10 +1832,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     (r, y, hr)
                 ] + WIND_REGULATION_RESERVE_PROPORTION * sum(
                     self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_reserves[r, y, hr]
+                    for (t_wind, step) in self.wind_generation[r, y, hr]
                 ) + SOLAR_REGULATION_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
                     self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_reserves[r, y, hr]
+                    for (t_solar, step) in self.solar_generation[r, y, hr]
                 )
 
             @self.Constraint(self.elec_load.index_set())
@@ -1864,10 +1864,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for (tech, step) in self.eligible_reserves[r, ReserveType.FLEX, y, hr]
                 ) >= WIND_FLEX_RESERVE_PROPORTION * sum(
                     self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_reserves[r, y, hr]
+                    for (t_wind, step) in self.wind_generation[r, y, hr]
                 ) + SOLAR_FLEX_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
                     self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_reserves[r, y, hr]
+                    for (t_solar, step) in self.solar_generation[r, y, hr]
                 )
 
             # TODO:  Review this.  It operates on the x-product of tech x restype, yet many

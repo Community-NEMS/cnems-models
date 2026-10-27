@@ -57,7 +57,6 @@ class ParamFrames(TypedDict, total=False):
     capital_cost: DataFrame
     capacity_factor_hourly: DataFrame
     capacity_factor_seasonal: DataFrame
-    # capacity_factor_seasonal: DataFrame
     available_capacity: DataFrame
     generation_cost: DataFrame
     tran_cost: DataFrame
@@ -93,18 +92,6 @@ class ParamData:
     Simple parameters are held as plain dicts; parameters that still need manipulation are held as
     DataFrames.
     """
-
-    # # constructed temporal dataframes
-    # weight_year: DataFrame
-    # weight_season: DataFrame
-    # weight_day: DataFrame
-    # weight_hour: DataFrame
-    # map_hour_day: DataFrame
-    # map_hour_season: DataFrame
-    # map_day_season: DataFrame
-    #
-    # # other constructed dataframes
-    # elec_load: DataFrame
 
     # loaded frames and dicts
     param_frames: ParamFrames
@@ -160,18 +147,6 @@ class ParamData:
 
             # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
             self.param_frames[name] = df
-
-        # # augment capacity_factor_hourly with year.... ugh
-        # # TODO:  This should NOT be necessary as the data is not year-indexed.  Refactor
-        # df = pd.merge(
-        #     self.param_frames['capacity_factor_hourly'].reset_index(),
-        #     pd.DataFrame({'year': common_config.summary_years}),
-        #     how='cross',
-        # )
-        # # re-sequence columns
-        # df = df[['region', 'tech', 'step', 'year', 'hour', 'capacity_factor_vre_frac']]
-        # # set proper index
-        # self.param_frames['capacity_factor_hourly'] = df.set_index(list(df.columns)[:-1])
 
         # expand season columns to the appropriate rep-hours for the season where season is used
         # we can skip this if no international connections:
@@ -455,7 +430,7 @@ class ParamData:
         """Augment this dataframe with tech x step combos.
 
         Dev Note:  This is likely temporary as the 'seasonal capacity factor' table this
-        is used to augment does NOT reference tech explicitly now.  It is only applied to seasonal
+        is used to augment does NOT reference tech explicitly now.  It is only applied to
         hydro.
 
         Perhaps in future, if other techs are added, we can force the data to cover this

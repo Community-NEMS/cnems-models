@@ -125,17 +125,33 @@ def init_old_cap(instance: PowerModel) -> dict[tuple, float]:
 
 
 def calculate_cap_growth(instance: PowerModel) -> dict[tuple, float]:
-    """Calculate the current capacity of all buildable tech by year."""
-    result = defaultdict(float)
+    """Cumulative solved builds of each buildable technology before each build year.
+
+    Experience is the technology's builds across every region and step, in years strictly before
+    the one being priced, matching the nonlinear objective.  Builds are read only at
+    ``capacity_build_index`` keys, so a location missing ``capital_cost`` in some years still
+    counts its builds in the years it has.
+
+    Parameters
+    ----------
+    instance : PowerModel
+        solved electricity model
+
+    Returns
+    -------
+    dict[tuple, float]
+        cumulative builds before each year, in MW, keyed by (tech, year)
+    """
+    built: defaultdict[tuple, float] = defaultdict(float)
     # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
-    for r, tech, step, y in instance.capacity_build_index:
-        # pyrefly: ignore[no-matching-overload]  - pyomo's value() is typed as returning None too
-        result[(tech, y)] += sum(
-            value(instance.capacity_builds[r, tech, step, year])
-            for year in instance.year
-            if year < y
-        )
-    return result
+    for r, tech, step, year in instance.capacity_build_index:
+        # pyrefly: ignore[unsupported-operation]  - pyomo's value() is typed as returning None too
+        built[tech, year] += value(instance.capacity_builds[r, tech, step, year])
+    return {
+        (tech, y): sum(mw for (t, year), mw in built.items() if t == tech and year < y)
+        # pyrefly: ignore[not-iterable]  - pyomo's IndexedComponent.__iter__ is untyped
+        for _r, tech, _step, y in instance.capacity_build_index
+    }
 
 
 def cost_learning_func(instance: PowerModel, tech: Any, new_cap: float) -> float:

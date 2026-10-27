@@ -30,6 +30,8 @@ from src.models.electricity.learning import (
     update_expansion_cost,
 )
 from src.models.electricity.sequencer import _LEARNING_TOLERANCE, ElectricitySequencer
+from tests.electric.mini_model import MiniModelData
+from tests.electric.test_mini_model import add_solar_expansion
 
 # "verbose" mode prints the per-iteration capital_cost updates from test_linear_learning
 verbose = False
@@ -123,6 +125,30 @@ def test_calculate_cap_growth(mock_model):
     assert result[(2, 2030)] == pytest.approx(0.0)  # no years before 2030
     assert result[(2, 2035)] == pytest.approx(20.0)  # 2030 build for both regions
     assert result[(3, 2035)] == pytest.approx(40.0)
+
+
+@pytest.mark.parametrize(
+    'missing, expected',
+    [
+        # region 2 has no 2030 build key:  its absence must not be read
+        ((2, 2, 1, 2030), {(2, 2030): 0.0, (2, 2031): 10.0, (2, 2032): 30.0}),
+        # region 2 has no 2031 build key:  its 2030 build still counts in 2031 and 2032
+        ((2, 2, 1, 2031), {(2, 2030): 0.0, (2, 2031): 20.0, (2, 2032): 30.0}),
+    ],
+    ids=['earlier-gap', 'later-gap'],
+)
+def test_calculate_cap_growth_with_gaps(missing, expected):
+    """Experience sums the builds that exist, across regions, when some years have no build key."""
+    years = [2030, 2031, 2032]
+    m = pyo.ConcreteModel()
+    m.year = pyo.Set(initialize=years)
+    keys = [(r, 2, 1, y) for r in REGIONS for y in years if (r, 2, 1, y) != missing]
+    m.capacity_build_index = pyo.Set(dimen=4, initialize=keys)
+    m.capacity_builds = pyo.Var(m.capacity_build_index, within=pyo.NonNegativeReals)
+    for idx in m.capacity_build_index:
+        m.capacity_builds[idx].set_value(10.0)
+
+    assert calculate_cap_growth(m) == pytest.approx(expected)
 
 
 class TestCostLearningFunc:
@@ -276,3 +302,39 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     # would miss a change of a few dollars in it.  It is pinned on its own, tighter.
     assert value(model.capacity_expansion_cost) == pytest.approx(2525039.4414830687, rel=1e-9)
     assert value(model.total_cost) == pytest.approx(9513531839.477724)
+
+
+def add_solar_learning(data: MiniModelData) -> MiniModelData:
+    """Make Solar buildable as in ``add_solar_expansion``, with learning data in both regions."""
+    add_solar_expansion(data)
+    data.add_rows(
+        'capital_cost_initial', {(r, 'Solar', 1): 1000.0 for (r,) in data.every('region')}
+    )
+    data.add_rows('learning_rate', {('Solar',): 0.1})
+    data.add_rows('supply_curve_learning', {('Solar',): 100.0})
+    return data
+
+
+@pytest.mark.parametrize(
+    'dropped',
+    [('R1', 'Solar', 1, 2030), ('R2', 'Solar', 1, 2031)],
+    ids=['earlier-gap', 'later-gap'],
+)
+def test_linear_learning_with_capital_cost_gaps(build_mini, mini_data, dropped):
+    """Linear learning solves with a ``capital_cost`` gap and counts every location's builds.
+
+    R2 builds 100 MW of Solar in 2030 either way, so it is all of Solar's 2031 experience.
+    The main objective of this test is to ensure that the always-built solar in 2030, R2 is
+    credited in 2031 even if R2 has no capital cost in 2031 and is therefor NOT buildable--
+    That the summation is region agnostic when looking back
+    """
+    add_solar_learning(mini_data)
+    mini_data.drop_rows('capital_cost', [dropped])
+    sequencer, model = build_mini(capacity_expansion=True, expansion_learning_type='linear')
+    assert dropped not in model.capacity_build_index
+
+    _, status = sequencer.solve_model()
+
+    assert status is IterationStatus.BEST
+    assert value(model.capacity_builds['R2', 'Solar', 1, 2030]) == pytest.approx(100.0)
+    assert calculate_cap_growth(model)[('Solar', 2031)] == pytest.approx(100.0)

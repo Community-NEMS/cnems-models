@@ -783,6 +783,12 @@ and year:
   0.0, so a missing profile is not an error: the location can be built but generates nothing.
   The 0.0 default is temporary, pending updates to the input data. Once it is removed, a VRE tech
   added without `capacity_factor_hourly` entries will fail with an error.
+- For a hydro tech, give it a `capacity_factor_seasonal` entry for that region, for each of its
+  steps and every season. It sets the energy budget of seasonal hydro (12) and the hourly bound of
+  regular hydro (14), and scales hydro capacity in the reserve margin (24). The parameter has no default, so a missing entry fails
+  the model build. `hydro_capacity_factor.csv` carries only region and season, and `ParamData`
+  applies each row to every hydro (tech, step), so in practice this means a row for every season
+  in each region where hydro can be built.
 
 ### Year Aggregation
 

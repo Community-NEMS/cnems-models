@@ -178,6 +178,5 @@ if __name__ == '__main__':
             'basic_elec_config',
             'exchange_elec_config',
             'reduced_elec_config',
-            'basic_ng_config',
         ):
             main(config_path=PROJECT_ROOT / 'run_configs' / f'{name}.toml', debug=args.debug)

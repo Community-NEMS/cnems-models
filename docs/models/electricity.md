@@ -34,7 +34,7 @@ through the model configuration.
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
 | $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
-| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus buildable capacity when capacity_expansion is on |
+| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus, when capacity_expansion is on, each buildable location in every year from its first `capital_cost` year |
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
@@ -769,11 +769,13 @@ and year:
 - Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
 - Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
   `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
-  out of a region or year by leaving out its cost.
+  out of a region or year by leaving out its cost. Leaving out a year only stops new builds in
+  that year: capacity built earlier stays indexed and in service in every later year.
 - If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
   entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
-- Give it a `generation_cost` entry for every year and season. A buildable location joins the
-  capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
+- Give it a `generation_cost` entry for every season and every year from its first
+  `capital_cost` year onward, including years with no `capital_cost`. A buildable location joins
+  the capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
   missing entry fails validation (and would otherwise fail the model build).
 - Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
   and has no default.

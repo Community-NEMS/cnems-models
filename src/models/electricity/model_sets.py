@@ -237,7 +237,9 @@ class ModelSets:
     ):
         """Use the available capacity and capital costs to build other index sets.
 
-        Built by crossing techs with hours and capacity tech, step combos.
+        Built by crossing techs with hours and capacity tech, step combos.  With expansion on,
+        the capacity index is the existing capacity plus each buildable location in every model
+        year from its first capital-cost year; builds are restricted to the capital-cost keys.
         """
         existing_capacity_index = set(available_capacity_index)
         if not existing_capacity_index:
@@ -256,8 +258,25 @@ class ModelSets:
                 'Total Capacity index expanded beyond existing by: %d newly buildable techs',
                 len(newly_buildable),
             )
+            # a build persists, so each buildable location is indexed in every model year from
+            # its first build year onward, whether or not it is buildable in that year
+            model_years = sorted(set(self.year_map.values()))
+            first_build: dict[tuple, int] = {}
+            for idx in buildable_capacity:
+                key = (idx.region, idx.tech, idx.step)
+                first_build[key] = min(first_build.get(key, idx.year), idx.year)
+            carried_capacity = {
+                CI(r, t, s, y)
+                for (r, t, s), first_year in first_build.items()
+                for y in model_years
+                if y >= first_year
+            }
+            logger.info(
+                'Capacity index carries builds forward into: %d non-buildable years',
+                len(carried_capacity - buildable_capacity),
+            )
             self.buildable_capacity = sorted(buildable_capacity)
-            capacity_index = sorted(existing_capacity_index | buildable_capacity)
+            capacity_index = sorted(existing_capacity_index | buildable_capacity | carried_capacity)
 
         else:
             self.buildable_capacity = []

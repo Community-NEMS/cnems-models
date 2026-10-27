@@ -127,3 +127,23 @@ def test_new_location_is_built(build_mini, mini_data):
     assert pyo.value(model.capacity_builds['R1', 'Solar', 1, 2030]) == pytest.approx(0.0)
     assert sum(pyo.value(v) for v in model.unmet_load.values()) == pytest.approx(0.0)
     assert pyo.value(model.generation_total['R2', 'Solar', 1, 2030, 2]) == pytest.approx(50.0)
+
+
+def test_build_carries_forward(build_mini, mini_data):
+    """A build stays indexed and in service after the location's last capital-cost year.
+
+    R2 Solar is buildable only in 2030, so 2031 has no build variable, but the 100 MW built in
+    2030 still covers R2's daytime shortfall in 2031.
+    """
+    add_solar_expansion(mini_data)
+    mini_data.drop_rows('capital_cost', [('R2', 'Solar', 1, 2031)])
+    sequencer, model = build_mini(capacity_expansion=True)
+
+    assert ('R2', 'Solar', 1, 2031) in model.capacity_total
+    assert ('R2', 'Solar', 1, 2031) not in model.capacity_builds
+
+    _, status = sequencer.solve_model()
+    assert status is IterationStatus.BEST
+    assert pyo.value(model.capacity_builds['R2', 'Solar', 1, 2030]) == pytest.approx(100.0)
+    assert pyo.value(model.capacity_total['R2', 'Solar', 1, 2031]) == pytest.approx(100.0)
+    assert sum(pyo.value(v) for v in model.unmet_load.values()) == pytest.approx(0.0)

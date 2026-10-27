@@ -357,7 +357,7 @@ class TestInboundDemandPackage:
         package = NGElectricalDemandPackage(
             elements=pd.DataFrame({NG_ELEC_DEMAND_VALUE: list(burn.values())}, index=index)
         )
-        base = load_base_demand(ng_config.input_path)
+        base = load_base_demand(ng_config.input_path / 'parameters')
 
         model = NGSequencer().build_model(common_config, ng_config, update_packages=[package])
 

@@ -1,6 +1,6 @@
 # Natural gas input data pedigree
 
-Provenance, units, and construction notes for the CSV inputs in `input/natural_gas/`.
+Provenance, units, and construction notes for the CSV inputs in `..`.
 These notes were previously carried as `#` comment rows at the top of each CSV and were
 moved here so the files are plain, comment-free CSV. Do not re-add notes inline. The script
 that builds the population-weighted crosswalk from `elec_to_ng_region_map.csv`
@@ -111,7 +111,7 @@ regions. Carried no provenance notes.
 - **Source:** EIA Compendium of Interstate Natural Gas Pipelines 2022; FERC Form 2 tariff
   filings.
 
-## `ng_region_data.csv`
+## `../properties/ng_region_data.csv`
 
 - The model's regions and their display labels. **Required**: regions are definitional, so
   `load_region_data` raises rather than substituting a hardcoded list, and a model built on a

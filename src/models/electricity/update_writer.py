@@ -34,7 +34,7 @@ logger = getLogger(__name__)
 
 # where the natural gas model's scalars live; the gas burn sent back is denominated in Bcf, so
 # the MMBtu-per-Bcf heat content is read from the gas model's own input rather than duplicated
-NG_INPUT_DIR = PROJECT_ROOT / 'input' / 'natural_gas'
+NG_INPUT_DIR = PROJECT_ROOT / 'input' / 'natural_gas' / 'parameters'
 # the heat content itself, filled by ng_mmbtu_per_bcf() on first use and then reused; None until
 # then, so a run that never sends a demand package never reads the gas model's inputs
 _MMBTU_PER_BCF: float | None = None

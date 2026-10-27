@@ -669,10 +669,26 @@ class RegionData(TypedDict):
     region_labels: dict[str, str]
 
 
-def load_sector_data(ng_config: NGConfig) -> list[str]:
-    """Load sector data."""
+def load_sector_data(data_dir: Path) -> list[str]:
+    """Load the demand sector names from ng_sector_data.csv.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding ng_sector_data.csv.
+
+    Returns
+    -------
+    list[str]
+        Sector names in file order.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file is absent.
+    """
     f_name = 'ng_sector_data.csv'
-    path = ng_config.input_path / f_name
+    path = data_dir / f_name
     if not path.exists():
         logger.error('Could not find sector data file (%s)', path)
         raise FileNotFoundError(path)
@@ -688,7 +704,7 @@ def load_sector_data(ng_config: NGConfig) -> list[str]:
     return res
 
 
-def load_region_data(ng_config: NGConfig) -> RegionData:
+def load_region_data(data_dir: Path, region_filter: list[str] | None = None) -> RegionData:
     """Load the model regions and their display labels from ng_region_data.csv.
 
     Returns the master region list in file order plus the two subsets it is partitioned into,
@@ -704,13 +720,19 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
     model built on a region set that disagrees with the rest of the input files is worse than a
     model that refuses to build.
 
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding ng_region_data.csv.
+    region_filter : list[str] | None, optional
+        Domestic regions to analyze (``NGConfig.region_filter``); ``None`` keeps all of them.
+
     Raises
     ------
     ValueError
-        If the file is missing or unreadable, lacks a required column, or declares no domestic
-        regions.
+        If the file is missing or unreadable, lacks a required column, declares no domestic
+        regions, or ``region_filter`` names a region that is not domestic.
     """
-    data_dir = ng_config.input_path
     df = _csv('ng_region_data.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -724,8 +746,8 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
             if str(row['domestic']).strip().lower() == 'true'
         }
         # apply the filter from the config
-        if ng_config.region_filter:
-            r_filter = set(ng_config.region_filter)
+        if region_filter:
+            r_filter = set(region_filter)
 
             # look for erroneous filter entries first
             bogus_filters = r_filter - domestic
@@ -888,7 +910,8 @@ def load_all(
     Parameters
     ----------
     ng_config : NGConfig
-        Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
+        Supplies ``input_path`` (whose ``parameters/`` and ``properties/`` subdirectories the
+        loaders read from) and ``region_filter``.
     common_config : CommonConfig
         Supplies ``summary_years``, the years demand is projected over.
     superseded : Collection[str], optional
@@ -905,14 +928,16 @@ def load_all(
     NGData
         One entry per loader; see the `NGData` field list for keys and value types.
     """
-    region_data = load_region_data(ng_config)
-    sectors = load_sector_data(ng_config)
-    data_path = ng_config.input_path
+    data_path = ng_config.input_path / 'parameters'
+    properties_path = ng_config.input_path / 'properties'
+
+    region_data = load_region_data(properties_path, ng_config.region_filter)
+    sectors = load_sector_data(data_path)
 
     # compute the projected demand...
     demand = project_demand(
-        demand_table=load_base_demand(ng_config.input_path),
-        growth_rate_table=load_demand_growth(ng_config.input_path),
+        demand_table=load_base_demand(data_path),
+        growth_rate_table=load_demand_growth(data_path),
         years=common_config.summary_years,
         regions=region_data['regions_analyze'],
         sectors=sectors,

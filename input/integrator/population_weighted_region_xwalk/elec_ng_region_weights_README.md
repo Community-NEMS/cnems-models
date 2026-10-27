@@ -7,7 +7,7 @@ the 9 natural gas regions (US Census divisions).
 
 | File | Rows sum to 1.0 over | Purpose |
 |---|---|---|
-| `workproduct/elec_to_ng_region_map_weighted.csv` | each `ng_region` | The 1:1 map plus a `weight` column: each electricity region's share of its assigned gas region's population. Drop-in superset of `../../natural_gas/elec_to_ng_region_map.csv` — same rows, same order. |
+| `workproduct/elec_to_ng_region_map_weighted.csv` | each `ng_region` | The 1:1 map plus a `weight` column: each electricity region's share of its assigned gas region's population. Drop-in superset of `../../natural_gas/parameters/elec_to_ng_region_map.csv` — same rows, same order. |
 | `elec_to_ng_crosswalk.csv` | each `elec_region` | Fractional elec → gas. Splits an electricity region across every census division it actually touches. |
 | `ng_to_elec_crosswalk.csv` | each `ng_region` | Fractional gas → elec. Splits a census division across every electricity region that actually touches it. |
 | `workproduct/elec_region_state_coverage.csv` | each `state` | Provenance: the state-level allocation everything above is derived from. |
@@ -26,7 +26,7 @@ populations allocated across electricity regions, by the method below.
 
 | Column | Meaning |
 |---|---|
-| `elec_region` | EMM region ID, 1–25, matching `../../natural_gas/elec_to_ng_region_map.csv`. The ID is the join key; `elec_region_name` is descriptive only. |
+| `elec_region` | EMM region ID, 1–25, matching `../../natural_gas/parameters/elec_to_ng_region_map.csv`. The ID is the join key; `elec_region_name` is descriptive only. |
 | `ng_region` | Census division name (`new_england`, `middle_atlantic`, …). |
 | `weight` | Fraction of population, on the basis given by the "Rows sum to 1.0 over" column above. Always 4 decimals. |
 | `state_pop_share` | *(coverage file)* Share of that state's 2020 Census population assigned to that electricity region. Sums to 1.0 across regions for each of the 48 contiguous states + DC. |

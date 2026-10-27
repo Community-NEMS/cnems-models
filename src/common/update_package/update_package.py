@@ -276,7 +276,7 @@ class NGPricePackage(UpdatePackage):
 # index/value labels of an NGElectricalDemandPackage frame:  natural gas region name (str) and
 # model year (int)
 NG_ELEC_DEMAND_INDEX = REGION_YEAR_INDEX
-NG_ELEC_DEMAND_VALUE = 'demand_bcf'
+NG_ELEC_DEMAND_VALUE = 'demand_mmbtu'
 
 
 @register_package
@@ -289,12 +289,16 @@ class NGElectricalDemandPackage(UpdatePackage):
     gas sequencer also gates off that sector's growth projection when one of these is inbound,
     so the package, not the AEO growth rate, sets the sector's demand.
 
+    Demand travels as energy (MMBtu), the unit the electricity model computes it in; the natural
+    gas model converts to volume with its own ``mmbtu_per_bcf``, so the heat content is owned by
+    the model whose input sets it.
+
     Attributes
     ----------
     elements : pd.DataFrame
-        Demand in Bcf/yr indexed by ``NG_ELEC_DEMAND_INDEX`` with a single ``NG_ELEC_DEMAND_VALUE``
-        column.  Entries the recipient does not hold are ignored; held entries this frame omits
-        keep their (ungrown) base-year values and are logged as warnings.
+        Demand in MMBtu/yr indexed by ``NG_ELEC_DEMAND_INDEX`` with a single
+        ``NG_ELEC_DEMAND_VALUE`` column.  Entries the recipient does not hold are ignored; held
+        entries this frame omits keep their (ungrown) base-year values and are logged as warnings.
     receivers : tuple of ModelType
         Fixed to the natural gas model.
     """

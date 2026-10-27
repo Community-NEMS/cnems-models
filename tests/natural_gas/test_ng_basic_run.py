@@ -32,7 +32,7 @@ from src.common.update_package import (
     NGPricePackage,
 )
 from src.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY, UNSERVED_PENALTY_TOL
-from src.models.natural_gas.data import load_base_demand
+from src.models.natural_gas.data import load_base_demand, load_qp_scalars
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import _extract_balance
@@ -353,9 +353,13 @@ class TestInboundDemandPackage:
         common_config, ng_config = partial_config_set
         cells = [(r, y) for r in PARTIAL_REGIONS for y in common_config.summary_years]
         burn = {cell: 123.4 + i for i, cell in enumerate(cells)}
+        mmbtu_per_bcf = load_qp_scalars(ng_config.input_path / 'parameters')['mmbtu_per_bcf']
         index = pd.MultiIndex.from_tuples(list(burn), names=NG_ELEC_DEMAND_INDEX)
         package = NGElectricalDemandPackage(
-            elements=pd.DataFrame({NG_ELEC_DEMAND_VALUE: list(burn.values())}, index=index)
+            elements=pd.DataFrame(
+                {NG_ELEC_DEMAND_VALUE: [bcf * mmbtu_per_bcf for bcf in burn.values()]},
+                index=index,
+            )
         )
         base = load_base_demand(ng_config.input_path / 'parameters')
 

@@ -632,10 +632,11 @@ class TestDemandGrowthGating:
     GROWTH: ClassVar[dict] = {'electric_power': 0.10, 'industrial': 0.05}
     YEARS: ClassVar[list[int]] = [2025, 2030]
     SECTORS: ClassVar[list[str]] = ['electric_power', 'industrial']
+    MMBTU_PER_BCF: ClassVar[float] = 1.0e6
 
     @staticmethod
     def demand_package(entries: dict[tuple[str, int], float]) -> NGElectricalDemandPackage:
-        """An ``NGElectricalDemandPackage`` carrying ``entries`` as Bcf by (region, year)."""
+        """An ``NGElectricalDemandPackage`` carrying ``entries`` as MMBtu by (region, year)."""
         index = pd.MultiIndex.from_tuples(list(entries), names=NG_ELEC_DEMAND_INDEX)
         frame = pd.DataFrame({NG_ELEC_DEMAND_VALUE: list(entries.values())}, index=index)
         return NGElectricalDemandPackage(elements=frame)
@@ -676,10 +677,15 @@ class TestDemandGrowthGating:
         demand = ng_data.project_demand(
             self.BASE, self.GROWTH, self.YEARS, regions, self.SECTORS, superseded={'electric_power'}
         )
-        return {'demand': demand, 'regions_analyze': regions, 'years': self.YEARS}
+        return {
+            'demand': demand,
+            'regions_analyze': regions,
+            'years': self.YEARS,
+            'qp_scalars': {'mmbtu_per_bcf': self.MMBTU_PER_BCF},
+        }
 
     def test_handler_replaces_superseded_entries(self) -> None:
-        """Every held (region, year) of the superseded sector takes the package value."""
+        """Every held (region, year) of the superseded sector takes the package value in Bcf."""
         data = self.held_data()
         entries = {
             (r, y): 10.0 * i
@@ -690,8 +696,10 @@ class TestDemandGrowthGating:
         NGUpdateReader().apply_package(self.demand_package(entries), data)  # type: ignore[arg-type]
 
         demand = data['demand']
-        for (region, year), bcf in entries.items():
-            assert demand[(region, 'electric_power', year)] == bcf
+        for (region, year), mmbtu in entries.items():
+            assert demand[(region, 'electric_power', year)] == pytest.approx(
+                mmbtu / self.MMBTU_PER_BCF
+            )
         assert demand[('mountain', 'industrial', 2030)] == pytest.approx(50.0 * 1.05**5)
 
     @pytest.mark.parametrize(

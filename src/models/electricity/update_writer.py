@@ -16,7 +16,6 @@ from logging import getLogger
 import pandas as pd
 from pyomo.common.numeric_types import value
 
-from definitions import PROJECT_ROOT
 from src.common.models_modes import ModelType
 from src.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
@@ -28,16 +27,8 @@ from src.common.update_package import (
 from src.integrator.region_crosswalk import QuantityKind
 from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH
 from src.models.electricity.electricity_model import PowerModel
-from src.models.natural_gas.data import load_qp_scalars
 
 logger = getLogger(__name__)
-
-# where the natural gas model's scalars live; the gas burn sent back is denominated in Bcf, so
-# the MMBtu-per-Bcf heat content is read from the gas model's own input rather than duplicated
-NG_INPUT_DIR = PROJECT_ROOT / 'input' / 'natural_gas' / 'parameters'
-# the heat content itself, filled by ng_mmbtu_per_bcf() on first use and then reused; None until
-# then, so a run that never sends a demand package never reads the gas model's inputs
-_MMBTU_PER_BCF: float | None = None
 
 
 class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
@@ -51,7 +42,7 @@ class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
     def gas_demand_package(self, model: PowerModel) -> NGElectricalDemandPackage:
         """Package the solved gas burn for the natural gas model.
 
-        The annual gas demand of the gas-fired techs (:func:`gas_demand_by_region`, Bcf/yr for
+        The annual gas demand of the gas-fired techs (:func:`gas_demand_by_region`, MMBtu/yr for
         every region and year the model carries) is allocated onto natural gas regions with the
         run's electricity <-> natural gas crosswalk.
 
@@ -81,32 +72,14 @@ class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
         )
         for year, total in ng_demand.groupby(level='year').sum().items():
             logger.info(
-                '%d gas burn sent to natural gas regions:  %0.1f Bcf over %d region(s)',
+                '%d gas burn sent to natural gas regions:  %0.1f TBtu over %d region(s)',
                 year,
-                total,
+                total / 1e6,
                 ng_demand.xs(year, level='year').shape[0],
             )
         return NGElectricalDemandPackage(
             elements=ng_demand.to_frame(), source=ModelType.ELECTRICITY
         )
-
-
-def ng_mmbtu_per_bcf() -> float:
-    """The gas model's MMBtu-per-Bcf heat content, read once from its ``ng_scalars.csv``.
-
-    The first call reads the file under ``NG_INPUT_DIR`` and stores the value in the module-level
-    ``_MMBTU_PER_BCF``; later calls return that without touching the file again.
-
-    Returns
-    -------
-    float
-        ``mmbtu_per_bcf`` as the natural gas model itself reads it.
-    """
-    global _MMBTU_PER_BCF  # a lazily filled module cache, by design
-    if _MMBTU_PER_BCF is None:
-        _MMBTU_PER_BCF = load_qp_scalars(NG_INPUT_DIR)['mmbtu_per_bcf']
-        logger.info('Read mmbtu_per_bcf = %0.4g from %s', _MMBTU_PER_BCF, NG_INPUT_DIR)
-    return _MMBTU_PER_BCF
 
 
 def gas_demand_by_region(instance: PowerModel) -> pd.Series:
@@ -116,10 +89,7 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     the representative hours, weighting each hour by the days its representative day stands for
     (the same ``weight_day`` the objective applies), and converts with the tech's heat rate::
 
-        Bcf = MWh x MMBtu/MWh / mmbtu_per_bcf
-
-    with ``mmbtu_per_bcf`` taken from the gas model's ``ng_scalars.csv`` via
-    :func:`ng_mmbtu_per_bcf`.
+        MMBtu = MWh x MMBtu/MWh
 
     Parameters
     ----------
@@ -129,7 +99,7 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     Returns
     -------
     pd.Series
-        Demand in Bcf/yr named ``NG_ELEC_DEMAND_VALUE``, indexed by ``NG_ELEC_DEMAND_INDEX``
+        Demand in MMBtu/yr named ``NG_ELEC_DEMAND_VALUE``, indexed by ``NG_ELEC_DEMAND_INDEX``
         (electricity region id as ``str``, model year), sorted.  Every region the model carries
         (``instance.regions``) appears for every model year, with 0.0 where it burns no gas.
     """
@@ -149,14 +119,13 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
             'No generation rows for gas-fired techs %s; gas demand is zero everywhere',
             list(NG_HEAT_RATE_MMBTU_PER_MWH),
         )
-    mmbtu_per_bcf = ng_mmbtu_per_bcf()
     # every (region, year) the model carries, so a region without gas-fired techs is sent as 0.0
     grid = pd.MultiIndex.from_product(
         [sorted(instance.regions), sorted(int(y) for y in instance.year)],
         names=NG_ELEC_DEMAND_INDEX,
     )
     series = pd.Series(
-        [mmbtu.get(key, 0.0) / mmbtu_per_bcf for key in grid],
+        [mmbtu.get(key, 0.0) for key in grid],
         index=grid,
         name=NG_ELEC_DEMAND_VALUE,
         dtype=float,

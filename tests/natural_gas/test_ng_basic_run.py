@@ -43,14 +43,13 @@ verbose = True
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type          Total Cost ($)   Variables   Constraints
 # ----------------  ---------------  ----------  -----------
-# basic_config      -272727069445.47       1530         1530
-# partial_regions   -227961456539.82        342          342
+# basic_config      -272727069445.47       1494         1494
+# partial_regions   -227961456539.82        330          330
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
 #     runs the model at full resolution (9 census divisions x the 6 years in summary_years),
-#     which is the same case src/models/natural_gas/README.md reports a reference solve for:
-#     1530 vars / 1530 constraints.
+#     which is the same case src/models/natural_gas/README.md reports a reference solve for.
 # 2.  a negative total cost is expected, not a defect: the LNG consumer-surplus term is
 #     subtracted in the minimisation form.
 # 3.  model size scales with common_config.summary_years, the only year knob the model reads,
@@ -82,9 +81,15 @@ verbose = True
 #     The term is a constant in each solve: the objectives rise by exactly that constant,
 #     208,175,571,638.41 (basic_config) and 91,184,608,250.72 (partial_regions), and no
 #     quantity, flow or price moved. The counts are unchanged.
+# 8.  The counts moved when international trade went onto (region, partner) pairs.  LNG import
+#     had been a variable and a capacity constraint for every region, capped at zero capacity
+#     where a region has no terminal; it now exists only for the pairs ng_lng_import.csv lists.
+#     basic_config drops 9 - 3 = 6 regions x 6 years = 36 of each (1530 -> 1494), and
+#     partial_regions, where only pacific imports, drops 2 x 6 = 12 (342 -> 330).  The dropped
+#     variables were pinned at zero, so the objectives did not move.
 configs = [
-    ('basic_config', -272727069445.47, 1530, 1530),
-    ('partial_regions', -227961456539.82, 342, 342),
+    ('basic_config', -272727069445.47, 1494, 1494),
+    ('partial_regions', -227961456539.82, 330, 330),
 ]
 
 # the same captured objective values, keyed by case name, so the full_run tests below pin to the

@@ -284,10 +284,10 @@ NG_ELEC_DEMAND_VALUE = 'demand_mmbtu'
 class NGElectricalDemandPackage(UpdatePackage):
     """Gas burned by the electricity model's generators, already crosswalked to gas regions.
 
-    Handled by ``NGUpdateReader.apply_package``, which replaces the projected
-    ``electric_power`` sector demand for every ``(region, year)`` the frame carries.  The natural
-    gas sequencer also gates off that sector's growth projection when one of these is inbound,
-    so the package, not the AEO growth rate, sets the sector's demand.
+    Handled by ``NGUpdateReader`` before a build, which replaces the projected ``electric_power``
+    sector demand and gates off that sector's growth projection, and by ``NGModelUpdateReader``
+    on a built model, which writes the demand through ``NGModel.set_external_demand``.  Either
+    way the package, not the AEO growth rate, sets the sector's demand.
 
     Demand travels as energy (MMBtu), the unit the electricity model computes it in; the natural
     gas model converts to volume with its own ``mmbtu_per_bcf``, so the heat content is owned by
@@ -297,8 +297,8 @@ class NGElectricalDemandPackage(UpdatePackage):
     ----------
     elements : pd.DataFrame
         Demand in MMBtu/yr indexed by ``NG_ELEC_DEMAND_INDEX`` with a single
-        ``NG_ELEC_DEMAND_VALUE`` column.  Entries the recipient does not hold are ignored; held
-        entries this frame omits keep their (ungrown) base-year values and are logged as warnings.
+        ``NG_ELEC_DEMAND_VALUE`` column.  It must cover exactly the ``(region, year)`` entries
+        the recipient holds; both readers raise otherwise.
     receivers : tuple of ModelType
         Fixed to the natural gas model.
     """

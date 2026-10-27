@@ -1,0 +1,12 @@
+side,step,crv,elas
+below,1,0.30,
+below,2,0.15,
+below,3,0.05,
+above,1,0.05,
+above,2,0.15,
+above,3,0.30,
+elas,1,,0.8
+elas,2,,0.7
+elas,3,,0.5
+elas,4,,0.3
+elas,5,,0.2

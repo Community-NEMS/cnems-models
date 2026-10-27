@@ -18,6 +18,7 @@ fixtures would never see.
 """
 
 import logging
+from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
 from typing import ClassVar
@@ -296,11 +297,11 @@ class TestLoadRegionDataRepoInput:
     """The shipped input/natural_gas/ng_region_data.csv, not a synthetic fixture."""
 
     def test_repo_input_file(self) -> None:
-        """Pin the nine census divisions plus Canada that the model is documented to run."""
+        """Pin the nine census divisions plus the two trade partners the model is run with."""
         result = load_region_data(PROJECT_ROOT / 'input/natural_gas/properties')
 
         assert len(result['regions_domestic']) == 9
-        assert result['regions_international'] == ['canada']
+        assert result['regions_international'] == ['canada', 'others']
         assert result['regions_analyze'] == result['regions_domestic']
         assert 'west_south_central' in result['regions_domestic']
         assert result['region_labels']['west_south_central'] == 'West South Central (Gulf Coast)'
@@ -327,6 +328,7 @@ DATA_DIR_LOADERS = [
     (ng_data.load_supply_anchors, 'ng_supply_anchors.csv'),
     (ng_data.load_lng_import, 'ng_lng_import.csv'),
     (ng_data.load_lng_export, 'ng_lng_export.csv'),
+    (ng_data.load_pipeline_trade, 'ng_pipeline_trade.csv'),
     (ng_data.load_base_demand, 'ng_base_demand.csv'),
     (ng_data.load_demand_growth, 'ng_demand_growth.csv'),
     (ng_data.load_pipeline_arcs, 'ng_pipeline_arcs.csv'),
@@ -589,20 +591,21 @@ class TestSupplyPBase:
         assert gaps[-1] > gaps[0]
 
 
-class TestInterpLngExport:
-    """Linear interpolation of the LNG export demand table, given at breakpoint years."""
+class TestInterpByYear:
+    """Linear interpolation of a year-indexed table (e.g. LNG export), given at breakpoint years."""
 
-    TABLE: ClassVar[dict[str, dict[int, float]]] = {
-        'west_south_central': {2025: 4300.0, 2030: 5100.0, 2050: 7200.0}
+    KEY = ('west_south_central', 'others')
+    TABLE: ClassVar[dict[tuple[str, str], dict[int, float]]] = {
+        KEY: {2025: 4300.0, 2030: 5100.0, 2050: 7200.0}
     }
 
     def test_exact_breakpoint_year(self) -> None:
         """A year present in the table returns its value untouched."""
-        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2030) == 5100.0
+        assert ng_data.interp_by_year(self.TABLE, self.KEY, 2030) == 5100.0
 
     def test_interpolates_between_breakpoints(self) -> None:
         """Midway between 2025 and 2030 is midway between 4300 and 5100."""
-        got = ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2027)
+        got = ng_data.interp_by_year(self.TABLE, self.KEY, 2027)
 
         assert got == pytest.approx(4300 + (2 / 5) * (5100 - 4300))
 
@@ -611,11 +614,56 @@ class TestInterpLngExport:
     )
     def test_clamps_outside_the_table_range(self, year: int, expected: float) -> None:
         """Outside the breakpoints the series is flat, not extrapolated."""
-        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', year) == expected
+        assert ng_data.interp_by_year(self.TABLE, self.KEY, year) == expected
 
-    def test_unknown_region_is_zero(self) -> None:
-        """A region with no LNG export terminal exports nothing, rather than raising."""
-        assert ng_data.interp_lng_export(self.TABLE, 'mountain', 2030) == 0.0
+    def test_unknown_key_is_zero(self) -> None:
+        """A pair the table does not hold trades nothing, rather than raising."""
+        assert ng_data.interp_by_year(self.TABLE, ('mountain', 'others'), 2030) == 0.0
+
+
+class TestLoadLng:
+    """ng_lng_import.csv and ng_lng_export.csv:  LNG trade by (region, partner)."""
+
+    @pytest.mark.parametrize(
+        'loader, filename, body, match',
+        [
+            (
+                ng_data.load_lng_import,
+                'ng_lng_import.csv',
+                'region,partner,capacity_bcf,cost_per_mmbtu\nnorth,others,100,\n',
+                'blank',
+            ),
+            (
+                ng_data.load_lng_import,
+                'ng_lng_import.csv',
+                (
+                    'region,partner,capacity_bcf,cost_per_mmbtu\n'
+                    'north,others,100,8\nnorth,others,50,9\n'
+                ),
+                'repeats',
+            ),
+            (
+                ng_data.load_lng_export,
+                'ng_lng_export.csv',
+                'region,partner,year,demand_bcf\nnorth,others,2025,\n',
+                'blank',
+            ),
+            (
+                ng_data.load_lng_export,
+                'ng_lng_export.csv',
+                'region,partner,year,demand_bcf\nnorth,others,2025,1\nnorth,others,2025,2\n',
+                'repeats',
+            ),
+        ],
+        ids=['import blank', 'import duplicate', 'export blank', 'export duplicate'],
+    )
+    def test_bad_file_raises(
+        self, tmp_path: Path, loader: Callable, filename: str, body: str, match: str
+    ) -> None:
+        """A blank value or a repeated key is fatal rather than read as NaN or overwritten."""
+        (tmp_path / filename).write_text(body)
+        with pytest.raises(ValueError, match=match):
+            loader(tmp_path)
 
 
 class TestDemandGrowthGating:

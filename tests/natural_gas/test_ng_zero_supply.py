@@ -185,6 +185,38 @@ def test_update_rejects_non_finite(
     assert value(m.q0[ZERO_REGION, y]) == before
 
 
+@pytest.mark.parametrize(
+    'region, year_offset', [('nowhere', 0), (ZERO_REGION, 1)], ids=['region', 'year']
+)
+def test_update_rejects_uncarried_key(
+    partial_config_set: tuple[CommonConfig, NGConfig],
+    monkeypatch: pytest.MonkeyPatch,
+    region: str,
+    year_offset: int,
+) -> None:
+    """A region or year the model does not carry raises and leaves Q0 untouched.
+
+    Parameters
+    ----------
+    partial_config_set : tuple[CommonConfig, NGConfig]
+        Fixture.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture.
+    region : str
+        Region of the bad key.
+    year_offset : int
+        Added to the first model year; 1 gives a year between analysis years.
+    """
+    m = _build(partial_config_set, monkeypatch).model
+    y = next(iter(m.year))
+    before = value(m.q0[ZERO_REGION, y])
+    with pytest.raises(ValueError, match='not carried'):
+        m.update_supply_capacity(
+            {(ZERO_REGION, 'low_cost', y): 1.0, (region, 'low_cost', y + year_offset): 1.0}
+        )
+    assert value(m.q0[ZERO_REGION, y]) == before
+
+
 def test_missing_region_names_it(
     partial_config_set: tuple[CommonConfig, NGConfig], monkeypatch: pytest.MonkeyPatch
 ) -> None:

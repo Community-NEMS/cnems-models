@@ -1,7 +1,9 @@
 # C-NEMS Models
 
 The Community National Energy Modeling System (C-NEMS), an open source framework for United States energy
-system analysis. C-NEMS is a clone and continuation of [Project BlueSky](https://github.com/EIAgov/BlueSky) outside of the U.S. federal government. This repository holds the model code and [C-NEMS-Inputs](https://github.com/Community-NEMS/cnems-inputs) holds the input data pipelines.
+system analysis. C-NEMS is a clone and continuation of [Project BlueSky](https://github.com/EIAgov/BlueSky) outside of
+the U.S. federal government. This repository holds the model code
+and [C-NEMS-Inputs](https://github.com/Community-NEMS/cnems-inputs) holds the input data pipelines.
 
 ## Contents
 
@@ -21,10 +23,10 @@ layer and a run sequencer interface.
 
 The project is being built sector by sector. Two models are currently in the repository.
 
-| Model | Location | Scope |
-|---|---|---|
+| Model       | Location                 | Scope                                                                                                                        |
+|-------------|--------------------------|------------------------------------------------------------------------------------------------------------------------------|
 | Electricity | `src/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
-| Natural gas | `src/models/natural_gas` | C-NGMM, a regional natural gas market model |
+| Natural gas | `src/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
 
 `src/integrator` holds the machinery for coupling models to each other. It is in progress, and
 parts of it are unmaintained.
@@ -51,11 +53,11 @@ pixi run python main.py
 That runs three scenarios in sequence, each named in the `__main__` block of `main.py` and
 configured by a TOML under `run_configs`.
 
-| Config | Input set | Regions | Trade | Expansion |
-|---|---|---|---|---|
-| `basic_elec_config.toml` | `input/electricity/parameters` | 7, 8, 9 | off | off |
-| `exchange_elec_config.toml` | `input/electricity/parameters` | 7, 8, 9 | off | off |
-| `reduced_elec_config.toml` | `input/electricity_light` | CA, NY, TX | on | off |
+| Config                      | Input set                      | Regions    | Trade | Expansion |
+|-----------------------------|--------------------------------|------------|-------|-----------|
+| `basic_elec_config.toml`    | `input/electricity/parameters` | 7, 8, 9    | off   | off       |
+| `exchange_elec_config.toml` | `input/electricity/parameters` | 7, 8, 9    | off   | off       |
+| `reduced_elec_config.toml`  | `input/electricity_light`      | CA, NY, TX | on    | off       |
 
 `exchange_elec_config.toml` currently differs from `basic_elec_config.toml` only in its scenario
 name, so the two write separate output directories from the same settings.
@@ -68,12 +70,11 @@ pixi run ng
 
 Other tasks worth knowing.
 
-| Command | Does |
-|---|---|
-| `pixi run test` | Run the test suite with coverage |
-| `pixi run lint` | Check style and types, without modifying files |
-| `pixi run format` | Reformat code and auto fix lint issues |
-
+| Command           | Does                                           |
+|-------------------|------------------------------------------------|
+| `pixi run test`   | Run the test suite with coverage               |
+| `pixi run lint`   | Check style and types, without modifying files |
+| `pixi run format` | Reformat code and auto fix lint issues         |
 
 Run configurations live in `run_configs` as TOML files, each with a `[common]` section and a
 model specific section. `basic_elec_config.toml` is the smallest useful starting point.
@@ -116,7 +117,8 @@ began [Project BlueSky](https://www.eia.gov/totalenergy/data/bluesky/) to design
 successor, and released a prototype.
 
 EIA has since paused its own work on that effort. C-NEMS continues the line independently, as an
-open source community project, following design principles established in the [BlueSky prototype](https://github.com/EIAgov/BlueSky).
+open source community project, following design principles established in
+the [BlueSky prototype](https://github.com/EIAgov/BlueSky).
 This repository began as a clone of that prototype.
 
 The prototype's own documentation is kept unmodified in `old_docs/` as a historical reference. It

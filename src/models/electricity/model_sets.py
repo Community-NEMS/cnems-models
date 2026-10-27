@@ -272,7 +272,8 @@ class ModelSets:
                 if y >= first_year
             }
             logger.info(
-                'Capacity index carries builds forward into: %d non-buildable years',
+                'Capacity index carries builds forward into: %d non-buildable '
+                'region-tech-year combos',
                 len(carried_capacity - buildable_capacity),
             )
             self.buildable_capacity = sorted(buildable_capacity)

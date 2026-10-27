@@ -36,7 +36,7 @@ value_col = "capital_cost_initial_usd_per_mw"
 required = false  # capacity_expansion + expansion_learning_type != DISABLED
 
 [[param_source]]
-key = "capacity_factor_vre"
+key = "capacity_factor_hourly"
 filename = "capacity_factor_vre.csv"
 index_cols = ["region", "tech", "step", "hour"]
 value_col = "capacity_factor_vre_frac"
@@ -57,7 +57,7 @@ value_col = "storage_duration_hr"
 required = true
 
 [[param_source]]
-key = "hydro_capacity_factor"
+key = "capacity_factor_seasonal"
 filename = "hydro_capacity_factor.csv"
 index_cols = ["region", "season"]
 value_col = "hydro_capacity_factor_frac"

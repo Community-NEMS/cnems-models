@@ -63,7 +63,7 @@ Examples in `electricity_model.py`, both already annotated in place:
 |---|---|---|
 | `generation_cost` | no default | *"A missing price value (sparse set) will cause fail w/o a default value here, which is OK as it probably indicates a true error."* — the intended pattern |
 | `elec_load` | `default=0.0` | deliberate: zero load is meaningful, and it lets the code iterate `(r, y, hr)` confidently |
-| `capacity_factor_vre` | `default=0.0` | deliberate: *"the indexing set is larger than the upper bound limit from the data"* |
+| `capacity_factor_hourly` | `default=0.0` | deliberate: *"the indexing set is larger than the upper bound limit from the data"* |
 
 When a default is being added purely to stop construction from failing, the real fix is
 almost always a correctly sparse index set rather than a fabricated value.
@@ -125,7 +125,7 @@ Notes on each:
 
 ## Where this bit us
 
-`electricity_model.py` built `wind_reserves` / `solar_reserves` (then named
+`electricity_model.py` built `wind_generation` / `solar_generation` (then named
 `WindSetReserves` / `SolarSetReserves`) with `initialize=sorted(wind_idx)`. On the current dataset no VRE tech survives the reserve
 upper-bound sparsity filter, so `wind_idx` is empty, `sorted({})` is `[]`, and the model
 constructed 576 empty sets and behaved correctly by accident. With any nonzero VRE
@@ -139,7 +139,7 @@ KeyError: ('7', 2025, 1)
 ```
 
 because `reserve_requirement_reg_lb` and `reserve_requirement_flex_lb` are declared over
-`self.elec_load.index_set()` — all 576 `(region, year, hour)` — and index `wind_reserves`
+`self.elec_load.index_set()` — all 576 `(region, year, hour)` — and index `wind_generation`
 unconditionally. Sparse data, dense consumer. The landed fix wraps the sorted mapping in
 a `defaultdict(list)`, and says so in a comment above `wind_members` / `solar_members`.
 

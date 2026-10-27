@@ -97,6 +97,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.tech_hydro_seasonal = pyo.Set(
             initialize=model_sets.tech_hydro_seasonal, within=self.tech_hydro
         )
+        self.tech_seasonal_cap_factor = self.tech_hydro | pyo.Set()  # future growth possible...
         self.tech_hydro_regular = pyo.Set(
             initialize=model_sets.tech_hydro_regular, within=self.tech_hydro
         )
@@ -107,6 +108,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=[(t, s) for t in self.tech_stor for s in self.steps_for_tech[t]],
         )
         self.tech_vre = pyo.Set(initialize=model_sets.tech_vre, within=self.tech)
+        self.tech_hourly_cap_factor = self.tech_vre | pyo.Set()  # future growth possible...
         self.tech_wind = pyo.Set(initialize=model_sets.tech_wind, within=self.tech)
         self.tech_wind_step = pyo.Set(
             dimen=2,
@@ -170,7 +172,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.reserves_procurement_index, validate=reserve_procurement_check
         )
 
-        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_ub_index)
+        self.generation_vre_ub_index = pyo.Set(initialize=model_sets.generation_vre_index)
 
         # international trade indices.  Note:  "step" here is different from "tech" steps and
         # is represented by an integer value
@@ -195,6 +197,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             for region, res_type, tech, step, year, hour in model_sets.reserves_procurement_index:
                 idx[region, res_type, year, hour].append((tech, step))
                 associated_res_types[region, tech, step, year, hour].append(res_type)
+
+            # Wind and solar drive the regulation and flex requirements whether or not they can
+            # supply reserves, so we gather the contributors from VRE generation:
+            for region, tech, step, year, hour in model_sets.generation_vre_index:
                 if tech in self.tech_wind:
                     wind_idx[region, year, hour].add((tech, step))
                 elif tech in self.tech_solar:
@@ -210,10 +216,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             )
             """The valid reserve types for this index combo"""
 
-            # The wind/solar members are accumulated as sets to drop the duplicate (tech, step)
-            # seen once per reserve type, so sort them for a deterministic build order.  These stay
+            # The wind/solar members are sorted for a deterministic build order.  These stay
             # defaultdicts because the data is sparse but the consumers are not: the reserve
-            # requirement constraints index wind_reserves/solar_reserves for every
+            # requirement constraints index wind_generation/solar_generation for every
             # (region, year, hour) in elec_load.index_set().  Pyomo re-invokes the initializer
             # for an index absent from the data, where a plain dict raises KeyError and a
             # defaultdict yields an empty set.
@@ -228,14 +233,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 within=self.tech_step,
                 initialize=idx,
             )
-            self.wind_reserves = pyo.Set(
+            self.wind_generation = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
                 within=self.tech_wind_step,
                 initialize=wind_members,
             )
-            self.solar_reserves = pyo.Set(
+            self.solar_generation = pyo.Set(
                 self.region_analyze,
                 self.year,
                 self.hour,
@@ -279,15 +284,43 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             initialize=model_sets.storage_demand_index,
         )
 
-        # Capacity sources indexed by region, year
+        # TODO:  Gate this segment by reserve requirement?
+        # Capacity sources indexed by factor type (hourly/seasonal/constant), region, year
         idx = defaultdict(list)
+        constant = defaultdict(list)
+        hourly = defaultdict(list)
+        seasonal = defaultdict(list)
         for region, tech, step, year in model_sets.capacity_index:
             idx[region, year].append((tech, step))
-        self.capacity_sources = pyo.Set(
+            if tech in self.tech_hourly_cap_factor:
+                hourly[region, year].append((tech, step))
+            elif tech in self.tech_seasonal_cap_factor:
+                seasonal[region, year].append((tech, step))
+            else:
+                constant[region, year].append((tech, step))
+        self.capacity_sources_all = pyo.Set(
             self.region_analyze,
             self.year,
             within=self.tech_step,
             initialize=idx,
+        )
+        self.capacity_sources_hourly_factor = pyo.Set(
+            self.region_analyze,
+            self.year,
+            within=self.tech_step,
+            initialize=hourly,
+        )
+        self.capacity_sources_seasonal_factor = pyo.Set(
+            self.region_analyze,
+            self.year,
+            within=self.tech_step,
+            initialize=seasonal,
+        )
+        self.capacity_sources_constant_factor = pyo.Set(
+            self.region_analyze,
+            self.year,
+            within=self.tech_step,
+            initialize=constant,
         )
 
         # This further refinement of steps for seasonal hydro is necessary because it can
@@ -307,6 +340,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 dimen=4,
                 within=self.region_analyze * self.tech_retireable * self.year,
                 initialize=model_sets.retirement_index,
+            )
+
+            # builds are indexed from the capital cost keys, screened to what is buildable.
+            self.capacity_build_index = pyo.Set(
+                dimen=4,
+                within=self.region_analyze * self.tech_buildable * self.year,
+                initialize=model_sets.buildable_capacity,
             )
 
         # if capacity expansion and learning are on
@@ -414,20 +454,23 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         # dev note:  a default of 0.0 is supplied because the indexing set is larger than the
         #            upper bound limit from the data
-        self.capacity_factor_vre = pyo.Param(
+        self.capacity_factor_hourly = pyo.Param(
             self.region_analyze,
-            self.tech_vre,
+            self.tech,
             self.step,
-            self.year,
             self.hour,
-            initialize=all_frames['capacity_factor_vre'],
+            initialize=all_frames['capacity_factor_hourly'],
             within=pyo.NonNegativeReals,
+            # TODO:  Work to remove this.  Currently needed due to many zeros in available cap data
             default=0.0,
         )
-        self.hydro_capacity_factor = pyo.Param(
+
+        self.capacity_factor_seasonal = pyo.Param(
             self.region_analyze,
+            self.tech,
+            self.step,
             self.season,
-            initialize=all_frames['hydro_capacity_factor'],
+            initialize=all_frames['capacity_factor_seasonal'],
             within=pyo.NonNegativeReals,
         )
         self.storage_efficiency = pyo.Param(
@@ -444,14 +487,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            self.capacity_credit = pyo.Param(
-                self.region_analyze,
-                self.tech_step,
-                self.year,
-                self.hour,
-                initialize=all_frames['capacity_credit'],
-            )
-
             # if capacity expansion and learning are on
             if elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
                 self.learning_rate = pyo.Param(self.tech, initialize=all_dicts['learning_rate'])
@@ -469,7 +504,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 # so PositiveReals rejects zero, negatives and NaN at construction, naming the
                 # offending technology rather than failing later inside the objective.
 
-            # capital_cost is declared in every mode because capacity_builds is indexed from its
+            # capital_cost is declared in every mode because capacity_build_index is drawn from its
             # keys; only DISABLED and LINEAR consume its values in the objective.
             if elec_config.expansion_learning_type in {
                 ExpansionLearningType.DISABLED,
@@ -623,11 +658,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
-            # TODO:  Review this creation of var index from parameter keys.
-            #        Done in a few spots, seems like best plan.
-            self.capacity_builds = pyo.Var(
-                list(self.capital_cost.keys()), within=pyo.NonNegativeReals
-            )
+            self.capacity_builds = pyo.Var(self.capacity_build_index, within=pyo.NonNegativeReals)
             self.capacity_retirements = pyo.Var(
                 self.capacity_retirements_index, within=pyo.NonNegativeReals
             )
@@ -767,17 +798,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             # Experience is this technology's builds across every region and step,
                             # in years strictly before y, so a build never discounts its own cost.
                             cumulative_quantity=sum(
-                                self.capacity_builds[region, tech, other_step, year]
-                                for (region, other_tech, other_step) in self.capital_cost_initial
-                                if other_tech == tech
-                                for year in self.year
-                                if year < y
+                                self.capacity_builds[region, other_tech, other_step, year]
+                                for (
+                                    region,
+                                    other_tech,
+                                    other_step,
+                                    year,
+                                ) in self.capacity_build_index
+                                if other_tech == tech and year < y
                             ),
                             baseline_quantity=self.supply_curve_learning[tech],
                             initial_cost=self.capital_cost_initial[r, tech, step],
                             learning_rate=self.learning_rate[tech],
                         )
-                        for (r, tech, step, y) in self.capacity_builds
+                        for (r, tech, step, y) in self.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -800,7 +834,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     """
                     return sum(
                         self.capital_cost[r, tech, step, y] * self.capacity_builds[r, tech, step, y]
-                        for (r, tech, step, y) in self.capital_cost
+                        for (r, tech, step, y) in self.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -1068,8 +1102,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for hr in self.hour_season_index[season]
                     for step in steps
                 )
-                <= sum(self.capacity_total[r, t_hydro, step, y] for step in steps)
-                * self.hydro_capacity_factor[r, season]
+                <= sum(
+                    self.capacity_total[r, t_hydro, step, y]
+                    * self.capacity_factor_seasonal[r, t_hydro, step, season]
+                    for step in steps
+                )
                 * self.weight_season[season]
             )
 
@@ -1145,7 +1182,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     else 0
                 )
                 <= self.capacity_total[r, t_hydro, step, y]
-                * self.hydro_capacity_factor[r, self.map_hour_season[hr]]
+                * self.capacity_factor_seasonal[r, t_hydro, step, self.map_hour_season[hr]]
                 * self.weight_hour[hr]
             )
 
@@ -1185,7 +1222,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     else 0
                 )
                 <= self.capacity_total[r, t_vre, step, y]
-                * self.capacity_factor_vre[r, t_vre, step, y, hr]
+                * self.capacity_factor_hourly[r, t_vre, step, hr]
                 * self.weight_hour[hr]
             )
 
@@ -1287,7 +1324,6 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 <= self.capacity_total[r, tech, step, y] * self.storage_duration[tech]
             )
 
-        # TODO:  internalize this set from the inputs ?   maybe?
         @self.Constraint(model_sets.capacity_index)
         def capacity_balance(self, r, tech, step, y):
             """Capacity Equality constraint.
@@ -1313,21 +1349,29 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Capacity Equality
 
             """
-            return self.capacity_total[r, tech, step, y] == self.available_capacity[
-                (r, tech, step, y)
-            ] + (
-                sum(self.capacity_builds[r, tech, step, year] for year in self.year if year <= y)
-                if elec_config.capacity_expansion and (tech, step) in self.tech_buildable
+            # pyomo's IndexedParam has no .get(), so SIM401's suggested rewrite would fail
+            existing = (
+                self.available_capacity[r, tech, step, y]  # noqa: SIM401
+                if (r, tech, step, y) in self.available_capacity
                 else 0
-            ) - (
-                sum(
+            )
+            if elec_config.capacity_expansion:
+                built_to_date = sum(
+                    self.capacity_builds[r, tech, step, year]
+                    for year in self.year
+                    if year <= y and (r, tech, step, year) in self.capacity_builds
+                )
+                retired_to_date = sum(
                     self.capacity_retirements[r, tech, step, year]
                     for year in self.year
-                    if year <= y
+                    if year <= y and (r, tech, step, year) in self.capacity_retirements
                 )
-                if elec_config.capacity_expansion
-                and (r, tech, step, y) in self.capacity_retirements_index
-                else 0
+            else:
+                built_to_date = 0
+                retired_to_date = 0
+
+            return (
+                self.capacity_total[r, tech, step, y] == existing + built_to_date - retired_to_date
             )
 
         # if capacity expansion is on
@@ -1359,8 +1403,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return self.capacity_retirements[r, tech, step, y] <= (
                     (
-                        self.available_capacity[r, tech, step, y]
-                        if (r, tech, step, y) in self.capacity_total
+                        self.available_capacity[r, tech, step, y]  # noqa: SIM401
+                        if (r, tech, step, y) in self.available_capacity
                         else 0
                     )
                     + (
@@ -1368,14 +1412,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             self.capacity_builds[r, tech, step, year]
                             for year in self.year
                             if year < y
+                            if (r, tech, step, year) in self.capacity_builds
                         )
-                        if (tech, step) in self.tech_buildable
-                        else 0
                     )
                     - sum(
                         self.capacity_retirements[r, tech, step, year]
                         for year in self.year
-                        if year < y
+                        if year < y and (r, tech, step, year) in self.capacity_retirements
                     )
                 )
 
@@ -1493,7 +1536,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
 
             @self.Constraint(self.elec_load.index_set())
-            def reserve_margin_lb(self, r, y, hr):
+            def reserve_margin_lb(m, r, y, hr):
                 """Reserve margin requirement.
 
                 Load * Reserve Margin <= Capacity * Capacity Credit * Time.
@@ -1516,19 +1559,29 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Reserve margin requirement
                 """
-                return self.elec_load[r, y, hr] * (
-                    1 + self.planning_reserve_margin[r]
-                ) <= self.weight_hour[hr] * sum(
-                    (
-                        self.capacity_credit[r, tech, step, y, hr]
-                        * (
-                            self.storage_avail_cap[r, tech, step, y, hr]
-                            if tech in self.tech_stor
-                            else self.capacity_total[r, tech, step, y]
-                        )
-                    )
-                    for (tech, step) in self.capacity_sources[r, y]
+                # assemble the contributors by factor-type (hourly/seasonal/constant)
+                hourly = sum(
+                    self.capacity_factor_hourly[r, tech, step, hr]
+                    * self.capacity_total[r, tech, step, y]
+                    for (tech, step) in self.capacity_sources_hourly_factor[r, y]
                 )
+
+                seasonal = sum(
+                    self.capacity_factor_seasonal[r, tech, step, self.map_hour_season[hr]]
+                    * self.capacity_total[r, tech, step, y]
+                    for (tech, step) in self.capacity_sources_seasonal_factor[r, y]
+                )
+
+                constant = sum(
+                    self.capacity_total[r, tech, step, y]  # factor = 1.0 omitted
+                    if tech not in self.tech_stor
+                    else self.storage_avail_cap[r, tech, step, y, hr]
+                    for (tech, step) in self.capacity_sources_constant_factor[r, y]
+                )
+
+                return self.elec_load[r, y, hr] * (
+                    1.0 + self.planning_reserve_margin[r]
+                ) <= self.weight_hour[hr] * (hourly + seasonal + constant)
 
             @self.Constraint(model_sets.storage_index)
             def reserve_margin_storage_avail_cap_ub(self, r, t_stor, step, y, hr):
@@ -1779,10 +1832,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     (r, y, hr)
                 ] + WIND_REGULATION_RESERVE_PROPORTION * sum(
                     self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_reserves[r, y, hr]
+                    for (t_wind, step) in self.wind_generation[r, y, hr]
                 ) + SOLAR_REGULATION_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
                     self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_reserves[r, y, hr]
+                    for (t_solar, step) in self.solar_generation[r, y, hr]
                 )
 
             @self.Constraint(self.elec_load.index_set())
@@ -1811,10 +1864,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for (tech, step) in self.eligible_reserves[r, ReserveType.FLEX, y, hr]
                 ) >= WIND_FLEX_RESERVE_PROPORTION * sum(
                     self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_reserves[r, y, hr]
+                    for (t_wind, step) in self.wind_generation[r, y, hr]
                 ) + SOLAR_FLEX_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
                     self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_reserves[r, y, hr]
+                    for (t_solar, step) in self.solar_generation[r, y, hr]
                 )
 
             # TODO:  Review this.  It operates on the x-product of tech x restype, yet many

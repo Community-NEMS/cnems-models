@@ -33,15 +33,16 @@ through the model configuration.
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
-| $\Theta_{um}$          | unmet_load.index_set()                        | Sparse set | All unmet load set                                           |
-| $\Theta_{SC}$          | capacity_index                                | Sparse set | Capacity set: the (region, technology, step, year) keys of available_capacity |
-| $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse set | Dispatchable technology generation upper bound set           |
-| $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse set | Intermittent technology generation upper bound set           |
-| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse set | Regular hydro generation upper bound set                     |
-| $\Theta_{hs}$          | seasonal_hydro_index                          | Sparse set | Seasonal hydro energy budget set: (region, technology, year, season) |
-| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse set | Retirable capacity set                                       |
-| $\Theta_{new}$         | capacity_builds.index_set()                   | Sparse set | Buildable capacity set: the (region, technology, step, year) keys of capital_cost |
-| $\Theta_{cc0}$         | capital_cost_initial.keys()                   | Sparse set | The (region, technology, step) keys of capital_cost_initial (learning modes only) |
+| $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
+| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus, when capacity_expansion is on, each buildable location in every year from its first `capital_cost` year |
+| $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
+| $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
+| $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
+| $\Theta_{hs}$          | seasonal_hydro_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
+| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
+| $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set                                       |
+| $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
+| $\Theta_{cc0}$         | capital_cost_initial.keys()              | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
 | $\Theta_{SBH}$         | storage_most_hours_balance_index              | Sparse set | (non-first hour) storage balance set                         |
 | $\Theta_{proc}$        | reserves_procurement_index                    | Sparse set | Operating reserve procurement set: (region, reserve type, technology, step, year, hour) with $RTUB_{rt,t} > 0$ |
@@ -87,10 +88,12 @@ remaining indices.
 | $\theta^{SDB}_{r,y,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by r,y,h                                                    |
 | $\theta^{TDB}_{r,y,h}$     | regional_sources          | Sparse subset | Set for trade indexed by r,y,h                                                      |
 | $\theta^{TCDB}_{r,y,h}$    | international_partners    | Sparse subset | Set for (international region, international supply step) pairs indexed by r,y,h    |
-| $\theta^{windor}_{r,y,h}$  | wind_reserves             | Sparse subset | Wind (technology, step) pairs whose generation adds to the regulation and flex requirements, indexed by r,y,h |
-| $\theta^{solor}_{r,y,h}$   | solar_reserves            | Sparse subset | Solar (technology, step) pairs whose capacity adds to the regulation and flex requirements, indexed by r,y,h |
+| $\theta^{windor}_{r,y,h}$  | wind_generation           | Sparse subset | Wind (technology, step) pairs whose generation adds to the regulation and flex requirements, indexed by r,y,h |
+| $\theta^{solor}_{r,y,h}$   | solar_generation          | Sparse subset | Solar (technology, step) pairs whose capacity adds to the regulation and flex requirements, indexed by r,y,h |
 | $\theta^{opres}_{r,rt,y,h}$ | eligible_reserves         | Sparse subset | (technology, step) pairs that can provide reserve type $rt$, indexed by r,rt,y,h    |
-| $\theta^{scrm}_{r,y}$      | capacity_sources          | Sparse subset | (technology, step) pairs with capacity, for the reserve margin, indexed by r,y      |
+| $\theta^{rmh}_{r,y}$       | capacity_sources_hourly_factor   | Sparse subset | Intermittent (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their hourly factor, indexed by r,y |
+| $\theta^{rms}_{r,y}$       | capacity_sources_seasonal_factor | Sparse subset | Hydro (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their seasonal factor, indexed by r,y |
+| $\theta^{rmc}_{r,y}$       | capacity_sources_constant_factor | Sparse subset | All other (technology, step) pairs in $\Theta_{SC}$, storage included, counted in the reserve margin at a factor of 1, indexed by r,y |
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
 
 ### Parameters
@@ -108,8 +111,8 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $CAP^{exist}_{r,t,s,y}$           | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
 | $SPR_{r,t,s,y,seas}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
 | $NGADJ_{r,t,s,y,seas}$            | ng_fuel_adj              | $\mathbb{R}$     | Gas fuel-cost adjustment, set by the natural gas coupling; zero in a standalone run          | USD/MWh                    |
-| $ICF_{r,t,s,y,h}$                 | capacity_factor_vre      | $\mathbb{R}^+_0$ | Intermittent technology maximum capacity factor                                              | fraction                   |
-| $HCF_{r,seas}$                    | hydro_capacity_factor    | $\mathbb{R}^+_0$ | Hydroelectric capacity factor, by region and season                                          | fraction                   |
+| $CF^{hr}_{r,t,s,h}$               | capacity_factor_hourly   | $\mathbb{R}^+_0$ | Hourly capacity factor of the intermittent technologies; the same in every year, and 0 where no profile is given | fraction                   |
+| $CF^{seas}_{r,t,s,seas}$          | capacity_factor_seasonal | $\mathbb{R}^+_0$ | Seasonal capacity factor of the hydro technologies                                           | fraction                   |
 | $STORLC$                          | storage_level_cost       | $\mathbb{R}^+_0$ | Cost of holding stored energy, per MWh held per hour; a constant (1e-11), so negligible. Storage losses come from $EFF_t$ | USD/MWh per hour           |
 | $EFF_t$                           | storage_efficiency       | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
 | $STOR^{dur}_t$                    | storage_duration         | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
@@ -121,7 +124,6 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $WHS_{seas}$                      | weight_season            | $\mathbb{I}$     | Number of hours (per year) in a season (weight)                                              | hours                      |
 | $MHS_h$                           | map_hour_season          | $SEAS$           | Map representative hour to season                                                            | unitless                   |
 | $FOMC_{r,t,s}$                    | fom_cost                 | $\mathbb{R}^+_0$ | Fixed O&M cost                                                                               | USD/MW-year                |
-| $CC_{r,t,s,y,h}$                  | capacity_credit          | $\mathbb{R}^+_0$ | Capacity credit                                                                              | fraction                   |
 | $RM_r$                            | planning_reserve_margin  | $\mathbb{R}^+_0$ | Reserve margin requirement                                                                   | fraction                   |
 | $RUC_{t}$                         | ramp_up_cost             | $\mathbb{R}^+_0$ | Ramp up cost                                                                                 | USD/MWh                    |
 | $RDC_{t}$                         | ramp_down_cost           | $\mathbb{R}^+_0$ | Ramp down cost                                                                               | USD/MWh                    |
@@ -365,7 +367,7 @@ Hydroelectric generation seasonal upper bound:
 
 $$
 \begin{aligned}
-&\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WD_h} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \times HCF_{r,seas} \times WHS_{seas} \\
+&\sum_{s | (r,t,s,y) \in \Theta_{SC}} \sum_{h \in \theta^{HSH}_{seas}}{\mathbf{GEN}_{r,t,s,y,h} \times WD_h} \leq \sum_{s | (r,t,s,y) \in \Theta_{SC}}{\mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{seas}_{r,t,s,seas}} \times WHS_{seas} \\
 &\forall {r,t,y,seas} \in \Theta_{hs}
 \end{aligned} \tag{12}
 $$
@@ -387,7 +389,7 @@ $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times HCF_{r,MHS_h} \times HW_h \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{seas}_{r,t,s,MHS_h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{ht^{max}}
 \end{aligned} \tag{14}
 $$
@@ -398,7 +400,7 @@ $$
 \begin{aligned}
 &\mathbf{GEN}_{r,t,s,y,h} \\
 & (+ \sum_{rt \in RT | RTUB_{rt,t} > 0}{\mathbf{ORP}_{r,rt,t,s,y,h}} \quad \text{if operating reserves are on}) \\
-&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times ICF_{r,t,s,y,h} \times HW_h \\
+&\leq \mathbf{CAP^{tot}}_{r,t,s,y} \times CF^{hr}_{r,t,s,h} \times HW_h \\
 &\forall {r,t,s,y,h} \in \Theta_{it^{max}}
 \end{aligned} \tag{15}
 $$
@@ -508,9 +510,10 @@ $$
 
 Reserve margin constraints ensure that, in each time segment, the capacity available exceeds load by the region's
 planning reserve margin $RM_r$. They exist only when `reserve_margin_required` is true, which requires
-`capacity_expansion`. Each technology counts at its capacity credit $CC$: the hourly capacity factor for intermittent
-technologies, the seasonal hydro capacity factor for hydro, and 1 for all other technologies, storage included. Storage
-counts through $STOR^{avail}$ rather than its capacity. (25) caps $STOR^{avail}$ at the power capacity, and (26) at the
+`capacity_expansion`. Each (technology, step) in $\Theta_{SC}$ counts in exactly one of three groups: intermittent
+technologies at their hourly capacity factor $CF^{hr}$ ($\theta^{rmh}$), hydro at its seasonal capacity factor
+$CF^{seas}$ for the season of hour $h$ ($\theta^{rms}$), and all other technologies, storage included, at a factor of 1
+($\theta^{rmc}$). Storage counts through $STOR^{avail}$ rather than its capacity. (25) caps $STOR^{avail}$ at the power capacity, and (26) at the
 stored energy. (26) compares MW with MWh, as if the stored energy had to sustain $STOR^{avail}$ for one hour only,
 although (24) counts it over the $HW_h$ hours of the time segment.
 
@@ -518,8 +521,10 @@ Reserve margin requirement constraint:
 
 $$
 \begin{aligned}
-LOAD_{r,y,h} \times (1 + RM_r ) \leq &HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \notin T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
-&+ HW_h \times \sum_{(t,s) \in \theta^{scrm}_{r,y} | t \in T^{stor}}{CC_{r,t,s,y,h} \times \mathbf{STOR^{avail}}_{r,t,s,y,h}} \\
+LOAD_{r,y,h} \times (1 + RM_r ) \leq HW_h \times \Big( &\sum_{(t,s) \in \theta^{rmh}_{r,y}}{CF^{hr}_{r,t,s,h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rms}_{r,y}}{CF^{seas}_{r,t,s,MHS_h} \times \mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rmc}_{r,y} | t \notin T^{stor}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&+ \sum_{(t,s) \in \theta^{rmc}_{r,y} | t \in T^{stor}}{\mathbf{STOR^{avail}}_{r,t,s,y,h}} \Big) \\
 &\forall {r,y,h} \in \Theta_{load} \\
 &\quad \text{if the reserve margin is on}
 \end{aligned} \tag{24}
@@ -646,7 +651,7 @@ steam, geothermal and biopower, and 100 for hydro. Storage qualifies on that sli
 municipal waste is not listed; here storage has the limits of hydro, and municipal waste those of biomass. Sergi and
 Cole (2021), slide 5, use 2 percent per minute for coal, which would give 0.20 for spinning and 0.10 for regulation.
 
-Spinning reserve requirement constraint. 3\% of load required:
+Spinning reserve requirement constraint. 3% of load required:
 
 $$
 \begin{aligned}
@@ -656,7 +661,7 @@ $$
 \end{aligned} \tag{31}
 $$
 
-Regulation reserve requirement constraint. 1\% of load + 0.5\% of wind generation + 0.3\% of solar capacity required:
+Regulation reserve requirement constraint. 1% of load + 0.5% of wind generation + 0.3% of solar capacity required:
 
 $$
 \begin{aligned}
@@ -669,7 +674,7 @@ $$
 \end{aligned} \tag{32}
 $$
 
-Flexibility reserve requirement constraint. 10\% of wind generation + 4\% of solar capacity required:
+Flexibility reserve requirement constraint. 10% of wind generation + 4% of solar capacity required:
 
 $$
 \begin{aligned}
@@ -681,9 +686,9 @@ $$
 \end{aligned} \tag{33}
 $$
 
-The code currently fills $\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ only from technologies with a reserve
-limit above 0, and the shipped data gives wind and solar a limit of 0 for every type. Both sets are therefore empty, so
-the regulation requirement is 1 percent of load and the flexibility requirement is zero (issue #67).
+$\theta_{r,y,h}^{windor}$ and $\theta_{r,y,h}^{solor}$ hold every wind and solar (technology, step) in $\Theta_{SC}$,
+whether or not it can supply reserves. Wind and solar have a reserve limit of 0 for every type in the shipped data, so
+they add to the regulation and flexibility requirements without helping to meet them.
 
 Operating reserve procurement upper bound:
 
@@ -727,24 +732,63 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 ### Validations performed
 
 - **Seasonal coverage** (`validate_seasonal_coverage`) — for `generation_cost` and
-  `hydro_capacity_factor`, every base index (the index with the season removed) must carry exactly
+  `capacity_factor_seasonal`, every base index (the index with the season removed) must carry exactly
   the model's expected set of seasons: no gaps and no strays.
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
   `supply_limit_intl`), reporting the missing and unexpected hours for each offending base index.
-- **Available capacity vs. generation cost coverage** (`validate_generation_cost_coverage`) — the
-  `available_capacity` and `generation_cost` tables must cover each other. A cost with no matching
-  capacity entry is a warning; a capacity entry with no cost is fatal.
+- **Capacity index vs. generation cost coverage** (`validate_generation_cost_coverage`) — every
+  location in the capacity index (existing `available_capacity` plus anything buildable) must have a
+  `generation_cost`; a location with no cost is fatal. A cost with no matching capacity index entry
+  is allowed and ignored (logged as a warning).
 - **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
   logged as warnings, and a limit without a matching cost as an error. A self-loop stops the coverage
   comparison, so coverage gaps show up only once the loops are removed.
+- **Build cost coverage** (`validate_build_cost_coverage`) — when `capacity_expansion` is on,
+  `capital_cost` is screened against every `region_analyze` × `tech_buildable` × year. This check
+  is advisory: a gap is logged at INFO, naming the (region, tech, step) and the missing years, and
+  does not fail validation, since the build set is indexed from the `capital_cost` keys and a gap
+  simply leaves that key unbuildable. With learning enabled, `capital_cost_initial` must cover every
+  `region_analyze` × `tech_buildable`, and a missing entry is an error naming the key. Extra
+  entries in either table are allowed and ignored. See
+  [Making a Technology Buildable](#making-a-technology-buildable) for the full set of inputs a
+  buildable technology needs.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
 
 ## Model Features
+
+### Making a Technology Buildable
+
+Builds happen only when `capacity_expansion` is on. To make a technology buildable in a region
+and year:
+
+- Flag its (tech, step) pair `True` in the `is_buildable` column of `tech_build.csv`.
+- Give it a `capital_cost` entry for that region and year. Any (region, tech, step, year) with no
+  `capital_cost` entry is implicitly dropped from the build set, so a buildable pair can be left
+  out of a region or year by leaving out its cost. Leaving out a year only stops new builds in
+  that year: capacity built earlier stays indexed and in service in every later year.
+- If `expansion_learning_type` is `linear` or `nonlinear`, also give it a `capital_cost_initial`
+  entry in every analyzed region. Unlike `capital_cost`, gaps here are errors.
+- Give it a `generation_cost` entry for every season and every year from its first
+  `capital_cost` year onward, including years with no `capital_cost`. A buildable location joins
+  the capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
+  missing entry fails validation (and would otherwise fail the model build).
+- Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
+  and has no default.
+- For a VRE tech, give it `capacity_factor_hourly` entries for that region. These default to
+  0.0, so a missing profile is not an error: the location can be built but generates nothing.
+  The 0.0 default is temporary, pending updates to the input data. Once it is removed, a VRE tech
+  added without `capacity_factor_hourly` entries will fail with an error.
+- For a hydro tech, give it a `capacity_factor_seasonal` entry for that region, for each of its
+  steps and every season. It sets the energy budget of seasonal hydro (12) and the hourly bound of
+  regular hydro (14), and scales hydro capacity in the reserve margin (24). The parameter has no default, so a missing entry fails
+  the model build. `hydro_capacity_factor.csv` carries only region and season, and `ParamData`
+  applies each row to every hydro (tech, step), so in practice this means a row for every season
+  in each region where hydro can be built.
 
 ### Year Aggregation
 
@@ -809,7 +853,7 @@ the table:
 
 The year checks run on every year-indexed table listed above, against `year_map`. With aggregation
 off that map is one-to-one, so they only catch a summary year missing from a table. The hour checks
-run on the tables with an hour column, `elec_load` and `capacity_factor_vre`, against the map from
+run on the tables with an hour column, `elec_load` and `capacity_factor_hourly`, against the map from
 the hours of the year to the representative hours, whether or not years are aggregated. A
 combination with no rows at all in a block is ordinary sparsity and passes, and an empty table is
 not checked.
@@ -823,11 +867,15 @@ enters the sparse index sets and the objective with no sign of where it came fro
 makes the data owner decide: fill the missing years explicitly (zeros where appropriate), or
 choose `summary_years` / `aggregate_start_year` so that the blocks match the data.
 
-`capacity_factor_vre` has no year index, and the model uses the same factors in every summary
+`capacity_factor_hourly` has no year index, and the model uses the same factors in every summary
 year. Like `elec_load`, it is still averaged over the hours each representative hour stands for,
-whether or not years are aggregated. `hydro_capacity_factor`, indexed by region and season only, is
-used as read, and so are the parameters loaded as plain dictionaries, such as `fom_cost` and
-`capital_cost_initial`.
+whether or not years are aggregated. `capacity_factor_seasonal` has no year or hour index and is not
+averaged, and neither are the parameters loaded as plain dictionaries, such as `fom_cost` and
+`capital_cost_initial`. Its full key is (region, tech, step, season), matching the parameter table
+and the `PowerModel` input. The data file, `hydro_capacity_factor.csv`, is currently hydro-centric
+and carries only region and season. `ParamData` inserts tech and step by pairing each row with
+every hydro (tech, step), in anticipation of a future structure in which the data file is likely to
+carry those columns itself.
 
 **Cost weighting.** $WY_y$ multiplies the recurring, per-year costs in the objective so that each
 representative year is charged for every calendar year it stands in for:

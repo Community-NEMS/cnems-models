@@ -9,13 +9,11 @@ A temporary (?) test to lock down the current outputs of a basic no-frills test 
 
 """
 
-import logging
 from pathlib import Path
 
 import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
-from tabulate import tabulate
 
 from analysis_tools.model_diagnostics import (
     breakdown_obj_elements,
@@ -29,15 +27,9 @@ from analysis_tools.model_diagnostics import (
 )
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
 from src.models.electricity.data_ingestor import PARAM_SOURCES
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import (
-    _LEARNING_TOLERANCE,
-    ElectricitySequencer,
-    run_elec_model,
-)
+from src.models.electricity.sequencer import run_elec_model
 
 # "verbose" mode is supplied for these basic tests to screen output key data to aid in
 # development
@@ -52,8 +44,8 @@ _ALWAYS_REQUIRED = frozenset(
     {
         'storage_efficiency',
         'storage_duration',
-        'capacity_factor_vre',
-        'hydro_capacity_factor',
+        'capacity_factor_hourly',
+        'capacity_factor_seasonal',
         'generation_cost',
         'available_capacity',
         'fom_cost',
@@ -76,8 +68,8 @@ _GATED_BY_SWITCH = {
     'reserve_tech_limit': 'spinning_reserve_required',
 }
 # Note: capital_cost_initial/learning_rate/supply_curve_learning are gated by capacity_expansion +
-# expansion_learning_type != DISABLED, which none of this file's `configs` cases enable -- those
-# three are instead cross-checked in test_linear_learning below.
+# expansion_learning_type != DISABLED, so they are cross-checked in
+# tests/electric/learning/test_learning_linear.py::test_linear_learning instead.
 
 # TODO:  Add combination with expansion + margin required to test combo
 #        constraint near line 1500 in model
@@ -141,6 +133,12 @@ _GATED_BY_SWITCH = {
 # UNMET_LOAD_PRICE was raised from 500 to 50,000 $/MWh.  These are the two configs that solve with
 # some unmet load (PENALTY status), so the higher price raises their objectives by ~0.04%; the
 # other configs serve all load and are unchanged.  Variable and constraint counts do not move.
+# Note: the reserve_spinning_with_expansion_no_learning expected total cost was re-captured
+# (8079497724.77 -> 8081343408.89, ~+0.02%) when the wind and solar members of the regulation and
+# flex requirements were taken from the VRE generation index instead of the reserve suppliers.
+# Wind and solar supply no reserves, so the old source left both sets empty: regulation was 1% of
+# load and the flex requirement was zero.  Only this config turns on operating reserves, and its
+# variable and constraint counts do not move, since the fix adds terms to existing constraints.
 configs = [
     ('basic', 8152448639.12, 17430, 19182),
     ('exchange', 7069030790.54, 20886, 22830),
@@ -151,7 +149,7 @@ configs = [
     # but got 20% reduction after reformulating to honor sparsity from the upper bound table
     (
         'reserve_spinning_with_expansion_no_learning',
-        8079497724.77,
+        8081343408.89,
         51588,
         56748,
     ),
@@ -292,304 +290,3 @@ def test_basic_run(config_info, expected_total_cost, expected_nvariables, expect
         assert hasattr(elec_model, key) == expected_present, (
             f'{key} presence mismatch for config {config_info!r}'
         )
-
-
-@pytest.mark.parametrize(
-    'bad_value,expected_message',
-    [
-        (0.0, 'Value not in parameter domain PositiveReals'),
-        (-5.0, 'Value not in parameter domain PositiveReals'),
-        (float('nan'), 'Value not in parameter domain PositiveReals'),
-    ],
-    ids=['zero', 'negative', 'nan'],
-)
-def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected_message):
-    """An unusable ``supply_curve_learning`` is caught at construction, not in the objective.
-
-    The curve divides by this baseline and raises the result to a fractional power, so any of these
-    would otherwise surface as a division error, a domain error, or a silent NaN from somewhere
-    inside the objective, with nothing to say which technology caused it.
-
-    ``within=PositiveReals`` rejects all three at construction.
-    """
-    from src.models.electricity import param_data as param_data_module
-
-    original_init = param_data_module.ParamData.__init__
-    poisoned = {}
-
-    def poisoned_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        baselines = self.param_dicts['supply_curve_learning']
-        key = min(baselines)
-        # keys are single element tuples, while the error names the technology itself
-        poisoned['tech'] = key[0] if isinstance(key, tuple) else key
-        baselines[key] = bad_value
-
-    monkeypatch.setattr(param_data_module.ParamData, '__init__', poisoned_init)
-
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
-
-    with pytest.raises(ValueError) as caught:
-        ElectricitySequencer().build_model(common_config, elec_config)
-
-    message = str(caught.value)
-    assert expected_message in message
-    # The offending technology has to be identifiable, which is the point of catching it here.
-    assert str(poisoned['tech']) in message
-
-
-# Builds are in MW against a supply_curve_learning baseline of ~154,000 MW.  1 GW keeps the learning
-# discount ~50x above pytest.approx's tolerance, the scale the characterization test uses.
-_BUILD_MW = 1000.0
-
-
-@pytest.fixture
-def nonlinear_configs() -> tuple[CommonConfig, ElecConfig]:
-    """Basic test configs with expansion, reserve margin and nonlinear learning enabled."""
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.reserve_margin_required = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
-    return common_config, elec_config
-
-
-@pytest.fixture
-def nonlinear_model(nonlinear_configs: tuple[CommonConfig, ElecConfig]) -> PowerModel:
-    """Unsolved model built from ``nonlinear_configs``."""
-    return ElectricitySequencer().build_model(*nonlinear_configs)
-
-
-def _expansion_cost_with(model: PowerModel, builds: dict[tuple, float]) -> float:
-    """Evaluate ``capacity_expansion_cost`` with only ``builds`` nonzero.
-
-    Parameters
-    ----------
-    model : PowerModel
-        Model built with nonlinear learning.
-    builds : dict[tuple, float]
-        ``capacity_builds`` key -> MW; every other build is set to 0.
-
-    Returns
-    -------
-    float
-        The evaluated expansion cost.
-    """
-    for key, var in model.capacity_builds.items():
-        var.set_value(builds.get(key, 0.0))
-    return value(model.capacity_expansion_cost)
-
-
-@pytest.mark.parametrize('regions', [None, [str(i) for i in range(1, 26)]], ids=['config', 'all'])
-def test_nonlinear_learning_index_domains(
-    nonlinear_configs: tuple[CommonConfig, ElecConfig], regions: list[str] | None
-) -> None:
-    """Nonlinear learning borrows its variable index from the linear cost table.
-
-    ``capacity_builds`` is created from ``capital_cost.keys()``, but the nonlinear objective reads
-    ``capital_cost_initial`` and, for the cumulative term, indexes ``capacity_builds`` by every
-    ``capital_cost_initial`` key crossed with every earlier year.  Both lookups must be total or the
-    expression raises ``KeyError`` during construction.  This needs a build only, so it holds the
-    invariant whether or not a nonlinear solver is installed.
-    """
-    common_config, elec_config = nonlinear_configs
-    if regions is not None:
-        elec_config.region_filter = regions
-
-    model = ElectricitySequencer().build_model(common_config, elec_config)
-
-    builds = set(model.capacity_builds)
-    initial = set(model.capital_cost_initial)
-
-    missing_outer = {(r, tech, step) for (r, tech, step, _y) in builds} - initial
-    assert not missing_outer, (
-        f'capital_cost_initial missing keys for builds: {sorted(missing_outer)[:5]}'
-    )
-
-    techs_built = {tech for (_r, tech, _s, _y) in builds}
-    missing_inner = {
-        (r, tech, step, y)
-        for (r, tech, step) in initial
-        for y in model.year
-        if tech in techs_built and (r, tech, step, y) not in builds
-    }
-    assert not missing_inner, f'capacity_builds missing keys: {sorted(missing_inner)[:5]}'
-
-
-def test_nonlinear_learning_objective_characterization(nonlinear_model: PowerModel) -> None:
-    """Record what the nonlinear expansion cost expression evaluates to today.
-
-    This is a **characterization** test, not an acceptance test: it pins current behavior so that
-    refactoring the learning multiplier cannot change the formulation silently.  It does not assert
-    that these values are correct, the provenance of ``supply_curve_learning`` is unresolved, so
-    the numbers are not yet interpretable.
-
-    Evaluates the expression at fixed build levels rather than solving, so it needs no nonlinear
-    solver and runs wherever the model can be constructed.
-    """
-    model = nonlinear_model
-    assert len(model.capacity_builds) == 48
-
-    def cost_at(level: float) -> float:
-        return _expansion_cost_with(model, dict.fromkeys(model.capacity_builds, level))
-
-    # No builds means no expansion cost, whatever the multiplier does.
-    assert cost_at(0.0) == pytest.approx(0.0, abs=1e-9)
-
-    # builds are in MW; 1 and 2.5 GW keep the values captured before the move to MW units
-    at_one = cost_at(1000.0)
-    at_two_and_a_half = cost_at(2500.0)
-    assert at_one == pytest.approx(133777599845.11543)
-    assert at_two_and_a_half == pytest.approx(329888419799.9818)
-
-    # Learning makes cost subadditive in cumulative builds: 2.5x the capacity costs less than 2.5x
-    # the money.  That is the property the nonlinear mode exists to produce, so it is asserted
-    # separately from the pinned values, which are only a snapshot.
-    assert at_two_and_a_half < 2.5 * at_one
-
-
-def test_nonlinear_build_does_not_discount_itself(nonlinear_model: PowerModel) -> None:
-    """A build must be discounted by prior years' capacity, not by its own.
-
-    The shared curve takes whatever cumulative quantity it is handed; this checks the objective
-    hands it the right one.  First-year builds have no prior experience, so building only in the
-    first year must cost exactly the undiscounted price.  Needs a build only, no solver.
-    """
-    model = nonlinear_model
-    first_year = min(model.year)
-    keys = [k for k in model.capacity_builds if k[3] == first_year]
-    cost = _expansion_cost_with(model, dict.fromkeys(keys, _BUILD_MW))
-    undiscounted = sum(_BUILD_MW * value(model.capital_cost_initial[k[:3]]) for k in keys)
-    assert cost == pytest.approx(undiscounted)
-
-
-def test_nonlinear_experience_pools_across_regions(nonlinear_model: PowerModel) -> None:
-    """A later build is discounted by earlier builds of the same tech in *other* regions.
-
-    Build in one region in the first year, then price a later-year build of the same technology in
-    a different region.  If the cumulative term were region-local the later build would be charged
-    the undiscounted price.  The closed form is asserted rather than an inequality, so a wrong
-    aggregation cannot pass by discounting some other amount.  Needs a build only, no solver.
-    """
-    model = nonlinear_model
-    tech, step = '1', 3
-    source = ('7', tech, step, min(model.year))
-    later = ('8', tech, step, max(model.year))
-    assert {source, later} <= set(model.capacity_builds)
-    source_cost = _BUILD_MW * value(model.capital_cost_initial[source[:3]])
-    later_cost = _BUILD_MW * value(model.capital_cost_initial[later[:3]])
-
-    # With no prior experience anywhere, the later build is charged undiscounted.
-    assert _expansion_cost_with(model, {later: _BUILD_MW}) == pytest.approx(later_cost)
-
-    pooled = _expansion_cost_with(model, {source: _BUILD_MW, later: _BUILD_MW})
-    baseline = value(model.supply_curve_learning[tech])
-    multiplier = ((baseline + _BUILD_MW) / baseline) ** -value(model.learning_rate[tech])
-    # Guard: the discount must be resolvable at approx's tolerance, or this test proves nothing.
-    assert pooled != pytest.approx(source_cost + later_cost)
-    assert pooled == pytest.approx(source_cost + later_cost * multiplier)
-
-
-def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
-    """Exercise the linear-learning iteration on a single-region micro dataset.
-
-    The dataset lives in tests/electric/test_data_linear_learning_test.  It has a single region
-    'CA' and a single tech 'NG_Fired_Plant', with 2,000 MW of existing capacity against a load
-    that starts at 4,000 MW and grows 5,000 MW/year, forcing step-3 builds every year.  Asserts on
-    the convergence log emitted by ``ElectricitySequencer.solve_model`` each iteration.
-    """
-    common_config, elec_config = learning_config_set
-
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
-
-    # with learning enabled, the learning-gated param_sources.toml entries should be wired in
-    for key in ('capital_cost_initial', 'learning_rate', 'supply_curve_learning'):
-        assert not PARAM_SOURCES[key].required
-        assert hasattr(elec_model, key), f'{key} missing with learning enabled'
-
-    # DEBUG level additionally captures the per-key capital_cost updates for the verbose table.  The
-    # iteration log comes from the sequencer and the capital_cost updates from learning.py, so both
-    # loggers are raised.
-    capture_level = logging.DEBUG if verbose else logging.INFO
-    with (
-        caplog.at_level(capture_level, logger='src.models.electricity.sequencer'),
-        caplog.at_level(capture_level, logger='src.models.electricity.learning'),
-    ):
-        _, status = sequencer.solve_model()
-    assert status is IterationStatus.BEST, f'solve failed with status {status}'
-
-    if verbose:
-        # args of the sequencer.update_expansion_cost debug records: (r, tech, step, y, old, new)
-        cost_rows = [
-            rec.args for rec in caplog.records if rec.msg.startswith('Reduced capital_cost')
-        ]
-        initial_costs = {
-            idx: value(elec_model.capital_cost_initial[idx])
-            for idx in elec_model.capital_cost_initial
-        }
-        print(f'\ncap_cost_initial: {initial_costs}')
-        # one record per capital_cost key per iteration; recover the iteration index by
-        # chunking
-        n_keys = len(elec_model.capital_cost)
-        table = [
-            (i // n_keys, y, old, new)
-            for i, (_r, _tech, _step, y, old, new) in enumerate(cost_rows)
-        ]
-        headers = ['iteration', 'year', 'old cost', 'new cost']
-        print(tabulate(table, headers=headers, floatfmt='.2f'))
-
-    # gather the per-iteration convergence records: args are (iteration, eps)
-    tolerance_records = [
-        rec.args
-        for rec in caplog.records
-        if rec.msg.startswith('Tolerance in linear learning iteration')
-    ]
-    assert len(tolerance_records) >= 1, 'no learning iterations were logged'
-    _, final_eps = tolerance_records[-1]
-    assert final_eps < _LEARNING_TOLERANCE, (
-        f'learning did not converge: final eps {final_eps} >= tolerance {_LEARNING_TOLERANCE}'
-    )
-    # The load forces the same builds whatever the cost, so the second solve repeats the first and
-    # the loop stops there.  A change to the stopping rule that moved this count would show here.
-    assert len(tolerance_records) == 2
-
-    # the load design must force expansion builds (step 3), otherwise learning has nothing to do
-    total_builds = sum(value(elec_model.capacity_builds[idx]) for idx in elec_model.capacity_builds)
-    assert total_builds > 0, 'expected capacity builds; dataset failed to force expansion'
-
-
-def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
-    """Pin what linear learning does on the micro dataset, where the curve changes the answer.
-
-    The load forces builds in every year from 2030 to 2035, so every year after the first is priced
-    from real prior experience.  Each final ``capital_cost`` is checked against the curve written
-    out from the solved builds, and the expansion cost is pinned tightly enough that a change to the
-    curve or to the exponent moves it.
-    """
-    common_config, elec_config = learning_config_set
-    sequencer = ElectricitySequencer()
-    model = sequencer.build_model(common_config, elec_config)
-    assert sequencer.solve_model()[-1] is IterationStatus.BEST
-
-    for r, tech, step, y in model.capital_cost:
-        prior = sum(
-            value(model.capacity_builds[idx])
-            for idx in model.capacity_builds
-            if idx[1] == tech and idx[3] < y
-        )
-        baseline = value(model.supply_curve_learning[tech])
-        exponent = value(model.learning_rate[tech])
-        multiplier = ((baseline + prior) / baseline) ** (-exponent)
-        expected = value(model.capital_cost_initial[r, tech, step]) * multiplier
-        assert value(model.capital_cost[r, tech, step, y]) == pytest.approx(expected, rel=1e-9)
-
-    # The expansion cost is about 1/3800 of the objective, so the objective's default tolerance
-    # would miss a change of a few dollars in it.  It is pinned on its own, tighter.
-    assert value(model.capacity_expansion_cost) == pytest.approx(2525039.4414830687, rel=1e-9)
-    assert value(model.total_cost) == pytest.approx(9513531839.477724)

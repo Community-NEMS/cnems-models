@@ -35,7 +35,7 @@ pixi run format
 # Run a single test file / test — enter the env, then call pytest directly
 pixi shell
 pytest tests/electric/test_basic_run.py -q
-pytest tests/electric/test_basic_run.py::test_linear_learning -q
+pytest tests/electric/learning/test_learning_linear.py::test_linear_learning -q
 
 # Run the model standalone (new config path; __main__ runs the run_configs/*.toml scenarios)
 pixi shell
@@ -141,8 +141,22 @@ lets a run represent multiple actual years with one solved representative year, 
 
 `tests/electric/conftest.py` provides four fixtures: `config_set` (a `(CommonConfig, ElecConfig)` pair
 built from `tests/electric/basic_elec_config.toml`), `learning_config_set` (the single-region
-linear-learning micro dataset under `tests/electric/test_data_linear_learning_test/`), and
+linear-learning micro dataset under `tests/electric/learning/linear_micro_data/`), and
 `unsolved_model` / `solved_model`, which add a `PowerModel` built via `ElectricitySequencer`.
+
+Learning tests live in the `tests/electric/learning/` subpackage: the shared curve
+(`test_learning_curve.py`), the linear helpers plus full runs on the micro dataset
+(`test_learning_linear.py`), and the nonlinear objective checks (`test_learning_nonlinear.py`, with
+its `nonlinear_configs` / `nonlinear_model` fixtures in `learning/conftest.py`).
+
+For new tests, prefer the CSV-free **mini model** (`tests/electric/mini_model.py`) over the shipped
+data: 2 regions (R1, R2), 2 techs (Gas, Solar), 2 years, 2 rep days x 2 hours, and unit time weights.
+The base has only Gas capacity and costs, and Solar is declared with no data. Its `patch_loaders`
+monkeypatches the raw loaders, so the real `ModelSets` / `ParamData` / `validate_all` / sequencer
+run on it. To use it, take the `mini_data` fixture and augment it with the `MiniModelData` helpers
+(`add_tech`, `add_capacity`, `add_operating_costs`, `add_rows`, `set_buildable`, `set_load`, `every`).
+Then call the `build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`.
+`tests/electric/test_mini_model.py` has worked examples, including adding storage.
 
 `analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,
 `gather_param_data`, `gather_constraint_data`, `breakdown_obj_elements`, `capacity_inspector`,
@@ -153,7 +167,8 @@ writing new inspection code when debugging a test.
 feature combinations (baseline, exchange, expansion, ramping, reserve margin) against values captured
 from a legacy run; if you intentionally change model formulation, these expected values need updating and
 the change should be justified (see the module docstring's caveat that captured values are *assumed*
-correct, not verified against an independent source).
+correct, not verified against an independent source). It holds only these full runs; learning-specific
+tests belong under `tests/electric/learning/`.
 
 ## Ignore / do not touch
 

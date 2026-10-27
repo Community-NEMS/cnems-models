@@ -29,14 +29,14 @@ _EXPECTED_PARAM_SOURCES = {
         ('region', 'tech', 'step'),
         'capital_cost_initial_usd_per_mw',
     ),
-    'capacity_factor_vre': (
+    'capacity_factor_hourly': (
         'capacity_factor_vre.csv',
         ('region', 'tech', 'step', 'hour'),
         'capacity_factor_vre_frac',
     ),
     'fom_cost': ('fom_cost.csv', ('region', 'tech', 'step'), 'fom_cost_usd_per_mw_yr'),
     'storage_duration': ('storage_duration.csv', ('tech',), 'storage_duration_hr'),
-    'hydro_capacity_factor': (
+    'capacity_factor_seasonal': (
         'hydro_capacity_factor.csv',
         ('region', 'season'),
         'hydro_capacity_factor_frac',
@@ -97,8 +97,8 @@ _EXPECTED_PARAM_SOURCES = {
 _REQUIRED_KEYS = {
     'storage_efficiency',
     'storage_duration',
-    'capacity_factor_vre',
-    'hydro_capacity_factor',
+    'capacity_factor_hourly',
+    'capacity_factor_seasonal',
     'generation_cost',
     'available_capacity',
     'fom_cost',

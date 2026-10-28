@@ -20,6 +20,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
+from src.common.season import Season
 from src.integrator.utilities import create_temporal_mapping
 from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
 from src.models.electricity.elec_config import ElecConfig, ReserveType
@@ -99,6 +100,8 @@ class ModelSets:
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    season: list[Season]
+    """The model's seasons, in natural (``Season.sort_order``) order"""
     seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
@@ -195,7 +198,7 @@ class ModelSets:
 
         # Temporal Sets - Days and Seasons
 
-        self.season = self.cw_temporal['Map_s'].unique()  # note:  these are rich Season objects
+        self.season = sorted(self.cw_temporal['Map_s'].unique())
         self.num_days = self.cw_temporal['Map_day'].max()
         self.day = range(1, self.num_days + 1)
 

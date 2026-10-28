@@ -177,7 +177,7 @@ def validate_seasonal_coverage(
         Raw ingested data keyed by tuple index.
     season_idx_loc : int
         Position of the season within the index tuple.
-    seasons : Sequence[int | str]
+    seasons : Sequence[Season]
         The expected seasons.
 
     Returns

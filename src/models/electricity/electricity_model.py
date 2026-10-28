@@ -698,7 +698,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #                 Objective
         #  =======================================
 
-        def dispatch_cost(self):
+        def dispatch_cost(m: PowerModel):
             """Dispatch cost (e.g., variable O&M cost) component for the objective function.
 
             Returns
@@ -707,39 +707,39 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Dispatch cost
             """
             return sum(
-                self.weight_day[self.map_hour_day[hr]]
+                m.weight_day[m.map_hour_day[hr]]
                 * (
                     sum(
-                        self.weight_year[y]
+                        m.weight_year[y]
                         * (
-                            self.generation_cost[r, tech, step, y, season]
-                            + self.ng_fuel_adj[r, tech, step, y, season]
+                            m.generation_cost[r, tech, step, y, season]
+                            + m.ng_fuel_adj[r, tech, step, y, season]
                         )
-                        * self.generation_total[r, tech, step, y, hr]
-                        for (r, tech, step, y) in self.generation_hour_index[hr]
+                        * m.generation_total[r, tech, step, y, hr]
+                        for (r, tech, step, y) in m.generation_hour_index[hr]
                     )
                     + sum(
-                        self.weight_year[y]
+                        m.weight_year[y]
                         * (
                             0.5
-                            * self.generation_cost[r, tech, step, y, season]
+                            * m.generation_cost[r, tech, step, y, season]
                             * (
-                                self.storage_inflow[r, tech, step, y, hr]
-                                + self.storage_outflow[r, tech, step, y, hr]
+                                m.storage_inflow[r, tech, step, y, hr]
+                                + m.storage_outflow[r, tech, step, y, hr]
                             )
-                            + (self.weight_hour[hr] * self.storage_level_cost)
-                            * self.storage_level[r, tech, step, y, hr]
+                            + (m.weight_hour[hr] * m.storage_level_cost)
+                            * m.storage_level[r, tech, step, y, hr]
                         )
-                        for (r, tech, step, y) in self.storage_hour_index[hr]
+                        for (r, tech, step, y) in m.storage_hour_index[hr]
                     )
                 )
-                for hr in self.hour
-                if (season := self.map_hour_season[hr])
+                for hr in m.hour
+                if (season := m.map_hour_season[hr])
             )
 
         self.dispatch_cost = pyo.Expression(expr=dispatch_cost)
 
-        def unmet_load_cost(self):
+        def unmet_load_cost(m: PowerModel):
             """Unmet load cost component for the objective function. Should equal zero.
 
             Returns
@@ -748,17 +748,17 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Unmet load cost
             """
             return sum(
-                self.weight_day[self.map_hour_day[hr]]
-                * self.weight_year[y]
-                * self.unmet_load[r, y, hr]
-                * self.unmet_load_penalty
-                for (r, y, hr) in self.elec_load
-                if r in self.region_analyze
+                m.weight_day[m.map_hour_day[hr]]
+                * m.weight_year[y]
+                * m.unmet_load[r, y, hr]
+                * m.unmet_load_penalty
+                for (r, y, hr) in m.elec_load
+                if r in m.region_analyze
             )
 
         self.unmet_load_cost = pyo.Expression(expr=unmet_load_cost)
 
-        def fixed_om_cost(self):
+        def fixed_om_cost(m: PowerModel):
             """Fixed operation and maintenance (FOM) cost component for the objective function.
 
             Returns
@@ -767,10 +767,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 FOM cost component
             """
             return sum(
-                self.weight_year[y]
-                * self.fom_cost[r, tech, step]
-                * self.capacity_total[r, tech, step, y]
-                for (r, tech, step, y) in self.capacity_total
+                m.weight_year[y] * m.fom_cost[r, tech, step] * m.capacity_total[r, tech, step, y]
+                for (r, tech, step, y) in m.capacity_total
             )
 
         self.fixed_om_cost = pyo.Expression(expr=fixed_om_cost)
@@ -780,7 +778,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             # nonlinear expansion costs
             if elec_config.expansion_learning_type == ExpansionLearningType.NONLINEAR:
 
-                def capacity_expansion_cost(self):
+                def capacity_expansion_cost(m: PowerModel):
                     """Capacity expansion cost component for the objective function.
 
                     Applies when the learning switch is set to the nonlinear option.  The curve
@@ -794,24 +792,24 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     """
                     return sum(
                         learning_cost(
-                            build_quantity=self.capacity_builds[r, tech, step, y],
+                            build_quantity=m.capacity_builds[r, tech, step, y],
                             # Experience is this technology's builds across every region and step,
                             # in years strictly before y, so a build never discounts its own cost.
                             cumulative_quantity=sum(
-                                self.capacity_builds[region, other_tech, other_step, year]
+                                m.capacity_builds[region, other_tech, other_step, year]
                                 for (
                                     region,
                                     other_tech,
                                     other_step,
                                     year,
-                                ) in self.capacity_build_index
+                                ) in m.capacity_build_index
                                 if other_tech == tech and year < y
                             ),
-                            baseline_quantity=self.supply_curve_learning[tech],
-                            initial_cost=self.capital_cost_initial[r, tech, step],
-                            learning_rate=self.learning_rate[tech],
+                            baseline_quantity=m.supply_curve_learning[tech],
+                            initial_cost=m.capital_cost_initial[r, tech, step],
+                            learning_rate=m.learning_rate[tech],
                         )
-                        for (r, tech, step, y) in self.capacity_build_index
+                        for (r, tech, step, y) in m.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -822,7 +820,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 ExpansionLearningType.DISABLED,
             }:
 
-                def capacity_expansion_cost(self):
+                def capacity_expansion_cost(m: PowerModel):
                     """Capacity expansion cost component for the objective function.
 
                     Applies when the learning switch is set to the linear option.
@@ -833,8 +831,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         Capacity expansion cost component (linear learning)
                     """
                     return sum(
-                        self.capital_cost[r, tech, step, y] * self.capacity_builds[r, tech, step, y]
-                        for (r, tech, step, y) in self.capacity_build_index
+                        m.capital_cost[r, tech, step, y] * m.capacity_builds[r, tech, step, y]
+                        for (r, tech, step, y) in m.capacity_build_index
                     )
 
                 self.capacity_expansion_cost = pyo.Expression(expr=capacity_expansion_cost)
@@ -850,7 +848,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # if trade operation is on
         if elec_config.regional_exchange:
 
-            def trade_cost(self):
+            def trade_cost(m: PowerModel):
                 """Interregional and international trade cost component for the objective function.
 
                 Returns
@@ -859,17 +857,17 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Interregional trade cost component
                 """
                 return sum(
-                    self.weight_day[self.map_hour_day[hr]]
-                    * self.weight_year[y]
-                    * self.trade_interregional[r, r1, y, hr]
-                    * self.tran_cost[r, r1, y]
-                    for (r, r1, y, hr) in self.trade_interregional
+                    m.weight_day[m.map_hour_day[hr]]
+                    * m.weight_year[y]
+                    * m.trade_interregional[r, r1, y, hr]
+                    * m.tran_cost[r, r1, y]
+                    for (r, r1, y, hr) in m.trade_interregional
                 ) + sum(
-                    self.weight_day[self.map_hour_day[hr]]
-                    * self.weight_year[y]
-                    * self.trade_international[r, r_int, step, y, hr]
-                    * self.tran_cost_intl[r, r_int, step, y]
-                    for (r, r_int, step, y, hr) in self.international_trade_index
+                    m.weight_day[m.map_hour_day[hr]]
+                    * m.weight_year[y]
+                    * m.trade_international[r, r_int, step, y, hr]
+                    * m.tran_cost_intl[r, r_int, step, y]
+                    for (r, r_int, step, y, hr) in m.international_trade_index
                 )
 
             self.trade_cost = pyo.Expression(expr=trade_cost)
@@ -879,7 +877,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # if ramping requirements are on
         if elec_config.ramping_required:
 
-            def ramp_cost(self):
+            def ramp_cost(m: PowerModel):
                 """Ramping cost component for the objective function.
 
                 Returns
@@ -888,14 +886,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramping cost component
                 """
                 return sum(
-                    self.weight_day[self.map_hour_day[hr]]
-                    * self.weight_year[y]
+                    m.weight_day[m.map_hour_day[hr]]
+                    * m.weight_year[y]
                     * (
-                        self.generation_ramp_up[r, t_conv, step, y, hr] * self.ramp_up_cost[t_conv]
-                        + self.generation_ramp_down[r, t_conv, step, y, hr]
-                        * self.ramp_down_cost[t_conv]
+                        m.generation_ramp_up[r, t_conv, step, y, hr] * m.ramp_up_cost[t_conv]
+                        + m.generation_ramp_down[r, t_conv, step, y, hr] * m.ramp_down_cost[t_conv]
                     )
-                    for (r, t_conv, step, y, hr) in self.generation_ramp_index
+                    for (r, t_conv, step, y, hr) in m.generation_ramp_index
                 )
 
             self.ramp_cost = pyo.Expression(expr=ramp_cost)
@@ -905,7 +902,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
 
-            def operating_reserves_cost(self):
+            def operating_reserves_cost(m: PowerModel):
                 """Operating reserve cost component for the objective function.
 
                 Returns
@@ -914,11 +911,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Operating reserve cost component
                 """
                 return sum(
-                    self.reserve_cost[restype, tech]
-                    * self.weight_day[self.map_hour_day[hr]]
-                    * self.weight_year[y]
-                    * self.reserves_procurement[r, restype, tech, step, y, hr]
-                    for (r, restype, tech, step, y, hr) in self.reserves_procurement_index
+                    m.reserve_cost[restype, tech]
+                    * m.weight_day[m.map_hour_day[hr]]
+                    * m.weight_year[y]
+                    * m.reserves_procurement[r, restype, tech, step, y, hr]
+                    for (r, restype, tech, step, y, hr) in m.reserves_procurement_index
                 )
 
             self.operating_reserves_cost = pyo.Expression(expr=operating_reserves_cost)
@@ -926,7 +923,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             self.operating_reserves_cost = 0.0
 
         # Final Objective Function
-        def electricity_objective_function(self):
+        def electricity_objective_function(m: PowerModel):
             """Objective function, objective is to minimize costs to the electric power system.
 
             Returns
@@ -935,13 +932,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Objective function
             """
             return (
-                self.dispatch_cost
-                + self.unmet_load_cost
-                + self.ramp_cost
-                + self.trade_cost
-                + self.capacity_expansion_cost
-                + self.fixed_om_cost
-                + self.operating_reserves_cost
+                m.dispatch_cost
+                + m.unmet_load_cost
+                + m.ramp_cost
+                + m.trade_cost
+                + m.capacity_expansion_cost
+                + m.fixed_om_cost
+                + m.operating_reserves_cost
             )
 
         self.total_cost = pyo.Objective(rule=electricity_objective_function, sense=pyo.minimize)
@@ -952,11 +949,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # Property: ShadowPrice
         @self.Constraint(self.region_analyze, self.year, self.hour)
-        def demand_balance(self, r, y, hr):
+        def demand_balance(m: PowerModel, r, y, hr):
             """Demand balance constraint where Load <= Generation.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             r : pyomo.core.base.set.OrderedScalarSet
                 region set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -969,25 +968,24 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             pyomo.core.base.constraint.IndexedConstraint
                 Demand balance constraint
             """
-            return self.elec_load[r, y, hr] <= sum(
-                self.generation_total[r, tech, step, y, hr]
-                for (tech, step) in self.generation_demand_balance[r, y, hr]
+            return m.elec_load[r, y, hr] <= sum(
+                m.generation_total[r, tech, step, y, hr]
+                for (tech, step) in m.generation_demand_balance[r, y, hr]
             ) + sum(
-                self.storage_outflow[r, tech, step, y, hr]
-                - self.storage_inflow[r, tech, step, y, hr]
-                for (tech, step) in self.storage_demand_balance[r, y, hr]
-            ) + self.unmet_load[r, y, hr] + (
+                m.storage_outflow[r, tech, step, y, hr] - m.storage_inflow[r, tech, step, y, hr]
+                for (tech, step) in m.storage_demand_balance[r, y, hr]
+            ) + m.unmet_load[r, y, hr] + (
                 sum(
-                    self.trade_interregional[r, r1, y, hr] * (1 - TRANSMISSION_LOSS_FACTOR)
-                    - self.trade_interregional[r1, r, y, hr]
-                    for r1 in self.regional_sources[r, y, hr]
+                    m.trade_interregional[r, r1, y, hr] * (1 - TRANSMISSION_LOSS_FACTOR)
+                    - m.trade_interregional[r1, r, y, hr]
+                    for r1 in m.regional_sources[r, y, hr]
                 )
                 if elec_config.regional_exchange
                 else 0
             ) + (
                 sum(
-                    self.trade_international[r, r_int, step, y, hr] * (1 - TRANSMISSION_LOSS_FACTOR)
-                    for (r_int, step) in self.international_partners[r, y, hr]
+                    m.trade_international[r, r_int, step, y, hr] * (1 - TRANSMISSION_LOSS_FACTOR)
+                    for (r_int, step) in m.international_partners[r, y, hr]
                 )
                 if elec_config.regional_exchange
                 else 0
@@ -995,7 +993,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # First hour
         @self.Constraint(self.storage_first_hour_balance_index)
-        def storage_first_hour_balance(self, r, t_stor, step, y, hr_first):
+        def storage_first_hour_balance(m: PowerModel, r, t_stor, step, y, hr_first):
             """Storage balance constraint for the first hour time-segment in each day-type.
 
             Storage level == Storage level (in final hour time-segment in current day-type)
@@ -1004,6 +1002,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_stor : pyomo.core.base.set.OrderedScalarSet
                 storage technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1021,16 +1021,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Storage balance constraint for the first hour time-segment in each day-type
             """
             return (
-                self.storage_level[r, t_stor, step, y, hr_first]
-                == self.storage_level[r, t_stor, step, y, hr_first + self.num_hr_day - 1]
-                + self.storage_efficiency[t_stor]
-                * self.storage_inflow[r, t_stor, step, y, hr_first]
-                - self.storage_outflow[r, t_stor, step, y, hr_first]
+                m.storage_level[r, t_stor, step, y, hr_first]
+                == m.storage_level[r, t_stor, step, y, hr_first + m.num_hr_day - 1]
+                + m.storage_efficiency[t_stor] * m.storage_inflow[r, t_stor, step, y, hr_first]
+                - m.storage_outflow[r, t_stor, step, y, hr_first]
             )
 
         # Not first hour
         @self.Constraint(self.storage_most_hours_balance_index)
-        def storage_most_hours_balance(self, r, t_stor, step, y, hr_most):
+        def storage_most_hours_balance(m: PowerModel, r, t_stor, step, y, hr_most):
             """Storage balance constraint for every time-segment after the first in a day-type.
 
             Storage level == Storage level (in previous hour time-segment)
@@ -1039,6 +1038,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_stor : pyomo.core.base.set.OrderedScalarSet
                 storage technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1057,10 +1058,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             the first hour time-segment
             """
             return (
-                self.storage_level[r, t_stor, step, y, hr_most]
-                == self.storage_level[r, t_stor, step, y, hr_most - 1]
-                + self.storage_efficiency[t_stor] * self.storage_inflow[r, t_stor, step, y, hr_most]
-                - self.storage_outflow[r, t_stor, step, y, hr_most]
+                m.storage_level[r, t_stor, step, y, hr_most]
+                == m.storage_level[r, t_stor, step, y, hr_most - 1]
+                + m.storage_efficiency[t_stor] * m.storage_inflow[r, t_stor, step, y, hr_most]
+                - m.storage_outflow[r, t_stor, step, y, hr_most]
             )
 
         # quick reverse lookup helper set...
@@ -1070,7 +1071,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         self.hour_season_index = pyo.Set(self.season, within=self.hour, initialize=idx)
 
         @self.Constraint(self.seasonal_hydro_index)
-        def seasonal_hydro_discharge_ub(self, r, t_hydro, y, season):
+        def seasonal_hydro_discharge_ub(m: PowerModel, r, t_hydro, y, season):
             """Hydroelectric generation seasonal upper bound.
 
             Hydro generation <= Hydro capacity * Hydro capacity factor.
@@ -1080,6 +1081,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_hydro : pyomo.core.base.set.OrderedScalarSet
                 seasonal hydro technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1094,30 +1097,31 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             pyomo.core.base.constraint.IndexedConstraint
                 hydroelectric generation seasonal upper bound
             """
-            steps = self.hydro_seasonal_steps[r, t_hydro, y]
+            steps = m.hydro_seasonal_steps[r, t_hydro, y]
             return (
                 sum(
-                    self.generation_total[r, t_hydro, step, y, hr]
-                    * self.weight_day[self.map_hour_day[hr]]
-                    for hr in self.hour_season_index[season]
+                    m.generation_total[r, t_hydro, step, y, hr] * m.weight_day[m.map_hour_day[hr]]
+                    for hr in m.hour_season_index[season]
                     for step in steps
                 )
                 <= sum(
-                    self.capacity_total[r, t_hydro, step, y]
-                    * self.capacity_factor_seasonal[r, t_hydro, step, season]
+                    m.capacity_total[r, t_hydro, step, y]
+                    * m.capacity_factor_seasonal[r, t_hydro, step, season]
                     for step in steps
                 )
-                * self.weight_season[season]
+                * m.weight_season[season]
             )
 
         @self.Constraint(self.generation_dispatchable_ub_index)
-        def generation_dispatchable_ub(self, r, t_disp, step, y, hr):
+        def generation_dispatchable_ub(m: PowerModel, r, t_disp, step, y, hr):
             """Dispatchable generation upper bound.
 
             Dispatchable generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_disp : pyomo.core.base.set.OrderedScalarSet
                 dispatchable technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1135,26 +1139,28 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Dispatchable generation upper bound
             """
             return (
-                self.generation_total[r, t_disp, step, y, hr]
+                m.generation_total[r, t_disp, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype, t_disp, step, y, hr]
-                        for restype in self.associated_reserve_types[r, t_disp, step, y, hr]
+                        m.reserves_procurement[r, restype, t_disp, step, y, hr]
+                        for restype in m.associated_reserve_types[r, t_disp, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, t_disp, step, y] * self.weight_hour[hr]
+                <= m.capacity_total[r, t_disp, step, y] * m.weight_hour[hr]
             )
 
         @self.Constraint(self.generation_hydro_ub_index)
-        def generation_hydro_ub(self, r, t_hydro, step, y, hr):
+        def generation_hydro_ub(m: PowerModel, r, t_hydro, step, y, hr):
             """Hydroelectric generation upper bound.
 
             Hydroelectric generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_hydro : pyomo.core.base.set.OrderedScalarSet
                 hydro technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1172,28 +1178,30 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Hydroelectric generation upper bound
             """
             return (
-                self.generation_total[r, t_hydro, step, y, hr]
+                m.generation_total[r, t_hydro, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype, t_hydro, step, y, hr]
-                        for restype in self.associated_reserve_types[r, t_hydro, step, y, hr]
+                        m.reserves_procurement[r, restype, t_hydro, step, y, hr]
+                        for restype in m.associated_reserve_types[r, t_hydro, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, t_hydro, step, y]
-                * self.capacity_factor_seasonal[r, t_hydro, step, self.map_hour_season[hr]]
-                * self.weight_hour[hr]
+                <= m.capacity_total[r, t_hydro, step, y]
+                * m.capacity_factor_seasonal[r, t_hydro, step, m.map_hour_season[hr]]
+                * m.weight_hour[hr]
             )
 
         @self.Constraint(self.generation_vre_ub_index)
-        def generation_vre_ub(self, r, t_vre, step, y, hr):
+        def generation_vre_ub(m: PowerModel, r, t_vre, step, y, hr):
             """Intermittent generation upper bound.
 
             Intermittent generation + reserve procurement <= capacity * capacity factor.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             t_vre : pyomo.core.base.set.OrderedScalarSet
                 intermittent technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1211,30 +1219,32 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 intermittent generation upper bound
             """
             return (
-                self.generation_total[r, t_vre, step, y, hr]
+                m.generation_total[r, t_vre, step, y, hr]
                 + (
                     # TODO:  Review this.  Why is it gated on spinning reserve when others aren't?
                     sum(
-                        self.reserves_procurement[r, restype, t_vre, step, y, hr]
-                        for restype in self.associated_reserve_types[r, t_vre, step, y, hr]
+                        m.reserves_procurement[r, restype, t_vre, step, y, hr]
+                        for restype in m.associated_reserve_types[r, t_vre, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, t_vre, step, y]
-                * self.capacity_factor_hourly[r, t_vre, step, hr]
-                * self.weight_hour[hr]
+                <= m.capacity_total[r, t_vre, step, y]
+                * m.capacity_factor_hourly[r, t_vre, step, hr]
+                * m.weight_hour[hr]
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
         @self.Constraint(model_sets.storage_index)
-        def storage_inflow_ub(self, r, tech, step, y, hr):
+        def storage_inflow_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage inflow upper bound.
 
             Storage inflow <= Storage Capacity.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             tech : pyomo.core.base.set.OrderedScalarSet
                 technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1252,19 +1262,21 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Storage inflow upper bound
             """
             return (
-                self.storage_inflow[r, tech, step, y, hr]
-                <= self.capacity_total[r, tech, step, y] * self.weight_hour[hr]
+                m.storage_inflow[r, tech, step, y, hr]
+                <= m.capacity_total[r, tech, step, y] * m.weight_hour[hr]
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
         @self.Constraint(model_sets.storage_index)
-        def storage_outflow_ub(self, r, tech, step, y, hr):
+        def storage_outflow_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage outflow upper bound.
 
             Storage outflow <= Storage Capacity.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             tech : pyomo.core.base.set.OrderedScalarSet
                 technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1282,27 +1294,29 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Storage outflow upper bound
             """
             return (
-                self.storage_outflow[r, tech, step, y, hr]
+                m.storage_outflow[r, tech, step, y, hr]
                 + (
                     sum(
-                        self.reserves_procurement[r, restype, tech, step, y, hr]
-                        for restype in self.associated_reserve_types[r, tech, step, y, hr]
+                        m.reserves_procurement[r, restype, tech, step, y, hr]
+                        for restype in m.associated_reserve_types[r, tech, step, y, hr]
                     )
                     if elec_config.spinning_reserve_required
                     else 0
                 )
-                <= self.capacity_total[r, tech, step, y] * self.weight_hour[hr]
+                <= m.capacity_total[r, tech, step, y] * m.weight_hour[hr]
             )
 
         # TODO:  internalize this set from the inputs ?   maybe?
         @self.Constraint(model_sets.storage_index)
-        def storage_level_ub(self, r, tech, step, y, hr):
+        def storage_level_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage level upper bound.
 
             Storage level <= Storage power capacity * storage energy capacity.
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             tech : pyomo.core.base.set.OrderedScalarSet
                 technology set
             y : pyomo.core.base.set.OrderedScalarSet
@@ -1320,12 +1334,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 Storage level upper bound
             """
             return (
-                self.storage_level[r, tech, step, y, hr]
-                <= self.capacity_total[r, tech, step, y] * self.storage_duration[tech]
+                m.storage_level[r, tech, step, y, hr]
+                <= m.capacity_total[r, tech, step, y] * m.storage_duration[tech]
             )
 
         @self.Constraint(model_sets.capacity_index)
-        def capacity_balance(self, r, tech, step, y):
+        def capacity_balance(m: PowerModel, r, tech, step, y):
             """Capacity Equality constraint.
 
             Capacity = Operating Capacity
@@ -1334,6 +1348,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             Parameters
             ----------
+            m : PowerModel
+                the model
             r : pyomo.core.base.set.OrderedScalarSet
                 region set
             tech : pyomo.core.base.set.OrderedScalarSet
@@ -1351,34 +1367,32 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             """
             # pyomo's IndexedParam has no .get(), so SIM401's suggested rewrite would fail
             existing = (
-                self.available_capacity[r, tech, step, y]  # noqa: SIM401
-                if (r, tech, step, y) in self.available_capacity
+                m.available_capacity[r, tech, step, y]  # noqa: SIM401
+                if (r, tech, step, y) in m.available_capacity
                 else 0
             )
             if elec_config.capacity_expansion:
                 built_to_date = sum(
-                    self.capacity_builds[r, tech, step, year]
-                    for year in self.year
-                    if year <= y and (r, tech, step, year) in self.capacity_builds
+                    m.capacity_builds[r, tech, step, year]
+                    for year in m.year
+                    if year <= y and (r, tech, step, year) in m.capacity_builds
                 )
                 retired_to_date = sum(
-                    self.capacity_retirements[r, tech, step, year]
-                    for year in self.year
-                    if year <= y and (r, tech, step, year) in self.capacity_retirements
+                    m.capacity_retirements[r, tech, step, year]
+                    for year in m.year
+                    if year <= y and (r, tech, step, year) in m.capacity_retirements
                 )
             else:
                 built_to_date = 0
                 retired_to_date = 0
 
-            return (
-                self.capacity_total[r, tech, step, y] == existing + built_to_date - retired_to_date
-            )
+            return m.capacity_total[r, tech, step, y] == existing + built_to_date - retired_to_date
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
 
             @self.Constraint(self.capacity_retirements_index)
-            def capacity_retirements_ub(self, r, tech, step, y):
+            def capacity_retirements_ub(m: PowerModel, r, tech, step, y):
                 """Retirement upper bound.
 
                 Capacity Retired <= Operating Capacity
@@ -1387,6 +1401,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 tech : pyomo.core.base.set.OrderedScalarSet
                     technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1401,24 +1417,24 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 pyomo.core.base.constraint.IndexedConstraint
                     Retirement upper bound
                 """
-                return self.capacity_retirements[r, tech, step, y] <= (
+                return m.capacity_retirements[r, tech, step, y] <= (
                     (
-                        self.available_capacity[r, tech, step, y]  # noqa: SIM401
-                        if (r, tech, step, y) in self.available_capacity
+                        m.available_capacity[r, tech, step, y]  # noqa: SIM401
+                        if (r, tech, step, y) in m.available_capacity
                         else 0
                     )
                     + (
                         sum(
-                            self.capacity_builds[r, tech, step, year]
-                            for year in self.year
+                            m.capacity_builds[r, tech, step, year]
+                            for year in m.year
                             if year < y
-                            if (r, tech, step, year) in self.capacity_builds
+                            if (r, tech, step, year) in m.capacity_builds
                         )
                     )
                     - sum(
-                        self.capacity_retirements[r, tech, step, year]
-                        for year in self.year
-                        if year < y and (r, tech, step, year) in self.capacity_retirements
+                        m.capacity_retirements[r, tech, step, year]
+                        for year in m.year
+                        if year < y and (r, tech, step, year) in m.capacity_retirements
                     )
                 )
 
@@ -1433,7 +1449,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             ]
 
             @self.Constraint(idx)  # (self.TranLineLimitInt_index)
-            def trade_international_capacity_ub(self, r, r_int, y, hr):
+            def trade_international_capacity_ub(m: PowerModel, r, r_int, y, hr):
                 """International interregional trade upper bound.
 
                 Interregional Trade <= Interregional Transmission Capabilities * Time.
@@ -1443,6 +1459,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 r_int : pyomo.core.base.set.OrderedScalarSet
@@ -1460,10 +1478,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 return (
                     # sum across all viable steps for this route
                     sum(
-                        self.trade_international[r, r_int, step, y, hr]
-                        for step in self.viable_international_steps[r, r_int, y, hr]
+                        m.trade_international[r, r_int, step, y, hr]
+                        for step in m.viable_international_steps[r, r_int, y, hr]
                     )
-                    <= self.tran_limit_cap_intl[r, r_int, y, hr] * self.weight_hour[hr]
+                    <= m.tran_limit_cap_intl[r, r_int, y, hr] * m.weight_hour[hr]
                 )
 
             # filter the domestic region (receiver) out of the international trade index
@@ -1473,7 +1491,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             ]
 
             @self.Constraint(idx)
-            def trade_international_generation_ub(self, r_int, step, y, hr):
+            def trade_international_generation_ub(m: PowerModel, r_int, step, y, hr):
                 """International electricity supply upper bound.
 
                 Interregional Trade <= Interregional Supply.
@@ -1483,6 +1501,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r_int : pyomo.core.base.set.OrderedScalarSet
                     international region set
                 step : pyomo.core.base.set.OrderedScalarSet
@@ -1499,20 +1519,22 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return (
                     sum(
-                        self.trade_international[r, r_int, step, y, hr]
-                        for r in self.domestic_destinations[r_int, y, hr]
+                        m.trade_international[r, r_int, step, y, hr]
+                        for r in m.domestic_destinations[r_int, y, hr]
                     )
-                    <= self.supply_limit_intl[r_int, step, y, hr] * self.weight_hour[hr]
+                    <= m.supply_limit_intl[r_int, step, y, hr] * m.weight_hour[hr]
                 )
 
             @self.Constraint(self.trade_interregional.index_set())
-            def trade_domestic_ub(self, r, r1, y, hr):
+            def trade_domestic_ub(m: PowerModel, r, r1, y, hr):
                 """Interregional trade upper bound.
 
                 Interregional Trade <= Interregional Transmission Capabilities * Time.
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 r1 : pyomo.core.base.set.OrderedScalarSet
@@ -1528,15 +1550,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Interregional trade capacity upper bound
                 """
                 return (
-                    self.trade_interregional[r, r1, y, hr]
-                    <= self.tran_limit[r, r1, y, hr] * self.weight_hour[hr]
+                    m.trade_interregional[r, r1, y, hr]
+                    <= m.tran_limit[r, r1, y, hr] * m.weight_hour[hr]
                 )
 
         # if reserve margin requirements and expansion are on
         if elec_config.capacity_expansion and elec_config.reserve_margin_required:
 
             @self.Constraint(self.elec_load.index_set())
-            def reserve_margin_lb(m, r, y, hr):
+            def reserve_margin_lb(m: PowerModel, r, y, hr):
                 """Reserve margin requirement.
 
                 Load * Reserve Margin <= Capacity * Capacity Credit * Time.
@@ -1547,6 +1569,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1561,36 +1585,37 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 # assemble the contributors by factor-type (hourly/seasonal/constant)
                 hourly = sum(
-                    self.capacity_factor_hourly[r, tech, step, hr]
-                    * self.capacity_total[r, tech, step, y]
-                    for (tech, step) in self.capacity_sources_hourly_factor[r, y]
+                    m.capacity_factor_hourly[r, tech, step, hr] * m.capacity_total[r, tech, step, y]
+                    for (tech, step) in m.capacity_sources_hourly_factor[r, y]
                 )
 
                 seasonal = sum(
-                    self.capacity_factor_seasonal[r, tech, step, self.map_hour_season[hr]]
-                    * self.capacity_total[r, tech, step, y]
-                    for (tech, step) in self.capacity_sources_seasonal_factor[r, y]
+                    m.capacity_factor_seasonal[r, tech, step, m.map_hour_season[hr]]
+                    * m.capacity_total[r, tech, step, y]
+                    for (tech, step) in m.capacity_sources_seasonal_factor[r, y]
                 )
 
                 constant = sum(
-                    self.capacity_total[r, tech, step, y]  # factor = 1.0 omitted
-                    if tech not in self.tech_stor
-                    else self.storage_avail_cap[r, tech, step, y, hr]
-                    for (tech, step) in self.capacity_sources_constant_factor[r, y]
+                    m.capacity_total[r, tech, step, y]  # factor = 1.0 omitted
+                    if tech not in m.tech_stor
+                    else m.storage_avail_cap[r, tech, step, y, hr]
+                    for (tech, step) in m.capacity_sources_constant_factor[r, y]
                 )
 
-                return self.elec_load[r, y, hr] * (
-                    1.0 + self.planning_reserve_margin[r]
-                ) <= self.weight_hour[hr] * (hourly + seasonal + constant)
+                return m.elec_load[r, y, hr] * (
+                    1.0 + m.planning_reserve_margin[r]
+                ) <= m.weight_hour[hr] * (hourly + seasonal + constant)
 
             @self.Constraint(model_sets.storage_index)
-            def reserve_margin_storage_avail_cap_ub(self, r, t_stor, step, y, hr):
+            def reserve_margin_storage_avail_cap_ub(m: PowerModel, r, t_stor, step, y, hr):
                 """Available storage power capacity for meeting reserve margin.
 
                 # ensure available capacity to meet RM for storage < power capacity
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_stor : pyomo.core.base.set.OrderedScalarSet
                     storage technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1608,18 +1633,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Available storage power capacity for meeting reserve margin
                 """
                 return (
-                    self.storage_avail_cap[r, t_stor, step, y, hr]
-                    <= self.capacity_total[r, t_stor, step, y]
+                    m.storage_avail_cap[r, t_stor, step, y, hr]
+                    <= m.capacity_total[r, t_stor, step, y]
                 )
 
             @self.Constraint(model_sets.storage_index)
-            def reserve_margin_storage_avail_level_ub(self, r, t_stor, step, y, hr):
+            def reserve_margin_storage_avail_level_ub(m: PowerModel, r, t_stor, step, y, hr):
                 """Available storage energy capacity for meeting reserve margin.
 
                 # ensure available capacity to meet RM for storage < existing SOC
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_stor : pyomo.core.base.set.OrderedScalarSet
                     storage technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1637,15 +1664,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Available storage energy capacity for meeting reserve margin
                 """
                 return (
-                    self.storage_avail_cap[r, t_stor, step, y, hr]
-                    <= self.storage_level[r, t_stor, step, y, hr]
+                    m.storage_avail_cap[r, t_stor, step, y, hr]
+                    <= m.storage_level[r, t_stor, step, y, hr]
                 )
 
         # if ramping requirements are on
         if elec_config.ramping_required:
 
             @self.Constraint(self.ramp_first_hour_balance_index)
-            def ramp_first_hour_balance(self, r, t_conv, step, y, hr_first):
+            def ramp_first_hour_balance(m: PowerModel, r, t_conv, step, y, hr_first):
                 """Ramp constraint for the first hour time-segment in each day-type.
 
                 Generation == Generation (in final hour time-segment in current day-type)
@@ -1654,6 +1681,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_conv : pyomo.core.base.set.OrderedScalarSet
                     conventional technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1671,14 +1700,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp constraint for the first hour
                 """
                 return (
-                    self.generation_total[r, t_conv, step, y, hr_first]
-                    == self.generation_total[r, t_conv, step, y, hr_first + self.num_hr_day - 1]
-                    + self.generation_ramp_up[r, t_conv, step, y, hr_first]
-                    - self.generation_ramp_down[r, t_conv, step, y, hr_first]
+                    m.generation_total[r, t_conv, step, y, hr_first]
+                    == m.generation_total[r, t_conv, step, y, hr_first + m.num_hr_day - 1]
+                    + m.generation_ramp_up[r, t_conv, step, y, hr_first]
+                    - m.generation_ramp_down[r, t_conv, step, y, hr_first]
                 )
 
             @self.Constraint(self.ramp_most_hours_balance_index)
-            def ramp_most_hours_balance(self, r, t_conv, step, y, hr_most):
+            def ramp_most_hours_balance(m: PowerModel, r, t_conv, step, y, hr_most):
                 """Ramp constraint for every time-segment after the first in a day-type.
 
                 Generation == Generation (in previous hour time-segment)
@@ -1687,6 +1716,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_conv : pyomo.core.base.set.OrderedScalarSet
                     conventional technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1704,20 +1735,22 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp constraint for the hours after the first hour
                 """
                 return (
-                    self.generation_total[r, t_conv, step, y, hr_most]
-                    == self.generation_total[r, t_conv, step, y, hr_most - 1]
-                    + self.generation_ramp_up[r, t_conv, step, y, hr_most]
-                    - self.generation_ramp_down[r, t_conv, step, y, hr_most]
+                    m.generation_total[r, t_conv, step, y, hr_most]
+                    == m.generation_total[r, t_conv, step, y, hr_most - 1]
+                    + m.generation_ramp_up[r, t_conv, step, y, hr_most]
+                    - m.generation_ramp_down[r, t_conv, step, y, hr_most]
                 )
 
             @self.Constraint(self.generation_ramp_index)
-            def ramp_up_ub(self, r, t_conv, step, y, hr):
+            def ramp_up_ub(m: PowerModel, r, t_conv, step, y, hr):
                 """Ramp rate up upper constraint.
 
                 Ramp Up <= Capacity * Ramp Rate * Time.
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_conv : pyomo.core.base.set.OrderedScalarSet
                     conventional technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1735,20 +1768,22 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp rate up upper constraint
                 """
                 return (
-                    self.generation_ramp_up[r, t_conv, step, y, hr]
-                    <= self.weight_hour[hr]
-                    * self.ramp_rate[t_conv]
-                    * self.capacity_total[r, t_conv, step, y]
+                    m.generation_ramp_up[r, t_conv, step, y, hr]
+                    <= m.weight_hour[hr]
+                    * m.ramp_rate[t_conv]
+                    * m.capacity_total[r, t_conv, step, y]
                 )
 
             @self.Constraint(self.generation_ramp_index)
-            def ramp_down_ub(self, r, t_conv, step, y, hr):
+            def ramp_down_ub(m: PowerModel, r, t_conv, step, y, hr):
                 """Ramp rate down upper constraint.
 
                 Ramp Down <= Capacity * Ramp Rate * Time.
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 t_conv : pyomo.core.base.set.OrderedScalarSet
                     conventional technology set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1766,23 +1801,25 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Ramp rate down upper constraint
                 """
                 return (
-                    self.generation_ramp_down[r, t_conv, step, y, hr]
-                    <= self.weight_hour[hr]
-                    * self.ramp_rate[t_conv]
-                    * self.capacity_total[r, t_conv, step, y]
+                    m.generation_ramp_down[r, t_conv, step, y, hr]
+                    <= m.weight_hour[hr]
+                    * m.ramp_rate[t_conv]
+                    * m.capacity_total[r, t_conv, step, y]
                 )
 
         # if operating reserve requirements are on
         if elec_config.spinning_reserve_required:
 
             @self.Constraint(self.elec_load.index_set())
-            def reserve_requirement_spin_lb(self, r, y, hr):
+            def reserve_requirement_spin_lb(m: PowerModel, r, y, hr):
                 """Spinning reserve requirements (3% of load).
 
                 Spinning reserve procurement >= 0.03 * Load.
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1797,14 +1834,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 """
                 return (
                     sum(
-                        self.reserves_procurement[r, ReserveType.SPINNING, tech, step, y, hr]
-                        for (tech, step) in self.eligible_reserves[r, ReserveType.SPINNING, y, hr]
+                        m.reserves_procurement[r, ReserveType.SPINNING, tech, step, y, hr]
+                        for (tech, step) in m.eligible_reserves[r, ReserveType.SPINNING, y, hr]
                     )
-                    >= SPINNING_RESERVE_PROPORTION * self.elec_load[r, y, hr]
+                    >= SPINNING_RESERVE_PROPORTION * m.elec_load[r, y, hr]
                 )
 
             @self.Constraint(self.elec_load.index_set())
-            def reserve_requirement_reg_lb(self, r, y, hr):
+            def reserve_requirement_reg_lb(m: PowerModel, r, y, hr):
                 """Regulation Reserve Req (1% of load + 0.5% of wind gen + 0.3% of solar cap).
 
                 Reserves Requirement >= 0.01 * Load
@@ -1813,6 +1850,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1826,20 +1865,20 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Regulation reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, ReserveType.REGULATION, tech, step, y, hr]
-                    for (tech, step) in self.eligible_reserves[r, ReserveType.REGULATION, y, hr]
-                ) >= REGULATION_RESERVE_PROPORTION * self.elec_load[
+                    m.reserves_procurement[r, ReserveType.REGULATION, tech, step, y, hr]
+                    for (tech, step) in m.eligible_reserves[r, ReserveType.REGULATION, y, hr]
+                ) >= REGULATION_RESERVE_PROPORTION * m.elec_load[
                     (r, y, hr)
                 ] + WIND_REGULATION_RESERVE_PROPORTION * sum(
-                    self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_generation[r, y, hr]
-                ) + SOLAR_REGULATION_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
-                    self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_generation[r, y, hr]
+                    m.generation_total[r, t_wind, step, y, hr]
+                    for (t_wind, step) in m.wind_generation[r, y, hr]
+                ) + SOLAR_REGULATION_RESERVE_PROPORTION * m.weight_hour[hr] * sum(
+                    m.capacity_total[r, t_solar, step, y]
+                    for (t_solar, step) in m.solar_generation[r, y, hr]
                 )
 
             @self.Constraint(self.elec_load.index_set())
-            def reserve_requirement_flex_lb(self, r, y, hr):
+            def reserve_requirement_flex_lb(m: PowerModel, r, y, hr):
                 """Flexible Reserve Requirement (10% of wind gen + 4% of solar cap).
 
                 Reserves Requirement >= 0.10 * Wind Gen
@@ -1847,6 +1886,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 r : pyomo.core.base.set.OrderedScalarSet
                     region set
                 y : pyomo.core.base.set.OrderedScalarSet
@@ -1860,14 +1901,14 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Flexible reserve requirement
                 """
                 return sum(
-                    self.reserves_procurement[r, ReserveType.FLEX, tech, step, y, hr]
-                    for (tech, step) in self.eligible_reserves[r, ReserveType.FLEX, y, hr]
+                    m.reserves_procurement[r, ReserveType.FLEX, tech, step, y, hr]
+                    for (tech, step) in m.eligible_reserves[r, ReserveType.FLEX, y, hr]
                 ) >= WIND_FLEX_RESERVE_PROPORTION * sum(
-                    self.generation_total[r, t_wind, step, y, hr]
-                    for (t_wind, step) in self.wind_generation[r, y, hr]
-                ) + SOLAR_FLEX_RESERVE_PROPORTION * self.weight_hour[hr] * sum(
-                    self.capacity_total[r, t_solar, step, y]
-                    for (t_solar, step) in self.solar_generation[r, y, hr]
+                    m.generation_total[r, t_wind, step, y, hr]
+                    for (t_wind, step) in m.wind_generation[r, y, hr]
+                ) + SOLAR_FLEX_RESERVE_PROPORTION * m.weight_hour[hr] * sum(
+                    m.capacity_total[r, t_solar, step, y]
+                    for (t_solar, step) in m.solar_generation[r, y, hr]
                 )
 
             # TODO:  Review this.  It operates on the x-product of tech x restype, yet many
@@ -1875,7 +1916,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             #        `reserve_procurement` more sparse
             #        and/or use defaults better.
             @self.Constraint(self.reserves_procurement_index)
-            def reserve_procurement_ub(self, r, restype, tech, step, y, hr):
+            def reserve_procurement_ub(m: PowerModel, r, restype, tech, step, y, hr):
                 """Reserve Requirement Procurement Upper Bound.
 
                 Reserve Procurement <= Capacity
@@ -1884,6 +1925,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
                 Parameters
                 ----------
+                m : PowerModel
+                    the model
                 restype : pyomo.core.base.set.OrderedScalarSet
                     reserve requirement type set
                 tech : pyomo.core.base.set.OrderedScalarSet
@@ -1903,8 +1946,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     Reserve Requirement Procurement Upper Bound
                 """
                 return (
-                    self.reserves_procurement[r, restype, tech, step, y, hr]
-                    <= self.reserve_tech_limit[restype, tech]
-                    * self.weight_hour[hr]
-                    * self.capacity_total[r, tech, step, y]
+                    m.reserves_procurement[r, restype, tech, step, y, hr]
+                    <= m.reserve_tech_limit[restype, tech]
+                    * m.weight_hour[hr]
+                    * m.capacity_total[r, tech, step, y]
                 )

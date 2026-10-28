@@ -106,9 +106,10 @@ def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
     solver = sequencer._opt
     cells = [(str(r), int(y)) for r in model.region_analyze for y in model.year]
     burn = [1.3 * value(model.demand[r, 'electric_power', y]) for r, y in cells]
+    mmbtu_per_bcf = model.qp_scalars['mmbtu_per_bcf']
     package = NGElectricalDemandPackage(
         elements=pd.DataFrame(
-            {NG_ELEC_DEMAND_VALUE: burn},
+            {NG_ELEC_DEMAND_VALUE: [bcf * mmbtu_per_bcf for bcf in burn]},
             index=pd.MultiIndex.from_tuples(cells, names=NG_ELEC_DEMAND_INDEX),
         ),
         source=ModelType.ELECTRICITY,
@@ -116,7 +117,7 @@ def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
     # a region the model does not hold is rejected, both built and before a build
     overage = NGElectricalDemandPackage(
         elements=pd.DataFrame(
-            {NG_ELEC_DEMAND_VALUE: [*burn, 5.0]},
+            {NG_ELEC_DEMAND_VALUE: [*(bcf * mmbtu_per_bcf for bcf in burn), 5.0]},
             index=pd.MultiIndex.from_tuples(
                 [*cells, ('not_a_region', cells[0][1])], names=NG_ELEC_DEMAND_INDEX
             ),

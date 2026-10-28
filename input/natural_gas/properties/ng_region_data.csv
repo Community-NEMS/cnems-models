@@ -9,3 +9,4 @@ west_south_central,True,-,"AR, LA, OK, TX",West South Central (Gulf Coast)
 mountain,True,-,"AZ, CO, ID, MT, NV, NM, UT, WY",Mountain (Rockies / Permian)
 pacific,True,-,"AK, CA, HI, OR, WA",Pacific
 canada,-,True,Canada,Canada
+others,-,True,Rest of world,Other International

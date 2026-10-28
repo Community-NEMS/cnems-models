@@ -18,6 +18,7 @@ fixtures would never see.
 """
 
 import logging
+from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
 from typing import ClassVar
@@ -55,28 +56,19 @@ def write_region_csv(directory: Path, rows: list[str], header: str = HEADER) -> 
     return path
 
 
-def make_config(directory: Path, region_filter: list[str] | None = None) -> NGConfig:
-    """Build an NGConfig pointed at ``directory``.
-
-    ``directory`` is absolute, so NGConfig's ``PROJECT_ROOT / input_path`` resolution leaves it
-    untouched and the config validates against the temp directory rather than the repo inputs.
-    """
-    return NGConfig(input_path=directory, region_filter=region_filter)
-
-
 @pytest.fixture
-def basic_config(tmp_path: Path) -> NGConfig:
-    """An NGConfig over a temp directory holding the two-domestic-region CSV, no filter."""
+def basic_dir(tmp_path: Path) -> Path:
+    """A temp directory holding the two-domestic-region CSV."""
     write_region_csv(tmp_path, BASIC_ROWS)
-    return make_config(tmp_path)
+    return tmp_path
 
 
 class TestLoadRegionDataHappyPath:
     """Parsing of a well-formed ng_region_data.csv."""
 
-    def test_returns_master_list_and_both_subsets(self, basic_config: NGConfig) -> None:
+    def test_returns_master_list_and_both_subsets(self, basic_dir: Path) -> None:
         """The master list is partitioned into the domestic and international subsets."""
-        result = load_region_data(basic_config)
+        result = load_region_data(basic_dir)
 
         assert result['regions'] == ['canada', 'mountain', 'pacific']
         assert result['regions_domestic'] == ['mountain', 'pacific']
@@ -91,9 +83,9 @@ class TestLoadRegionDataHappyPath:
         assert domestic | international == set(result['regions'])
         assert not domestic & international
 
-    def test_labels_cover_every_region(self, basic_config: NGConfig) -> None:
+    def test_labels_cover_every_region(self, basic_dir: Path) -> None:
         """Labels are returned for international regions too, not just the modelled ones."""
-        result = load_region_data(basic_config)
+        result = load_region_data(basic_dir)
 
         assert result['region_labels'] == {
             'mountain': 'Mountain (Rockies / Permian)',
@@ -101,9 +93,9 @@ class TestLoadRegionDataHappyPath:
             'canada': 'Canada',
         }
 
-    def test_covered_areas_column_is_not_returned(self, basic_config: NGConfig) -> None:
+    def test_covered_areas_column_is_not_returned(self, basic_dir: Path) -> None:
         """covered_areas documents the CSV for a reader; it is not part of the return shape."""
-        result = load_region_data(basic_config)
+        result = load_region_data(basic_dir)
 
         assert set(result) == {
             'regions',
@@ -114,11 +106,11 @@ class TestLoadRegionDataHappyPath:
         }
 
     def test_logs_the_counts_it_loaded(
-        self, basic_config: NGConfig, caplog: pytest.LogCaptureFixture
+        self, basic_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A successful load reports what it found, the signal a healthy run is read by."""
         with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
-            load_region_data(basic_config)
+            load_region_data(basic_dir)
 
         assert (
             'Regions loaded from CSV (3 total: 2 domestic (2 for analysis), 1 international)'
@@ -150,7 +142,7 @@ class TestLoadRegionDataHappyPath:
         write_region_csv(
             tmp_path, [f'mountain,{flag},-,"AZ, CO",Mountain', 'pacific,True,-,"CA",Pacific']
         )
-        result = load_region_data(make_config(tmp_path))
+        result = load_region_data(tmp_path)
 
         assert ('mountain' in result['regions_domestic']) is expected_domestic
         # either way the region stays in the master list
@@ -162,7 +154,7 @@ class TestLoadRegionDataHappyPath:
             tmp_path,
             ['  mountain  ,  True  ,-,"AZ, CO",  Mountain  ', 'canada,-,True,Canada,Canada'],
         )
-        result = load_region_data(make_config(tmp_path))
+        result = load_region_data(tmp_path)
 
         assert result['regions_domestic'] == ['mountain']
         assert result['region_labels']['mountain'] == 'Mountain'
@@ -175,7 +167,7 @@ class TestLoadRegionDataHappyPath:
             + '\n'.join([HEADER, *BASIC_ROWS])
             + '\n'
         )
-        result = load_region_data(make_config(tmp_path))
+        result = load_region_data(tmp_path)
 
         assert result['regions_domestic'] == ['mountain', 'pacific']
 
@@ -186,7 +178,7 @@ class TestLoadRegionDataFilter:
     def test_filter_narrows_analyze_only(self, tmp_path: Path) -> None:
         """A filter moves regions_analyze; the master list and subsets are unaffected."""
         write_region_csv(tmp_path, BASIC_ROWS)
-        result = load_region_data(make_config(tmp_path, region_filter=['pacific']))
+        result = load_region_data(tmp_path, region_filter=['pacific'])
 
         assert result['regions_analyze'] == ['pacific']
         assert result['regions_domestic'] == ['mountain', 'pacific']
@@ -198,7 +190,7 @@ class TestLoadRegionDataFilter:
         """Dropping regions drops their production and trade, so it must not pass silently."""
         write_region_csv(tmp_path, BASIC_ROWS)
         with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
-            load_region_data(make_config(tmp_path, region_filter=['pacific']))
+            load_region_data(tmp_path, region_filter=['pacific'])
 
         assert 'Domestic region subset (1 of 2)' in caplog.text
         assert 'Dropped domestic regions' in caplog.text
@@ -215,7 +207,7 @@ class TestLoadRegionDataFilter:
         """No filter, an empty one, and one naming every region all mean 'run everything'."""
         write_region_csv(tmp_path, BASIC_ROWS)
         with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
-            result = load_region_data(make_config(tmp_path, region_filter=region_filter))
+            result = load_region_data(tmp_path, region_filter=region_filter)
 
         assert result['regions_analyze'] == ['mountain', 'pacific']
         assert 'Domestic region subset' not in caplog.text
@@ -227,17 +219,15 @@ class TestLoadRegionDataFilter:
         would leave the reader hunting for which entry was wrong.
         """
         write_region_csv(tmp_path, BASIC_ROWS)
-        config = make_config(tmp_path, region_filter=['pacific', 'atlantis'])
-
         with pytest.raises(ValueError, match=r"Unrecognized region filter\(s\): \['atlantis'\]"):
-            load_region_data(config)
+            load_region_data(tmp_path, region_filter=['pacific', 'atlantis'])
 
     def test_international_region_is_not_a_valid_filter(self, tmp_path: Path) -> None:
         """Canada is a trade partner, not a model region, so it is not a valid filter entry."""
         write_region_csv(tmp_path, BASIC_ROWS)
 
         with pytest.raises(ValueError, match='Unrecognized region filter'):
-            load_region_data(make_config(tmp_path, region_filter=['canada']))
+            load_region_data(tmp_path, region_filter=['canada'])
 
 
 class TestLoadRegionDataRaises:
@@ -245,10 +235,9 @@ class TestLoadRegionDataRaises:
 
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         """An absent file is fatal here, unlike every other loader in data.py."""
-        config = make_config(tmp_path)  # tmp_path exists but holds no CSV
-
+        # tmp_path exists but holds no CSV
         with pytest.raises(ValueError, match='no fallback'):
-            load_region_data(config)
+            load_region_data(tmp_path)
 
     def test_unreadable_file_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """_csv() flattens 'absent' and 'present but broken' to None; both must raise.
@@ -260,14 +249,14 @@ class TestLoadRegionDataRaises:
         monkeypatch.setattr(ng_data, '_csv', lambda *args, **kwargs: None)
 
         with pytest.raises(ValueError, match='could not be read'):
-            load_region_data(make_config(tmp_path))
+            load_region_data(tmp_path)
 
     def test_empty_file_raises(self, tmp_path: Path) -> None:
         """A zero-byte file has no header for pandas to parse, so _csv returns None."""
         (tmp_path / 'ng_region_data.csv').write_text('')
 
         with pytest.raises(ValueError, match='could not be read'):
-            load_region_data(make_config(tmp_path))
+            load_region_data(tmp_path)
 
     @pytest.mark.parametrize(
         'dropped', ['region', 'domestic', 'international', 'label'], ids=lambda c: f'no {c}'
@@ -285,7 +274,7 @@ class TestLoadRegionDataRaises:
         write_region_csv(tmp_path, rows, header=header)
 
         with pytest.raises(ValueError, match='missing required column'):
-            load_region_data(make_config(tmp_path))
+            load_region_data(tmp_path)
 
     @pytest.mark.parametrize(
         'rows',
@@ -301,19 +290,18 @@ class TestLoadRegionDataRaises:
         write_region_csv(tmp_path, rows)
 
         with pytest.raises(ValueError, match='no domestic regions'):
-            load_region_data(make_config(tmp_path))
+            load_region_data(tmp_path)
 
 
 class TestLoadRegionDataRepoInput:
     """The shipped input/natural_gas/ng_region_data.csv, not a synthetic fixture."""
 
     def test_repo_input_file(self) -> None:
-        """Pin the nine census divisions plus Canada that the model is documented to run."""
-        config = NGConfig(input_path=Path('input/natural_gas'))
-        result = load_region_data(config)
+        """Pin the nine census divisions plus the two trade partners the model is run with."""
+        result = load_region_data(PROJECT_ROOT / 'input/natural_gas/properties')
 
         assert len(result['regions_domestic']) == 9
-        assert result['regions_international'] == ['canada']
+        assert result['regions_international'] == ['canada', 'others']
         assert result['regions_analyze'] == result['regions_domestic']
         assert 'west_south_central' in result['regions_domestic']
         assert result['region_labels']['west_south_central'] == 'West South Central (Gulf Coast)'
@@ -331,8 +319,8 @@ class TestLoadRegionDataRepoInput:
 # The no-fallback contract, extended to every loader
 # ---------------------------------------------------------------------------
 
-# (loader, filename it reads). Every loader in data.py that takes a data_dir; the two that take
-# an NGConfig instead (load_region_data, load_sector_data) are covered by their own classes.
+# (loader, filename it reads). Every parameter loader in data.py; load_region_data and
+# load_sector_data are covered by their own classes.
 #
 # load_storage_opex and load_qp_scalars both read ng_scalars.csv, so both appear against it.
 DATA_DIR_LOADERS = [
@@ -340,6 +328,7 @@ DATA_DIR_LOADERS = [
     (ng_data.load_supply_anchors, 'ng_supply_anchors.csv'),
     (ng_data.load_lng_import, 'ng_lng_import.csv'),
     (ng_data.load_lng_export, 'ng_lng_export.csv'),
+    (ng_data.load_pipeline_trade, 'ng_pipeline_trade.csv'),
     (ng_data.load_base_demand, 'ng_base_demand.csv'),
     (ng_data.load_demand_growth, 'ng_demand_growth.csv'),
     (ng_data.load_pipeline_arcs, 'ng_pipeline_arcs.csv'),
@@ -408,7 +397,7 @@ class TestShippedScalars:
 
     def test_repo_scalars_are_complete(self) -> None:
         """A scalar dropped from the CSV now raises instead of reverting to a hidden default."""
-        result = ng_data.load_qp_scalars(PROJECT_ROOT / 'input/natural_gas')
+        result = ng_data.load_qp_scalars(PROJECT_ROOT / 'input/natural_gas/parameters')
 
         assert set(result) == set(ng_data._REQUIRED_QP_SCALARS)
         assert all(isinstance(v, float) for v in result.values())
@@ -457,7 +446,7 @@ class TestOptionalOverrideFiles:
         If someone adds ng_pipe_loss.csv, this fails and prompts a decision about whether the
         arcs it lists are meant to be exceptions or a full table.
         """
-        assert ng_data.load_pipe_loss(PROJECT_ROOT / 'input/natural_gas') == {}
+        assert ng_data.load_pipe_loss(PROJECT_ROOT / 'input/natural_gas/parameters') == {}
 
     def test_missing_losses_file_returns_no_overrides(self, tmp_path: Path) -> None:
         """Absence is benign: every region takes the four scalars from ng_scalars.csv."""
@@ -498,7 +487,7 @@ class TestOptionalOverrideFiles:
 
     def test_repo_ships_no_losses_override_file(self) -> None:
         """Pin the current state: no region departs from the scalar loss defaults."""
-        assert ng_data.load_losses(PROJECT_ROOT / 'input/natural_gas') == {}
+        assert ng_data.load_losses(PROJECT_ROOT / 'input/natural_gas/parameters') == {}
 
 
 # ---------------------------------------------------------------------------
@@ -602,20 +591,21 @@ class TestSupplyPBase:
         assert gaps[-1] > gaps[0]
 
 
-class TestInterpLngExport:
-    """Linear interpolation of the LNG export demand table, given at breakpoint years."""
+class TestInterpByYear:
+    """Linear interpolation of a year-indexed table (e.g. LNG export), given at breakpoint years."""
 
-    TABLE: ClassVar[dict[str, dict[int, float]]] = {
-        'west_south_central': {2025: 4300.0, 2030: 5100.0, 2050: 7200.0}
+    KEY = ('west_south_central', 'others')
+    TABLE: ClassVar[dict[tuple[str, str], dict[int, float]]] = {
+        KEY: {2025: 4300.0, 2030: 5100.0, 2050: 7200.0}
     }
 
     def test_exact_breakpoint_year(self) -> None:
         """A year present in the table returns its value untouched."""
-        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2030) == 5100.0
+        assert ng_data.interp_by_year(self.TABLE, self.KEY, 2030) == 5100.0
 
     def test_interpolates_between_breakpoints(self) -> None:
         """Midway between 2025 and 2030 is midway between 4300 and 5100."""
-        got = ng_data.interp_lng_export(self.TABLE, 'west_south_central', 2027)
+        got = ng_data.interp_by_year(self.TABLE, self.KEY, 2027)
 
         assert got == pytest.approx(4300 + (2 / 5) * (5100 - 4300))
 
@@ -624,11 +614,56 @@ class TestInterpLngExport:
     )
     def test_clamps_outside_the_table_range(self, year: int, expected: float) -> None:
         """Outside the breakpoints the series is flat, not extrapolated."""
-        assert ng_data.interp_lng_export(self.TABLE, 'west_south_central', year) == expected
+        assert ng_data.interp_by_year(self.TABLE, self.KEY, year) == expected
 
-    def test_unknown_region_is_zero(self) -> None:
-        """A region with no LNG export terminal exports nothing, rather than raising."""
-        assert ng_data.interp_lng_export(self.TABLE, 'mountain', 2030) == 0.0
+    def test_unknown_key_is_zero(self) -> None:
+        """A pair the table does not hold trades nothing, rather than raising."""
+        assert ng_data.interp_by_year(self.TABLE, ('mountain', 'others'), 2030) == 0.0
+
+
+class TestLoadLng:
+    """ng_lng_import.csv and ng_lng_export.csv:  LNG trade by (region, partner)."""
+
+    @pytest.mark.parametrize(
+        'loader, filename, body, match',
+        [
+            (
+                ng_data.load_lng_import,
+                'ng_lng_import.csv',
+                'region,partner,capacity_bcf,cost_per_mmbtu\nnorth,others,100,\n',
+                'blank',
+            ),
+            (
+                ng_data.load_lng_import,
+                'ng_lng_import.csv',
+                (
+                    'region,partner,capacity_bcf,cost_per_mmbtu\n'
+                    'north,others,100,8\nnorth,others,50,9\n'
+                ),
+                'repeats',
+            ),
+            (
+                ng_data.load_lng_export,
+                'ng_lng_export.csv',
+                'region,partner,year,demand_bcf\nnorth,others,2025,\n',
+                'blank',
+            ),
+            (
+                ng_data.load_lng_export,
+                'ng_lng_export.csv',
+                'region,partner,year,demand_bcf\nnorth,others,2025,1\nnorth,others,2025,2\n',
+                'repeats',
+            ),
+        ],
+        ids=['import blank', 'import duplicate', 'export blank', 'export duplicate'],
+    )
+    def test_bad_file_raises(
+        self, tmp_path: Path, loader: Callable, filename: str, body: str, match: str
+    ) -> None:
+        """A blank value or a repeated key is fatal rather than read as NaN or overwritten."""
+        (tmp_path / filename).write_text(body)
+        with pytest.raises(ValueError, match=match):
+            loader(tmp_path)
 
 
 class TestDemandGrowthGating:
@@ -645,10 +680,11 @@ class TestDemandGrowthGating:
     GROWTH: ClassVar[dict] = {'electric_power': 0.10, 'industrial': 0.05}
     YEARS: ClassVar[list[int]] = [2025, 2030]
     SECTORS: ClassVar[list[str]] = ['electric_power', 'industrial']
+    MMBTU_PER_BCF: ClassVar[float] = 1.0e6
 
     @staticmethod
     def demand_package(entries: dict[tuple[str, int], float]) -> NGElectricalDemandPackage:
-        """An ``NGElectricalDemandPackage`` carrying ``entries`` as Bcf by (region, year)."""
+        """An ``NGElectricalDemandPackage`` carrying ``entries`` as MMBtu by (region, year)."""
         index = pd.MultiIndex.from_tuples(list(entries), names=NG_ELEC_DEMAND_INDEX)
         frame = pd.DataFrame({NG_ELEC_DEMAND_VALUE: list(entries.values())}, index=index)
         return NGElectricalDemandPackage(elements=frame)
@@ -689,10 +725,15 @@ class TestDemandGrowthGating:
         demand = ng_data.project_demand(
             self.BASE, self.GROWTH, self.YEARS, regions, self.SECTORS, superseded={'electric_power'}
         )
-        return {'demand': demand, 'regions_analyze': regions, 'years': self.YEARS}
+        return {
+            'demand': demand,
+            'regions_analyze': regions,
+            'years': self.YEARS,
+            'qp_scalars': {'mmbtu_per_bcf': self.MMBTU_PER_BCF},
+        }
 
     def test_handler_replaces_superseded_entries(self) -> None:
-        """Every held (region, year) of the superseded sector takes the package value."""
+        """Every held (region, year) of the superseded sector takes the package value in Bcf."""
         data = self.held_data()
         entries = {
             (r, y): 10.0 * i
@@ -703,8 +744,10 @@ class TestDemandGrowthGating:
         NGUpdateReader().apply_package(self.demand_package(entries), data)  # type: ignore[arg-type]
 
         demand = data['demand']
-        for (region, year), bcf in entries.items():
-            assert demand[(region, 'electric_power', year)] == bcf
+        for (region, year), mmbtu in entries.items():
+            assert demand[(region, 'electric_power', year)] == pytest.approx(
+                mmbtu / self.MMBTU_PER_BCF
+            )
         assert demand[('mountain', 'industrial', 2030)] == pytest.approx(50.0 * 1.05**5)
 
     @pytest.mark.parametrize(

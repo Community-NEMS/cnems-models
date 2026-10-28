@@ -65,7 +65,7 @@ MODEL_NAMES = {
 }
 # the exchanged quantities drawn per year:  key in exchange_summary, panel title, unit
 EXCHANGED = (
-    ('burn_bcf', 'Power-sector burn', 'Bcf/yr'),
+    ('burn_tbtu', 'Power-sector burn', 'TBtu/yr'),
     ('mean_price', 'Mean gas price', 'USD/MMBtu'),
 )
 # statuses whose objective the stopping rule uses, by name as a saved summary records them
@@ -194,14 +194,14 @@ def _final_summary(results: dict[int, list[IterationResult]]) -> dict[str, Any]:
     Returns
     -------
     dict
-        ``objectives`` by model, ``burn_bcf_by_year`` (total over gas regions) and
+        ``objectives`` by model, ``burn_tbtu_by_year`` (total over gas regions) and
         ``mean_price_by_year`` (simple mean over electricity regions).
     """
     last = results[max(results)]
     exchanged = _keyed_by_str(exchange_summary(pkg for r in last for pkg in r.update_packages))
     summary: dict[str, Any] = {'objectives': {r.model_type.value: r.objective_value for r in last}}
-    if 'burn_bcf' in exchanged:
-        summary['burn_bcf_by_year'] = exchanged['burn_bcf']
+    if 'burn_tbtu' in exchanged:
+        summary['burn_tbtu_by_year'] = exchanged['burn_tbtu']
     if 'mean_price' in exchanged:
         summary['mean_price_by_year'] = exchanged['mean_price']
     return summary
@@ -221,7 +221,7 @@ def _iteration_table(runs: list[dict[str, Any]]) -> list[str]:
         Markdown table lines.  Values by year are joined with ``/`` in year order.
     """
     header = (
-        '| Iteration | Scheme | Electricity objective | Gas objective | Burn, Bcf/yr '
+        '| Iteration | Scheme | Electricity objective | Gas objective | Burn, TBtu/yr '
         '| Mean gas price, $/MMBtu |'
     )
     rows = [header, '|---|---|---|---|---|---|']
@@ -238,7 +238,7 @@ def _iteration_table(runs: list[dict[str, Any]]) -> list[str]:
                 f'| {i} | {run["scheme"]} '
                 f'| {_fmt_objective(objective.get(ModelType.ELECTRICITY.value))} '
                 f'| {_fmt_objective(objective.get(ModelType.NATURAL_GAS.value))} '
-                f'| {_join_by_year(exchanged.get("burn_bcf", {}), ",.1f")} '
+                f'| {_join_by_year(exchanged.get("burn_tbtu", {}), ",.1f")} '
                 f'| {_join_by_year(exchanged.get("mean_price", {}), ".3f")} |'
             )
     return rows
@@ -469,7 +469,7 @@ def write_report(runs: list[dict[str, Any]], out_dir: Path, figures: Sequence[Pa
             + ' |'
         )
     for key, label in (
-        ('burn_bcf_by_year', 'Final burn, Bcf/yr'),
+        ('burn_tbtu_by_year', 'Final burn, TBtu/yr'),
         ('mean_price_by_year', 'Final mean gas price, $/MMBtu'),
     ):
         years = sorted({y for r in runs for y in r['final'].get(key, {})})

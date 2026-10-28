@@ -12,6 +12,7 @@ LNG consumer-surplus term in the objective freezing the curve at build time whil
 caps move.
 """
 
+import math
 from pathlib import Path
 
 import pytest
@@ -21,7 +22,7 @@ import src.models.natural_gas.sequencer as ng_sequencer
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import GI, NGModel
+from src.models.natural_gas.ng_model import GI, TI, NGModel
 from src.models.natural_gas.sequencer import NGSequencer
 
 # west_south_central is an LNG exporter, so this subset carries an LNG demand curve
@@ -65,8 +66,8 @@ def _solve(sequencer: NGSequencer) -> tuple[float, float, dict[GI, float]]:
     return value(m.total_cost), lng, m.poll_gas_price()
 
 
-def _base_capacity(m: NGModel) -> dict[GI, float]:
-    """Read the full-curve LNG export volume per (region, year) back off a built model.
+def _base_capacity(m: NGModel) -> dict[TI, float]:
+    """Read the full-curve LNG export volume per (region, partner, year) back off a built model.
 
     Parameters
     ----------
@@ -75,14 +76,14 @@ def _base_capacity(m: NGModel) -> dict[GI, float]:
 
     Returns
     -------
-    dict[GI, float]
-        {GI(region, year): BCF}, the volume at the curve's last breakpoint.
+    dict[TI, float]
+        {TI(region, partner, year): BCF}, the volume at the curve's last breakpoint.
     """
     last = m.lng_breaks.last()
     q_frac_last = m.lng_demand_curve_shape['q_frac'][-1]
     return {
-        GI(r, y): value(m.q_lng[r, last, y]) / q_frac_last
-        for r in m.lng_exporting_region
+        TI(r, i, y): value(m.q_lng[r, i, last, y]) / q_frac_last
+        for r, i in m.lng_export_pairs
         for y in m.year
     }
 
@@ -113,8 +114,8 @@ def _rebuilt_reference(
     def load_all(**kwargs):
         data = real_load_all(**kwargs)
         data['lng_export'] = {
-            r: {y: v * CAPACITY_SCALE for y, v in table.items()}
-            for r, table in data['lng_export'].items()
+            key: {y: v * CAPACITY_SCALE for y, v in table.items()}
+            for key, table in data['lng_export'].items()
         }
         data['lng_demand_curve'] = dict(data['lng_demand_curve'], world_price=world_price)
         return data
@@ -182,39 +183,48 @@ def test_zero_width_segment(partial_config_set: tuple[CommonConfig, NGConfig]) -
     m = sequencer.build_model(*partial_config_set)
     base = _solve(sequencer)
     base_capacity = _base_capacity(m)
-    gi = next(iter(base_capacity))
+    ti = next(iter(base_capacity))
 
-    m.update_lng_export(capacity={gi: 0.0})
+    m.update_lng_export(capacity={ti: 0.0})
     for k in m.lng_segs:
-        assert value(m.lng_surplus_intercept[gi.region, k, gi.year]) == 0.0
-        assert value(m.lng_surplus_slope[gi.region, k, gi.year]) == 0.0
+        assert value(m.lng_surplus_intercept[ti.region, ti.partner, k, ti.year]) == 0.0
+        assert value(m.lng_surplus_slope[ti.region, ti.partner, k, ti.year]) == 0.0
     _solve(sequencer)
-    assert value(m.lng_export_demand[gi.region, gi.year]) == pytest.approx(0.0, abs=1e-6)
+    # the region's only LNG export partner is collapsed, so its total export is zero
+    assert value(m.lng_export_demand[ti.region, ti.year]) == pytest.approx(0.0, abs=1e-6)
 
-    m.update_lng_export(capacity={gi: base_capacity[gi]})
+    m.update_lng_export(capacity={ti: base_capacity[ti]})
     _assert_same(_solve(sequencer), base)
 
 
 @pytest.mark.parametrize(
     'kwargs',
-    [{'capacity': 'negative'}, {'world_price': 0.0}],
-    ids=['negative-capacity', 'zero-world-price'],
+    [
+        {'capacity': -1.0},
+        {'capacity': math.nan},
+        {'capacity': 1.0, 'key': {'partner': 'nowhere'}},
+        {'capacity': 1.0, 'key': {'year': 1900}},
+        {'world_price': 0.0},
+    ],
+    ids=['negative-capacity', 'nan-capacity', 'uncarried-pair', 'non-analysis-year', 'zero-price'],
 )
 def test_update_rejects_invalid_input(
     partial_config_set: tuple[CommonConfig, NGConfig], kwargs: dict
 ) -> None:
-    """Invalid capacity or price raises and leaves the curve untouched.
+    """Invalid capacity, an uncarried key, or a bad price raises and leaves the curve untouched.
 
     Parameters
     ----------
     partial_config_set : tuple[CommonConfig, NGConfig]
         Fixture.
     kwargs : dict
-        Arguments to ``update_lng_export``; ``'negative'`` is replaced by a negative capacity.
+        Arguments to ``update_lng_export``; a bare ``capacity`` value is applied to the first
+        export pair, with any fields in ``key`` replaced.
     """
     m = NGSequencer().build_model(*partial_config_set)
-    if kwargs.get('capacity') == 'negative':
-        kwargs = {'capacity': {next(iter(_base_capacity(m))): -1.0}}
+    if 'capacity' in kwargs:
+        ti = next(iter(_base_capacity(m)))._replace(**kwargs.get('key', {}))
+        kwargs = {'capacity': {ti: kwargs['capacity']}}
 
     def snapshot() -> tuple[dict, dict, dict]:
         return (

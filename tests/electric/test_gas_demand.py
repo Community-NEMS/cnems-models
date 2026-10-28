@@ -27,7 +27,7 @@ from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH, NG_PRIC
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.electricity.update_writer import gas_demand_by_region, ng_mmbtu_per_bcf
+from src.models.electricity.update_writer import gas_demand_by_region
 
 # the gas-burn exchange alone, with the electricity <-> natural gas crosswalk
 DEMAND_EXCHANGE = ExchangeSpec.build(
@@ -45,8 +45,8 @@ def independent_gas_demand(model: PowerModel) -> pd.Series:
     df = pd.DataFrame(rows, columns=['region', 'tech', 'year', 'hour', 'mwh'])
     df['days'] = [value(model.weight_day[value(model.map_hour_day[h])]) for h in df['hour']]
     df['heat_rate'] = df['tech'].map(NG_HEAT_RATE_MMBTU_PER_MWH)
-    df['bcf'] = df['mwh'] * df['days'] * df['heat_rate'] / ng_mmbtu_per_bcf()
-    return df.groupby(['region', 'year'])['bcf'].sum().sort_index()
+    df['mmbtu'] = df['mwh'] * df['days'] * df['heat_rate']
+    return df.groupby(['region', 'year'])['mmbtu'].sum().sort_index()
 
 
 def test_linked_techs_are_exactly_the_heat_rate_techs() -> None:
@@ -57,7 +57,7 @@ def test_linked_techs_are_exactly_the_heat_rate_techs() -> None:
 def test_gas_demand_matches_independent_sum(
     solved_model: tuple[CommonConfig, ElecConfig, PowerModel],
 ) -> None:
-    """The polled Bcf agrees with a pandas recomputation from the same solved variables."""
+    """The polled MMBtu agrees with a pandas recomputation from the same solved variables."""
     common_config, elec_config, model = solved_model
 
     # poll the model for demands
@@ -154,7 +154,7 @@ class TestOutboundDemandPackage:
         ),
         pytest.param(
             pd.DataFrame(
-                {'bcf': [3.0]},
+                {'mmbtu': [3.0]},
                 index=pd.MultiIndex.from_tuples(
                     [('new_england', 2025)], names=NG_ELEC_DEMAND_INDEX
                 ),

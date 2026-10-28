@@ -55,7 +55,7 @@ first exchange.
 #### Region Coverage Rules
 
 Any data that crosses between two models' regions follows these rules. Rules 1 and 2 are checked
-once per run, when the crosswalk is built. Rules 3 to 5 are checked on every exchange, against the
+once per run, when the crosswalk is built. Rules 3 to 6 are checked on every exchange, against the
 built models. Each model checks only its own side, so no step needs to know both models' regions.
 
 | # | Rule | Checked in | Builders' obligation |
@@ -65,10 +65,19 @@ built models. Each model checks only its own side, so no step needs to know both
 | 3 | The values sent are exactly the sending model's regions (`IntegratedModel.regions`), with one value per region for each year sent, and every region known to the crosswalk. The years are taken from the values; rule 5 checks them against the receiver | `RegionCrosswalk.apply`, called by the writer | Writer: map through `apply(..., model_regions=model.regions)`; send 0.0 rather than leaving a region out |
 | 4 | The sent regions are closed: every destination region they reach draws only on regions that were sent | `RegionCrosswalk.apply`, called by the writer | Writer: nothing beyond rule 3; `apply` checks it |
 | 5 | The `(region, year)` entries received are exactly the receiving model's regions × years | The reader's handler, via `check_region_year_keys` | Reader: call `check_region_year_keys` before writing anything, in both the pre-build and built-model handlers |
+| 6 | Every key an update names is carried by the receiving model: a domestic region it solves, an international partner it trades with, and a year it holds | The model's update methods (e.g. `set_external_demand`, `update_pipeline_trade`) | Model: check the whole batch before writing anything, and raise on an unrecognized key rather than skipping it |
 
 Every check raises `ValueError` rather than warning: a package that doesn't line up is an error,
 never a partial update. Rules 3 to 5 together prove that the regions both models carry are closed
 under the crosswalk. With no region filters, that means full coverage.
+
+!!! warning "Updates for regions a model doesn't include fail the run"
+    An update naming a region the receiving model doesn't include stops the run with a
+    `ValueError`: during the build on the pre-build path, or at the update on the built-model path.
+    This holds for domestic regions dropped by a region filter and for international partners
+    missing from the model's region file. International partners are not in the crosswalk, so
+    rules 3 to 5 don't cover them, and rule 6 is their only runtime check. Before sending trade
+    data, make sure the receiving model's region file names every partner the data uses.
 
 ## Jacobi Iteration
 
@@ -271,7 +280,8 @@ written to the `MAIN` log.
 3. Add a builder for it to the sending model's writer (`builders`). If the payload is regional,
    map it with `RegionCrosswalk.apply` (rules 3 and 4).
 4. Register a handler for it on the receiving model's readers, both pre-build and built-model. If
-   the payload is regional, call `check_region_year_keys` first (rule 5).
+   the payload is regional, call `check_region_year_keys` first (rule 5). The model method the
+   handler calls must reject unrecognized keys rather than skip them (rule 6).
 5. Name it in `exchanges` in the iterator configs that should carry it.
 
 Routing needs no changes, because it goes by each package's `receivers`.

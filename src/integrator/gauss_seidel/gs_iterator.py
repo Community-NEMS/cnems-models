@@ -71,15 +71,15 @@ def exchange_summary(packages: Iterable[UpdatePackage]) -> dict[str, dict[int, f
     Returns
     -------
     dict
-        ``burn_bcf``, the electricity burn summed over gas regions, and ``mean_price``, the gas
-        price averaged over electricity regions without weights, each keyed by year.  A package
-        type that was not sent is absent.
+        ``burn_tbtu``, the electricity burn summed over gas regions in TBtu, and ``mean_price``,
+        the gas price averaged over electricity regions without weights, each keyed by year.  A
+        package type that was not sent is absent.
     """
     summary: dict[str, dict[int, float]] = {}
     for package in packages:
         if isinstance(package, NGElectricalDemandPackage):
-            burn = package.elements[NG_ELEC_DEMAND_VALUE].groupby(level='year').sum()
-            summary['burn_bcf'] = dict(
+            burn = package.elements[NG_ELEC_DEMAND_VALUE].groupby(level='year').sum() / 1e6
+            summary['burn_tbtu'] = dict(
                 zip(map(int, burn.index.to_list()), burn.to_list(), strict=True)
             )
         elif isinstance(package, NGPricePackage):
@@ -104,9 +104,9 @@ def format_exchange(summary: dict[str, dict[int, float]]) -> str:
         The burn and mean gas price by year, or a note that nothing was exchanged.
     """
     parts = []
-    if 'burn_bcf' in summary:
-        burn = summary['burn_bcf']
-        parts.append('burn ' + ', '.join(f'{v:,.1f} Bcf ({y})' for y, v in burn.items()))
+    if 'burn_tbtu' in summary:
+        burn = summary['burn_tbtu']
+        parts.append('burn ' + ', '.join(f'{v:,.1f} TBtu ({y})' for y, v in burn.items()))
     if 'mean_price' in summary:
         price = summary['mean_price']
         parts.append(

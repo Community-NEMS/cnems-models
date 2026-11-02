@@ -86,13 +86,10 @@ class ModelSets:
     """The MASTER capacity index, augmented with Hour"""
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
-    generation_hour_index: defaultdict
     generation_hydro_ub_index: list[tuple]
     generation_index: list[tuple]
     generation_ramp_index: list[tuple]
     generation_vre_index: list[tuple]
-    h2_generation_hour_index: defaultdict
-    h2_generation_index: list[tuple]
     hydro_seasonal_step_index: defaultdict
     """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
     international_trade_index: list[tuple]
@@ -105,7 +102,6 @@ class ModelSets:
     seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
-    storage_hour_index: defaultdict
     storage_index: list[tuple]
     storage_most_hours_balance_index: list[tuple]
     steps: list[int]
@@ -326,35 +322,6 @@ class ModelSets:
             logger.warning('storage_index is empty')
 
         # build the companion indexed set bases while we have by-name access to the fields...
-        # TODO:  the need for hourly-indexing is under review.  these may "go away"
-        # TODO:  refactor these below....all could be done in one pass through the supply curve
-        self.generation_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in capacity_index:
-                if idx.tech in self.tech_gen:
-                    self.generation_hour_index[hr].append(
-                        (idx.region, idx.tech, idx.step, idx.year)
-                    )
-        if not self.generation_hour_index:
-            logger.warning('generation_hour_index is empty')
-
-        self.storage_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in capacity_index:
-                if idx.tech in self.tech_stor:
-                    self.storage_hour_index[hr].append((idx.region, idx.tech, idx.step, idx.year))
-        if not self.storage_hour_index:
-            logger.warning('storage_hour_index is empty')
-
-        self.h2_generation_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in capacity_index:
-                if idx.tech in self.tech_h2:
-                    self.h2_generation_hour_index[hr].append(
-                        (idx.region, idx.tech, idx.step, idx.year)
-                    )
-        if not self.h2_generation_hour_index:
-            logger.warning('h2_generation_hour_index is empty')
 
         self.generation_demand_index = defaultdict(list)
         for hr in self.hour:

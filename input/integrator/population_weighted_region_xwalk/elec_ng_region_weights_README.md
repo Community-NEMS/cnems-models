@@ -12,7 +12,9 @@ the 9 natural gas regions (US Census divisions).
 | `ng_to_elec_crosswalk.csv` | each `ng_region` | Fractional gas → elec. Splits a census division across every electricity region that actually touches it. |
 | `workproduct/elec_region_state_coverage.csv` | each `state` | Provenance: the state-level allocation everything above is derived from. |
 
-`workproduct/build_region_weights.py` regenerates all four from scratch. Run it from anywhere;
+`workproduct/build_region_weights.py` regenerates all four from scratch. It is only preserved as
+historical record and for possible later modification. It is not on the normal execution path.
+Run it from anywhere;
 it resolves paths relative to itself, reading `../../../natural_gas/elec_to_ng_region_map.csv`,
 writing the two crosswalks the model reads into this directory and the weighted map and
 coverage file, which are intermediate products, into `workproduct/`.

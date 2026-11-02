@@ -303,15 +303,6 @@ class ModelSets:
         if not self.generation_index:
             logger.warning('generation_index is empty')
 
-        self.h2_generation_index = [
-            (idx.region, idx.tech, idx.step, idx.year, hr)
-            for idx in capacity_index
-            if idx.tech in self.tech_h2
-            for hr in self.hour
-        ]
-        if not self.h2_generation_index:
-            logger.warning('h2_generation_index is empty')
-
         self.storage_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr)
             for idx in capacity_index

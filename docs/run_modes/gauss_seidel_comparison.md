@@ -123,6 +123,10 @@ Final values, the same in all four runs:
 
 The relative difference in the final objectives is 4.6e-8 for electricity and 0 for gas.
 
+Burn on this page is in Bcf, as the runs recorded it. The burn package now carries MMBtu and
+`gs-compare` reports burn in TBtu, which is Bcf x 1.036 at the gas model's `mmbtu_per_bcf` of
+1.036e6, so the tool reads about 3.6% higher: 248.3 / 512 Bcf is about 257.2 / 530 TBtu.
+
 Rerun on the branch at `ee20792` (2026-10-15), one run each, after the electricity model moved to
 MW and its fixed O&M cost was corrected (PR 61), and after the gas objective gained the cost of
 committed production (PR 64):
@@ -188,7 +192,8 @@ final values.
 The figures are from the epsilon 1e-5 run (§4.5). The default-tolerance runs (§4.4) follow the
 same paths and stop earlier. `pixi run gs-compare` draws both figures for any run. They predate
 PR 61 and PR 64, so the objective levels in the first have since moved. In the rerun,
-Gauss-Seidel's exchanged values match the ones quoted below to the digits shown.
+Gauss-Seidel's exchanged values match the ones quoted below to the digits shown. The figures
+and the values quoted below give burn in Bcf; `gs-compare` now draws it in TBtu (§4.4).
 
 ![Objectives by iteration](images/gs_compare_objectives.png)
 

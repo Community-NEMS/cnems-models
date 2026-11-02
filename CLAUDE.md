@@ -95,6 +95,38 @@ monitor also screen results against. `ALLOW_TERMINATION` (`{BEST, USABLE}`) is t
 an iterative run may stop on; `PENALTY` (accurate, but leaning on a soft limit) sends updates but
 keeps the run going.
 
+#### Region coverage contract (readers, writers, crosswalks)
+
+Regional data crossing between models follows six rules. The authoritative statement is the
+*Region Coverage Rules* section of `docs/run_modes/integrated.md`; this is a summary.
+
+1. Each crosswalk file's weights are finite, ≥ 0, and sum to 1 per source region
+   (`RegionCrosswalk` construction, once per run).
+2. The two files of a pair name the same regions and the same positive-weight links
+   (`RegionCrosswalk` construction, once per run).
+3. A writer sends exactly its own model's regions (`IntegratedModel.regions`), one value per
+   region per year, all known to the crosswalk. Map through
+   `RegionCrosswalk.apply(..., model_regions=model.regions)` and send 0.0 rather than omitting a
+   region.
+4. The sent regions are closed under the crosswalk: every destination region reached draws only
+   on regions that were sent (checked inside `apply`).
+5. A reader receives exactly its model's regions × years. Every regional handler, pre-build
+   (`NGUpdateReader`-style) and built-model (`NGModelUpdateReader`-style), calls
+   `check_region_year_keys` before writing anything.
+6. A model's update methods (e.g. `NGModel.set_external_demand`, `update_pipeline_trade`) accept
+   only keys the model carries: domestic regions it solves, international partners it trades
+   with, and years it holds. Check the whole batch first and raise on an unrecognized key; never
+   skip it. International partners are not in the crosswalk, so this is their only runtime check,
+   and an update naming a region the model doesn't include fails the run.
+
+Every check raises `ValueError`; a package that doesn't line up is an error, never a partial
+update or a silent skip. Each model checks only its own side. Region filters work in integrated
+runs only when the filtered regions are closed under the crosswalk.
+
+**Any change to these rules must also be made in the *Region Coverage Rules* section of
+`docs/run_modes/integrated.md`** (and the *Adding a Package Type* steps there, if affected), and
+vice versa, so the two stay in agreement.
+
 ### Electricity model structure
 
 - `elec_config.py` — pydantic `ElecConfig` (`region_filter`, switches for `regional_exchange` /

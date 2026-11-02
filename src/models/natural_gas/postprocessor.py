@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from pyomo.environ import value
 
+from src.models.natural_gas.ng_model import partners_by_region
+
 if TYPE_CHECKING:
     from src.models.natural_gas.ng_model import NGModel
 
@@ -32,11 +34,13 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
     PBASE_{k+1}, rather than a single flat cost, because the step spans a price range.
 
     The ``supply_source`` column is not purely a step label: alongside ``step1``..``step5``
-    it carries ``lng_import`` (backstop imports) and ``qmin_committed`` (the QMIN production
-    floor, NGMM Eq 8). Those two are supply reaching the region without coming off an elastic
-    step, which is why the column is named for the source rather than for the step.
+    it carries ``lng_import`` (LNG imports, one row per international ``partner``) and
+    ``qmin_committed`` (the QMIN production floor, NGMM Eq 8). Those two are supply reaching the
+    region without coming off an elastic step, which is why the column is named for the source
+    rather than for the step.
     """
     rows = []
+    lng_import_partners = partners_by_region(m.lng_import_pairs)
     for r in m.region_analyze:
         for t in m.steps:
             k_seg = int(t.replace('step', ''))
@@ -52,18 +56,20 @@ def _extract_production(m: NGModel) -> pd.DataFrame:
                         'cost_per_mmbtu': 0.5 * (pb_k + pb_k1),
                     }
                 )
-        for y in m.year:
-            lng = value(m.lng_import[r, y])
-            if lng > 0.01:
-                rows.append(
-                    {
-                        'region': r,
-                        'supply_source': 'lng_import',
-                        'year': y,
-                        'production_bcf': lng,
-                        'cost_per_mmbtu': value(m.lng_cost[r]),
-                    }
-                )
+        for partner in lng_import_partners[r]:
+            for y in m.year:
+                lng = value(m.lng_import[r, partner, y])
+                if lng > 0.01:
+                    rows.append(
+                        {
+                            'region': r,
+                            'supply_source': 'lng_import',
+                            'partner': partner,
+                            'year': y,
+                            'production_bcf': lng,
+                            'cost_per_mmbtu': value(m.lng_cost[r, partner]),
+                        }
+                    )
         # QMIN floor (committed production, NGMM Eq 8)
         for y in m.year:
             qmin = value(m.q_min[r, y])
@@ -160,6 +166,10 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
     unserved-demand variable at its penalty, and ``slack_demand_bcf`` is surplus gas disposed of
     at no cost. Both are zero at ordinary demand levels, and neither is counted in
     ``net_supply_bcf``, which is physical gas.
+
+    ``net_supply_bcf`` is the gas left for use inside the region:  production and imports, plus
+    net interstate flow and net storage withdrawal, less LNG and pipeline exports.  It is gross
+    of losses and plant fuel, so it exceeds ``total_sector_demand_bcf`` by roughly those.
     """
     # Precompute arc adjacency dicts to avoid O(arcs×regions)
     # scan inside the inner loop.  Each region scan was iterating all 26 arcs twice.
@@ -176,7 +186,7 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
             # Use the production_total Expression (QMIN floor + step sum, NGMM Eq 8) rather
             # than summing the input cost tiers, which are not a model quantity.
             prod_total = value(m.production_total[r, y])
-            lng_imp = value(m.lng_import[r, y])
+            lng_imp = value(m.lng_import_total[r, y])
             # Use precomputed adjacency instead of full arc scan
             pipe_in = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _inc[r])
             pipe_out = sum(value(m.pipe_flow[o, d, y]) for (o, d) in _out[r])
@@ -184,13 +194,15 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
             stor_inj = value(m.stor_inject[r, y])
             total_dem = sum(value(m.demand[r, s, y]) for s in m.sectors)
             lng_exp = value(m.lng_export_demand[r, y])
-            canada_sup = value(m.canada_supply[r, y])
+            pipe_imp = value(m.pipe_import_total[r, y])
+            pipe_exp = value(m.pipe_export_total[r, y])
             rows.append(
                 {
                     'region': r,
                     'year': y,
                     'production_bcf': prod_total,
-                    'canada_import_bcf': canada_sup,
+                    'pipe_import_bcf': pipe_imp,
+                    'pipe_export_bcf': pipe_exp,
                     'lng_import_bcf': lng_imp,
                     'pipe_inflow_bcf': pipe_in,
                     'pipe_outflow_bcf': pipe_out,
@@ -201,12 +213,14 @@ def _extract_balance(m: NGModel) -> pd.DataFrame:
                     'unserved_bcf': value(m.unserved[r, y]),
                     'slack_demand_bcf': value(m.slack_demand[r, y]),
                     'net_supply_bcf': prod_total
-                    + canada_sup
+                    + pipe_imp
+                    - pipe_exp
                     + lng_imp
                     + pipe_in
                     - pipe_out
                     + stor_wd
-                    - stor_inj,
+                    - stor_inj
+                    - lng_exp,
                 }
             )
     return pd.DataFrame(rows)

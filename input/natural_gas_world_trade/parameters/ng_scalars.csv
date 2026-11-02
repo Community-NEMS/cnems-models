@@ -1,0 +1,11 @@
+parameter,value,units,source
+storage_opex,0.18,$/MMBtu,EIA average storage injection/withdrawal tariff
+lng_world_price_per_mmbtu,7.00,$/MMBtu,AEO 2025 reference world LNG price
+lng_max_price_factor,2.00,factor,P at Q=0 = max_factor x world_price (NGMM Fig 3.6)
+pipe_fuel_loss,0.005,fraction,per-arc pipeline fuel loss (NGMM Eq 11 f^pip)
+distribution_loss,0.008,fraction,LDC unaccounted-for-gas at delivery (NGMM Eq 10)
+intrastate_loss,0.003,fraction,short-haul intra-division pipeline loss (NGMM Eq 11)
+plant_fuel_frac,0.030,fraction,lease + processing-plant fuel use
+storage_loss,0.005,fraction,fraction of cycled storage volume lost
+supply_curve_qmin_fraction,0.20,fraction,QMIN = fraction x Q0 (committed wells)
+mmbtu_per_bcf,1036000.0,MMBtu/BCF,EIA average heat content of natural gas delivered to consumers (~1036 Btu/cf)

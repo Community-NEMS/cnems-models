@@ -20,7 +20,7 @@ halts on any failure when ``strict`` is set.
 
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from itertools import pairwise
 from typing import cast
 
@@ -61,6 +61,7 @@ def validate_all(data: NGData, strict: bool = True) -> None:
     all_valid &= validate_pipeline_arcs(data['pipeline_arcs'])
     all_valid &= validate_lng_demand_curve(data['lng_demand_curve'])
     all_valid &= validate_lng_export(data['lng_export'])
+    all_valid &= validate_trade_partners(data)
 
     if not all_valid:
         message = 'Natural gas data validation failed.  See log for details.'
@@ -325,7 +326,7 @@ def validate_lng_demand_curve(shape: dict[str, list[float] | float]) -> bool:
     return valid
 
 
-def validate_lng_export(lng_export: dict[str, dict[int, float]]) -> bool:
+def validate_lng_export(lng_export: dict[tuple[str, str], dict[int, float]]) -> bool:
     """Validate LNG export capacities (``ng_lng_export.csv``).
 
     Zero is allowed:  it is a real state (an export terminal not yet online), and the model gives
@@ -334,20 +335,87 @@ def validate_lng_export(lng_export: dict[str, dict[int, float]]) -> bool:
 
     Parameters
     ----------
-    lng_export : dict[str, dict[int, float]]
-        ``{region: {year: demand_bcf}}``.
+    lng_export : dict[tuple[str, str], dict[int, float]]
+        ``{(region, partner): {year: demand_bcf}}``.
 
     Returns
     -------
     bool
-        True if every capacity is >= 0.  Each failure is logged as an error.
+        True if every capacity is finite and >= 0.  Each failure is logged as an error.
     """
     valid = True
-    for region, table in lng_export.items():
+    for (region, partner), table in lng_export.items():
         for year, bcf in table.items():
-            if bcf < 0.0:
+            if not (math.isfinite(bcf) and bcf >= 0.0):
                 valid = False
                 logger.error(
-                    'LNG export capacity for (%s, %d) is %s; must be >= 0', region, year, bcf
+                    'LNG export capacity for (%s, %s, %d) is %s; must be finite and >= 0',
+                    region,
+                    partner,
+                    year,
+                    bcf,
                 )
+    return valid
+
+
+def validate_trade_partners(data: NGData) -> bool:
+    """Validate the international trade inputs (LNG import/export, pipeline trade).
+
+    Every trade entry is keyed ``(region, partner)``:  ``region`` must be a domestic region and
+    ``partner`` an international one in ``ng_region_data.csv``, or the entry would name a
+    counterparty the model has no slot for.  LNG import capacity and cost and every pipeline
+    volume must be finite and >= 0 (LNG export capacity is checked by
+    :func:`validate_lng_export`).
+
+    Parameters
+    ----------
+    data : NGData
+        Loaded data; reads ``regions_domestic``, ``regions_international``, ``lng_import``,
+        ``lng_export``, ``pipe_trade_import`` and ``pipe_trade_export``.
+
+    Returns
+    -------
+    bool
+        True if every entry passes.  Each failure is logged as an error.
+    """
+    valid = True
+    domestic = set(data['regions_domestic'])
+    international = set(data['regions_international'])
+    sources: dict[str, Collection[tuple[str, str]]] = {
+        'ng_lng_import.csv': data['lng_import'],
+        'ng_lng_export.csv': data['lng_export'],
+        'ng_pipeline_trade.csv': data['pipe_trade_import'],
+    }
+    for source, keys in sources.items():
+        for region, partner in keys:
+            if region not in domestic:
+                valid = False
+                logger.error('%s: %s is not a domestic region', source, region)
+            if partner not in international:
+                valid = False
+                logger.error('%s: %s is not an international region', source, partner)
+
+    for (region, partner), (capacity, cost) in data['lng_import'].items():
+        if not all(math.isfinite(v) and v >= 0.0 for v in (capacity, cost)):
+            valid = False
+            logger.error(
+                'LNG import (%s, %s) has capacity %s and cost %s; both must be finite and >= 0',
+                region,
+                partner,
+                capacity,
+                cost,
+            )
+    for direction in ('pipe_trade_import', 'pipe_trade_export'):
+        for (region, partner), table in data[direction].items():
+            for year, bcf in table.items():
+                if not (math.isfinite(bcf) and bcf >= 0.0):
+                    valid = False
+                    logger.error(
+                        '%s for (%s, %s, %d) is %s; must be finite and >= 0',
+                        direction,
+                        region,
+                        partner,
+                        year,
+                        bcf,
+                    )
     return valid

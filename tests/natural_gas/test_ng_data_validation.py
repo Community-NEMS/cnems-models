@@ -27,6 +27,7 @@ from src.models.natural_gas.data_validation import (
     validate_supply_anchors,
     validate_supply_curve_shape,
     validate_tariff_curve_shape,
+    validate_trade_partners,
 )
 
 VALIDATION_LOGGER = 'src.models.natural_gas.data_validation'
@@ -249,8 +250,61 @@ def test_lng_demand_curve_invalid(
     assert any(fragment in r.getMessage() for r in _errors(validation_log))
 
 
-@pytest.mark.parametrize('bcf,expected', [(100.0, True), (0.0, True), (-1.0, False)])
+@pytest.mark.parametrize(
+    'bcf,expected', [(100.0, True), (0.0, True), (-1.0, False), (math.nan, False)]
+)
 def test_lng_export(validation_log: pytest.LogCaptureFixture, bcf: float, expected: bool) -> None:
-    """Zero LNG export capacity is a valid state; negative is not."""
-    assert validate_lng_export({'a': {2025: 50.0, 2030: bcf}}) is expected
+    """Zero LNG export capacity is a valid state; negative or NaN is not."""
+    assert validate_lng_export({('a', 'others'): {2025: 50.0, 2030: bcf}}) is expected
     assert bool(_errors(validation_log)) is not expected
+
+
+# ---------------------------------------------------------------------------
+# validate_trade_partners
+# ---------------------------------------------------------------------------
+
+TRADE_DATA = {
+    'regions_domestic': ['north', 'south'],
+    'regions_international': ['abroad', 'others'],
+    'lng_import': {('north', 'others'): (100.0, 8.0)},
+    'lng_export': {('south', 'others'): {2025: 500.0}},
+    'pipe_trade_import': {('north', 'abroad'): {2025: 50.0}},
+    'pipe_trade_export': {('north', 'abroad'): {2025: 10.0}},
+}
+
+
+def test_trade_partners_valid(validation_log: pytest.LogCaptureFixture) -> None:
+    """Every key pairs a domestic region with an international partner, all volumes >= 0."""
+    assert validate_trade_partners(TRADE_DATA)  # type: ignore[arg-type]
+    assert not _errors(validation_log)
+
+
+@pytest.mark.parametrize(
+    'key, entry, fragment',
+    [
+        ('lng_import', {('abroad', 'others'): (100.0, 8.0)}, 'not a domestic region'),
+        ('lng_export', {('south', 'north'): {2025: 1.0}}, 'not an international region'),
+        ('pipe_trade_import', {('west', 'abroad'): {2025: 1.0}}, 'not a domestic region'),
+        ('lng_import', {('north', 'others'): (-1.0, 8.0)}, 'must be finite and >= 0'),
+        ('lng_import', {('north', 'others'): (100.0, math.nan)}, 'must be finite and >= 0'),
+        ('pipe_trade_export', {('north', 'abroad'): {2025: -5.0}}, 'must be finite and >= 0'),
+        ('pipe_trade_import', {('north', 'abroad'): {2025: math.nan}}, 'must be finite and >= 0'),
+    ],
+    ids=[
+        'lng import region',
+        'lng export partner',
+        'pipeline region',
+        'lng capacity',
+        'lng cost nan',
+        'export',
+        'import nan',
+    ],
+)
+def test_trade_partners_invalid(
+    validation_log: pytest.LogCaptureFixture, key: str, entry: dict, fragment: str
+) -> None:
+    """A trade entry naming an unknown counterparty, or a negative or NaN value, is rejected."""
+    data = copy.deepcopy(TRADE_DATA)
+    data[key] = entry
+    assert not validate_trade_partners(data)  # type: ignore[arg-type]
+    assert any(fragment in r.getMessage() for r in _errors(validation_log))

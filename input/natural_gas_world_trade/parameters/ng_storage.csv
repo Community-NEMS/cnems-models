@@ -1,0 +1,10 @@
+region,working_cap_bcf,inject_cap_bcf_yr,withdraw_cap_bcf_yr
+new_england,180,60,90
+middle_atlantic,420,140,210
+east_north_central,620,210,310
+west_north_central,510,170,255
+south_atlantic,340,115,170
+east_south_central,160,55,80
+west_south_central,850,285,425
+mountain,360,120,180
+pacific,160,55,80

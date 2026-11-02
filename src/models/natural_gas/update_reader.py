@@ -120,13 +120,14 @@ class NGUpdateReader(UpdatePackageReader[NGData]):
         """Replace the ``electric_power`` sector demand with the electricity model's gas burn.
 
         The package must cover exactly the regions and years the data holds
-        (:func:`check_region_year_keys`); each entry overwrites the held demand for the sector
-        named by ``SECTOR_SUPERSEDED_BY``.
+        (:func:`check_region_year_keys`); each entry is converted to Bcf with the data's
+        ``mmbtu_per_bcf`` and overwrites the held demand for the sector named by
+        ``SECTOR_SUPERSEDED_BY``.
 
         Parameters
         ----------
         update_package : NGElectricalDemandPackage
-            Gas demand in Bcf/yr indexed by natural gas ``(region, year)``.
+            Gas demand in MMBtu/yr indexed by natural gas ``(region, year)``.
         data : NGData
             The loaded data; ``data['demand']`` is modified in place.
 
@@ -141,11 +142,12 @@ class NGUpdateReader(UpdatePackageReader[NGData]):
         check_region_year_keys(
             received.index, data['regions_analyze'], data['years'], name=f'{sector} demand'
         )
+        mmbtu_per_bcf = data['qp_scalars']['mmbtu_per_bcf']
         big_moves: list[tuple[str, int, float, float]] = []
-        for (region, year), bcf in zip(received.index.to_list(), received.to_list(), strict=True):
+        for (region, year), mmbtu in zip(received.index.to_list(), received.to_list(), strict=True):
             key = (str(region), sector, int(year))
             prior = demand[key]
-            new = float(bcf)
+            new = float(mmbtu) / mmbtu_per_bcf
             # screen for large swings; a zero prior counts as a large swing unless new is also zero
             if (prior == 0.0 and new != 0.0) or (
                 prior != 0.0 and abs(new - prior) / abs(prior) > DEMAND_CHANGE_WARN_FRACTION
@@ -203,15 +205,15 @@ class NGModelUpdateReader(UpdatePackageReader[NGModel]):
         """Write the electricity model's gas burn into the built model's demand cells.
 
         The package must cover exactly the regions and years the model holds
-        (:func:`check_region_year_keys`).  The values go to ``NGModel.set_external_demand`` for
-        the sector named by ``SECTOR_SUPERSEDED_BY``, which writes them exactly, and large moves
-        are reported, as the pre-build reader does.  Applying a package twice is the same as
-        applying it once.
+        (:func:`check_region_year_keys`).  The values are converted to Bcf with the model's
+        ``mmbtu_per_bcf`` and go to ``NGModel.set_external_demand`` for the sector named by
+        ``SECTOR_SUPERSEDED_BY``, which writes them exactly, and large moves are reported, as the
+        pre-build reader does.  Applying a package twice is the same as applying it once.
 
         Parameters
         ----------
         update_package : NGElectricalDemandPackage
-            Gas demand in Bcf/yr indexed by natural gas ``(region, year)``.
+            Gas demand in MMBtu/yr indexed by natural gas ``(region, year)``.
         data : NGModel
             The built model; its ``demand`` parameter is modified in place.
 
@@ -224,9 +226,10 @@ class NGModelUpdateReader(UpdatePackageReader[NGModel]):
         sector = SECTOR_SUPERSEDED_BY[NGElectricalDemandPackage]
         received = update_package.elements[NG_ELEC_DEMAND_VALUE]
         check_region_year_keys(received.index, data.regions, data.year, name=f'{sector} demand')
+        mmbtu_per_bcf = data.qp_scalars['mmbtu_per_bcf']
         values: dict[tuple[str, int], float] = {
-            (str(r), int(y)): float(bcf)
-            for (r, y), bcf in zip(received.index.to_list(), received.to_list(), strict=True)
+            (str(r), int(y)): float(mmbtu) / mmbtu_per_bcf
+            for (r, y), mmbtu in zip(received.index.to_list(), received.to_list(), strict=True)
         }
 
         big_moves: list[tuple[str, int, float, float]] = []

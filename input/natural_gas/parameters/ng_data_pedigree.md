@@ -1,6 +1,6 @@
 # Natural gas input data pedigree
 
-Provenance, units, and construction notes for the CSV inputs in `input/natural_gas/`.
+Provenance, units, and construction notes for the CSV inputs in `..`.
 These notes were previously carried as `#` comment rows at the top of each CSV and were
 moved here so the files are plain, comment-free CSV. Do not re-add notes inline. The script
 that builds the population-weighted crosswalk from `elec_to_ng_region_map.csv`
@@ -49,8 +49,10 @@ regions. Carried no provenance notes.
 
 - Net natural gas exports (LNG + pipeline) = AEO2026 production - consumption
   (Table 59/62), distributed across export hubs.
-- Units: BCF/yr. Values are given at breakpoint years only; `interp_lng_export` in
+- Units: BCF/yr. Values are given at breakpoint years only; `interp_by_year` in
   `data.py` linearly interpolates between them and clamps outside the range.
+- `partner`: the international region (`../properties/ng_region_data.csv`) the exports go to.
+  Every row uses `others`, the world LNG market.
 - Modeling role: US LNG export is a major use of domestic supply (~14+ BCF/day in 2025).
   It enters as demand rather than as a netted-out supply term, because export contracts are
   long-term obligations that tighten the domestic supply-demand balance and raise domestic
@@ -70,6 +72,8 @@ regions. Carried no provenance notes.
 ## `ng_lng_import.csv`
 
 - LNG import terminals (coastal regions only) — high-cost backstop supply.
+- `partner`: the international region the imports come from; every row uses `others`, the
+  world LNG market.
 - `capacity_bcf`: re-gasification capacity [BCF/yr].
 - `cost_per_mmbtu`: delivered import cost [$/MMBtu].
 - **Source:** EIA AEO 2023; FERC terminal capacity filings.
@@ -101,6 +105,17 @@ regions. Carried no provenance notes.
   listed here is required and raises if missing, because for those the absent file would mean
   the value existed nowhere on disk. For these two the value is in `ng_scalars.csv` either way.
 
+## `ng_pipeline_trade.csv`
+
+- Fixed international pipeline volumes per (domestic region, international partner, year):
+  `import_bcf` into the region from the partner, `export_bcf` out of it. BCF/yr, at breakpoint
+  years, interpolated by `interp_by_year`.
+- Enters the market balance as fixed supply (imports) and fixed use (exports); no price
+  response and no objective term.
+- **Every volume here is 0.0**, so this scenario reproduces the results from before pipeline
+  trade was modelled. The rows only declare the Canadian border pairs.
+  `input/natural_gas_world_trade/` carries non-zero volumes.
+
 ## `ng_pipeline_arcs.csv`
 
 - Interstate natural gas pipeline arcs (directed; each physical pipe = two rows).
@@ -111,7 +126,7 @@ regions. Carried no provenance notes.
 - **Source:** EIA Compendium of Interstate Natural Gas Pipelines 2022; FERC Form 2 tariff
   filings.
 
-## `ng_region_data.csv`
+## `../properties/ng_region_data.csv`
 
 - The model's regions and their display labels. **Required**: regions are definitional, so
   `load_region_data` raises rather than substituting a hardcoded list, and a model built on a
@@ -122,6 +137,9 @@ regions. Carried no provenance notes.
 - `covered_areas`: the states each census division spans. Documentation for the reader; it is
   read but not returned.
 - `label`: display name used in reporting.
+- The international regions here are `canada` and `others`. They are trade partners, not market nodes: they
+  have no balance constraint and appear only as the `partner` in the LNG and pipeline trade
+  files. `others` is the catch-all for the world LNG market.
 - `NGConfig.region_filter` narrows which of the domestic regions are analysed; it does not
   change this file.
 

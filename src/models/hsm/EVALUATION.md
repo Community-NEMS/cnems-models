@@ -1,11 +1,12 @@
 # Evaluation of C-HSM as released
 
-What the model is, whether it is worth using, what to fix before others rely on it, and how far it
-is from EIA's HSM. File and line references are to `src/models/hsm/`.
+What the model is, what it can be used for, what is left to do, and how far it is from EIA's HSM.
+File and line references are to `src/models/hsm/`.
 
 ## 1. Current Status
 
-C-HSM is a price-elasticity supply model with a fitted level, not a resource-economics model.
+C-HSM is a draft sample model for exercising coupling with C-NGMM: a price-elasticity supply
+model with a fitted level, not a resource-economics model.
 
 - **US non-associated (NA) gas capacity** by region, cost tier and year is a sum over gas types
   (conventional, tight, shale, coalbed methane) of base capacity × (wellhead price / 2.50)^ε ×
@@ -34,22 +35,17 @@ adds is (a) the price response, (b) the Brent and AD channel, and (c) Canada.
 
 ## 2. Caveats on use
 
-As a fast, deterministic, transparent supply-response layer for
-coupled electricity and gas runs, and for scenarios where an elasticity response is an acceptable
-stand-in, it is good. It runs in about 2 seconds and reproduces its expected output. The direction
-checks hold: Henry Hub +10% raises capacity in all 252 region-years, and Brent +50% raises the AD
-share (2025–2050) in West South Central (0.247 to 0.285), Mountain (0.320 to 0.367) and West North
-Central (0.853 to 0.878). The interface to a gas market model is two dictionaries, and C-NGMM's
-supply anchors match the calibration targets exactly. It is also the right first step for C-NEMS:
-the smallest thing that runs and reproduces.
+For exercising coupling with C-NGMM, it runs in about 2 seconds and reproduces its expected output.
+The direction checks hold: Henry Hub +10% raises capacity in all 252 region-years, and Brent +50%
+raises the AD share (2025–2050) in West South Central (0.247 to 0.285), Mountain (0.320 to 0.367)
+and West North Central (0.853 to 0.878). It exchanges two update packages with C-NGMM
+(`docs/models/hsm.md`, section 9), and C-NGMM's supply anchors are its calibration targets.
 
 It is not a hydrocarbon supply module in the NEMS sense. By default it has no reserves, no drilling in
 the US, no discovery, no offshore or Alaska response, and no crude forecast. Anyone comparing its
 output with AEO supply tables should know that agreement at the reference prices is by construction.
 
-The fair summary: a coupling-ready supply response, not validated supply forecasting. That will need to be built out.
-
-## 3. Before others rely on it
+## 3. Open items
 
 Settled for this release:
 
@@ -79,9 +75,10 @@ Done in the code:
 Still to do, most important first:
 
 1. **One price basis.** C-HSM takes 1987 \$ and converts to real 2023 \$ inside with a fixed deflator
-   (`module.py:474`). A coupled run must convert C-NGMM's prices to 1987 $ in exactly one place, with
-   one deflator table (`COUPLING.md`). The three AEO2026 price files also treat 2025 \$ as nominal
-   (`PROVENANCE.md` §6).
+   (`module.py:474`). A coupled run scales the reference path by C-NGMM's hub price over the
+   reference price, so no conversion enters the exchange (`docs/models/hsm.md`, section 9). The
+   three AEO2026 price files treat 2025 USD as nominal (`PROVENANCE.md` §6), which affects the
+   engine and the 20 USD Brent threshold.
 2. **Move the key constants into input files**: `REGIONAL_BASIS` (`module.py:458`),
    `BASE_WELLHEAD_PRICE_PER_MMBTU = 2.50` and `BASE_OIL_PRICE_PER_BBL = 65` (`us_gas.py:89`, `:91`),
    the supply elasticities (`us_gas.py:67`) and the medium and high-cost gas type shares
@@ -93,13 +90,13 @@ Still to do, most important first:
 4. **Refit the calibration whenever C-NGMM's cost tiers or anchors change**, and look at the residuals.
    The log-quadratic cannot follow West North Central (+18.7% in 2030, −10.5% in 2045). A
    year-by-year multiplier would remove a residual that is the first thing a coupled run sees.
-5. **Coupling to C-NGMM**: an adapter from C-HSM's capacity to C-NGMM's `q0`, a runner that owns
-   damping, and a way to restore Canada's state between iterations (`COUPLING.md`). `reset_canada()`
-   does not restore Canada's own tables.
+5. **Coupling to C-NGMM**: capacity and the hub price are exchanged (`docs/models/hsm.md`,
+   section 9). To do: regional prices in place of Henry Hub plus a fixed basis, associated-dissolved
+   gas outside the supply curve as in NEMS, Canada, and a refit after C-NGMM's anchors are rebuilt.
 6. **Deck calendar.** The existing-well outputs, and the engine, take the first column of the AEO2026
    project decks as calendar 2024; in the AEO2026 cycle it may be 2025 (`ENGINE_PLAN.md`, step 2).
-7. **Crude.** If crude matters, this is not the module yet: follow `ENGINE_PLAN.md`, or leave crude
-   out of any results.
+7. **Crude.** C-HSM has no crude forecast: follow `ENGINE_PLAN.md`, or leave crude out of any
+   results.
 
 ## 4. Canada does not respond to the Henry Hub price
 
@@ -131,10 +128,9 @@ The NEMS column is from EIA's HSM documentation for AEO2026 and the NEMS source,
 | Calibration | To history and resource assessments; AEO projections are its output | Fitted so the reference case matches AEO2026-derived anchors |
 | Prices | 1987 $ inside | 1987 $ in, real 2023 \$ inside |
 
-C-HSM reproduces the level of a NEMS-like supply path and adds an elasticity around
-it; NEMS works the level out from resources, drilling and economics. Where hand-set elasticities
-are acceptable and the question is how coupled markets behave, that is enough.
-Where the question is depletion, drilling or crude, it is not yet.
+C-HSM fits its level to a NEMS-like supply path and adds an elasticity around
+it; NEMS works the level out from resources, drilling and economics. That is enough to exercise
+coupling with C-NGMM, not to answer questions on depletion, drilling or crude.
 
 ## 6. Worth keeping
 

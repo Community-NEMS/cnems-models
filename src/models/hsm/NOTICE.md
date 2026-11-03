@@ -1,7 +1,8 @@
 # Notice
 
-C-HSM, the hydrocarbon supply model of the C-NEMS project, is distributed under the Apache License,
-Version 2.0, the licence of the c-nems repository (`LICENSE` at the repository root).
+C-HSM, a draft sample hydrocarbon supply model in the C-NEMS project, is distributed under the
+Apache License, Version 2.0, the licence of the c-nems repository (`LICENSE` at the repository
+root).
 
 C-HSM includes code and data from the National Energy Modeling System (NEMS), developed by the
 U.S. Energy Information Administration (EIA) and published at <https://github.com/EIAgov/NEMS>.

@@ -44,9 +44,9 @@ Python `ast` module parses both files and prints them back), then the lines are 
 | `input/hsm/`, 10 files | Built or set for C-HSM | 3 from AEO2026 results, 1 from AEO2025 results and NEMS decks, 1 from NEMS decks, 2 fitted, 2 from AEO2026 results and C-HSM output, 1 set by hand |
 | Numbers inside the code | mixed | §3 lists them |
 
-C-HSM also reads two C-NGMM inputs, `input/natural_gas/ng_region_data.csv` and
-`input/natural_gas/ng_supply_cost_tiers.csv`. Their provenance is C-NGMM's, in
-`input/natural_gas/ng_data_pedigree.md`.
+C-HSM also reads two C-NGMM inputs, `input/natural_gas/properties/ng_region_data.csv` and
+`input/natural_gas/parameters/ng_supply_cost_tiers.csv`. Their provenance is C-NGMM's, in
+`input/natural_gas/parameters/ng_data_pedigree.md`.
 
 ## 2. Code, file by file
 
@@ -174,7 +174,7 @@ shipped inputs replace.
 | 21 | Brent check: at least 20 (2023 $/bbl) | `module.py:489, :502, :522` | Ours | Below it the US supply drops the Brent price and uses row 5; Canada uses Brent as given. |
 | 22 | 1987 \$ to 2023 \$ with the fixed 2023 deflator, `× _GDP_DEFLATOR[2023]` | `module.py:474, :484, :488, :499, :515, :521` | Ours | Turns the 1987 \$ inputs into real 2023 \$ before rows 3 and 18 apply. |
 | 23 | `brent_multiplier` default 1.0 | `module.py:150` | Ours | Oil price scenario setting; also in `hsm_config.py`. |
-| 24 | engine switch: `onshore_engine_file` in the config | `module.py:236`, `hsm_config.py:51` | Ours | Off by default. |
+| 24 | engine switch: `onshore_engine_file` in the config | `module.py:236`, `hsm_config.py:60` | Ours | Off by default. |
 | 25 | `PRODUCING_DECKS`, three NEMS file names | `us_onshore.py:50` | NEMS input names | |
 | 26 | `PROFILE_YEARS = 40` | `us_onshore.py:55` | NEMS convention | The GP1..GP40 and OP1..OP40 deck columns. |
 | 27 | `GP1_CALENDAR_YEAR = 2024` | `us_onshore.py:56` | Ours (assumption) | Profile year 1 is calendar 2024; to be checked against the AEO2026 decks (`ENGINE_PLAN.md`, step 2). |

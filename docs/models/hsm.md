@@ -1,5 +1,7 @@
 # Hydrocarbon Supply
 
+C-HSM is a draft sample model for exercising coupling with C-NGMM.
+
 C-HSM projects US natural gas production capacity by census division, cost tier and gas class,
 Canadian natural gas production, and gas and crude oil from existing US wells, for every year from
 2023 to 2050, in response to the Henry Hub and Brent prices. It is adapted from the Hydrocarbon
@@ -18,6 +20,7 @@ model can and cannot be used for is in `src/models/hsm/EVALUATION.md`.
 | Canada | `canada.py` | `hsm_canada_na_prod.csv`, `hsm_canada_ad_prod.csv`, `hsm_canada_realized_na_prod.csv` | 5 |
 | Existing US wells | `us_onshore.py`, `OnshoreLegacy` | `hsm_us_legacy_gas.csv`, `hsm_us_crude.csv` | 6 |
 | Well-level engine (optional, off by default) | `us_onshore.py`, `OnshoreEngine` | replaces section 2 when on | 7 |
+| Coupling to C-NGMM | `update_writer.py`, `update_reader.py` | capacity to C-NGMM, hub price back | 9 |
 
 ## Notation
 
@@ -61,7 +64,7 @@ or derived.
 
 | Symbol | Code or file | Description | Value with the shipped inputs |
 |---|---|---|---|
-| $\mathit{Cap_{r,j}^{\mathrm{NG}}}$ | `input/natural_gas/ng_supply_cost_tiers.csv` | capacity of cost tier $j$ in C-NGMM | BCF/yr |
+| $\mathit{Cap_{r,j}^{\mathrm{NG}}}$ | `input/natural_gas/parameters/ng_supply_cost_tiers.csv` | capacity of cost tier $j$ in C-NGMM | BCF/yr |
 | $\mathit{share_{j,\mathit{type}}}$ | `_load_cost_tier_shares` | share of a gas type in cost tier $j$ | $\mathrm{Low}$: conventional 0.4633, cbm 0.5367 (eq. 14); $\mathrm{Med}$: tight 0.40, shale 0.60; $\mathrm{High}$: conventional 0.20, shale 0.80 |
 | $\varepsilon_{\mathit{type}}$ | `SUPPLY_ELASTICITY` | price elasticity of capacity, set by hand | conventional 0.30, tight 0.55, shale 0.65, cbm 0.25 |
 | $\tau_{\mathit{type}}$ | `_load_tech_trend` | technology trend, per year | conventional 0.0025, tight 0.010, shale 0.020, cbm 0.0025 (eq. 15) |
@@ -119,7 +122,7 @@ Regional values with the inputs shipped with C-HSM:
 | $\mathit{GP_{i,n}}$, $\mathit{OP_{i,n}}$ | gas, and crude oil with lease condensate, of project $i$ in profile year $n$ | MMcf/yr, thousand bbl/yr | 17, 31 |
 | $\lambda_r$ | tight oil share of the AD gas of region $r$ | | 18 |
 | $Y_a$ | C-NGMM's model years, 2025 to 2050 in steps of 5 | | 19 |
-| $\mu_{r,y}$ | `q0_mult` in `input/natural_gas/ng_supply_anchors.csv` | | 19 |
+| $\mu_{r,y}$ | `q0_mult` in `input/natural_gas/parameters/ng_supply_anchors.csv` | | 19 |
 | $Q_{r,y}^0$ | C-NGMM's supply anchor, the calibration target | BCF/yr | 19 |
 | $\hat Q_{r,y}$ | capacity at the reference prices before calibration | BCF/yr | 20 |
 
@@ -552,17 +555,18 @@ $\mathit{NA_{\mathit{cr},y}}$.
 
 ### 5.5 For a coupled run
 
-Two more inputs, in `input/hsm/`, are for a coupled run with C-NGMM; a standalone run loads them
-but does not use them. `can_us_export_share.csv` holds the share of extra Canadian production
-that reaches the US; using an average ratio for it is an assumption. It was built as
+Two more inputs, in `input/hsm/`, are for sending Canada to C-NGMM. Every run loads them, and none
+uses them: a coupled run does not send Canada (section 9). `can_us_export_share.csv` holds the
+share of extra Canadian production that reaches the US; using an average ratio for it is an
+assumption. It was built as
 
 $$
 \chi_y = \min\Big( \max\Big( \frac{1000\thinspace (\mathit{Imp}_y - \mathit{Exp}_y)}{\mathit{NA}^{\mathrm{ref}}_{2,y}},\mkern5mu 0 \Big),\mkern5mu 1 \Big) \qquad (29)
 $$
 
 with a missing export taken as 0 and a year Table 61 does not have given the table's first year;
-$\mathit{NA_{\mathit{cr},y}^{\mathrm{ref}}}$ is eq. 28 at the reference prices, stored in `can_na_reference.csv`. No
-code in C-HSM computes or sends anything to C-NGMM yet; a coupling runner would send
+$\mathit{NA_{\mathit{cr},y}^{\mathrm{ref}}}$ is eq. 28 at the reference prices, stored in `can_na_reference.csv`. The
+quantity to send would be
 
 $$
 \Delta_y = \chi_y \big( \mathit{NA}_{2,y} - \mathit{NA}^{\mathrm{ref}}_{2,y} \big) \qquad (30)
@@ -777,3 +781,46 @@ times too high.
 | `hsm_canada_realized_na_prod.csv` | copy of $\mathit{NA_{\mathit{cr},y}}$ | 28 |
 | `hsm_us_legacy_gas.csv` | $G_{r,a,y}^{\mathrm{leg}}$, BCF/yr | 31; with the engine, after eq. 42 |
 | `hsm_us_crude.csv` | $O_{r,a,y}^{\mathrm{leg}}$, or $O_{r,a,y}^E$ with the engine, thousand barrels/yr | 31, or 41 with the engine |
+
+## 9. Coupling to C-NGMM
+
+C-HSM and C-NGMM exchange one quantity each way per iteration. Run settings are in
+`docs/run_modes/integrated.md`, under C-HSM and Natural Gas; the code is in `update_writer.py` and
+`update_reader.py`.
+
+C-HSM sends its US capacity for each gas region $r$ and summary year $t$, summed over cost tier
+and gas type:
+
+$$
+Q^{\mathrm{HSM}}_{r,t} = \sum_{j} Q^{\mathrm{NA}}_{r,j,t} + Q^{\mathrm{AD}}_{r,\mathrm{Med},t} \qquad (44)
+$$
+
+With the NA/AD split off, the sum runs over the cost tiers. C-NGMM sets its supply anchor Q0 to
+this capacity, keeps its price anchor P0, and rebuilds its supply curve.
+
+C-NGMM sends its price in West South Central, the region that holds Henry Hub, for each summary
+year: $P_t^{\mathrm{WSC}}$, in 2025 USD/MMBtu, the dollar year of C-NGMM's prices.
+$H_t^{\mathrm{AEO}}$ is the AEO2026 Henry Hub price in that dollar year, and $H_y^{\mathrm{ref}}$
+the reference path in 1987 dollars, both from `coupling_reference_file`:
+
+$$
+R_t = P_t^{\mathrm{WSC}} / H_t^{\mathrm{AEO}}, \qquad H_y = R_y\thinspace H_y^{\mathrm{ref}} \qquad (45)
+$$
+
+$R_y$ is linear between summary years and held at its first and last values outside them. At
+reference prices $R = 1$, and C-HSM runs on its reference path. No deflator enters the exchange.
+
+Notes:
+
+- Under Gauss-Seidel, C-HSM runs first in each iteration, on the previous iteration's hub price.
+  The first iteration uses `henry_hub_file`.
+- Each update rebuilds C-HSM from its inputs, so each iteration starts from the same Canada state.
+- Each region's capacity responds to the hub price plus the region's fixed basis (eq. 1), not to
+  its C-NGMM price.
+- Associated-dissolved capacity is part of Q0, but follows Brent (eq. 9), not the gas price.
+- Canada is not sent; eq. 30 gives the quantity to send.
+- The calibration (section 4) fits C-HSM's capacity to C-NGMM's anchors at AEO2026 prices. At its
+  own anchors, C-NGMM clears below those prices, so the coupled Q0 settles 8 to 15% below the
+  anchors in each summary year with the shipped inputs. Coupled levels test the exchange; they
+  are not results.
+- A coupled run uses the reduced form and refuses the well-level engine (`onshore_engine_file`).

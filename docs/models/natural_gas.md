@@ -347,6 +347,11 @@ Q0[r,y] = Q0[r] · q0_mult[r,y]        P0[r,y] = P0[r] · p0_mult[r,y]
 with multipliers normalized to 1.0 in the base year. Missing entries default to 1.0, giving the
 static anchor.
 
+A capacity package from the C-HSM sample model sets `Q0[r,y]` to the capacity it carries, through
+`q0_mult` before a build or `update_supply_capacity` on a built model, and keeps `P0` (see
+[Integrated Runs](../run_modes/integrated.md#c-hsm-and-natural-gas)). Coupled or not, `Q0` is a
+capacity, not expected production.
+
 ### The other two curves
 
 **Pipeline tariff curve.** Defined by utilisation breakpoints and tariff multipliers rather than

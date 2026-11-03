@@ -14,9 +14,9 @@ pixi run jacobi      # runs run_configs/jacobi_small.toml, a reduced run
 ```
 
 The run config holds a `[common]` section plus one section per participating model
-(`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`). The `[common]`
+(`[elec_config]`, `[natural_gas]`, `[hsm]`, and optionally `[magic_config]`). The `[common]`
 `models_to_run` list selects the models; `all` selects every model except the dev/test MAGIC
-model, which runs only when named explicitly.
+model and the C-HSM sample model, which run only when named (for example `['all', 'hsm']`).
 
 ### Iterator Settings
 
@@ -32,6 +32,8 @@ created. Every key is required, and an unknown key is an error:
 | `worker_processes`       | Size of the worker pool the models solve in                                |
 | `monitor_delta_mode`     | How the monitor shows objective changes: `absolute`/`percent`              |
 | `exchanges`              | The update packages the models exchange, by package class name             |
+| `exchange_stop_packages` | Packages whose values must settle before the run stops, by class name; an empty list leaves only the objective test |
+| `exchange_epsilon`       | Tolerance in (0, 1] on each such package's largest relative change         |
 
 ### Exchanges and Region Crosswalks
 
@@ -84,7 +86,7 @@ under the crosswalk. With no region filters, that means full coverage.
 `jacobi_iterator.py` couples the models with **Jacobi-style** iteration. Every selected model
 solves in the same iteration, in parallel. The *circuit* is the selected models in a fixed order,
 which sets the order packages are routed and applied in, so results are deterministic. By default
-it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, natural gas);
+it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, hsm, magic, natural gas);
 `JacobiIterator.run(..., circuit=...)` overrides it. Each model
 sees only the results the others sent at the end of the *previous* iteration. (In a Gauss-Seidel
 scheme, by contrast, the models would solve one after another, and each would see results from
@@ -138,9 +140,12 @@ Things to know about the current loop:
   `natural_gas.log`, plus `magic.log` when MAGIC runs). The objective plot is shown but not saved.
 - **The run ends** when every model with an objective has changed by less than `epsilon`,
   relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
-  `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative
-  change makes the test independent of each model's objective scale. Models without an objective
-  (MAGIC) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`, `USABLE`)
+  `iteration_limit` is reached (`ConvergenceTracker` in `src/integrator/convergence.py`). The
+  relative change makes the test independent of each model's objective scale. Models without an
+  objective (MAGIC, C-HSM) are left out. The packages in `exchange_stop_packages` that the run
+  carries must also settle: each one's largest relative change stays under `exchange_epsilon` for
+  the same number of iterations (`ExchangeTracker`), and an iteration without one resets its
+  count. A model whose status is outside `ALLOW_TERMINATION` (`BEST`, `USABLE`)
   holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate but lean on
   a soft limit such as unmet demand. `main.py` then plots each model's objective by iteration; the
   plot window blocks until it is closed.
@@ -158,8 +163,8 @@ Things to know about the current loop:
 ## Gauss-Seidel Iteration (experimental)
 
 `GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
-`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
-with `[common]` mode `"integrated gs"`:
+`IterativeSequencer`. It runs electricity with natural gas, C-HSM with natural gas, or all three
+(`GS_RUNS`), through `main.py` with `[common]` mode `"integrated gs"`:
 
 ```sh
 pixi shell
@@ -170,28 +175,60 @@ pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
 
 It differs from the Jacobi iterator in how the models are run, not in what they exchange:
 
-- Both models are built once and held. Each iteration applies the inbound packages to the
+- The models are built once and held. Each iteration applies the inbound packages to the
   built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
-  its solver between solves.
-- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
-  the same iteration.
+  its solver between solves. C-HSM has no solver; each update rebuilds it from its held inputs.
+- The models solve in turn, C-HSM, then electricity, then gas (`GS_ORDER`), so gas sees that
+  iteration's capacity and burn.
 - Region coverage is checked by the writers and readers, as for Jacobi (see *Exchanges and
   Region Crosswalks*). A run whose regions are not closed under the crosswalk fails on the first
   exchange.
 - Result files are written at the end for each model whose last solve did not fail.
 
-Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
-the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
-logging, the monitor display and the final status) is in `../../src/integrator/bookeeping_utilities.py`, which
+Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker` and
+`ExchangeTracker`) and the monitor are the Jacobi iterator's. The rest of the per-iteration
+bookkeeping (the resend rule, logging, the monitor display and the final status) is in
+`../../src/integrator/bookeeping_utilities.py`, which
 both iterators call. The number in brackets on each monitor arrow is how many
 entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
 iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
-burn and the mean gas price by year. The settings are in
-`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
-`monitor_delta_mode`, and `exchanges`.
+burn and the mean gas price by year, and with C-HSM its national capacity and the hub price by
+year. The settings are in `src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys
+as Jacobi's, `monitor_delta_mode`, and `exchanges`.
 
 `python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
 same settings, and writes a side-by-side table to the output folder.
+
+## C-HSM and Natural Gas
+
+C-HSM, a draft sample model, couples to C-NGMM with one package each way:
+
+- C-HSM sends its US gas production capacity by gas region and summary year, summed over cost
+  tier and gas type (`HSMSupplyCapacityPackage`). C-NGMM sets its supply anchor Q0 to it, keeps
+  its price anchor P0, and rebuilds its supply curve.
+- C-NGMM sends the price of West South Central, the region that holds Henry Hub, by summary year
+  (`NGHubPricePackage`). C-HSM turns it into its Henry Hub path (section 9 of
+  [the C-HSM page](../models/hsm.md)).
+
+Both iterators run the pair, with or without electricity:
+
+```sh
+pixi shell
+python main.py run_configs/gs_hsm_ng.toml        # C-HSM and gas, Gauss-Seidel
+python main.py run_configs/jacobi_hsm_ng.toml    # C-HSM and gas, Jacobi
+python main.py run_configs/gs_hsm_elec_ng.toml   # gs_compare.toml plus C-HSM
+```
+
+Both packages are in `exchange_stop_packages` in the iterator configs, so a run with C-HSM also
+waits for capacity and the hub price to settle. Before any build, `check_model_configs` refuses a
+run of the pair with:
+
+- a `[natural_gas] region_filter`: C-HSM sends every domestic gas region;
+- an `[hsm] ng_input_path` other than `[natural_gas] input_path`: C-HSM's capacity is fitted to
+  C-NGMM's cost tiers, and C-NGMM converts it to Q0 with them;
+- an `[hsm] coupling_reference_dollar_year` other than `PRICE_DOLLAR_YEAR` in
+  `src/models/natural_gas/constants.py`;
+- an `[hsm] onshore_engine_file`: the well-level engine is not coupled.
 
 ## Inter-model Communication
 
@@ -234,6 +271,8 @@ The packages exchanged today:
 |:-----------------|:----------------------------|:------------------|:-----------------------------------------------------------------------------------|
 | NG Demand        | `NGElectricalDemandPackage` | Electricity → NG  | Replaces `electric_power` sector gas demand; that sector's growth projection is switched off |
 | NG Prices        | `NGPricePackage`            | NG → Electricity  | Scales the supply price of gas-linked techs with the regional gas price             |
+| HSM Capacity     | `HSMSupplyCapacityPackage`  | C-HSM → NG        | Sets Q0 by gas region and year; the supply curve is rebuilt                         |
+| Hub Price        | `NGHubPricePackage`         | NG → C-HSM        | Scales C-HSM's reference Henry Hub path by the hub price over the reference price   |
 | Elec Price Scaler | `ElectricityPriceScaler`   | Magic → Electricity | Mock: scales supply prices of named techs                                        |
 | NG Demand Scaler | `NGDemandScaler`            | Magic → NG        | Mock: scales all gas demand                                                        |
 

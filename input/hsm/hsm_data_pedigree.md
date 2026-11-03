@@ -23,7 +23,7 @@ A reduced-form run (the default) reads 26 of the files. A run with the well-leve
 the same files except the reduced form's calibration, plus the engine's calibration, its settings
 and nine more NEMS onshore files. Both read the Henry Hub file named in the run config (the basic
 config names `henry_hub_path_aeo2026_1987usd.csv`). C-HSM also reads two of C-NGMM's files,
-`input/natural_gas/ng_region_data.csv` (the regions) and `input/natural_gas/ng_supply_cost_tiers.csv`
+`input/natural_gas/properties/ng_region_data.csv` (the regions) and `input/natural_gas/parameters/ng_supply_cost_tiers.csv`
 (the base capacity of each cost tier), so the two models share one set.
 
 119 more NEMS HSM input files (offshore, Alaska, gas processing, history, STEO, and the onshore
@@ -58,11 +58,11 @@ the AEO2025 cycle; in the AEO2026 cycle the first projection year is 2025 (`ENGI
 | `brent_reference_path.csv` | AEO2026 Brent spot price (`AEO2026Results/sup_ogc.xlsx`, Table 57, 2025 \$/gallon x 42 = $/bbl) divided as above. The default Brent path, and the reference Brent for the NA/AD split. |
 | `us_ad_gas_share.csv` | Share of gas that is associated-dissolved, by census division: first-year gas (GP1) of projects with `well_type_number` < 3 in the NEMS producing and CO2-EOR decks, mapped to census divisions with `mapping.csv`. |
 | `us_ad_elasticity.csv` | Brent elasticity of associated-dissolved gas by census division: national values are the crude response to Brent in EIA's AEO2025 High and Low Oil Price cases (AEO2026 has none), used for AD gas as an assumption, and mixed by each division's tight oil share of AD gas from the NEMS decks. |
-| `us_gas_calibration.csv` | The reduced form's `(k, g, c)` calibration by census division, fitted so that US capacity at the AEO2026 reference prices matches C-NGMM's supply anchors (`ng_supply_cost_tiers.csv` x `ng_supply_anchors.csv`; see `input/natural_gas/ng_data_pedigree.md`). Refit it if those C-NGMM files change. |
+| `us_gas_calibration.csv` | The reduced form's `(k, g, c)` calibration by census division, fitted so that US capacity at the AEO2026 reference prices matches C-NGMM's supply anchors (`ng_supply_cost_tiers.csv` x `ng_supply_anchors.csv`; see `input/natural_gas/parameters/ng_data_pedigree.md`). Refit it if those C-NGMM files change. |
 | `us_gas_calibration_engine.csv` | The same calibration for the well-level engine, fitted with an earlier set of engine settings. Approximate with the shipped settings (about 3% nationally, 13% at worst regionally); refit before using engine results (`ENGINE_PLAN.md`, step 3). |
 | `us_onshore_engine.csv` | The engine's settings (discount rate, well caps, royalty and severance, and so on), set for C-HSM (`ENGINE_PLAN.md`). |
-| `can_na_reference.csv` | Canada's non-associated production from C-HSM itself, run at the reference Brent path. Used only by a coupled run. |
-| `can_us_export_share.csv` | AEO2026 net US pipeline imports from Canada (`AEO2026Results/sup_ogc.xlsx`, Table 61) over Canada's reference production; treating this average as the share of extra production is an assumption. Used only by a coupled run. |
+| `can_na_reference.csv` | Canada's non-associated production from C-HSM itself, run at the reference Brent path. Not used: a coupled run does not send Canada. |
+| `can_us_export_share.csv` | AEO2026 net US pipeline imports from Canada (`AEO2026Results/sup_ogc.xlsx`, Table 61) over Canada's reference production; treating this average as the share of extra production is an assumption. Not used: a coupled run does not send Canada. |
 
 AEO2026's tables start in 2025, so the Henry Hub, Brent and export share files repeat 2025 in 2023
 and 2024.

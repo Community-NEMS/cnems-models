@@ -1,8 +1,8 @@
 # C-HSM
 
-C-HSM is the hydrocarbon supply model of C-NEMS, adapted from the Hydrocarbon Supply Module of EIA's
-National Energy Modeling System (NEMS, <https://github.com/EIAgov/NEMS>, Apache License 2.0; see
-`NOTICE.md`). It projects, for every calendar year from 2023 to 2050:
+C-HSM is a draft sample model for exercising coupling with C-NGMM, adapted from the Hydrocarbon
+Supply Module of EIA's National Energy Modeling System (NEMS, <https://github.com/EIAgov/NEMS>,
+Apache License 2.0; see `NOTICE.md`). It projects, for every calendar year from 2023 to 2050:
 
 - US natural gas production capacity by census division, cost tier and gas type
   (non-associated or associated-dissolved), in response to the Henry Hub and Brent prices;
@@ -34,15 +34,17 @@ minutes).
 | Key | Meaning |
 |---|---|
 | `input_path` | the C-HSM input folder, `input/hsm` |
-| `ng_input_path` | C-NGMM's input folder, `input/natural_gas`. C-HSM reads the regions (`ng_region_data.csv`) and the base capacity of each cost tier (`ng_supply_cost_tiers.csv`) from here, so the two models always agree on them |
+| `ng_input_path` | C-NGMM's input folder, `input/natural_gas`, from which C-HSM reads the regions (`properties/ng_region_data.csv`) and the base capacity of each cost tier (`parameters/ng_supply_cost_tiers.csv`). In a coupled run it must be the folder C-NGMM reads |
 | `henry_hub_file` | Henry Hub price path in `input_path`, 1987 $/MMBtu, one row per year 2023–2050. Default `hh_reference_path.csv`; the basic config uses `henry_hub_path_aeo2026_1987usd.csv` |
 | `brent_multiplier` | scales the Brent path for oil price scenarios (default 1.0) |
 | `onshore_engine_file` | settings file in `input_path` for the optional well-level engine, normally `us_onshore_engine.csv`. Left out (the default), C-HSM runs the reduced form |
 | `calibration_file` | the `(k, g, c)` calibration in `input_path`: `us_gas_calibration.csv` (default) for the reduced form, `us_gas_calibration_engine.csv` for the engine |
+| `coupling_reference_file` | the reference Henry Hub path in `input_path`, in 1987 USD and in `coupling_reference_dollar_year` USD, which a coupled run scales by C-NGMM's hub price over the reference price. Default `henry_hub_path_aeo2026_1987usd.csv` |
+| `coupling_reference_dollar_year` | the dollar year of the second price column, which a coupled run requires to be C-NGMM's (default 2025) |
 
 File settings must be names inside `input_path`. The `[common]` section is required, but C-HSM reads
-only `output_path` and `scenario_name`. It always runs every year from 2023 to 2050 (set in
-`input/hsm/setup.csv`).
+only `output_path`, `scenario_name` and `summary_years`, the years it reports in a coupled run, each
+a model year. It runs every year from 2023 to 2050 (set in `input/hsm/setup.csv`).
 
 ## Files
 
@@ -53,6 +55,8 @@ only `output_path` and `scenario_name`. It always runs every year from 2023 to 2
 | `data.py` | reads the price paths, and the regions and cost tiers from C-NGMM's inputs |
 | `hsm_model.py` | `HSMModel`: holds the model years, runs them, changes prices, returns results |
 | `postprocessor.py` | writes the six result CSVs |
+| `update_reader.py` | `HSMUpdateReader`: sets the Henry Hub path from C-NGMM's hub price |
+| `update_writer.py` | `HSMUpdateWriter`: sends US capacity to C-NGMM |
 | `module.py` | `HSMModule`: runs one year at a time: prices, the Canada submodule, the US supply |
 | `us_gas.py` | `USGasModule`: the reduced-form US gas supply |
 | `us_onshore.py` | `OnshoreLegacy` (production of existing wells, for two outputs) and `OnshoreEngine` (the optional well-level engine) |
@@ -60,7 +64,6 @@ only `output_path` and `scenario_name`. It always runs every year from 2023 to 2
 | `NOTICE.md` | what comes from NEMS, and under what licence |
 | `PROVENANCE.md` | where every piece of code, every number in the code and every input comes from |
 | `EVALUATION.md` | what the model is worth and what is left to do |
-| `COUPLING.md` | how to couple C-HSM to C-NGMM |
 | `ENGINE_PLAN.md` | the well-level engine: status, known bugs and the steps to finish it |
 | `INPUTS_PLAN.md` | the NEMS inputs C-HSM does not use yet, and how to add them |
 | `CONVENTIONS.md` | names shared with C-NGMM, and where C-HSM keeps NEMS names |
@@ -113,12 +116,17 @@ own calibration applies (`ENGINE_PLAN.md`).
 
 ## Coupling
 
-C-HSM is not yet wired into a coupled run (`update_model` raises `NotImplementedError`, as in
-C-NGMM). The pieces for a coupled loop with C-NGMM are `HSMModel.update_prices`,
-`HSMModel.poll_us_natgas_capacity` and C-NGMM's `NGModel.update_supply_capacity`. That method takes
-`(region, cost_tier, year)` keys and sums over the cost tier, so C-HSM's gas type has to be summed
-first (`COUPLING.md` shows how). Before re-running the years inside a loop, restore Canada's tables
-from a copy taken right after `setup_canada()`: `reset_canada()` alone does not.
+C-HSM exchanges one package each way with C-NGMM, under both integrated drivers:
+
+- its US capacity, summed over cost tier and gas type, sets C-NGMM's supply anchor Q0;
+- C-NGMM's West South Central price sets C-HSM's Henry Hub path.
+
+Run it with `python main.py run_configs/gs_hsm_ng.toml` (Gauss-Seidel) or
+`run_configs/jacobi_hsm_ng.toml` (Jacobi). Equations and limits are in `docs/models/hsm.md`,
+section 9, and run settings in `docs/run_modes/integrated.md`.
+
+Each update rebuilds the model from its inputs, since `reset_canada()` does not restore Canada's
+tables. A coupled run refuses the engine (`onshore_engine_file`).
 
 ## Where the inputs come from
 

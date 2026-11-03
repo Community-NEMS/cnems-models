@@ -29,6 +29,8 @@ The project is being built sector by sector. Two models are currently in the rep
 | Electricity | `src/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
 | Natural gas | `src/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
 
+`src/models/hsm` holds C-HSM, a draft sample model for exercising coupling with C-NGMM.
+
 `src/integrator` holds the machinery for coupling models to each other. It is in active development, and
 parts of it are not yet maintained.
 
@@ -65,6 +67,13 @@ Run the natural gas model.
 
 ```sh
 pixi run ng
+```
+
+Run C-HSM on its own, or coupled with C-NGMM.
+
+```sh
+pixi run hsm
+pixi run python main.py run_configs/gs_hsm_ng.toml
 ```
 
 Other tasks worth knowing.

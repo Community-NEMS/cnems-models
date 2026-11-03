@@ -58,6 +58,11 @@ The natural gas model has the same shape and runs through the same `_run_standal
 built from the `[natural_gas]` section. `NGSequencer` runs `load_all` → `NGUpdateReader` →
 `NGModel` for the build, then a QP solve, then `report` for postprocessing.
 
+C-HSM, a draft sample model, runs the same way when `models_to_run` names `hsm` (`all` leaves it
+out), with its config from the `[hsm]` section (`run_configs/basic_hsm_config.toml`, or
+`pixi run hsm`). `solve_model` runs each year from 2023 to 2050, and `full_postprocess` writes six
+result files.
+
 !!! note "What happens with update packages in a standalone run"
 
     `build_model` still hands the (empty) package list to the model's update reader. The reader

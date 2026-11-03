@@ -13,14 +13,15 @@ import tomllib
 from logging import getLogger
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import ValidationError, model_validator
 
 from definitions import PROJECT_ROOT
+from src.common.common_config import ModelConfig
 
 logger = getLogger(__name__)
 
 
-class HSMConfig(BaseModel):
+class HSMConfig(ModelConfig):
     """Settings from the ``[hsm]`` TOML section, controlling C-HSM.
 
     Attributes
@@ -42,6 +43,13 @@ class HSMConfig(BaseModel):
     calibration_file : str
         The ``(k, g, c)`` calibration in ``input_path``. The reduced form and the engine each need
         their own fit: ``us_gas_calibration.csv`` (default) and ``us_gas_calibration_engine.csv``.
+    coupling_reference_file : str
+        The reference Henry Hub path in ``input_path``, which a coupled run scales by C-NGMM's hub
+        price over the reference price:  ``year``, ``hh_1987_usd_per_mmbtu``, and
+        ``hh_<year>usd_per_mmbtu`` in ``coupling_reference_dollar_year`` USD.
+    coupling_reference_dollar_year : int
+        The dollar year of ``hh_<year>usd_per_mmbtu``; a coupled run requires
+        ``PRICE_DOLLAR_YEAR`` (``src/models/natural_gas/constants.py``).
     """
 
     input_path: Path
@@ -50,17 +58,28 @@ class HSMConfig(BaseModel):
     brent_multiplier: float = 1.0
     onshore_engine_file: str | None = None
     calibration_file: str = 'us_gas_calibration.csv'
+    coupling_reference_file: str = 'henry_hub_path_aeo2026_1987usd.csv'
+    coupling_reference_dollar_year: int = 2025
 
     @model_validator(mode='after')
-    def check_paths(self):
-        """Resolve both folders against PROJECT_ROOT and check the Henry Hub file exists."""
+    def check_paths(self) -> HSMConfig:
+        """Resolve both folders against PROJECT_ROOT and check that each file setting exists.
+
+        The file settings are ``henry_hub_file``, ``calibration_file``, ``onshore_engine_file``
+        (when set) and ``coupling_reference_file``, each a file name inside ``input_path``.
+        """
         self.input_path = PROJECT_ROOT / self.input_path
         if not self.input_path.is_dir():
             raise ValueError(f'Input path {self.input_path} is not a directory')
         self.ng_input_path = PROJECT_ROOT / self.ng_input_path
         if not self.ng_input_path.is_dir():
             raise ValueError(f'Natural gas input path {self.ng_input_path} is not a directory')
-        for name in (self.henry_hub_file, self.calibration_file, self.onshore_engine_file):
+        for name in (
+            self.henry_hub_file,
+            self.calibration_file,
+            self.onshore_engine_file,
+            self.coupling_reference_file,
+        ):
             if name is None:
                 continue
             if Path(name).is_absolute():

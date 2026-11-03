@@ -20,7 +20,7 @@ class ModelType(Enum):
     ALL = 'all'  # indicator implying all models
     ELECTRICITY = 'electricity'
     NATURAL_GAS = 'natural_gas'
-    HSM = 'hsm'
+    HSM = 'hsm'  # draft sample model, for coupling tests
     MAGIC = 'magic'  # for testing/dev
 
 
@@ -33,11 +33,15 @@ class RunMode(Enum):
     INTEGRATED_GS = 'integrated gs'
 
 
+# the dev/test and sample models, which ``ModelType.ALL`` leaves out unless they are named
+NAMED_ONLY: frozenset[ModelType] = frozenset({ModelType.MAGIC, ModelType.HSM})
+
+
 def resolve_models_to_run(models: Sequence[ModelType]) -> list[ModelType]:
     """Expand a ``models_to_run`` list into the concrete models it names.
 
-    ``ModelType.ALL`` expands to every production model, in enum order; the dev/test MAGIC model
-    is included only when also named explicitly.  A list without ``ALL`` is returned as given.
+    ``ModelType.ALL`` expands to every production model, in enum order; the models in
+    ``NAMED_ONLY`` are included only when named.  A list without ``ALL`` is returned as given.
 
     Parameters
     ----------
@@ -51,5 +55,5 @@ def resolve_models_to_run(models: Sequence[ModelType]) -> list[ModelType]:
     """
     if ModelType.ALL not in models:
         return list(models)
-    excluded = {ModelType.ALL} if ModelType.MAGIC in models else {ModelType.ALL, ModelType.MAGIC}
+    excluded = {ModelType.ALL} | (NAMED_ONLY - set(models))
     return [model for model in ModelType if model not in excluded]

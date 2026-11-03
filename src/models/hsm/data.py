@@ -87,7 +87,8 @@ def load_ng_supply_side(
     Parameters
     ----------
     ng_input_path : Path
-        C-NGMM's input folder, holding ``ng_region_data.csv`` and ``ng_supply_cost_tiers.csv``.
+        C-NGMM's input folder, holding ``properties/ng_region_data.csv`` and
+        ``parameters/ng_supply_cost_tiers.csv``.
 
     Returns
     -------
@@ -96,6 +97,6 @@ def load_ng_supply_side(
         in low, medium, high cost order. C-HSM uses only the capacities.
     """
     ng_config = NGConfig(input_path=ng_input_path)
-    regions = load_region_data(ng_config)['regions_domestic']
-    cost_tiers = load_supply_cost_tiers(ng_config.input_path)
+    regions = load_region_data(ng_config.input_path / 'properties')['regions_domestic']
+    cost_tiers = load_supply_cost_tiers(ng_config.input_path / 'parameters')
     return regions, cost_tiers

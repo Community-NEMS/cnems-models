@@ -27,7 +27,7 @@ from src.common.integrated_model_sequencer import (
 from src.common.iterative_sequencer import RunStatus
 from src.common.models_modes import ModelType
 from src.common.update_package import UpdatePackage
-from src.integrator.convergence import ConvergenceTracker
+from src.integrator.convergence import ConvergenceTracker, ExchangeTracker
 from src.integrator.iteration_monitor import IterationMonitor
 
 logger = logging.getLogger(__name__)
@@ -137,6 +137,33 @@ def log_progress(
         },
     )
     log.info('Done with iteration %d/%d', iteration, iteration_limit)
+
+
+def log_exchange_progress(
+    tracker: ExchangeTracker, iteration: int, log: logging.Logger = logger
+) -> None:
+    """Log the largest relative change of each tracked exchanged package type.
+
+    Parameters
+    ----------
+    tracker : ExchangeTracker
+        Updated with this iteration's results.
+    iteration : int
+        The iteration number.
+    log : logging.Logger
+        The caller's logger.
+    """
+    if not tracker.package_names:
+        return
+    log.info(
+        'Iteration %d largest relative changes in exchanged values (epsilon %g): %s',
+        iteration,
+        tracker.epsilon,
+        {
+            name: 'n/a' if change is None else f'{change:.3g}'
+            for name, change in sorted(tracker.changes.items())
+        },
+    )
 
 
 def final_status(

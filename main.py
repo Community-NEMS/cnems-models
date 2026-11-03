@@ -22,6 +22,8 @@ from src.integrator.iteration_plot import plot_objectives
 from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
+from src.models.hsm.hsm_config import HSMConfig
+from src.models.hsm.sequencer import HSMSequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
@@ -103,9 +105,10 @@ def main(config_path: Path, debug: bool = False) -> None:
 def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     """Build, solve, and postprocess each model in ``models_to_run``, one after another.
 
-    ``ModelType.ALL`` expands to every production model; the dev/test MAGIC model runs only when
-    named explicitly.  Every model's config is built before any model runs, so a missing or
-    invalid config section fails the whole run up front, with each problem logged.
+    ``ModelType.ALL`` expands to every production model; the dev/test MAGIC model and the C-HSM
+    sample model (``NAMED_ONLY``) run only when named.  Every model's config is built before any
+    model runs, so a missing or invalid config section fails the whole run up front, with each
+    problem logged.
 
     Parameters
     ----------
@@ -130,6 +133,8 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
                     )
                 case ModelType.NATURAL_GAS:
                     runs.append((model_type, NGConfig(**remainder['natural_gas']), NGSequencer()))
+                case ModelType.HSM:
+                    runs.append((model_type, HSMConfig(**remainder['hsm']), HSMSequencer()))
                 case ModelType.MAGIC:
                     runs.append(
                         (

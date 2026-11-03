@@ -12,6 +12,7 @@ all, a way to change prices, and the results to read back.
 
 import logging
 import math
+from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
@@ -44,14 +45,17 @@ class HSMModel(IntegratedModel):
         Henry Hub price (1987 $/MMBtu) for every model year.
     output_path : Path
         Where optional debug files go when the debug switches in ``setup.csv`` are on.
+    summary_years : Sequence[int], optional
+        The years C-HSM reports to coupled models, each a model year.  ``HSMSequencer`` passes the
+        run's ``summary_years`` in every run.
 
     Raises
     ------
     ValueError
-        If ``henry_hub_prices``, or either reference path (``hh_reference_path.csv``,
-        ``brent_reference_path.csv``), misses a model year or has a blank or non-finite price.
-        ``HSMModule`` would quietly use a flat 3.5 or 4.0 for a missing year, which is never
-        what anyone wants.
+        If a summary year is not a model year, or if ``henry_hub_prices`` or either reference
+        path (``hh_reference_path.csv``, ``brent_reference_path.csv``) misses a model year or has
+        a blank or non-finite price.  ``HSMModule`` would fill a missing year with a flat 3.5 or
+        4.0, without a warning.
     """
 
     def __init__(
@@ -61,6 +65,7 @@ class HSMModel(IntegratedModel):
         supply_cost_tiers: dict[str, list[tuple[float, float]]],
         henry_hub_prices: dict[int, float],
         output_path: Path,
+        summary_years: Sequence[int] = (),
     ) -> None:
         self.module = HSMModule(
             input_path=hsm_config.input_path,
@@ -78,6 +83,13 @@ class HSMModel(IntegratedModel):
             ),
         )
         self.years = list(range(self.module.history_year, self.module.final_aeo_year + 1))
+        outside = sorted(int(y) for y in summary_years if int(y) not in self.years)
+        if outside:
+            raise ValueError(
+                f'Summary years {outside} are outside the C-HSM years '
+                f'{self.years[0]} to {self.years[-1]}'
+            )
+        self.summary_years = sorted(int(y) for y in summary_years)
         self._check_price_path(henry_hub_prices, 'Henry Hub')
         # The reference paths fill in whenever a price update is empty, and they set the
         # reference prices for the NA/AD split, so they must cover every year as well.
@@ -88,6 +100,16 @@ class HSMModel(IntegratedModel):
         self._check_price_path(
             load_brent_path(input_path / 'brent_reference_path.csv'), 'Brent reference'
         )
+
+    @property
+    def label(self) -> str:
+        """Display name."""
+        return 'Hydrocarbon Supply'
+
+    @property
+    def regions(self) -> frozenset[str]:
+        """The US supply regions, as ``str`` ids:  C-NGMM's domestic regions."""
+        return frozenset(str(r) for r in self.module.us_gas.regions)
 
     def _check_price_path(self, prices: dict[int, float], name: str) -> None:
         """Raise ``ValueError`` unless ``prices`` has a finite price for every model year."""

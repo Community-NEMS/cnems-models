@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID, uuid4
 
+import numpy as np
 import pandas as pd
 
 from src.common.models_modes import ModelType
@@ -323,3 +324,117 @@ class NGElectricalDemandPackage(UpdatePackage):
             ``NG_ELEC_DEMAND_VALUE`` column is absent, or any demand is missing or negative.
         """
         _check_region_year_frame(self, self.elements, NG_ELEC_DEMAND_VALUE)
+
+
+# index/value labels of an HSMSupplyCapacityPackage frame:  natural gas region name (str) and model
+# year (int).  C-HSM uses C-NGMM's regions, so no crosswalk applies.
+HSM_CAPACITY_INDEX = REGION_YEAR_INDEX
+HSM_CAPACITY_VALUE = 'capacity_bcf'
+
+
+@register_package
+@dataclass(frozen=True)
+class HSMSupplyCapacityPackage(UpdatePackage):
+    """US gas production capacity from C-HSM, summed over cost tier and gas type.
+
+    Sets C-NGMM's supply anchor Q0, through ``supply_anchors`` before a build (``NGUpdateReader``)
+    and ``NGModel.update_supply_capacity`` on a built model (``NGModelUpdateReader``).  Both raise
+    unless the frame's regions and years are the ones they hold.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Capacity in Bcf/yr indexed by ``HSM_CAPACITY_INDEX`` with one ``HSM_CAPACITY_VALUE`` column.
+    receivers : tuple of ModelType
+        Fixed to the natural gas model.
+    """
+
+    sender: ClassVar[ModelType] = ModelType.HSM
+    elements: pd.DataFrame
+    receivers: tuple[ModelType, ...] = (ModelType.NATURAL_GAS,)
+    label: str = 'HSM Capacity'
+
+    @property
+    def size(self) -> int:
+        """One entry per (region, year) row."""
+        return len(self.elements)
+
+    def __post_init__(self) -> None:
+        """Reject a frame the receiver could not apply.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``HSM_CAPACITY_INDEX`` or has duplicates, the
+            ``HSM_CAPACITY_VALUE`` column is absent, or any capacity is missing, negative or
+            infinite.
+        """
+        _check_region_year_frame(self, self.elements, HSM_CAPACITY_VALUE)
+        if not np.isfinite(self.elements[HSM_CAPACITY_VALUE].to_numpy(dtype=float)).all():
+            raise ValueError(
+                f'{type(self).__name__} requires finite values in {HSM_CAPACITY_VALUE!r}.'
+            )
+
+
+# index/value labels of an NGHubPricePackage frame:  model year (int)
+NG_HUB_PRICE_INDEX = ['year']
+NG_HUB_PRICE_VALUE = 'price'
+
+
+@register_package
+@dataclass(frozen=True)
+class NGHubPricePackage(UpdatePackage):
+    """C-NGMM's price in the Henry Hub region, by model year, for C-HSM.
+
+    ``HSMUpdateReader`` turns it into C-HSM's Henry Hub path before a build.
+
+    Attributes
+    ----------
+    elements : pd.DataFrame
+        Prices in USD/MMBtu of ``dollar_year``, indexed by ``NG_HUB_PRICE_INDEX`` with one
+        ``NG_HUB_PRICE_VALUE`` column.
+    hub_region : str
+        The gas region whose price stands in for Henry Hub.
+    dollar_year : int
+        The dollar year of the prices.
+    receivers : tuple of ModelType
+        Fixed to C-HSM.
+    """
+
+    sender: ClassVar[ModelType] = ModelType.NATURAL_GAS
+    elements: pd.DataFrame
+    hub_region: str
+    dollar_year: int
+    receivers: tuple[ModelType, ...] = (ModelType.HSM,)
+    label: str = 'Hub Price'
+
+    @property
+    def size(self) -> int:
+        """One entry per year."""
+        return len(self.elements)
+
+    def __post_init__(self) -> None:
+        """Reject a frame C-HSM could not use.
+
+        ``NGModel.poll_gas_price`` reports a missing dual as 0.0, so prices must be positive.
+
+        Raises
+        ------
+        ValueError
+            If the index is not ``NG_HUB_PRICE_INDEX``, is empty or has duplicates, the
+            ``NG_HUB_PRICE_VALUE`` column is absent, or any price is missing, infinite, or not
+            positive.
+        """
+        name = type(self).__name__
+        if list(self.elements.index.names) != NG_HUB_PRICE_INDEX:
+            raise ValueError(
+                f'{name} elements must be indexed by {NG_HUB_PRICE_INDEX}; '
+                f'got {list(self.elements.index.names)}.'
+            )
+        if self.elements.empty or self.elements.index.has_duplicates:
+            raise ValueError(f'{name} elements must hold one row per year, and at least one.')
+        if NG_HUB_PRICE_VALUE not in self.elements.columns:
+            raise ValueError(f'{name} elements need a {NG_HUB_PRICE_VALUE!r} column.')
+        values = self.elements[NG_HUB_PRICE_VALUE].to_numpy(dtype=float)
+        if not (np.isfinite(values).all() and (values > 0).all()):
+            raise ValueError(f'{name} requires finite, positive prices; got {values.tolist()}.')

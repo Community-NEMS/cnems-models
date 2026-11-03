@@ -12,6 +12,7 @@ Tests for the Jacobi iterator's relative-change convergence test and its config.
 
 import math
 
+import pandas as pd
 import pytest
 from pydantic import ValidationError
 
@@ -22,7 +23,8 @@ from src.common.integrated_model_sequencer import (
     IterationStatus,
 )
 from src.common.models_modes import ModelType
-from src.integrator.convergence import ConvergenceTracker, relative_change
+from src.common.update_package import NG_HUB_PRICE_INDEX, NG_HUB_PRICE_VALUE, NGHubPricePackage
+from src.integrator.convergence import ConvergenceTracker, ExchangeTracker, relative_change
 from src.integrator.iteration_monitor import DeltaMode
 from src.integrator.jacobi.jacobi_config import JacobiConfig
 
@@ -162,6 +164,40 @@ def test_penalty_without_objective_still_blocks() -> None:
     assert tracker.update([result(ELEC, 100.0), result(MAGIC, None)])
 
 
+def test_exchange_tracker_waits_for_exchanged_values() -> None:
+    """A moving tracked value holds the run, and an iteration without it resets the count.
+
+    The objective does not change, so the objective test alone would stop.
+    """
+
+    def hub(price: float) -> IterationResult:
+        """A gas result carrying one hub price."""
+        package = NGHubPricePackage(
+            elements=pd.DataFrame(
+                {NG_HUB_PRICE_VALUE: [price]}, index=pd.Index([2030], name=NG_HUB_PRICE_INDEX[0])
+            ),
+            hub_region='west_south_central',
+            dollar_year=2025,
+            source=NG,
+        )
+        return IterationResult(
+            model_type=NG,
+            status=IterationStatus.BEST,
+            objective_value=100.0,
+            update_packages=[package],
+        )
+
+    tracker = ExchangeTracker(
+        epsilon=0.005, required_iterations=2, package_names=['NGHubPricePackage']
+    )
+    assert not tracker.update([hub(3.0)])  # first values start no streak
+    assert not tracker.update([hub(3.3)])  # a 10% move
+    assert not tracker.update([hub(3.301)])  # stable once
+    assert not tracker.update([result(NG, 100.0, IterationStatus.ERROR)])  # no price: reset
+    assert not tracker.update([hub(3.301)])  # stable once
+    assert tracker.update([hub(3.301)])  # stable twice
+
+
 VALID = {
     'iteration_limit': 15,
     'epsilon': 0.001,
@@ -169,6 +205,8 @@ VALID = {
     'worker_processes': 6,
     'monitor_delta_mode': 'absolute',
     'exchanges': ['NGPricePackage'],
+    'exchange_stop_packages': [],
+    'exchange_epsilon': 0.005,
 }
 
 

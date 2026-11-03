@@ -12,7 +12,8 @@ output_path='output'
 scenario_name = "hsm_baseline"
 
 # C-HSM is annual and always runs every year from 2023 to 2050 (set in input/hsm/setup.csv).
-# The temporal settings below are required by [common] but C-HSM does not read them.
+# [common] requires the temporal settings below.  C-HSM reads only summary_years, the years it
+# reports in a coupled run.
 temporal_resolution = "default"
 aggregate_years=false
 aggregate_start_year = 2023

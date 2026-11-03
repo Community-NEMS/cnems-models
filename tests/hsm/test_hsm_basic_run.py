@@ -12,11 +12,11 @@ failure.
 
 dev notes:
 1.  The expected files were captured from the standalone C-HSM run on the inputs in input/hsm/
-    and C-NGMM's input/natural_gas/ng_supply_cost_tiers.csv, with the AEO2026 reference Henry
-    Hub path. If any of those inputs change on purpose, re-capture the files and say why in the
-    commit.
-2.  C-HSM reads C-NGMM's cost tiers, so a change to input/natural_gas/ng_supply_cost_tiers.csv
-    moves these results too. That is intended: the two models must share one set of tiers.
+    and C-NGMM's input/natural_gas/parameters/ng_supply_cost_tiers.csv, with the AEO2026
+    reference Henry Hub path. If any of those inputs change on purpose, re-capture the files and
+    say why in the commit.
+2.  C-HSM reads C-NGMM's cost tiers, so a change to C-NGMM's ng_supply_cost_tiers.csv moves
+    these results too. That is intended: the two models must share one set of tiers.
 """
 
 from pathlib import Path
@@ -61,7 +61,7 @@ def result_dir(config_set, tmp_path_factory) -> Path:
     common_config.make_scenario_dir()
     sequencer = HSMSequencer()
     sequencer.build_model(common_config, hsm_config)
-    status = sequencer.solve_model()
+    _, status = sequencer.solve_model()
     assert status is IterationStatus.USABLE, f'run failed with status {status}'
     sequencer.full_postprocess()
     return sequencer.output_dir()

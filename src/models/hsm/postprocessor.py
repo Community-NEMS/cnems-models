@@ -11,7 +11,8 @@ shapes the results into tables; nothing here changes the model.
 Six CSVs are written, all in BCF/yr unless the column name says otherwise:
 
 - ``hsm_us_gas_capacity.csv``: US production capacity by region, cost tier, gas type and year.
-  This is what a coupled run would hand to C-NGMM.
+  A coupled run sends it to C-NGMM summed over cost tier and gas type, in the summary years
+  (``update_writer.py``).
 - ``hsm_us_legacy_gas.csv``: gas from wells already producing in the base year.
 - ``hsm_us_crude.csv``: crude oil from those same wells, thousand barrels (``crude_mbbl``).
 - ``hsm_canada_na_prod.csv``, ``hsm_canada_ad_prod.csv``: Canadian non-associated and

@@ -27,15 +27,22 @@ from src.common.update_package import ExchangeSpec, UpdatePackage, route_updates
 from src.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
+    log_exchange_progress,
     log_progress,
     show_iteration,
 )
-from src.integrator.config_sections import CONFIG_SECTIONS, OPTIONAL_SECTIONS
-from src.integrator.convergence import ConvergenceTracker
+from src.integrator.config_sections import (
+    CONFIG_SECTIONS,
+    OPTIONAL_SECTIONS,
+    check_model_configs,
+)
+from src.integrator.convergence import ConvergenceTracker, ExchangeTracker
 from src.integrator.iteration_monitor import IterationMonitor
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
+from src.models.hsm.hsm_config import HSMConfig
+from src.models.hsm.sequencer import HSMSequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
@@ -123,6 +130,15 @@ def driver(iter_call: IterationCall) -> IterationResult:
                     return NGSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
+                case ModelType.HSM:
+                    if not isinstance(iter_call.model_config, HSMConfig):
+                        raise TypeError(
+                            f'ModelType.HSM needs an HSMConfig, '
+                            f'got {type(iter_call.model_config).__name__}'
+                        )
+                    return HSMSequencer(iter_call.exchange).full_run(
+                        iter_call.common_config, iter_call.model_config, **iter_call.kwargs
+                    )
                 case ModelType.MAGIC:
                     if not isinstance(iter_call.model_config, MagicConfig):
                         raise TypeError(
@@ -189,7 +205,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         ------
         ValueError
             If a selected model has no config section (other than MAGIC's optional one) or no
-            Jacobi support.
+            Jacobi support, or the configs cannot run together (``check_model_configs``).
         """
         configs: dict[ModelType, ModelConfig] = {}
         for model in resolve_models_to_run(common_config.models_to_run):
@@ -201,7 +217,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                     f'{model.value!r} is in models_to_run but the config has no [{section}] section'
                 )
             configs[model] = config_cls(**remainder.get(section, {}))
-
+        check_model_configs(configs)
         return configs
 
     def run(
@@ -271,6 +287,11 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         iteration = 1
         iteration_limit = self.config.iteration_limit
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
+        exchange_tracker = ExchangeTracker(
+            self.config.exchange_epsilon,
+            self.config.convergence_iterations,
+            set(self.config.exchange_stop_packages) & {t.__name__ for t in exchange.expected},
+        )
         converged = False
         routed_updates = route_updates({}, run_circuit)
         # the last accepted outbound packages per sender, resent while that sender's solves fail
@@ -313,8 +334,12 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                 #        how a missing or unexpected exchange feeds routing and the run status
                 routed_updates = route_updates(accepted, run_circuit)
 
-                converged = tracker.update(results)
+                # update both trackers every iteration; the run stops when both pass
+                objectives_settled = tracker.update(results)
+                exchanges_settled = exchange_tracker.update(results)
+                converged = objectives_settled and exchanges_settled
                 log_progress(tracker, iteration, self.config.epsilon, iteration_limit, logger)
+                log_exchange_progress(exchange_tracker, iteration, logger)
                 iteration += 1
 
         status = final_status(

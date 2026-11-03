@@ -23,7 +23,15 @@ monitor_delta_mode = "absolute"
 # left out with a warning.
 exchanges = [
     "ElectricityPriceScaler",
+    "HSMSupplyCapacityPackage",
     "NGDemandScaler",
     "NGElectricalDemandPackage",
+    "NGHubPricePackage",
     "NGPricePackage",
 ]
+
+# packages whose values must settle before the run stops, by class name, and the tolerance in
+# (0, 1] on each one's largest relative change, held for convergence_iterations iterations.  A
+# package the run does not carry is ignored; an empty list leaves only the objective test.
+exchange_stop_packages = ["HSMSupplyCapacityPackage", "NGHubPricePackage"]
+exchange_epsilon = 0.005

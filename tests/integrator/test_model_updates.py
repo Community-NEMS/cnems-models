@@ -22,10 +22,13 @@ from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
 from src.common.models_modes import ModelType
 from src.common.update_package import (
+    HSM_CAPACITY_INDEX,
+    HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
+    HSMSupplyCapacityPackage,
     NGElectricalDemandPackage,
     NGPricePackage,
 )
@@ -144,3 +147,45 @@ def test_gas_update_and_kept_solver_match_a_rebuild() -> None:
     assert sequencer._opt is solver
     assert held is not None and expected is not None
     assert held == pytest.approx(expected, rel=1e-6)
+
+
+def test_hsm_capacity_update_matches_a_rebuild() -> None:
+    """C-HSM's capacity gives the same supply curve on a built model as in a build.
+
+    Applied twice in place, it matches a rebuild, and P0 does not move.
+    """
+    common, remainder = CommonConfig.from_toml(
+        Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
+    )
+    ng_config = NGConfig(**remainder.pop('natural_gas'))
+    sequencer = NGSequencer()
+    model = sequencer.build_model(common, ng_config)
+    p0 = {key: value(model.p0[key]) for key in model.p0}
+    cells = [(str(r), int(y)) for r in model.region_analyze for y in model.year]
+    package = HSMSupplyCapacityPackage(
+        elements=pd.DataFrame(
+            {HSM_CAPACITY_VALUE: [0.9 * value(model.q0[cell]) for cell in cells]},
+            index=pd.MultiIndex.from_tuples(cells, names=HSM_CAPACITY_INDEX),
+        ),
+        source=ModelType.HSM,
+    )
+    rebuilt = NGSequencer()
+    rebuilt.build_model(common, ng_config, update_packages=[package])
+
+    for _ in range(2):
+        assert sequencer.update_model([package]) is model
+    supply_curve = (
+        'q0',
+        'p0',
+        'q_min',
+        'q_base',
+        'p_base',
+        'supply_capacity',
+        'prod_cost_intercept',
+        'prod_cost_slope',
+    )
+    for name in supply_curve:
+        held, target = getattr(model, name), getattr(rebuilt.model, name)
+        for key in held:
+            assert value(held[key]) == pytest.approx(value(target[key]), rel=1e-12)
+    assert {key: value(model.p0[key]) for key in model.p0} == p0

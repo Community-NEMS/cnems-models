@@ -20,3 +20,10 @@ UNSERVED_PENALTY_TOL = 1e-4
 # any plausible gas price so the backstop is never economic and only relieves a genuine shortfall:
 # demand above what a region can deliver, or a subset whose supplying neighbors were dropped.
 UNSERVED_DEMAND_PENALTY = 1000.0
+
+
+# Coupling with C-HSM.  HUB_REGION's price stands in for Henry Hub, which is in West South
+# Central.  PRICE_DOLLAR_YEAR is the dollar year of C-NGMM's prices:  input/natural_gas does not
+# declare one, and its AEO2026 sources report 2025 dollars.
+HUB_REGION = 'west_south_central'
+PRICE_DOLLAR_YEAR = 2025

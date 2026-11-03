@@ -211,7 +211,7 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
-# C-HSM, the hydrocarbon supply model.
+# C-HSM, a draft sample model for exercising coupling with C-NGMM.
 hsm = { cmd = "python -m src.models.hsm.sequencer", description = "Run C-HSM using run_configs/basic_hsm_config.toml." }
 
 # The integrated control loop:  the models in run_configs/jacobi_small.toml solve in parallel,

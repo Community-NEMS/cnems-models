@@ -17,9 +17,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.common.common_config import CommonConfig, ModelConfig
 from src.common.integrated_model_sequencer import IterationResult
@@ -60,11 +60,19 @@ class IterativeSequencerConfig(BaseModel):
     exchanges : list of str
         The standard update package exchanges, by package class name (``PACKAGE_TYPES``).  A run
         carries those whose sender and receivers it selects; see :meth:`ExchangeSpec.build`.
+    exchange_stop_packages : list of str
+        Package class names whose values must settle before the run stops
+        (:class:`~src.integrator.convergence.ExchangeTracker`).  Names the run does not carry are
+        ignored; an empty list leaves only the objective test.
+    exchange_epsilon : float
+        Tolerance in (0, 1] on each such package's largest relative change.
     """
 
     model_config = ConfigDict(extra='forbid')
 
     exchanges: list[str]
+    exchange_stop_packages: list[str]
+    exchange_epsilon: Annotated[float, Field(gt=0, le=1)]
 
 
 class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):

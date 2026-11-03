@@ -248,25 +248,32 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=solar_members,
             )
 
-        # Indexed set of storage (region, tech, step, year) indexed by hour
-        self.storage_hour_index = pyo.Set(
-            self.hour,
-            initialize=model_sets.storage_hour_index,
+        # Storage sources indexed by hour (first & other 23 handled elsewhere)
+        self.storage_index = pyo.Set(
+            dimen=5,
+            within=self.region_analyze * self.tech_stor_step * self.year * self.hour,
+            initialize=model_sets.storage_index,
+        )
+
+        # Storage sources (all hours equivalent)
+        self.storage_sources = pyo.Set(
+            dimen=4,
             within=self.region_analyze * self.tech_stor_step * self.year,
+            initialize=sorted({idx[:-1] for idx in self.storage_index}),
         )
 
         # Generation sources indexed by hour
-        self.generation_hour_index = pyo.Set(
-            self.hour,
-            within=self.region_analyze * self.tech_gen_step * self.year,
-            initialize=model_sets.generation_hour_index,
+        self.generation_index = pyo.Set(
+            dimen=5,
+            within=self.region_analyze * self.tech_gen_step * self.year * self.hour,
+            initialize=model_sets.generation_index,
         )
 
-        # Generation sources indexed by hour for H2 technologies
-        self.h2_generation_hour_index = pyo.Set(
-            self.hour,
-            within=self.region_analyze * self.tech_h2_step * self.year,
-            initialize=model_sets.h2_generation_hour_index,
+        # generation sources (all hours equivalent)
+        self.generation_sources = pyo.Set(
+            dimen=4,
+            within=self.region_analyze * self.tech_gen_step * self.year,
+            initialize=sorted({idx[:-1] for idx in self.generation_index}),
         )
 
         self.generation_demand_balance = pyo.Set(
@@ -645,16 +652,16 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         #  =======================================
 
         # Generation, capacity, and technology variables
-        self.generation_total = pyo.Var(model_sets.generation_index, within=pyo.NonNegativeReals)
+        self.generation_total = pyo.Var(self.generation_index, within=pyo.NonNegativeReals)
         """region, tech, step, year, hour"""
         self.unmet_load = pyo.Var(
             self.region_analyze, self.year, self.hour, within=pyo.NonNegativeReals
         )
         self.capacity_total = pyo.Var(model_sets.capacity_index, within=pyo.NonNegativeReals)
         """region, tech, step, year"""
-        self.storage_inflow = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
-        self.storage_outflow = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
-        self.storage_level = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
+        self.storage_inflow = pyo.Var(self.storage_index, within=pyo.NonNegativeReals)
+        self.storage_outflow = pyo.Var(self.storage_index, within=pyo.NonNegativeReals)
+        self.storage_level = pyo.Var(self.storage_index, within=pyo.NonNegativeReals)
 
         # if capacity expansion is on
         if elec_config.capacity_expansion:
@@ -677,7 +684,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
         # if reserve margin constraints are on
         if elec_config.reserve_margin_required:
-            self.storage_avail_cap = pyo.Var(model_sets.storage_index, within=pyo.NonNegativeReals)
+            self.storage_avail_cap = pyo.Var(self.storage_index, within=pyo.NonNegativeReals)
 
         # if ramping requirements are on
         if elec_config.ramping_required:
@@ -716,7 +723,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             + m.ng_fuel_adj[r, tech, step, y, season]
                         )
                         * m.generation_total[r, tech, step, y, hr]
-                        for (r, tech, step, y) in m.generation_hour_index[hr]
+                        for (r, tech, step, y) in m.generation_sources
                     )
                     + sum(
                         m.weight_year[y]
@@ -730,7 +737,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                             + (m.weight_hour[hr] * m.storage_level_cost)
                             * m.storage_level[r, tech, step, y, hr]
                         )
-                        for (r, tech, step, y) in m.storage_hour_index[hr]
+                        for (r, tech, step, y) in m.storage_sources
                     )
                 )
                 for hr in m.hour
@@ -1234,8 +1241,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 * m.weight_hour[hr]
             )
 
-        # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(model_sets.storage_index)
+        @self.Constraint(self.storage_index)
         def storage_inflow_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage inflow upper bound.
 
@@ -1266,8 +1272,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 <= m.capacity_total[r, tech, step, y] * m.weight_hour[hr]
             )
 
-        # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(model_sets.storage_index)
+        @self.Constraint(self.storage_index)
         def storage_outflow_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage outflow upper bound.
 
@@ -1306,8 +1311,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 <= m.capacity_total[r, tech, step, y] * m.weight_hour[hr]
             )
 
-        # TODO:  internalize this set from the inputs ?   maybe?
-        @self.Constraint(model_sets.storage_index)
+        @self.Constraint(self.storage_index)
         def storage_level_ub(m: PowerModel, r, tech, step, y, hr):
             """Storage level upper bound.
 
@@ -1606,7 +1610,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     1.0 + m.planning_reserve_margin[r]
                 ) <= m.weight_hour[hr] * (hourly + seasonal + constant)
 
-            @self.Constraint(model_sets.storage_index)
+            @self.Constraint(self.storage_index)
             def reserve_margin_storage_avail_cap_ub(m: PowerModel, r, t_stor, step, y, hr):
                 """Available storage power capacity for meeting reserve margin.
 
@@ -1637,7 +1641,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     <= m.capacity_total[r, t_stor, step, y]
                 )
 
-            @self.Constraint(model_sets.storage_index)
+            @self.Constraint(self.storage_index)
             def reserve_margin_storage_avail_level_ub(m: PowerModel, r, t_stor, step, y, hr):
                 """Available storage energy capacity for meeting reserve margin.
 

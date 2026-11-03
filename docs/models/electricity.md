@@ -33,6 +33,8 @@ through the model configuration.
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
+| $\Theta_{gsrc}$        | generation_sources                            | Sparse set | Generation sources: the (region, tech, step, year) of $\Theta_{gen}$, hour dropped |
+| $\Theta_{ssrc}$        | storage_sources                               | Sparse set | Storage sources: the (region, tech, step, year) of $\Theta_{stor}$, hour dropped   |
 | $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
 | $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus, when capacity_expansion is on, each buildable location in every year from its first `capital_cost` year |
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
@@ -82,8 +84,6 @@ remaining indices.
 | Set                        | Code                      | Data Type     | Short Description                                                                   |
 |:---------------------------|:--------------------------|:--------------|:------------------------------------------------------------------------------------|
 | $S_t$                      | steps_for_tech            | Sparse subset | Set for supply steps indexed by technology                                          |
-| $\theta^{GSH}_h$           | generation_hour_index     | Sparse subset | Set for generation indexed by hour                                                  |
-| $\theta^{SSH}_h$           | storage_hour_index        | Sparse subset | Set for storage indexed by hour                                                     |
 | $\theta^{GDB}_{r,y,h}$     | generation_demand_balance | Sparse subset | Set for generation indexed by r,y,h                                                 |
 | $\theta^{SDB}_{r,y,h}$     | storage_demand_balance    | Sparse subset | Set for storage indexed by r,y,h                                                    |
 | $\theta^{TDB}_{r,y,h}$     | regional_sources          | Sparse subset | Set for trade indexed by r,y,h                                                      |
@@ -188,8 +188,8 @@ Dispatch cost:
 
 $$
 \begin{aligned}
-C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s,y) \in \theta^{GSH}_h}{(SPR_{r,t,s,y,MHS_h} + NGADJ_{r,t,s,y,MHS_h}) \times \mathbf{GEN}_{r,t,s,y,h}} \\
-&+ \sum_{(r,t,s) | (r,t,s,y) \in \theta^{SSH}_h}{\big( 0.5 \times SPR_{r,t,s,y,MHS_h} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
+C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s,y) \in \Theta_{gsrc}}{(SPR_{r,t,s,y,MHS_h} + NGADJ_{r,t,s,y,MHS_h}) \times \mathbf{GEN}_{r,t,s,y,h}} \\
+&+ \sum_{(r,t,s) | (r,t,s,y) \in \Theta_{ssrc}}{\big( 0.5 \times SPR_{r,t,s,y,MHS_h} \times (\mathbf{STOR^{in}}_{r,t,s,y,h} + \mathbf{STOR^{out}}_{r,t,s,y,h})} \\
 &+ HW_h \times STORLC \times \mathbf{STOR^{level}}_{r,t,s,y,h} \big) \Big)
 \end{aligned} \tag{2}
 $$

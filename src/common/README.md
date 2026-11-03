@@ -49,7 +49,7 @@ This model currently has 25 regions. Turning on and off certain regions allows o
 
 #### Model-Specific Settings
 
-For more details about the module-specific settings provided in the configuration file, navigate to the model READMEs (e.g. [Integrator](/src/integrator/README.md), [Electricity](/src/models/electricity/README.md), [Residential](/src/models/residential/README.md), [Hydrogen](/src/models/hydrogen/README.md)).
+For more details about the module-specific settings provided in the configuration file, navigate to the model READMEs (e.g. [Integrator](/src/integrator/old_README.md), [Electricity](/src/models/electricity/README.md), [Residential](/src/models/residential/README.md), [Hydrogen](/src/models/hydrogen/README.md)).
 
 ## Code Documentation
 

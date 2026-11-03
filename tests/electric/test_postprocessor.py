@@ -162,13 +162,13 @@ def test_transfer_tech_data_writes_file(request, fixture_name, tmp_path):
     # membership flags round-trip as booleans, and every dataset has at least one storage tech
     flags = reloaded[tech_property_columns()]
     assert (flags.dtypes == 'bool').all()
-    assert reloaded['T_stor'].any()
+    assert reloaded['is_storage'].any()
 
     # check for missing labels before the string cast turns NaN into the string 'nan'
     assert reloaded['label'].notna().all()
 
     reloaded = reloaded.astype(str)
 
-    expected_techs = load_attribute_data(common_config.common_data_path)['tech_data']['label']
+    expected_techs = load_attribute_data(common_config.common_data_path)['tech']['label']
     assert set(reloaded['tech']) == {str(t) for t in expected_techs}
     assert reloaded['color'].str.fullmatch(r'#[0-9A-Fa-f]{6}').all()

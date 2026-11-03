@@ -16,39 +16,34 @@ from src.models.electricity.property_source_loader import PropertySource, load_p
 
 PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
 
-# Transcription reference: the original PROPERTY_SOURCES dict literal, verbatim, before the
-# TOML migration. Used only to audit that no data was lost/reordered in the conversion.
-#
-# 'T_hydro_seasonal'/'T_hydro_regular' post-date that snapshot: they were added when hydro was
-# split into a seasonally-budgeted and an hourly-limited technology, replacing the supply-curve
-# step numbers that used to select between the two hydro bounds.  'T_solar_utility' and
-# 'T_solar_end_use' likewise post-date it, from the equivalent split of solar into utility-scale
-# and end-use.
+# Expected reference, per the C-EMM data-needs sheet: each file is named for its key and the
+# membership flags read as ``is_*``.  The hydro and solar sub-flags are not on the sheet; they
+# follow the same convention.
 _ORIGINAL_PROPERTY_SOURCES = {
-    'tech_data': (
-        'tech_data.csv',
+    'tech': (
+        'tech.csv',
         [
             'tech',
-            'T_conv',
-            'T_re',
-            'T_hydro',
-            'T_hydro_seasonal',
-            'T_hydro_regular',
-            'T_stor',
-            'T_vre',
-            'T_wind',
-            'T_solar',
-            'T_solar_utility',
-            'T_solar_end_use',
-            'T_h2',
-            'T_disp',
-            'T_gen',
+            'is_conventional',
+            'is_renewable',
+            'is_hydro',
+            'is_hydro_seasonal',
+            'is_hydro_regular',
+            'is_storage',
+            'is_vre',
+            'is_wind',
+            'is_solar',
+            'is_solar_utility',
+            'is_solar_end_use',
+            'is_hydrogen',
+            'is_dispatchable',
+            'is_generator',
         ],
         ('tech',),
     ),
-    'buildable_techs': ('build_data.csv', ['builds'], ('tech', 'step')),
-    'retireable_techs': ('retire_data.csv', ['retires'], ('tech', 'step')),
-    'region_data': ('region_data.csv', ['region', 'domestic', 'international'], ('region',)),
+    'tech_build': ('tech_build.csv', ['is_buildable'], ('tech', 'step')),
+    'tech_retire': ('tech_retire.csv', ['is_retirable'], ('tech', 'step')),
+    'region': ('region.csv', ['region', 'is_domestic', 'is_international'], ('region',)),
 }
 
 
@@ -96,14 +91,14 @@ def test_data_ingestor_property_sources_matches_loader(
 @pytest.mark.parametrize(
     ('key', 'expected'),
     [
-        ('tech_data', ('steps', 'label', 'abbreviation', 'color')),
-        ('buildable_techs', ()),
-        ('retireable_techs', ()),
-        ('region_data', ()),
+        ('tech', ('steps', 'label', 'abbreviation', 'color')),
+        ('tech_build', ()),
+        ('tech_retire', ()),
+        ('region', ('label',)),
     ],
 )
-def test_tech_data_attribute_cols(
+def test_attribute_cols(
     loaded_property_sources: dict[str, PropertySource], key: str, expected: tuple[str, ...]
 ) -> None:
-    """tech_data declares the descriptive columns; the other sources have none."""
+    """The tech and region sources declare descriptive columns; the others have none."""
     assert loaded_property_sources[key].attribute_cols == expected

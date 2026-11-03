@@ -16,21 +16,23 @@ file and/or halt on showstoppers
 """
 
 import logging
-import sys
 from collections import defaultdict, namedtuple
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Literal
 
 from pandas import DataFrame
 
+from src.common.exceptions import DataValidationError
+from src.common.season import Season
+from src.models.electricity.elec_config import ExpansionLearningType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
 
 # ParamFrames keys indexed by season, and those ParamData has expanded from season to hour
-SeasonalParam = Literal['supply_price', 'hydro_cap_factor']
-HourlyParam = Literal['tran_limit', 'tran_limit_cap_int', 'tran_limit_gen_int']
+SeasonalParam = Literal['generation_cost', 'capacity_factor_seasonal']
+HourlyParam = Literal['tran_limit', 'tran_limit_cap_intl', 'supply_limit_intl']
 
 
 def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = True) -> None:
@@ -47,14 +49,26 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     param_data : ParamData
         Fully constructed parameter data to validate.
     strict : bool
-        True => exit on validation failure
+        True => raise on validation failure; False => log it and continue
+
+    Raises
+    ------
+    DataValidationError
+        If any validation failed and ``strict`` is set.
     """
     all_valid = True
     frames = param_data.param_frames
     exchange = param_data.elec_config.regional_exchange
 
+    # region coverage
+    all_valid &= validate_region_sets(
+        model_sets.region,
+        domestic=model_sets.region_domestic,
+        international=model_sets.region_international,
+    )
+
     # seasonal coverage in tables with season reference
-    seasonal_params: list[SeasonalParam] = ['supply_price', 'hydro_cap_factor']
+    seasonal_params: list[SeasonalParam] = ['generation_cost', 'capacity_factor_seasonal']
     for name in seasonal_params:
         df = frames[name]
         if df.empty:
@@ -67,8 +81,8 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
     if exchange:
         hourly_params: list[HourlyParam] = [
             'tran_limit',
-            'tran_limit_cap_int',
-            'tran_limit_gen_int',
+            'tran_limit_cap_intl',
+            'supply_limit_intl',
         ]
         for name in hourly_params:
             df = frames[name]
@@ -78,10 +92,10 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 name, _frame_to_dict(df), df.index.names.index('hour'), model_sets.hour
             )
 
-    # supply curve vs. price to ensure compatible coverage for supply & price
+    # capacity index (existing + buildable) vs. generation cost:  every location needs a price
     try:
-        all_valid &= validate_supply_price_coverage(
-            _frame_to_dict(frames['supply_curve']), _frame_to_dict(frames['supply_price'])
+        all_valid &= validate_generation_cost_coverage(
+            model_sets.capacity_index, _frame_to_dict(frames['generation_cost'])
         )
     except ValueError as e:
         logger.error(e)
@@ -98,10 +112,28 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
             logger.error(e)
             all_valid = False
 
+    # build costs must cover everything buildable in every analyzed region (and year)
+    if param_data.elec_config.capacity_expansion:
+        all_valid &= validate_build_cost_coverage(
+            'capital_cost',
+            _frame_to_dict(frames['capital_cost']),
+            model_sets.region_analyze,
+            model_sets.tech_builds,
+            set(model_sets.year_map.values()),
+        )
+        if param_data.elec_config.expansion_learning_type is not ExpansionLearningType.DISABLED:
+            all_valid &= validate_build_cost_coverage(
+                'capital_cost_initial',
+                param_data.param_dicts['capital_cost_initial'],
+                model_sets.region_analyze,
+                model_sets.tech_builds,
+            )
+
     if not all_valid:
-        sys.stderr.write('Data validation failed.  See log for details.\n')
+        message = 'Data validation failed.  See log for details.'
         if strict:
-            sys.exit(1)
+            raise DataValidationError(message)
+        logger.error('%s  Continuing, since strict validation is off.', message)
 
 
 def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:
@@ -111,8 +143,26 @@ def _frame_to_dict(df: DataFrame) -> dict[tuple, float]:
     return {k if isinstance(k, tuple) else (k,): v for k, v in df.iloc[:, 0].items()}
 
 
+def validate_region_sets(
+    all_regions: Iterable[str], domestic: Iterable[str], international: Iterable[str]
+) -> bool:
+    """Validate the region sets non-overlap and coverage."""
+    all_regions = set(all_regions)
+    domestic = set(domestic)
+    international = set(international)
+    dual_marked = domestic & international
+    if dual_marked:
+        logger.error('Regions marked as both domestic and international: %s', dual_marked)
+        return False
+    non_declared = all_regions - domestic - international
+    if non_declared:
+        logger.error('Regions not marked as either domestic or international: %s', non_declared)
+        return False
+    return True
+
+
 def validate_seasonal_coverage(
-    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[int | str]
+    element_name: str, table: dict[tuple, float], season_idx_loc: int, seasons: Sequence[Season]
 ) -> bool:
     """Validate full seasonal coverage for table data.
 
@@ -127,7 +177,7 @@ def validate_seasonal_coverage(
         Raw ingested data keyed by tuple index.
     season_idx_loc : int
         Position of the season within the index tuple.
-    seasons : Sequence[int | str]
+    seasons : Sequence[Season]
         The expected seasons.
 
     Returns
@@ -208,46 +258,117 @@ def validate_hourly_coverage(
     return valid
 
 
-def validate_supply_price_coverage(capacity: dict[tuple, float], price: dict[tuple, float]) -> bool:
-    """Compare the supply curve (capacity) to the price coverage.
+def validate_generation_cost_coverage(
+    capacity_index: Iterable[tuple], price: dict[tuple, float]
+) -> bool:
+    """Compare the capacity index coverage to the ``generation_cost`` coverage.
 
-    This test omits the coverage of seasons within the price table, which is inspected separately.
-    The season is assumed to occupy the last position of the price index.
+    The capacity index is existing capacity plus anything buildable (``ModelSets.capacity_index``),
+    so a location with no ``available_capacity`` still needs a price if it can be built.  This
+    test omits the coverage of seasons within the cost table, which is inspected separately.
+    The season is assumed to occupy the last position of the cost index.
 
     Parameters
     ----------
-    capacity : dict[tuple, float]
-        Supply curve data keyed by tuple index.
+    capacity_index : Iterable[tuple]
+        (region, tech, step, year) of every location in the model's capacity index.
     price : dict[tuple, float]
-        Supply price data keyed by the same index plus a trailing season.
+        ``generation_cost`` data keyed by the same index plus a trailing season.
 
     Returns
     -------
     bool
-        True if the two tables cover each other exactly, False if price entries exist without a
-        matching supply entry (logged as warnings; not fatal).
+        True.  Cost entries without a matching capacity index entry are allowed and ignored
+        (logged as warnings).
 
     Raises
     ------
     ValueError
-        If any capacity index has no corresponding price entry.
+        If any capacity index has no corresponding cost entry.
     """
-    valid = True
+    capacity_keys = set(capacity_index)
     price_coverage = {idx[:-1] for idx in price}  # trim "season" off
-    capacity_omissions = price_coverage - capacity.keys()
-    if capacity_omissions:
-        valid = False
-        for omission in capacity_omissions:
-            logger.warning('Price exists for %s without corresponding entry in supply:', omission)
+    for omission in sorted(price_coverage - capacity_keys):
+        logger.warning('Price exists for %s without corresponding capacity index entry', omission)
 
-    price_omissions = capacity.keys() - price_coverage
+    price_omissions = sorted(capacity_keys - price_coverage)
     if price_omissions:
         for omission in price_omissions:
             logger.error(
-                'Capacity exists for %s without corresponding entry in price data:', omission
+                'Capacity index entry %s has no corresponding entry in price data', omission
             )
         raise ValueError('Capacity without corresponding price.  See log for details.')
 
+    return True
+
+
+def validate_build_cost_coverage(
+    element_name: str,
+    costs: dict[tuple, float],
+    regions: Iterable,
+    buildable: Iterable,
+    years: Iterable[int] | None = None,
+) -> bool:
+    """Screen a build-cost table against every buildable (tech, step) in every region.
+
+    The expected keys are ``regions x buildable`` (``x years`` when given).  Extra cost entries
+    (e.g. for non-buildable techs) are allowed and ignored.  For the year-indexed table
+    (``capital_cost``) gaps are also allowed: ``capacity_build_index`` is the cost keys screened
+    to ``tech_buildable``, so omitting a cost is how a (region, tech, step, year) is excluded from
+    expansion.  Gaps in the year-less table (``capital_cost_initial``) are errors.
+
+    Parameters
+    ----------
+    element_name : str
+        Name of the cost table, used for logging only.
+    costs : dict[tuple, float]
+        Cost data keyed (region, tech, step[, year]).
+    regions : Iterable
+        The analyzed regions, e.g. ``ModelSets.region_analyze``.
+    buildable : Iterable
+        Buildable (tech, step) pairs, e.g. ``ModelSets.tech_builds``.
+    years : Iterable[int] | None
+        Model years when the table is year-indexed (``capital_cost``); None for
+        ``capital_cost_initial``.
+
+    Returns
+    -------
+    bool
+        False only if the year-less table is missing an expected key (each logged as an error).
+        Always True for the year-indexed table; each (region, tech, step) with missing years is
+        logged at INFO with those years.
+    """
+    base = {(r, tech, step) for r in regions for tech, step in buildable}
+    valid = True
+    if years is None:  # screening for initial costs
+        missing = sorted(base - costs.keys())
+        for idx in missing:
+            logger.error('Missing %s for buildable index %s', element_name, idx)
+        expected = len(base)
+        if missing:
+            valid = False
+    else:  # screening for yearly costs
+        # note:  this is *advisory* only.  the costs need not cover every buildable location as
+        #        some may be intentionally omitted.  It cannot claim invalidity
+        year_set = set(years)
+        found_years: defaultdict[tuple, set[int]] = defaultdict(set)
+        for idx in costs:
+            found_years[idx[:3]].add(idx[3])
+        missing = sorted(idx for idx in base if not year_set <= found_years[idx])
+        for idx in missing:
+            logger.info(
+                'Parameter %s has no cost entry for %s in years %s and '
+                'is implicitly omitted from buildable',
+                element_name,
+                idx,
+                sorted(year_set - found_years[idx]),
+            )
+        expected = len(base) * len(year_set)
+
+    # with full coverage, anything beyond the expected count is an (allowed) extra
+    extra = len(costs) - expected
+    if not missing and extra > 0:
+        logger.debug('%s has %d entries beyond the buildable set (ignored)', element_name, extra)
     return valid
 
 

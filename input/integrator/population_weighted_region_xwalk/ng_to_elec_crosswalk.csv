@@ -1,0 +1,40 @@
+ng_region,elec_region,elec_region_name,weight
+new_england,7,ISNE (NPCC/New England),1.0000
+middle_atlantic,8,NYCW (NPCC/NYC & Long Island),0.2995
+middle_atlantic,9,NYUP (NPCC/Upstate NY),0.1759
+middle_atlantic,10,PJME (PJM/East),0.3869
+middle_atlantic,11,PJMW (PJM/West),0.1377
+east_north_central,3,MISW (Midcontinent ISO/West),0.1244
+east_north_central,4,MISC (Midcontinent ISO/Central),0.1950
+east_north_central,5,MISE (Midcontinent ISO/East),0.1915
+east_north_central,11,PJMW (PJM/West),0.3133
+east_north_central,12,PJMC (PJM/Commonwealth Edison),0.1758
+west_north_central,3,MISW (Midcontinent ISO/West),0.3901
+west_north_central,4,MISC (Midcontinent ISO/Central),0.1281
+west_north_central,16,SRCE (SERC Reliability Corporation/Central),0.0285
+west_north_central,18,SPPC (Southwest Power Pool/Central),0.2640
+west_north_central,19,SPPN (Southwest Power Pool/North),0.1893
+south_atlantic,2,FRCC (Florida Reliability Coordinating Council),0.3096
+south_atlantic,10,PJME (PJM/East),0.1189
+south_atlantic,11,PJMW (PJM/West),0.0271
+south_atlantic,13,PJMD (PJM/Dominion),0.1333
+south_atlantic,14,SRCA (SERC Reliability Corporation/East),0.2196
+south_atlantic,15,SRSE (SERC Reliability Corporation/Southeast),0.1784
+south_atlantic,16,SRCE (SERC Reliability Corporation/Central),0.0131
+east_south_central,6,MISS (Midcontinent ISO/South),0.0992
+east_south_central,11,PJMW (PJM/West),0.0929
+east_south_central,15,SRSE (SERC Reliability Corporation/Southeast),0.1783
+east_south_central,16,SRCE (SERC Reliability Corporation/Central),0.6296
+west_south_central,1,TRE (Texas Reliability Entity),0.6076
+west_south_central,6,MISS (Midcontinent ISO/South),0.2054
+west_south_central,17,SPPS (Southwest Power Pool/South),0.1656
+west_south_central,20,SRSG (WECC/Southwest),0.0214
+mountain,3,MISW (Midcontinent ISO/West),0.0065
+mountain,17,SPPS (Southwest Power Pool/South),0.0085
+mountain,20,SRSG (WECC/Southwest),0.3635
+mountain,23,NWPP (WECC/Northwest Power Pool),0.0776
+mountain,24,RMRG (WECC/Rockies),0.2444
+mountain,25,BASN (WECC/Basin),0.2995
+pacific,21,CANO (WECC/CA North),0.2688
+pacific,22,CASO (WECC/CA South),0.4992
+pacific,23,NWPP (WECC/Northwest Power Pool),0.2320

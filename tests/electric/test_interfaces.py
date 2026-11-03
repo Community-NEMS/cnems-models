@@ -27,8 +27,8 @@ def test_poll_elec_prices(config_set):
     #        Non binding constraint in these areas??
     # assert all((price > 0 for _, price in new_prices)), 'price should be non-zero, right???'
 
-    # test for average price mehhhh above $1000
+    # test for average price mehhhh above $1/MWh
     lut = regional_annual_prices(elec_model)
-    # TODO:  When price data stabilizes fix this to test that ALL are >1000.
+    # TODO:  When price data stabilizes fix this to test that ALL are >1.
     #        RN region 7 has low costs
-    assert max(lut.values()) > 1000, 'cost should be over $1000'
+    assert max(lut.values()) > 1, 'cost should be over $1/MWh'

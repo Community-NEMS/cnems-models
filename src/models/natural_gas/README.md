@@ -77,7 +77,7 @@ interface that accepts a quadratic objective.
 | Years | 6 representative years in 5-year increments, 2025-2050 (configurable) |
 | Sectors | residential, commercial, industrial, electric power, transportation |
 | Within-year time | none an annual-rate market for now, will move to seasons later |
-| Size | 1,530 variables, 1,530 constraints at full resolution |
+| Size | 1,494 variables, 1,494 constraints at full resolution |
 | Solver | any convex-QP solver Pyomo reaches; Gurobi preferred; HiGHS solves the shipped configuration but is less robust on long horizons (see `NGSequencer.solve_model`) |
 
 ---

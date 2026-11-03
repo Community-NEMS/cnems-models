@@ -20,14 +20,15 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.common.common_config import CommonConfig
+from src.common.season import Season
 from src.integrator.utilities import create_temporal_mapping
 from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
 from src.models.electricity.elec_config import ElecConfig, ReserveType
 
 logger = logging.getLogger(__name__)
 
-SCI = namedtuple('SCI', ['region', 'tech', 'step', 'year'])
-"""a fixed index type for supply curve entries"""
+CI = namedtuple('CI', ['region', 'tech', 'step', 'year'])
+"""a fixed index type for capacity index entries"""
 
 
 def _parse_steps(raw: str, tech: str) -> list[int]:
@@ -40,7 +41,7 @@ def _parse_steps(raw: str, tech: str) -> list[int]:
     Parameters
     ----------
     raw : str
-        the raw ``steps`` cell from tech_data.csv, e.g. ``'1/2/3'``.
+        the raw ``steps`` cell from tech.csv, e.g. ``'1/2/3'``.
     tech : str
         the owning tech, used only to identify the offender in the error message.
 
@@ -80,17 +81,15 @@ class ModelSets:
     - Other.
     """
 
-    capacity_index: list[tuple]
+    buildable_capacity: list[CI]
+    capacity_index: list[CI]
     """The MASTER capacity index, augmented with Hour"""
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
-    generation_hour_index: defaultdict
     generation_hydro_ub_index: list[tuple]
     generation_index: list[tuple]
     generation_ramp_index: list[tuple]
-    generation_vre_ub_index: list[tuple]
-    h2_generation_hour_index: defaultdict
-    h2_generation_index: list[tuple]
+    generation_vre_index: list[tuple]
     hydro_seasonal_step_index: defaultdict
     """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
     international_trade_index: list[tuple]
@@ -98,55 +97,58 @@ class ModelSets:
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    season: list[Season]
+    """The model's seasons, in natural (``Season.sort_order``) order"""
     seasonal_hydro_index: list[tuple]
     storage_demand_index: defaultdict
     storage_first_hour_balance_index: list[tuple]
-    storage_hour_index: defaultdict
     storage_index: list[tuple]
     storage_most_hours_balance_index: list[tuple]
     steps: list[int]
     """All step values used in data"""
     tech_steps: dict[str, list[int]]
-    """tech -> the supply curve steps declared valid for it in tech_data.csv"""
+    """tech -> the supply curve steps declared valid for it in tech.csv"""
 
     def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
 
+        self.elec_config = elec_config
         # load the bulk of the data from csv property files
-        set_data = load_property_data(common_config.common_data_path)
+        set_data = load_property_data(common_config.common_data_path)  # for "is a" data
+        attribute_data = load_attribute_data(common_config.common_data_path)  # for "has a" data
 
         # break up the tech data into its constituents
-        td = set_data['tech_data']
+        td = set_data['tech']
         self.tech = td['tech']
-        self.tech_conv = td['T_conv']
-        self.tech_re = td['T_re']
-        self.tech_wind = td['T_wind']
-        self.tech_solar = td['T_solar']
-        # T_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        self.tech_conv = td['is_conventional']
+        self.tech_re = td['is_renewable']
+        self.tech_wind = td['is_wind']
+        self.tech_solar = td['is_solar']
+        # is_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
         # filters on these -- utility-scale and end-use solar face the same constraints and differ
         # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
         # are carried so the distinction is addressable in the formulation and in reporting rather
         # than living implicitly in a supply curve step number.
-        self.tech_solar_utility = td['T_solar_utility']
-        self.tech_solar_end_use = td['T_solar_end_use']
-        self.tech_h2 = td['T_h2']
-        self.tech_disp = td['T_disp']
-        self.tech_gen = td['T_gen']
-        self.tech_stor = td['T_stor']
-        self.tech_vre = td['T_vre']
-        self.tech_hydro = td['T_hydro']
-        # T_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        self.tech_solar_utility = td['is_solar_utility']
+        self.tech_solar_end_use = td['is_solar_end_use']
+        self.tech_h2 = td['is_hydrogen']
+        self.tech_disp = td['is_dispatchable']
+        self.tech_gen = td['is_generator']
+        self.tech_stor = td['is_storage']
+        self.tech_vre = td['is_vre']
+        self.tech_hydro = td['is_hydro']
+        # is_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
         # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
         # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
         # be a hard-coded supply-curve step number.
-        self.tech_hydro_seasonal = td['T_hydro_seasonal']
-        self.tech_hydro_regular = td['T_hydro_regular']
+        self.tech_hydro_seasonal = td['is_hydro_seasonal']
+        self.tech_hydro_regular = td['is_hydro_regular']
 
-        self.tech_retires = set_data['retireable_techs']['retires']
-        self.tech_builds = set_data['buildable_techs']['builds']
+        self.tech_retires = set_data['tech_retire']['is_retirable']
+        self.tech_builds = set_data['tech_build']['is_buildable']
 
         # descriptive (non-membership) tech columns: the valid supply curve steps plus the
         # reporting label/abbreviation/color that used to live only in analysis_tools
-        ta = load_attribute_data(common_config.common_data_path)['tech_data']
+        ta = attribute_data['tech']
         self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
         self.steps = list(chain.from_iterable(self.tech_steps.values()))
         self.tech_label: dict[str, str] = ta['label']
@@ -154,13 +156,15 @@ class ModelSets:
         self.tech_color: dict[str, str] = ta['color']
 
         # break up the region data into its constituents
-        rd = set_data['region_data']
+        rd = set_data['region']
         self.region = rd['region']
-        self.region_domestic = rd['domestic']
+        self.region_domestic = rd['is_domestic']
         self.region_analyze = (
-            elec_config.region_filter if elec_config.region_filter else self.region_domestic
+            self.elec_config.region_filter
+            if self.elec_config.region_filter
+            else self.region_domestic
         )
-        self.region_international = rd['international']
+        self.region_international = rd['is_international']
 
         # # Load Setting
         # self.load_scalar = common_config.scale_load
@@ -188,9 +192,9 @@ class ModelSets:
         # the year-map is used as a df in some spots, so add it here
         self.year_map_df = pd.DataFrame(self.year_map.items(), columns=['year', 'Map_year'])
 
-        # Temporal Sets - Seasons and Days
+        # Temporal Sets - Days and Seasons
 
-        self.season = list(self.cw_temporal['Map_s'].unique())
+        self.season = sorted(self.cw_temporal['Map_s'].unique())
         self.num_days = self.cw_temporal['Map_day'].max()
         self.day = range(1, self.num_days + 1)
 
@@ -212,7 +216,7 @@ class ModelSets:
 
     def build_reserves_index(
         self,
-        supply_curve_index: Iterable[SCI],
+        supply_curve_index: Iterable[CI],
         reserve_ub_limits: dict[tuple[ReserveType, str], float],
     ):
         """Build reserve index and use the upper bound limit param to enforce sparsity."""
@@ -227,89 +231,92 @@ class ModelSets:
         if not self.reserves_procurement_index:
             logger.warning('reserves_procurement_index is empty')
 
-    def build_sc_indexes(self, supply_curve_index: Iterable[SCI]):
-        """Use the supply curve to build the index sets.
+    def build_advanced_indexes(
+        self, available_capacity_index: Iterable[CI], cap_cost_index: Iterable[CI]
+    ):
+        """Use the available capacity and capital costs to build other index sets.
 
-        Built by crossing techs with hours and supply curve steps.
+        Built by crossing techs with hours and capacity tech, step combos.  With expansion on,
+        the capacity index is the existing capacity plus each buildable location in every model
+        year from its first capital-cost year; builds are restricted to the capital-cost keys.
         """
-        self.capacity_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year) for idx in supply_curve_index
-        )
-        if not self.capacity_index:
-            logger.warning('capacity_index is empty')
-        logger.info(f'Built Capacity Index of size: {len(self.capacity_index)}')
+        existing_capacity_index = set(available_capacity_index)
+        if not existing_capacity_index:
+            logger.warning('existing capacity index is empty')
+        if self.elec_config.capacity_expansion:
+            # we must augment the total capacity index by what is buildable, which may be a
+            # superset of what is already built
+            buildable_capacity = {
+                idx
+                for idx in cap_cost_index
+                if (idx.tech, idx.step) in self.tech_builds and idx.region in self.region_analyze
+            }
+            newly_buildable = buildable_capacity - existing_capacity_index
+            logger.info('Buildable capacity index size: %d', len(buildable_capacity))
+            logger.info(
+                'Total Capacity index expanded beyond existing by: %d newly buildable techs',
+                len(newly_buildable),
+            )
+            # a build persists, so each buildable location is indexed in every model year from
+            # its first build year onward, whether or not it is buildable in that year
+            model_years = sorted(set(self.year_map.values()))
+            first_build: dict[tuple, int] = {}
+            for idx in buildable_capacity:
+                key = (idx.region, idx.tech, idx.step)
+                first_build[key] = min(first_build.get(key, idx.year), idx.year)
+            carried_capacity = {
+                CI(r, t, s, y)
+                for (r, t, s), first_year in first_build.items()
+                for y in model_years
+                if y >= first_year
+            }
+            logger.info(
+                'Capacity index carries builds forward into: %d non-buildable '
+                'region-tech-year combos',
+                len(carried_capacity - buildable_capacity),
+            )
+            self.buildable_capacity = sorted(buildable_capacity)
+            capacity_index = sorted(existing_capacity_index | buildable_capacity | carried_capacity)
 
-        # TODO:  This structure limits possible retirements to only things currently in
-        #        supply_curve_index.  Review.
-        self.retirement_index = sorted(
+        else:
+            self.buildable_capacity = []
+            capacity_index = sorted(existing_capacity_index)
+
+        logger.info('Built Capacity Index of size: %d', len(capacity_index))
+
+        # TODO:  A nice improvement here would be to avail retirements to ALL years, not
+        #        restrict it to the capacity index.
+        self.retirement_index = [
             (idx.region, idx.tech, idx.step, idx.year)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if (idx.tech, idx.step) in self.tech_retires
-        )
+        ]
         if not self.retirement_index:
             logger.warning('retirement_index is empty')
 
-        self.generation_index = sorted(
+        self.generation_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_gen
             for hr in self.hour
-        )
+        ]
         if not self.generation_index:
             logger.warning('generation_index is empty')
 
-        self.h2_generation_index = sorted(
+        self.storage_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr)
-            for idx in supply_curve_index
-            if idx.tech in self.tech_h2
-            for hr in self.hour
-        )
-        if not self.h2_generation_index:
-            logger.warning('h2_generation_index is empty')
-
-        self.storage_index = sorted(
-            (idx.region, idx.tech, idx.step, idx.year, hr)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_stor
             for hr in self.hour
-        )
+        ]
         if not self.storage_index:
             logger.warning('storage_index is empty')
 
         # build the companion indexed set bases while we have by-name access to the fields...
-        # TODO:  the need for hourly-indexing is under review.  these may "go away"
-        # TODO:  refactor these below....all could be done in one pass through the supply curve
-        self.generation_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in supply_curve_index:
-                if idx.tech in self.tech_gen:
-                    self.generation_hour_index[hr].append(
-                        (idx.region, idx.tech, idx.step, idx.year)
-                    )
-        if not self.generation_hour_index:
-            logger.warning('generation_hour_index is empty')
-
-        self.storage_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in supply_curve_index:
-                if idx.tech in self.tech_stor:
-                    self.storage_hour_index[hr].append((idx.region, idx.tech, idx.step, idx.year))
-        if not self.storage_hour_index:
-            logger.warning('storage_hour_index is empty')
-
-        self.h2_generation_hour_index = defaultdict(list)
-        for hr in self.hour:
-            for idx in supply_curve_index:
-                if idx.tech in self.tech_h2:
-                    self.h2_generation_hour_index[hr].append(
-                        (idx.region, idx.tech, idx.step, idx.year)
-                    )
-        if not self.h2_generation_hour_index:
-            logger.warning('h2_generation_hour_index is empty')
 
         self.generation_demand_index = defaultdict(list)
         for hr in self.hour:
-            for idx in supply_curve_index:
+            for idx in capacity_index:
                 if idx.tech in self.tech_gen:
                     self.generation_demand_index[idx.region, idx.year, hr].append(
                         (idx.tech, idx.step)
@@ -319,112 +326,116 @@ class ModelSets:
 
         self.storage_demand_index = defaultdict(list)
         for hr in self.hour:
-            for idx in supply_curve_index:
+            for idx in capacity_index:
                 if idx.tech in self.tech_stor:
                     self.storage_demand_index[idx.region, idx.year, hr].append((idx.tech, idx.step))
         if not self.storage_demand_index:
             logger.warning('storage_demand_index is empty')
 
         # build the unique hour sets for ramping/storage first + other 23 hours
-        self.ramp_most_hours_balance_index = sorted(
+        self.ramp_most_hours_balance_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr_most)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_conv
             for hr_most in self.hour_most
-        )
+        ]
         if not self.ramp_most_hours_balance_index:
             logger.warning('ramp_most_hours_balance_index is empty')
-        self.ramp_first_hour_balance_index = sorted(
+        self.ramp_first_hour_balance_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr_first)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_conv
             for hr_first in self.hour_first
-        )
+        ]
         if not self.ramp_first_hour_balance_index:
             logger.warning('ramp_first_hour_balance_index is empty')
-        self.storage_most_hours_balance_index = sorted(
+        self.storage_most_hours_balance_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr_most)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_stor
             for hr_most in self.hour_most
-        )
+        ]
         if not self.storage_most_hours_balance_index:
             logger.warning('storage_most_hours_balance_index is empty')
-        self.storage_first_hour_balance_index = sorted(
+        self.storage_first_hour_balance_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr_first)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_stor
             for hr_first in self.hour_first
-        )
+        ]
         if not self.storage_first_hour_balance_index:
             logger.warning('storage_first_hour_balance_index is empty')
-        self.generation_hydro_ub_index = sorted(
+        self.generation_hydro_ub_index = [
             (idx.region, idx.tech, idx.step, idx.year, hr)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_hydro_regular
             for hr in self.hour
-        )
+        ]
         if not self.generation_hydro_ub_index:
             logger.warning('generation_hydro_ub_index is empty')
         # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
         # whole supply curve, so seasonal_hydro_discharge_ub sums over hydro_seasonal_step_index
         # instead.
-        self.seasonal_hydro_index = sorted(
-            {
-                (idx.region, idx.tech, idx.year, season)
-                for idx in supply_curve_index
-                if idx.tech in self.tech_hydro_seasonal
-                for season in self.season
-            }
-        )
+        self.seasonal_hydro_index = [
+            (idx.region, idx.tech, idx.year, season)
+            for idx in capacity_index
+            if idx.tech in self.tech_hydro_seasonal
+            for season in self.season
+        ]
         if not self.seasonal_hydro_index:
             logger.warning('seasonal_hydro_index is empty')
         self.hydro_seasonal_step_index = defaultdict(list)
-        for idx in supply_curve_index:
+        for idx in capacity_index:
             if idx.tech in self.tech_hydro_seasonal:
                 self.hydro_seasonal_step_index[idx.region, idx.tech, idx.year].append(idx.step)
 
-        self.generation_ramp_index = sorted(
+        self.generation_ramp_index = [
             (idx.region, idx.tech, idx.step, idx.year, hour)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_conv
             for hour in self.hour
-        )
+        ]
         if not self.generation_ramp_index:
             logger.warning('generation_ramp_index is empty')
-        self.generation_dispatchable_ub_index = sorted(
+        self.generation_dispatchable_ub_index = [
             (idx.region, idx.tech, idx.step, idx.year, hour)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_disp
             for hour in self.hour
-        )
+        ]
         if not self.generation_dispatchable_ub_index:
             logger.warning('generation_dispatchable_ub_index is empty')
-        self.generation_vre_ub_index = sorted(
+        self.generation_vre_index = [
             (idx.region, idx.tech, idx.step, idx.year, hour)
-            for idx in supply_curve_index
+            for idx in capacity_index
             if idx.tech in self.tech_vre
             for hour in self.hour
-        )
-        if not self.generation_vre_ub_index:
-            logger.warning('generation_vre_ub_index is empty')
+        ]
+        if not self.generation_vre_index:
+            logger.warning('generation_vre_index is empty')
+
+        self.capacity_index = capacity_index
 
     def build_international_trade_index(
         self, intl_capacity: DataFrame, intl_gen_limit: DataFrame
     ) -> list[tuple]:
         """Create the valid international trading index.
 
-        Relies on the capacity and the step from generation limits.
+        Relies on the capacity and the step from generation limits.  Either frame being empty (no
+        international connections) yields an empty index.
         """
+        if intl_capacity.empty or intl_gen_limit.empty:
+            self.international_trade_index = []
+            return []
         df = (
             pd.merge(
                 intl_capacity.reset_index(),
                 intl_gen_limit.reset_index(),
-                on=['region_international', 'year', 'hour'],
+                on=['region_intl', 'year', 'hour'],
                 how='inner',
             )
-            .drop(columns=['generation'])
-            .set_index(['region', 'region_international', 'step', 'year', 'hour'])
+            .drop(columns=['supply_limit_intl_mw'])
+            .set_index(['region', 'region_intl', 'step', 'year', 'hour'])
         )
         res = list(df.index)
         self.international_trade_index = res

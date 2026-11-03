@@ -100,7 +100,7 @@ Candidate inputs when building out the site — read before writing anything new
 - `src/models/electricity/README.md` — the real sets/params/variables/constraints
   reference, including the LaTeX objective and constraints. The highest-value
   page to port.
-- `src/integrator/README.md` — temporal mapping crosswalk format.
+- `src/integrator/old_README.md` — temporal mapping crosswalk format.
 - `src/common/README.md`, `analysis_tools/README.md` — smaller module notes.
 - `CONTRIBUTING.md`, `CLAUDE.md` — workflow and architecture facts.
 - `old_docs/` — Sphinx-era, explicitly stale. Ignore unless asked.

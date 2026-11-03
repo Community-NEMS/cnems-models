@@ -10,6 +10,7 @@ integrated run. It replaces the procedural helpers previously in ``runner.py``; 
 only need to repoint their import at this module.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from logging import getLogger
 
@@ -20,7 +21,10 @@ from pyomo.util.infeasible import log_infeasible_constraints
 
 from src.common.common_config import CommonConfig
 from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
+from src.common.models_modes import ModelType
+from src.common.update_package import ExchangeSpec, UpdatePackage
 from src.integrator.utilities import select_solver
+from src.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
 from src.models.electricity.data_validation import validate_all
 from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
@@ -33,16 +37,18 @@ from src.models.electricity.learning import (
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
+from src.models.electricity.update_reader import ElecModelUpdateReader, ElecUpdateReader
+from src.models.electricity.update_writer import ElecUpdateWriter
 
 logger = getLogger(__name__)
 
 # convergence controls for the linear-learning outer iteration.  The tolerance is on the largest
-# change in cumulative builds for any (tech, year) between iterations, in GW.
-_LEARNING_TOLERANCE = 0.1
+# change in cumulative builds for any (tech, year) between iterations, in MW.
+_LEARNING_TOLERANCE = 100.0
 _LEARNING_MAX_ITER = 20
 
 
-class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
+class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, ParamData]):
     """Build/solve orchestration for the electricity :class:`PowerModel`.
 
     Ports the functionality formerly held by ``runner.py`` into the
@@ -51,12 +57,28 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
     retained on the instance so the solve/postprocess steps can run without re-threading arguments.
     """
 
-    def __init__(self):
-        """Initialize the sequencer."""
+    def __init__(self, exchange: ExchangeSpec | None = None):
+        """Initialize the sequencer.
+
+        Parameters
+        ----------
+        exchange : ExchangeSpec, optional
+            The run's exchanges; this model's writer builds its share of them.  Omitted (a
+            standalone run), the writer writes nothing.
+        """
         self._model = None
         self._elec_config: ElecConfig | None = None
         self._common_config: CommonConfig | None = None
         self._opt = None
+        self._last_status: IterationStatus | None = None
+        # whether the current model was built with update packages; see update_model
+        self._built_with_packages = False
+        self._reader = ElecUpdateReader()
+        self._model_reader = ElecModelUpdateReader()
+        exchange = exchange if exchange is not None else ExchangeSpec.empty()
+        self._writer = ElecUpdateWriter(
+            exchange.outbound_for(ModelType.ELECTRICITY), exchange.crosswalks
+        )
 
     @property
     def model(self) -> PowerModel:
@@ -75,6 +97,22 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
     def model(self, value: PowerModel):
         """Set the model instance.  Caution:  Alignment with config settings not checked."""
         self._model = value
+        self._opt = None
+
+    @property
+    def reader(self) -> ElecUpdateReader:
+        """Applies inbound packages to ``ParamData``."""
+        return self._reader
+
+    @property
+    def writer(self) -> ElecUpdateWriter:
+        """Writes the gas-burn package for the natural gas model."""
+        return self._writer
+
+    @property
+    def last_status(self) -> IterationStatus | None:
+        """Status of the most recent solve, or ``None`` before one."""
+        return self._last_status
 
     @property
     def elec_config(self) -> ElecConfig:
@@ -103,7 +141,11 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         return self._common_config
 
     def build_model(
-        self, common_config: CommonConfig, model_config: ElecConfig, **kwargs
+        self,
+        common_config: CommonConfig,
+        model_config: ElecConfig,
+        update_packages: Sequence[UpdatePackage] | None = None,
+        **kwargs,
     ) -> PowerModel:
         """Preprocess inputs and build (but do not solve) the electricity model.
 
@@ -116,11 +158,14 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             Common run configuration.
         model_config : ElecConfig
             Electricity configuration
+        update_packages : Sequence[UpdatePackage], optional
+            Update Packages applied to the read-in data by :class:`ElecUpdateReader`.
 
         Returns
         -------
         PowerModel
             The built, unsolved model (also retained as :attr:`model`).
+
         """
         logger.info('Preprocessing')
         self._elec_config = model_config
@@ -133,6 +178,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             len(model_params.param_frames),
             len(model_params.param_dicts),
         )
+        self._reader.read(update_packages, model_params)
+        self._built_with_packages = bool(update_packages)
 
         logger.info('Validating input data')
         validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
@@ -148,40 +195,73 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
         logger.info('Number of constraints = %d', pyo.value(instance.nconstraints()))
 
         self._model = instance
+        # a solver holds the model it last solved, so a new model needs a new one
+        self._opt = None
         return instance
 
-    def update_model(self, **kwargs) -> PowerModel:
-        """TBD update process for the electricity model.
+    def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> PowerModel:
+        """Apply inbound update packages to the built model in place, without rebuilding it.
 
-        Raises
-        ------
-        NotImplementedError
-            Always; the electricity model has no update step yet.
-        """
-        raise NotImplementedError('update_model is not implemented for the electricity model.')
+        The model must have been built without update packages.  Price adjustments are measured
+        from the built ``generation_cost``, so one already scaled by a package at build time
+        would be scaled again.
 
-    def solve_model(self, **kwargs) -> IterationStatus:
-        """Solve the electricity model, iterating externally for linear learning.
-
-        Ports ``runner.solve_elec_model``. For ``ExpansionLearningType.LINEAR`` this runs the
-        outer build→solve→update loop until capacity converges (or the iteration cap is hit),
-        driving each iteration through :meth:`iteration_postprocess` and :meth:`update_model`.
+        Parameters
+        ----------
+        update_packages : Sequence[UpdatePackage]
+            Applied in order by :class:`ElecModelUpdateReader`.
 
         Returns
         -------
-        IterationStatus
-            ``BEST`` on optimal termination, ``ERROR`` otherwise.
+        PowerModel
+            The same model instance, updated.
+
+        Raises
+        ------
+        ValueError
+            If the model was built with update packages.
+        NotImplementedError
+            If a package type has no built-model handler.
+        """
+        if self._built_with_packages:
+            raise ValueError(
+                'update_model needs a model built without update packages; this one was built '
+                'with some, so its supply prices already carry them.'
+            )
+        self._model_reader.read(update_packages, self.model)
+        return self.model
+
+    def solve_model(self, **kwargs) -> tuple[ModelType, IterationStatus]:
+        """Solve the electricity model, iterating externally for linear learning.
+
+        Ports ``runner.solve_elec_model``. For ``ExpansionLearningType.LINEAR`` this runs an
+        outer solve loop until capacity converges (or the iteration cap is hit), re-pricing
+        expansion costs with ``update_expansion_cost`` before each solve.
+
+        The solver is created on the first solve of a built model and kept for later solves of
+        the same model, so a model updated in place is re-solved by pushing only what changed.
+        :meth:`build_model` drops it.
+
+        Returns
+        -------
+        tuple[ModelType, IterationStatus]
+            The model type and the solve status:  ``ERROR`` on non-optimal termination;
+            otherwise ``PENALTY`` if any load went unmet (see :meth:`_in_penalty`), ``USABLE`` if
+            linear learning stops at the iteration cap without converging, else ``BEST``.
         """
         instance = self.model
         if instance is None:
             raise RuntimeError('Solve called on model that has not been built.')
-        self._opt = select_solver(
-            instance,
-            nonlinear=self.elec_config.expansion_learning_type is ExpansionLearningType.NONLINEAR,
-        )
+        if self._opt is None:
+            self._opt = select_solver(
+                instance,
+                nonlinear=self.elec_config.expansion_learning_type
+                is ExpansionLearningType.NONLINEAR,
+            )
 
         logger.info('Solving model')
 
+        status = IterationStatus.BEST
         if self.elec_config.expansion_learning_type == ExpansionLearningType.LINEAR:
             # run iterative (external) learning
             eps = float('inf')
@@ -193,9 +273,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
             results = None
 
             while eps > _LEARNING_TOLERANCE and i < _LEARNING_MAX_ITER:
-                # TODO:  Verify this sequence is correct.  We update costs only BEFORE solve s.t.
-                #        the solved result holds these costs when tol < limit
-                # update learning costs in model
+                # update learning costs in model.  Costs are set before each solve, so a converged
+                # solve was priced from builds within tolerance of its own.
                 update_expansion_cost(instance, new_cap=cap_growth)
 
                 # solve model.  Solutions are loaded explicitly after the termination
@@ -219,6 +298,15 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
 
             if results is None:  # pragma: no cover - the loop always runs at least once
                 raise RuntimeError('Linear learning loop exited without solving the model.')
+            if i >= _LEARNING_MAX_ITER and eps > _LEARNING_TOLERANCE:
+                logger.warning(
+                    'Linear learning stopped at the %d iteration cap without converging; the '
+                    'last change was %0.4f MW against a tolerance of %0.4f MW',
+                    _LEARNING_MAX_ITER,
+                    eps,
+                    _LEARNING_TOLERANCE,
+                )
+                status = IterationStatus.USABLE
         else:
             results = self._opt.solve(instance, load_solutions=False)
             if check_optimal_termination(results):
@@ -233,10 +321,50 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig]):
                 + ', status: '
                 + str(results.solver.status)
             )
-            return IterationStatus.ERROR
+            self._last_status = IterationStatus.ERROR
+            return ModelType.ELECTRICITY, IterationStatus.ERROR
 
         logger.info('Solve Successful')
-        return IterationStatus.BEST
+        # only an optimal solve has solved values to inspect, so this follows the ERROR check;
+        # unmet load outranks a capped learning loop, since an iterative run must not stop on it
+        if self._in_penalty(instance):
+            status = IterationStatus.PENALTY
+        self._last_status = status
+        return ModelType.ELECTRICITY, status
+
+    @staticmethod
+    def _in_penalty(model: PowerModel) -> bool:
+        """Check a solved model for unmet load, which marks the solve as ``PENALTY``.
+
+        The objective is accurate, but the model leaned on the unmet-load penalty rather than
+        serving all load, so an iterative run should not stop on it.
+
+        Parameters
+        ----------
+        model : PowerModel
+            A solved model; only its ``unmet_load`` values are read.
+
+        Returns
+        -------
+        bool
+            True if ``unmet_load`` exceeds ``UNMET_LOAD_PENALTY_TOL`` in any index.
+        """
+        unmet: dict[tuple, float] = {}
+        for index, var in model.unmet_load.items():
+            quantity = pyo.value(var, exception=False)
+            if quantity is not None and quantity > UNMET_LOAD_PENALTY_TOL:
+                unmet[index] = quantity
+        if unmet:
+            logger.warning(
+                'Unmet load of %.4g across %d (region, year, hour) index(es); solve status PENALTY',
+                sum(unmet.values()),
+                len(unmet),
+            )
+        return bool(unmet)
+
+    def get_objective_value(self) -> float | None:
+        """Get the solved total cost -- the electricity model's objective."""
+        return pyo.value(self.model.total_cost)
 
     def iteration_postprocess(self, **kwargs):
         """No-op; the electricity model has nothing to do between iterations."""
@@ -291,7 +419,7 @@ def run_elec_model(common_config: CommonConfig, elec_config: ElecConfig, solve=T
     if not solve:
         return instance
 
-    status = sequencer.solve_model()
+    _, status = sequencer.solve_model()
     timer.toc('solve model finished')
     logger.info('Solve complete')
 

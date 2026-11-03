@@ -16,10 +16,11 @@ choose how non-modeled intervals between years are aggregated. In terms of spati
 regions they want to run and if regions have the capability to trade with one another.
 
 **The model uses linear optimization by default, but if running the model with capacity expansion, a user has the option
-of representing cost reductions using a nonlinear technology learning function**. This function can be modeled
-endogenously, by either turning the problem into a nonlinear program, or by running successive iterations of linear
-programs over a fixed nonlinear learning function. Users can also specify which technology options are allowed to expand
-or retire.
+of representing cost reductions using a nonlinear technology learning function**. The nonlinear mode puts the function
+in the objective, which makes the problem a nonlinear program. The linear mode instead solves a sequence of linear
+programs, repricing capacity from the previous solve's builds until the two agree. The two are different formulations
+and can choose different builds. With learning disabled, a fixed yearly decline in capital costs stands in for learning.
+Users can also specify which technology options are allowed to expand or retire.
 
 After completing a run, the module will return datasets in the output directory for the variables, parameters, sets, and
 constraints. These datasets will be stored in the output directory at the top level. The viewer within the output
@@ -37,7 +38,7 @@ The data is prepared by `model_sets.py` and `param_data.py`, with the raw CSV re
 helpers remain in `preprocessor.py`).
 `ModelSets` creates the sets for the model from the configuration data. Sets are organized into regional sets, temporal
 sets, and technology-based sets. Next
-`ParamData` reads in all of the input data within the cem_inputs directory and processes it into the format needed for
+`ParamData` reads in all of the input data within the `parameters` directory and processes it into the format needed for
 the PowerModel based on the spatial and temporal settings specified. Both are passed to the PowerModel for further
 processing.
 
@@ -53,7 +54,7 @@ The `[elec_config]` section contains the main settings through which features fo
 | Setting                   | Description                   | Values                                                                                                                |                                                                                           Notes                                                                                           |
 |:--------------------------|:------------------------------|:----------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
 | regional_exchange         | Interregional trade           | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
-| capacity_expansion        | Capacity expansion/retirement | **false** = Off <br> **true** = On                                                                                    |  Note the file build_data.csv also contains settings of which technologies are available to expand. retire_data.csv contains which technologies have the option to economically retire.   |
+| capacity_expansion        | Capacity expansion/retirement | **false** = Off <br> **true** = On                                                                                    |  Note the file tech_build.csv also contains settings of which technologies are available to expand. tech_retire.csv contains which technologies have the option to economically retire.   |
 | reserve_margin_required   | Reserve margin requirement    | **false** = Off <br> **true** = On                                                                                    |                                                    Requires capacity_expansion; the combination is rejected by ElecConfig validation.                                                     |
 | ramping_required          | Maximum ramping constraint    | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
 | spinning_reserve_required | Operating reserve requirement | **false** = Off <br> **true** = On                                                                                    |                                            Enables all three reserve products in ReserveType (spinning, regulation, flex), not just spinning.                                             |
@@ -64,7 +65,7 @@ The `[common]` section holds settings that are not specific to the electricity m
 | Setting             | Description         | Values                                                                                                                 |                                                 Notes                                                 |
 |:--------------------|:--------------------|:-----------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------:|
 | aggregate_years     | Aggregate years     | **false** = Only runs the selected years <br> **true** = Aggregates all unselected years into subsequent selected year |        Aggregates based on the years listed in summary_years.  Requires aggregate_start_year.         |
-| temporal_resolution | Temporal resolution | **default**, **d8h12**, **d4h24**, or a custom crosswalk name                                                          | Selects the representative day/hour mapping.  See [the integrator README](/src/integrator/README.md). |
+| temporal_resolution | Temporal resolution | **default**, **d6h12**, **d4h24**, or a custom crosswalk name                                                          | Selects the representative day/hour mapping.  See [the integrator README](/src/integrator/old_README.md). |
 | summary_years       | Years to run        | list of years, e.g. `[2025, 2030]`                                                                                     |                                The years the model solves and reports.                                |
 
 ### Technology Settings
@@ -94,11 +95,11 @@ suffix rather than a bare number. The technologies represented are:
 | 15_utility  | Solar, utility-scale                             | Utility Solar      | SOLRUT       |
 | 15_end_use  | Solar, end-use                                   | End-Use Solar      | SOLREU       |
 
-The seasonal/regular hydro split selects which hydro bound applies (`T_hydro_seasonal` vs
-`T_hydro_regular`); the utility/end-use solar split (`T_solar_utility` vs `T_solar_end_use`) differs only in data,
+The seasonal/regular hydro split selects which hydro bound applies (`is_hydro_seasonal` vs
+`is_hydro_regular`); the utility/end-use solar split (`is_solar_utility` vs `is_solar_end_use`) differs only in data,
 not in constraints. Both replaced supply curve step numbers that used to carry the distinction implicitly.
 
-Each technology also carries descriptive columns in tech_data.csv:
+Each technology also carries descriptive columns in tech.csv:
 
 | Data column  | Description                                                                          |
 |:-------------|:-------------------------------------------------------------------------------------|
@@ -108,18 +109,18 @@ Each technology also carries descriptive columns in tech_data.csv:
 | color        | Hex color used when plotting the technology, e.g. **#FFD700**                         |
 
 The technologies (tech) are also combined into group based on the applicability of different constraints. These groups
-are defined in tech_data.csv within the input/electricity directory and includes:
+are defined in tech.csv within the input/electricity directory as **True**/**False** flags and include:
 
-* T_conv: conventional
-* T_re: renewable energy
-* T_hydro: hydroelectric
-* T_stor: storage
-* T_vre: variable renewable energy
-* T_wind: wind
-* T_solar: solar
-* T_h2: hydrogen
-* T_disp: dispatchable
-* T_gen: generating
+* is_conventional: conventional
+* is_renewable: renewable energy
+* is_hydro: hydroelectric (split into is_hydro_seasonal and is_hydro_regular)
+* is_storage: storage
+* is_vre: variable renewable energy
+* is_wind: wind
+* is_solar: solar (split into is_solar_utility and is_solar_end_use)
+* is_hydrogen: hydrogen
+* is_dispatchable: dispatchable
+* is_generator: generating
 
 When capacity_expansion is turned on, a user can select which technologies they want to have expansion and retirement
 capabilities. Turning these switches on allows for builds and/or retirements of a given technology and supply curve
@@ -127,8 +128,8 @@ step. These files are located in the input/electricity directory and are declare
 
 | Data column | Description                                                                                   | Values                                                       |                                 Notes                                 |
 |:------------|:---------------------------------------------------------------------------------------------:|:-------------------------------------------------------------|:---------------------------------------------------------------------:|
-| builds      | Contains switches for technologies and supply curve steps where capacity is allowed to build  | **0** = Not Allowed to Build <br> **1** = Allowed to Build   |  Switches contained in build_data.csv (property key buildable_techs)  |
-| retires     | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **0** = Not Allowed to Retire <br> **1** = Allowed to Retire | Switches contained in retire_data.csv (property key retireable_techs) |
+| is_buildable | Contains switches for technologies and supply curve steps where capacity is allowed to build  | **False** = Not Allowed to Build <br> **True** = Allowed to Build |  Switches contained in tech_build.csv (property key tech_build)       |
+| is_retirable | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **False** = Not Allowed to Retire <br> **True** = Allowed to Retire | Switches contained in tech_retire.csv (property key tech_retire)      |
 
 ## Formulation
 

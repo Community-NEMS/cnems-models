@@ -14,30 +14,42 @@ so that unintended changes to the formulation or the input data show up as a fai
 import logging
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from pyomo.common.numeric_types import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
+from src.common.integrated_model_sequencer import IterationResult, IterationStatus
+from src.common.models_modes import ModelType
+from src.common.update_package import (
+    NG_ELEC_DEMAND_INDEX,
+    NG_ELEC_DEMAND_VALUE,
+    NG_PRICE_INDEX,
+    NG_PRICE_VALUE,
+    ExchangeSpec,
+    NGElectricalDemandPackage,
+    NGPricePackage,
+)
+from src.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY, UNSERVED_PENALTY_TOL
+from src.models.natural_gas.data import load_base_demand, load_qp_scalars
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.ng_model import NGModel
 from src.models.natural_gas.postprocessor import _extract_balance
-from src.models.natural_gas.sequencer import UNSERVED_REPORT_TOL_BCF, NGSequencer, main
+from src.models.natural_gas.sequencer import NGSequencer
 
 verbose = True
 
 # Test configurations with expected outputs, captured from a run of the current code:
 # Run Type          Total Cost ($)   Variables   Constraints
 # ----------------  ---------------  ----------  -----------
-# basic_config      -480902641083.88       1530         1530
-# partial_regions   -319146064790.54        342          342
+# basic_config      -272727069445.47       1494         1494
+# partial_regions   -227961456539.82        330          330
 #
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
 #     runs the model at full resolution (9 census divisions x the 6 years in summary_years),
-#     which is the same case src/models/natural_gas/README.md reports a reference solve for:
-#     1530 vars / 1530 constraints.
+#     which is the same case src/models/natural_gas/README.md reports a reference solve for.
 # 2.  a negative total cost is expected, not a defect: the LNG consumer-surplus term is
 #     subtracted in the minimisation form.
 # 3.  model size scales with common_config.summary_years, the only year knob the model reads,
@@ -64,10 +76,53 @@ verbose = True
 #     until then created only for a region subset, was created for every run: 9 regions x 6
 #     years = 54 variables.  It is zero at this demand level, so the objective and the
 #     constraint count did not move, and partial_regions, which always had it, is unchanged.
+# 7.  THESE VALUES MOVED when the committed production floor QMIN was charged in the objective,
+#     at the curve's lowest price PBASE_1, so that total_cost reports the full producer cost.
+#     The term is a constant in each solve: the objectives rise by exactly that constant,
+#     208,175,571,638.41 (basic_config) and 91,184,608,250.72 (partial_regions), and no
+#     quantity, flow or price moved. The counts are unchanged.
+# 8.  The counts moved when international trade went onto (region, partner) pairs.  LNG import
+#     had been a variable and a capacity constraint for every region, capped at zero capacity
+#     where a region has no terminal; it now exists only for the pairs ng_lng_import.csv lists.
+#     basic_config drops 9 - 3 = 6 regions x 6 years = 36 of each (1530 -> 1494), and
+#     partial_regions, where only pacific imports, drops 2 x 6 = 12 (342 -> 330).  The dropped
+#     variables were pinned at zero, so the objectives did not move.
 configs = [
-    ('basic_config', -480902641083.88, 1530, 1530),
-    ('partial_regions', -319146064790.54, 342, 342),
+    ('basic_config', -272727069445.47, 1494, 1494),
+    ('partial_regions', -227961456539.82, 330, 330),
 ]
+
+# the same captured objective values, keyed by case name, so the full_run tests below pin to the
+# numbers this table already locks in rather than to a second copy of them
+expected_costs = {name: cost for name, cost, _, _ in configs}
+
+# the gas price exchange alone, with the electricity <-> natural gas crosswalk
+PRICE_EXCHANGE = ExchangeSpec.build(
+    ['NGPricePackage'], {ModelType.ELECTRICITY, ModelType.NATURAL_GAS}
+)
+
+# the three census divisions the 'partial_regions' case runs; also used by the full_run tests,
+# which want the cheapest build that still exercises the real data path
+PARTIAL_REGIONS = ['west_south_central', 'mountain', 'pacific']
+
+
+@pytest.fixture
+def partial_config_set() -> tuple[CommonConfig, NGConfig]:
+    """A ``(CommonConfig, NGConfig)`` pair filtered down to :data:`PARTIAL_REGIONS`.
+
+    Returns
+    -------
+    tuple[CommonConfig, NGConfig]
+        The test TOML, with the NG config's ``region_filter`` narrowed to three divisions.
+    """
+    # TODO:  Bring the test data into the test folder when data format changes stabilize
+    #        This currently relies on data outside the test environment
+    config_path = Path(PROJECT_ROOT, 'tests/natural_gas/basic_ng_config.toml')
+    common_config, remainder = CommonConfig.from_toml(config_path)
+    # note the TOML section is [natural_gas], not [ng_config]
+    ng_config = NGConfig(**remainder.pop('natural_gas'))
+    ng_config.region_filter = PARTIAL_REGIONS
+    return common_config, ng_config
 
 
 class TestNGBasicRun:
@@ -113,7 +168,7 @@ class TestNGBasicRun:
 
         sequencer = NGSequencer()
         ng_model = sequencer.build_model(common_config, ng_config)
-        status = sequencer.solve_model()
+        _, status = sequencer.solve_model()
 
         # solve_model reports failure by return value rather than raising, so a bad solve would
         # otherwise be read below as a garbage objective instead of an obvious failure
@@ -160,7 +215,7 @@ def _solve_scaled(scale: float) -> tuple[IterationStatus, NGModel]:
     model = sequencer.build_model(common_config, ng_config)
     for r, s, y in model.demand:
         model.demand[r, s, y].set_value(value(model.demand[r, s, y]) * scale)
-    return sequencer.solve_model(solver_name='highs'), model
+    return sequencer.solve_model(solver_name='highs')[-1], model
 
 
 class TestUnservedDemand:
@@ -172,26 +227,28 @@ class TestUnservedDemand:
     def test_shortfall_solves_and_is_reported(self, caplog: pytest.LogCaptureFixture) -> None:
         """Unmet demand is carried by ``unserved`` and priced at the penalty.
 
-        Twice the base demand is more than can reach New England and Pacific.  The solve is
-        usable, the shortfall is logged and written to the balance CSV, and the price in each short
-        region is the penalty.
+        Twice the base demand is more than can reach New England and Pacific.  The solve is in
+        ``PENALTY`` status, the shortfall is logged and written to the balance CSV, and the price in
+        each short region is the penalty.
         """
         with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.sequencer'):
             status, model = _solve_scaled(2.0)
 
-        assert status is IterationStatus.USABLE, f'solve failed with status {status}'
+        assert status is IterationStatus.PENALTY, f'expected PENALTY, got {status}'
         short = {
             (r, y)
             for r in model.region_analyze
             for y in model.year
-            if value(model.unserved[r, y]) > UNSERVED_REPORT_TOL_BCF
+            if value(model.unserved[r, y]) > UNSERVED_PENALTY_TOL
         }
         assert short == {('new_england', y) for y in model.year} | {('pacific', 2050)}
         assert sum(value(v) for v in model.unserved.values()) == pytest.approx(1288.08, rel=1e-4)
 
         prices = {(gi.region, gi.year): p for gi, p in model.poll_gas_price().items()}
         for r, y in short:
-            assert prices[r, y] == pytest.approx(1000.0, rel=1e-6), f'price in {r} {y}'
+            assert prices[r, y] == pytest.approx(UNSERVED_DEMAND_PENALTY, rel=1e-6), (
+                f'price in {r} {y}'
+            )
 
         # both slacks reach the balance CSV, row for row
         for row in _extract_balance(model).itertuples():
@@ -203,44 +260,119 @@ class TestUnservedDemand:
         assert 'demand unserved in 7 region-year(s)' in caplog.text
 
 
-class TestSequencerMain:
-    """``main()`` must not present a failed solve as a successful run.
+class TestSequencerFullRun:
+    """``full_run`` must not present a failed solve as a successful run.
 
-    The failure path used to log an objective read off a failed solve and write five result
-    CSVs, so an infeasible configuration produced output indistinguishable from a good run.
+    ``full_run`` is the entry point the integrator's pool workers call
+    (``src/integrator/jacobi/jacobi_iterator.py::driver``), and its only channel back to the caller
+    is the :class:`~src.common.integrated_model_sequencer.IterationResult` it returns. A failed
+    solve leaves no solution loaded, so reading the objective off the model would report a garbage
+    number as if it were a price; these tests pin the contract that the failure path reports
+    ``ERROR`` with no objective instead.  (``full_run`` writes no result CSVs at all --
+    postprocessing is a separate call -- so the old concern about a failed solve leaving output
+    indistinguishable from a good run is now structural rather than a check made here.)
     """
 
-    def test_returns_one_on_solve_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An ERROR status exits non-zero rather than falling through."""
-        monkeypatch.setattr(
-            NGSequencer, 'solve_model', lambda self, **kwargs: IterationStatus.ERROR
-        )
-        monkeypatch.setattr(NGSequencer, 'full_postprocess', lambda self, **kwargs: None)
-        assert main() == 1
+    def test_reports_usable_on_success(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """A good solve returns a fully populated ``IterationResult``."""
+        common_config, ng_config = partial_config_set
+        sequencer = NGSequencer()
+        result = sequencer.full_run(common_config, ng_config)
 
-    def test_no_results_written_on_solve_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Neither the objective read nor the CSV write happens after a failed solve."""
+        assert isinstance(result, IterationResult)
+        assert result.model_type is ModelType.NATURAL_GAS
+        assert result.status is IterationStatus.USABLE
+        assert result.objective_value == pytest.approx(
+            expected_costs['partial_regions'], rel=1e-4
+        ), f'found {result.objective_value} total cost'
+        # standalone, with no exchanges, nothing is sent onward
+        assert result.update_packages == []
+        # the integrator logs results with pprint(), so a broken render breaks the run report
+        assert 'natural_gas' in result.pprint()
+
+    def test_sends_crosswalked_prices(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """With the price exchange, the solved price goes onward in electricity regions.
+
+        New England and electricity region 7 (ISNE) cover each other exactly, so the run is
+        closed under the crosswalk.
+        """
+        common_config, ng_config = partial_config_set
+        ng_config.region_filter = ['new_england']
+        result = NGSequencer(PRICE_EXCHANGE).full_run(common_config, ng_config)
+
+        assert [type(p) for p in result.update_packages] == [NGPricePackage]
+        package = result.update_packages[0]
+        assert package.source is ModelType.NATURAL_GAS
+        assert list(package.elements.index.names) == NG_PRICE_INDEX
+        prices = package.elements[NG_PRICE_VALUE]
+        assert set(prices.index.get_level_values('year')) == set(common_config.summary_years)
+        assert set(prices.index.get_level_values('region')) == {'7'}
+
+    def test_unclosed_regions_raise(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """The partial divisions reach electricity regions that also draw on divisions not run."""
+        common_config, ng_config = partial_config_set
+        with pytest.raises(ValueError, match='not closed'):
+            NGSequencer(PRICE_EXCHANGE).full_run(common_config, ng_config)
+
+    def test_no_objective_read_on_solve_error(
+        self, partial_config_set: tuple[CommonConfig, NGConfig], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An ERROR status yields ``objective_value=None`` without touching the objective."""
+        common_config, ng_config = partial_config_set
         monkeypatch.setattr(
-            NGSequencer, 'solve_model', lambda self, **kwargs: IterationStatus.ERROR
+            NGSequencer,
+            'solve_model',
+            lambda self, **kwargs: (ModelType.NATURAL_GAS, IterationStatus.ERROR),
         )
+        # patch the objective read so its absence is observed, not merely assumed
         touched: list[str] = []
         monkeypatch.setattr(
-            NGSequencer, 'full_postprocess', lambda self, **kwargs: touched.append('postprocess')
+            NGSequencer, 'get_objective_value', lambda self: touched.append('objective')
         )
-        # Patch the module-global `value` so a read of total_cost is observable rather than
-        # merely assumed absent.
-        import src.models.natural_gas.sequencer as seq_mod
 
-        monkeypatch.setattr(seq_mod, 'value', lambda expr: touched.append('objective') or 0.0)
+        sequencer = NGSequencer()
+        result = sequencer.full_run(common_config, ng_config)
 
-        assert main() == 1
+        assert result.status is IterationStatus.ERROR
+        assert result.objective_value is None
+        # no duals to read after a failed solve, so nothing is sent onward
+        assert result.update_packages == []
         assert touched == [], f'failed solve still did: {touched}'
+        # a failed solve still has to render, since that is how the failure gets reported
+        assert 'ERROR' in result.pprint()
 
-    def test_returns_zero_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The happy path is unchanged and still postprocesses."""
-        touched: list[str] = []
-        monkeypatch.setattr(
-            NGSequencer, 'full_postprocess', lambda self, **kwargs: touched.append('postprocess')
+
+class TestInboundDemandPackage:
+    """An ``NGElectricalDemandPackage`` sets the electric_power demand the model is built with."""
+
+    def test_build_applies_package_and_gates_growth(
+        self, partial_config_set: tuple[CommonConfig, NGConfig]
+    ) -> None:
+        """Every held entry takes the package value; the superseded sector's growth is off."""
+        common_config, ng_config = partial_config_set
+        cells = [(r, y) for r in PARTIAL_REGIONS for y in common_config.summary_years]
+        burn = {cell: 123.4 + i for i, cell in enumerate(cells)}
+        mmbtu_per_bcf = load_qp_scalars(ng_config.input_path / 'parameters')['mmbtu_per_bcf']
+        index = pd.MultiIndex.from_tuples(list(burn), names=NG_ELEC_DEMAND_INDEX)
+        package = NGElectricalDemandPackage(
+            elements=pd.DataFrame(
+                {NG_ELEC_DEMAND_VALUE: [bcf * mmbtu_per_bcf for bcf in burn.values()]},
+                index=index,
+            )
         )
-        assert main() == 0
-        assert touched == ['postprocess']
+        base = load_base_demand(ng_config.input_path / 'parameters')
+
+        model = NGSequencer().build_model(common_config, ng_config, update_packages=[package])
+
+        for (region, year), bcf in burn.items():
+            assert value(model.demand[region, 'electric_power', year]) == pytest.approx(bcf)
+        # a sector no package supersedes still grows
+        assert value(model.demand['mountain', 'industrial', 2030]) != pytest.approx(
+            base['mountain']['industrial']
+        )

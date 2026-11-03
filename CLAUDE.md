@@ -35,7 +35,7 @@ pixi run format
 # Run a single test file / test — enter the env, then call pytest directly
 pixi shell
 pytest tests/electric/test_basic_run.py -q
-pytest tests/electric/test_basic_run.py::test_linear_learning -q
+pytest tests/electric/learning/test_learning_linear.py::test_linear_learning -q
 
 # Run the model standalone (new config path; __main__ runs the run_configs/*.toml scenarios)
 pixi shell
@@ -63,13 +63,69 @@ python main.py
 3. `src/models/electricity/param_data.py::ParamData(common_config, elec_config, model_sets)` reads and
    shapes the parameter data (supply curves, capacity factors, costs, transmission limits, etc.). Simple
    params are kept as plain dicts; params still needing manipulation are kept as DataFrames. Some helpers
-   still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`).
+   still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`). Inbound update
+   packages are then applied to it in place by `ElecUpdateReader` (see *Update packages* below).
 4. `sequencer.py::ElectricitySequencer` implements the `IntegratedModelSequencer` ABC
    (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
-   `full_postprocess` / `iteration_postprocess`). `solve_model` returns an `IterationStatus`. Tests build
-   models by calling `ElectricitySequencer().build_model(common_config, elec_config)` directly.
+   `full_postprocess` / `iteration_postprocess`). `solve_model` returns a
+   `(ModelType, IterationStatus)` tuple. Tests build models by calling
+   `ElectricitySequencer().build_model(common_config, elec_config)` directly.
 5. `sequencer.py::run_elec_model(common_config, elec_config, solve=True)` is a thin wrapper over the
    sequencer: build → (optionally) solve → postprocess, returning the `PowerModel`.
+
+### Update packages (inter-model data exchange)
+
+`src/common/update_package/` holds the frozen, picklable `UpdatePackage` dataclasses
+(`update_package.py`, all re-exported from the package `__init__`, so import from
+`src.common.update_package`) and two ABCs that every model implements in its own
+`update_reader.py` / `update_writer.py`:
+
+- `UpdatePackageReader[DataT]` (`reader.py`) — `read(packages, data)` applies inbound packages in
+  place to the model's loaded data *before* the model is built. Subclasses implement `apply_package`
+  as a `singledispatchmethod` (one `.register` handler per package type; the base case raises
+  `NotImplementedError`). pyrefly mis-types this, so the override carries
+  `# type: ignore[bad-override]` and each `.register` carries `# type: ignore[no-matching-overload]`.
+- `UpdatePackageWriter[ModelT]` (`writer.py`) — `write(model)` builds the outbound packages from a
+  solved model.
+
+`IntegratedModelSequencer[ModelT, ConfigT, DataT]` requires `reader` / `writer` / `last_status`
+properties. Its concrete `get_outbound_updates` calls `writer.write(model)` only when `last_status`
+is in `ALLOW_OUTBOUND_UPDATES` (`{BEST, USABLE, PENALTY}`), which the control loop and
+monitor also screen results against. `ALLOW_TERMINATION` (`{BEST, USABLE}`) is the separate set
+an iterative run may stop on; `PENALTY` (accurate, but leaning on a soft limit) sends updates but
+keeps the run going.
+
+#### Region coverage contract (readers, writers, crosswalks)
+
+Regional data crossing between models follows six rules. The authoritative statement is the
+*Region Coverage Rules* section of `docs/run_modes/integrated.md`; this is a summary.
+
+1. Each crosswalk file's weights are finite, ≥ 0, and sum to 1 per source region
+   (`RegionCrosswalk` construction, once per run).
+2. The two files of a pair name the same regions and the same positive-weight links
+   (`RegionCrosswalk` construction, once per run).
+3. A writer sends exactly its own model's regions (`IntegratedModel.regions`), one value per
+   region per year, all known to the crosswalk. Map through
+   `RegionCrosswalk.apply(..., model_regions=model.regions)` and send 0.0 rather than omitting a
+   region.
+4. The sent regions are closed under the crosswalk: every destination region reached draws only
+   on regions that were sent (checked inside `apply`).
+5. A reader receives exactly its model's regions × years. Every regional handler, pre-build
+   (`NGUpdateReader`-style) and built-model (`NGModelUpdateReader`-style), calls
+   `check_region_year_keys` before writing anything.
+6. A model's update methods (e.g. `NGModel.set_external_demand`, `update_pipeline_trade`) accept
+   only keys the model carries: domestic regions it solves, international partners it trades
+   with, and years it holds. Check the whole batch first and raise on an unrecognized key; never
+   skip it. International partners are not in the crosswalk, so this is their only runtime check,
+   and an update naming a region the model doesn't include fails the run.
+
+Every check raises `ValueError`; a package that doesn't line up is an error, never a partial
+update or a silent skip. Each model checks only its own side. Region filters work in integrated
+runs only when the filtered regions are closed under the crosswalk.
+
+**Any change to these rules must also be made in the *Region Coverage Rules* section of
+`docs/run_modes/integrated.md`** (and the *Adding a Package Type* steps there, if affected), and
+vice versa, so the two stay in agreement.
 
 ### Electricity model structure
 
@@ -82,6 +138,9 @@ python main.py
   sets/params/variables/constraints reference (includes the LaTeX formulation of the objective and
   constraints) — read it before modifying model formulation, not just the code.
 - `param_data.py` — `ParamData`: loads/shapes parameters. `data_ingestor.py` does the raw CSV reads.
+- `update_reader.py` / `update_writer.py` — `ElecUpdateReader` (applies inbound packages to
+  `ParamData.param_frames`) and `ElecUpdateWriter` (sends the solved gas burn to the NG model as an
+  `NGElectricalDemandPackage`; `gas_demand_by_region` lives here).
 - Input CSVs are declared, not hard-coded: `param_sources.toml` / `property_sources.toml` are parsed by
   `param_source_loader.py` / `property_source_loader.py` into the `PARAM_SOURCES` / `PROPERTY_SOURCES`
   dicts in `data_ingestor.py`. To add an input file, add a TOML entry (`key`, `filename`, `index_cols`,
@@ -94,16 +153,19 @@ python main.py
 - `postprocessor.py` (variable extraction / CSV export), `validators.py` (pyomo domain checks),
   `param_utilities.py` (param reshaping helpers), `utilities.py` (`annual_count` only).
 - `analysis_tools/` (top-level package) — `model_diagnostics.py`, `transmission_network.py`, `viewer.py`.
-- Input data lives under `input/electricity/` and `input/electricity/cem_inputs/`
-  (regionally/technology-indexed CSVs for costs, transmission, supply curves, etc.).
+- Input data lives under `input/electricity/`: `properties/` (region/tech set-membership CSVs,
+  `CommonConfig.common_data_path`), `parameters/` (regionally/technology-indexed CSVs for costs,
+  transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (currently empty).
+  `datapackage.json` sits at the top of `input/electricity/`. `input/electricity_light/` mirrors
+  this layout.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity
   model code without explicitly asking to do so.
 
 ### Temporal/spatial resolution
 
 Representative days/hours (not full 8760h) drive the model's time dimension, configurable via
-`temporal_resolution` in `CommonConfig` (`"default"`, `"d8h12"`, `"d4h24"`, or custom crosswalks — see
-`src/integrator/README.md` for the temporal mapping crosswalk format). Regions are filtered via
+`temporal_resolution` in `CommonConfig` (`"default"`, `"d6h12"`, `"d4h24"`, or custom crosswalks — see
+`src/integrator/old_README.md` for the temporal mapping crosswalk format). Regions are filtered via
 `ElecConfig.region_filter`. Year aggregation (`aggregate_years`/`aggregate_start_year` in `CommonConfig`)
 lets a run represent multiple actual years with one solved representative year, weighted accordingly.
 
@@ -111,8 +173,22 @@ lets a run represent multiple actual years with one solved representative year, 
 
 `tests/electric/conftest.py` provides four fixtures: `config_set` (a `(CommonConfig, ElecConfig)` pair
 built from `tests/electric/basic_elec_config.toml`), `learning_config_set` (the single-region
-linear-learning micro dataset under `tests/electric/test_data_linear_learning_test/`), and
+linear-learning micro dataset under `tests/electric/learning/linear_micro_data/`), and
 `unsolved_model` / `solved_model`, which add a `PowerModel` built via `ElectricitySequencer`.
+
+Learning tests live in the `tests/electric/learning/` subpackage: the shared curve
+(`test_learning_curve.py`), the linear helpers plus full runs on the micro dataset
+(`test_learning_linear.py`), and the nonlinear objective checks (`test_learning_nonlinear.py`, with
+its `nonlinear_configs` / `nonlinear_model` fixtures in `learning/conftest.py`).
+
+For new tests, prefer the CSV-free **mini model** (`tests/electric/mini_model.py`) over the shipped
+data: 2 regions (R1, R2), 2 techs (Gas, Solar), 2 years, 2 rep days x 2 hours, and unit time weights.
+The base has only Gas capacity and costs, and Solar is declared with no data. Its `patch_loaders`
+monkeypatches the raw loaders, so the real `ModelSets` / `ParamData` / `validate_all` / sequencer
+run on it. To use it, take the `mini_data` fixture and augment it with the `MiniModelData` helpers
+(`add_tech`, `add_capacity`, `add_operating_costs`, `add_rows`, `set_buildable`, `set_load`, `every`).
+Then call the `build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`.
+`tests/electric/test_mini_model.py` has worked examples, including adding storage.
 
 `analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,
 `gather_param_data`, `gather_constraint_data`, `breakdown_obj_elements`, `capacity_inspector`,
@@ -123,7 +199,8 @@ writing new inspection code when debugging a test.
 feature combinations (baseline, exchange, expansion, ramping, reserve margin) against values captured
 from a legacy run; if you intentionally change model formulation, these expected values need updating and
 the change should be justified (see the module docstring's caveat that captured values are *assumed*
-correct, not verified against an independent source).
+correct, not verified against an independent source). It holds only these full runs; learning-specific
+tests belong under `tests/electric/learning/`.
 
 ## Ignore / do not touch
 

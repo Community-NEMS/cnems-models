@@ -1,0 +1,5 @@
+region,label,is_domestic,is_international
+CA,CA,True,False
+NY,NY,True,False
+TX,TX,True,False
+Mexico,Mexico,False,True

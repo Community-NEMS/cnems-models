@@ -6,6 +6,8 @@ Reads all numerical parameters from CSV files. Every file listed below
 
 import csv
 import logging
+import math
+from collections.abc import Collection, Hashable, Mapping
 from pathlib import Path
 from typing import TypedDict
 
@@ -15,7 +17,6 @@ from src.common.common_config import CommonConfig
 from src.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
-
 
 # Scalars that ng_scalars.csv must define. Names only; the values live in the CSV.
 #
@@ -214,62 +215,167 @@ def load_supply_anchors(
     return out
 
 
+def _read_trade_csv(
+    f_name: str, data_dir: Path, key_cols: tuple[str, ...], value_cols: tuple[str, ...]
+) -> pd.DataFrame:
+    """Read a trade CSV and check every cell the trade loaders use.
+
+    Parameters
+    ----------
+    f_name : str
+        File name in ``data_dir``.
+    data_dir : Path
+        Directory holding the file.
+    key_cols : tuple[str, ...]
+        Columns that identify a row; each combination may appear once.
+    value_cols : tuple[str, ...]
+        Columns that must hold finite numbers (a numeric key such as ``year`` goes in both).
+
+    Returns
+    -------
+    pd.DataFrame
+        The file, with ``value_cols`` converted to numbers.
+
+    Raises
+    ------
+    ValueError
+        If the file is missing or unreadable, lacks a column, holds a blank, non-numeric or
+        non-finite value, repeats a key, or yields no rows.
+    """
+    df = _csv(f_name, data_dir)
+    if df is None:
+        raise ValueError(f'{f_name} could not be read from {data_dir}; this input has no fallback')
+    for col in dict.fromkeys((*key_cols, *value_cols)):
+        if col not in df.columns:
+            raise ValueError(f'{f_name} in {data_dir} has no {col} column')
+    if df.empty:
+        raise ValueError(f'{f_name} in {data_dir} yielded no rows')
+    for col in value_cols:
+        try:
+            df[col] = pd.to_numeric(df[col], errors='raise')
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f'{f_name} in {data_dir} has a non-numeric {col} value') from exc
+        bad = ~df[col].map(math.isfinite)
+        if bad.any():
+            rows = df.loc[bad, list(key_cols)].to_dict('records')
+            raise ValueError(f'{f_name} in {data_dir} has a blank or non-finite {col} for: {rows}')
+    dupes = df.duplicated(list(key_cols), keep=False)
+    if dupes.any():
+        rows = df.loc[dupes, list(key_cols)].drop_duplicates().to_dict('records')
+        raise ValueError(f'{f_name} in {data_dir} repeats {list(key_cols)} for: {rows}')
+    return df
+
+
 def load_lng_import(
     data_dir: Path,
-) -> dict[str, tuple[float, float]]:
-    """Load LNG imports from ng_lng_import.csv."""
-    df = _csv('ng_lng_import.csv', data_dir)
-    if df is None:
-        raise ValueError(
-            f'ng_lng_import.csv could not be read from {data_dir}; this input has no fallback'
-        )
+) -> dict[tuple[str, str], tuple[float, float]]:
+    """Load LNG import capacity and cost from ng_lng_import.csv.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding the file.
+
+    Returns
+    -------
+    dict[tuple[str, str], tuple[float, float]]
+        ``{(region, partner): (capacity_bcf, cost_per_mmbtu)}``, one entry per domestic
+        terminal region and the international region it imports from.
+
+    Raises
+    ------
+    ValueError
+        As :func:`_read_trade_csv`.
+    """
+    df = _read_trade_csv(
+        'ng_lng_import.csv', data_dir, ('region', 'partner'), ('capacity_bcf', 'cost_per_mmbtu')
+    )
     result = {
-        str(row['region']): (float(row['capacity_bcf']), float(row['cost_per_mmbtu']))
-        for _, row in df.iterrows()
+        (str(region), str(partner)): (float(cap), float(cost))
+        for region, partner, cap, cost in zip(
+            df['region'], df['partner'], df['capacity_bcf'], df['cost_per_mmbtu'], strict=True
+        )
     }
-    if not result:
-        raise ValueError(f'ng_lng_import.csv in {data_dir} yielded no rows')
-    logger.info('LNG imports loaded from CSV (%d terminals)', len(result))
+    logger.info('LNG imports loaded from CSV (%d region-partner pairs)', len(result))
     return result
 
 
 def load_lng_export(
     data_dir: Path,
-) -> dict[str, dict[int, float]]:
-    """Load LNG export demands [BCF] from ng_lng_export.csv."""
-    df = _csv('ng_lng_export.csv', data_dir)
-    if df is None:
-        raise ValueError(
-            f'ng_lng_export.csv could not be read from {data_dir}; this input has no fallback'
-        )
-    result: dict[str, dict[int, float]] = {}
-    for _, row in df.iterrows():
-        region = str(row['region'])
-        result.setdefault(region, {})[int(row['year'])] = float(row['demand_bcf'])
-    if not result:
-        raise ValueError(f'ng_lng_export.csv in {data_dir} yielded no rows')
+) -> dict[tuple[str, str], dict[int, float]]:
+    """Load LNG export capacity [BCF/yr] from ng_lng_export.csv.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding the file.
+
+    Returns
+    -------
+    dict[tuple[str, str], dict[int, float]]
+        ``{(region, partner): {year: bcf}}`` at the breakpoint years listed; see
+        :func:`interp_by_year`.
+
+    Raises
+    ------
+    ValueError
+        As :func:`_read_trade_csv`.
+    """
+    df = _read_trade_csv(
+        'ng_lng_export.csv', data_dir, ('region', 'partner', 'year'), ('year', 'demand_bcf')
+    )
+    result: dict[tuple[str, str], dict[int, float]] = {}
+    for region, partner, year, bcf in zip(
+        df['region'], df['partner'], df['year'], df['demand_bcf'], strict=True
+    ):
+        result.setdefault((str(region), str(partner)), {})[int(year)] = float(bcf)
     logger.info(
-        'LNG export demand loaded from CSV (%d region-year pairs)',
+        'LNG export demand loaded from CSV (%d region-partner-year entries)',
         sum(len(v) for v in result.values()),
     )
     return result
 
 
-def load_demand_elasticity(
+def load_pipeline_trade(
     data_dir: Path,
-) -> dict[str, float]:
-    """Load DEMAND_PRICE_ELASTICITY from ng_demand_elasticity.csv."""
-    df = _csv('ng_demand_elasticity.csv', data_dir)
-    if df is None:
-        raise ValueError(
-            f'ng_demand_elasticity.csv could not be read from {data_dir}; '
-            'this input has no fallback'
-        )
-    result = {str(row['sector']): float(row['own_price_elasticity']) for _, row in df.iterrows()}
-    if not result:
-        raise ValueError(f'ng_demand_elasticity.csv in {data_dir} yielded no rows')
-    logger.info('DEMAND_PRICE_ELASTICITY loaded from CSV')
-    return result
+) -> tuple[dict[tuple[str, str], dict[int, float]], dict[tuple[str, str], dict[int, float]]]:
+    """Load fixed international pipeline import and export volumes from ng_pipeline_trade.csv.
+
+    CSV format, one row per (domestic region, international partner, year):
+        region, partner, year, import_bcf, export_bcf
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding the file.
+
+    Returns
+    -------
+    tuple[dict, dict]
+        ``(imports, exports)``, each ``{(region, partner): {year: bcf}}`` at the breakpoint
+        years listed; see :func:`interp_by_year`.
+
+    Raises
+    ------
+    ValueError
+        As :func:`_read_trade_csv`.
+    """
+    df = _read_trade_csv(
+        'ng_pipeline_trade.csv',
+        data_dir,
+        ('region', 'partner', 'year'),
+        ('year', 'import_bcf', 'export_bcf'),
+    )
+    imports: dict[tuple[str, str], dict[int, float]] = {}
+    exports: dict[tuple[str, str], dict[int, float]] = {}
+    for region, partner, year, imp, exp in zip(
+        df['region'], df['partner'], df['year'], df['import_bcf'], df['export_bcf'], strict=True
+    ):
+        key = (str(region), str(partner))
+        imports.setdefault(key, {})[int(year)] = float(imp)
+        exports.setdefault(key, {})[int(year)] = float(exp)
+    logger.info('Pipeline trade loaded from CSV (%d region-partner pairs)', len(imports))
+    return imports, exports
 
 
 def load_base_demand(
@@ -686,10 +792,26 @@ class RegionData(TypedDict):
     region_labels: dict[str, str]
 
 
-def load_sector_data(ng_config: NGConfig) -> list[str]:
-    """Load sector data."""
+def load_sector_data(data_dir: Path) -> list[str]:
+    """Load the demand sector names from ng_sector_data.csv.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding ng_sector_data.csv.
+
+    Returns
+    -------
+    list[str]
+        Sector names in file order.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file is absent.
+    """
     f_name = 'ng_sector_data.csv'
-    path = ng_config.input_path / f_name
+    path = data_dir / f_name
     if not path.exists():
         logger.error('Could not find sector data file (%s)', path)
         raise FileNotFoundError(path)
@@ -705,7 +827,7 @@ def load_sector_data(ng_config: NGConfig) -> list[str]:
     return res
 
 
-def load_region_data(ng_config: NGConfig) -> RegionData:
+def load_region_data(data_dir: Path, region_filter: list[str] | None = None) -> RegionData:
     """Load the model regions and their display labels from ng_region_data.csv.
 
     Returns the master region list in file order plus the two subsets it is partitioned into,
@@ -721,13 +843,19 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
     model built on a region set that disagrees with the rest of the input files is worse than a
     model that refuses to build.
 
+    Parameters
+    ----------
+    data_dir : Path
+        Directory holding ng_region_data.csv.
+    region_filter : list[str] | None, optional
+        Domestic regions to analyze (``NGConfig.region_filter``); ``None`` keeps all of them.
+
     Raises
     ------
     ValueError
-        If the file is missing or unreadable, lacks a required column, or declares no domestic
-        regions.
+        If the file is missing or unreadable, lacks a required column, declares no domestic
+        regions, or ``region_filter`` names a region that is not domestic.
     """
-    data_dir = ng_config.input_path
     df = _csv('ng_region_data.csv', data_dir)
     if df is None:
         raise ValueError(
@@ -741,8 +869,8 @@ def load_region_data(ng_config: NGConfig) -> RegionData:
             if str(row['domestic']).strip().lower() == 'true'
         }
         # apply the filter from the config
-        if ng_config.region_filter:
-            r_filter = set(ng_config.region_filter)
+        if region_filter:
+            r_filter = set(region_filter)
 
             # look for erroneous filter entries first
             bogus_filters = r_filter - domestic
@@ -802,11 +930,14 @@ def project_demand(
     years: list[int],
     regions: list[str],
     sectors: list[str],
+    superseded: Collection[str] = (),
 ) -> dict[tuple[str, str, int], float]:
     """Project sector demand for each region and year using AEO growth rates.
 
     Applies ``base * (1 + growth) ** (year - 2025)`` per region and sector, so 2025 returns the
-    base-year value unchanged.
+    base-year value unchanged.  A sector in ``superseded`` is held flat at its base-year value
+    instead:  an inbound update package is about to set it, so growing it first would only put a
+    misleading number under any ``(region, year)`` the package fails to cover.
 
     Parameters
     ----------
@@ -821,6 +952,8 @@ def project_demand(
         Regions to project. Required; every one must appear in ``demand_table``.
     sectors : list[str]
         Sectors to project. Every one must appear in ``growth_rate_table``.
+    superseded : Collection[str], optional
+        Sectors whose growth is gated off; see ``NGUpdateReader.superseded_sectors``.
 
     Returns
     -------
@@ -829,10 +962,24 @@ def project_demand(
     """
     base_year = 2025
     demand: dict[tuple[str, str, int], float] = {}
+    gated = [sector for sector in sectors if sector in superseded]
+    if gated:
+        logger.info(
+            'Demand growth gated off for sector(s) %s:  an inbound update package sets them', gated
+        )
+    unknown = sorted(set(superseded).difference(sectors))
+    if unknown:
+        logger.warning(
+            'Superseded sector(s) %s are not among the sectors being projected %s; the inbound '
+            'update package will have nothing to replace.  Check ng_sector_data.csv and the '
+            'growth table against SECTOR_SUPERSEDED_BY',
+            unknown,
+            list(sectors),
+        )
     for region in regions:
         for sector in sectors:
             base = demand_table[region][sector]
-            g = growth_rate_table[sector]
+            g = 0.0 if sector in superseded else growth_rate_table[sector]
             for year in years:
                 dt = year - base_year
                 demand[(region, sector, year)] = base * ((1 + g) ** dt)
@@ -854,14 +1001,15 @@ class NGData(TypedDict):
 
     # base_demand: dict[str, dict[str, float]]
     demand: dict[tuple[str, str, int], float]
-    demand_elasticity: dict[str, float]
     # demand_growth: dict[str, float]
     gathering: dict[str, float]
     lng_demand_curve: dict[str, list[float] | float]
-    lng_export: dict[str, dict[int, float]]
-    lng_import: dict[str, tuple[float, float]]
+    lng_export: dict[tuple[str, str], dict[int, float]]
+    lng_import: dict[tuple[str, str], tuple[float, float]]
     losses: dict[str, dict[str, float]]
     pipe_loss: dict[tuple[str, str], float]
+    pipe_trade_export: dict[tuple[str, str], dict[int, float]]
+    pipe_trade_import: dict[tuple[str, str], dict[int, float]]
     pipeline_arcs: list[tuple[str, str, float, float]]
     qp_scalars: dict[str, float]
     region_labels: dict[str, str]
@@ -879,52 +1027,49 @@ class NGData(TypedDict):
     years: list[int]
 
 
-def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
+def load_all(
+    ng_config: NGConfig, common_config: CommonConfig, superseded: Collection[str] = ()
+) -> NGData:
     """Load all NG model parameters from CSV files.
 
     Parameters
     ----------
     ng_config : NGConfig
-        Supplies ``input_path``, the directory every loader reads from, and ``region_filter``.
+        Supplies ``input_path`` (whose ``parameters/`` and ``properties/`` subdirectories the
+        loaders read from) and ``region_filter``.
     common_config : CommonConfig
         Supplies ``summary_years``, the years demand is projected over.
+    superseded : Collection[str], optional
+        Demand sectors an inbound update package will set, whose growth projection is therefore
+        gated off; see ``NGUpdateReader.superseded_sectors`` and :func:`project_demand`.
 
     Raises
     ------
     ValueError
-        If a required input is missing or unparseable, or if a sector in ng_sector_data.csv has
-        no entry in ng_demand_elasticity.csv.
+        If a required input is missing or unparseable.
 
     Returns
     -------
     NGData
         One entry per loader; see the `NGData` field list for keys and value types.
     """
-    region_data = load_region_data(ng_config)
-    sectors = load_sector_data(ng_config)
-    data_path = ng_config.input_path
+    data_path = ng_config.input_path / 'parameters'
+    properties_path = ng_config.input_path / 'properties'
+
+    region_data = load_region_data(properties_path, ng_config.region_filter)
+    sectors = load_sector_data(data_path)
+
+    pipe_trade_import, pipe_trade_export = load_pipeline_trade(data_path)
 
     # compute the projected demand...
     demand = project_demand(
-        demand_table=load_base_demand(ng_config.input_path),
-        growth_rate_table=load_demand_growth(ng_config.input_path),
+        demand_table=load_base_demand(data_path),
+        growth_rate_table=load_demand_growth(data_path),
         years=common_config.summary_years,
         regions=region_data['regions_analyze'],
         sectors=sectors,
+        superseded=superseded,
     )
-
-    # Sectors and elasticities come from two separate files with no shared key, so a sector
-    # added to one and not the other would otherwise pass silently: ng_model reads the
-    # elasticity per sector, and an absent one reads as perfectly inelastic demand. That is a
-    # modelling statement, not a default, so it has to be made deliberately rather than by
-    # omission. Checked here because it is the only place both datasets are in scope.
-    demand_elasticity = load_demand_elasticity(data_path)
-    uncovered = [sector for sector in sectors if sector not in demand_elasticity]
-    if uncovered:
-        raise ValueError(
-            f'ng_demand_elasticity.csv in {data_path} has no entry for sector(s): {uncovered}. '
-            f'Every sector in ng_sector_data.csv needs one.'
-        )
 
     return {
         'regions': region_data['regions'],
@@ -939,9 +1084,10 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
         'supply_anchors': load_supply_anchors(data_path),
         'lng_import': load_lng_import(data_path),
         'lng_export': load_lng_export(data_path),
-        'demand_elasticity': demand_elasticity,
         'demand': demand,
         'pipeline_arcs': load_pipeline_arcs(data_path),
+        'pipe_trade_import': pipe_trade_import,
+        'pipe_trade_export': pipe_trade_export,
         'storage': load_storage(data_path),
         'storage_opex': load_storage_opex(data_path),
         # NGMM AEO2025 QP parameters
@@ -968,11 +1114,29 @@ def load_all(ng_config: NGConfig, common_config: CommonConfig) -> NGData:
 # until mid-iteration.
 
 
-def interp_lng_export(
-    all_demand_table: dict[str, dict[int, float]], region: str, year: int
+def interp_by_year[K: Hashable](
+    table_by_key: Mapping[K, Mapping[int, float]], key: K, year: int
 ) -> float:
-    """Linearly interpolate LNG export demand for any year from table breakpoints."""
-    table = all_demand_table.get(region, {})
+    """Linearly interpolate a year-indexed table for any year from its breakpoints.
+
+    Outside the listed years the nearest endpoint is held flat.
+
+    Parameters
+    ----------
+    table_by_key : Mapping[K, Mapping[int, float]]
+        ``{key: {year: value}}``, e.g. LNG export capacity or pipeline trade by
+        ``(region, partner)``.
+    key : K
+        Entry to read.
+    year : int
+        Year to evaluate.
+
+    Returns
+    -------
+    float
+        The interpolated value; 0.0 for a key the table does not hold.
+    """
+    table = table_by_key.get(key, {})
     if not table:
         return 0.0
     years_sorted = sorted(table)

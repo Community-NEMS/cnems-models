@@ -14,7 +14,10 @@ constraint.
 | Symbol | Code | Description | Count |
 |---|---|---|---|
 | r | `regions` | census divisions, the market nodes | 9 |
-| ℓ | `lng_exporting_region` | divisions with LNG export capability, a subset of r | 3 |
+| ι | `region_int` | international trade partners, from `ng_region_data.csv` (not market nodes) | 2 |
+| (r,ι)_LX | `lng_export_pairs` | (division, partner) pairs with an LNG export curve | 3 |
+| (r,ι)_LM | `lng_import_pairs` | (division, partner) pairs with LNG import capacity | 3 |
+| (r,ι)_P | `pipe_trade_pairs` | (division, partner) pipeline border pairs | 6 |
 | y | `year` | representative model years | 6 |
 | s | `sectors` | demand sectors | 5 |
 | o, d | `regions` | origin and destination of an arc |  |
@@ -40,12 +43,12 @@ entry per region-year than a variable indexed k.
 | QBASE | `QBASE[r,k′,y]` | supply-curve quantity breakpoints | Bcf/yr |
 | PBASE | `PBASE[r,k′,y]` | supply-curve price breakpoints | $/MMBtu |
 | D | `demand[r,s,y]` | sectoral demand | Bcf/yr |
-| CAN | `canada_supply[r,y]` | Canadian pipeline imports | Bcf/yr |
+| M, X | `pipe_import[r,ι,y]`, `pipe_export[r,ι,y]` | fixed international pipeline imports / exports | Bcf/yr |
 | QTAR, PTAR | `QTAR[o,d,j′,y]`, `PTAR[…]` | tariff-curve breakpoints | Bcf/yr, $/MMBtu |
-| QLNG, PLNG | `QLNG[ℓ,m′,y]`, `PLNG[…]` | LNG export demand-curve breakpoints | Bcf/yr, $/MMBtu |
+| QLNG, PLNG | `q_lng[r,ι,m′,y]`, `p_lng[…]` | LNG export demand-curve breakpoints | Bcf/yr, $/MMBtu |
 | γ | `gathering_charge[r]` | gathering and processing charge | $/MMBtu |
-| c_LNG | `lng_cost[r]` | backstop LNG import cost | $/MMBtu |
-| K_LNG | `lng_capacity[r]` | backstop LNG import capacity | Bcf/yr |
+| c_LNG | `lng_cost[r,ι]` | LNG import cost | $/MMBtu |
+| K_LNG | `lng_capacity[r,ι]` | LNG import capacity | Bcf/yr |
 | S_w, S_i, S_x | `storage_working_cap[r]`, `storage_inject_cap[r]`, `storage_withdraw_cap[r]` | storage working gas and rate limits | Bcf, Bcf/yr |
 | θ | `storage_opex` | storage operating cost | $/MMBtu |
 | λ_pipe | `pipe_loss[o,d]` | pipeline transport loss | fraction |
@@ -53,7 +56,6 @@ entry per region-year than a variable indexed k.
 | λ_stor | `storage_loss[r]` | loss on storage withdrawal | fraction |
 | λ_dist | `distribution_loss[r]` | loss on residential/commercial delivery | fraction |
 | φ | `plant_fuel_frac[r]` | lease and plant fuel as a share of demand | fraction |
-| ε_s | `demand_price_elasticity[s]` | own-price demand elasticity by sector |, |
 | β | `bcf_to_mmbtu` | BCF -> MMBtu, `mmbtu_per_bcf` = 1.036e6 | MMBtu/BCF |
 
 #### Decision variables
@@ -64,8 +66,8 @@ All are non-negative.
 |---|---|---|---|
 | q | `sstep[r,k,y]` | production on supply segment *k* | Bcf/yr |
 | f | `tar_step[o,d,j,y]` | pipeline flow on tariff segment *j* | Bcf/yr |
-| x | `lng_export_step[ℓ,m,y]` | LNG exports on demand segment *m* | Bcf/yr |
-| i | `lng_import[r,y]` | backstop LNG imports | Bcf/yr |
+| x | `lng_export_step[r,ι,m,y]` | LNG exports on demand segment *m* | Bcf/yr |
+| i | `lng_import[r,ι,y]` | LNG imports | Bcf/yr |
 | inj | `stor_inject[r,y]` | storage injection | Bcf/yr |
 | wd | `stor_withdraw[r,y]` | storage withdrawal | Bcf/yr |
 | v | `slack_demand[r,y]` | surplus disposal, demand side, free | Bcf/yr |
@@ -78,7 +80,10 @@ Each collapses a segment index, which is why segment symbols do not appear in th
 ```
 production_total[r,y]     = q_min[r,y] + Σ_k  sstep[r,k,y]
 pipe_flow[o,d,y]          = Σ_j  tar_step[o,d,j,y]
-lng_export_demand[r,y]    = Σ_m  lng_export_step[r,m,y]      (zero for r ∉ ℓ)
+lng_export_demand[r,y]    = Σ_ι Σ_m  lng_export_step[r,ι,m,y]   (zero for a region with no pair)
+lng_import_total[r,y]     = Σ_ι  lng_import[r,ι,y]
+pipe_import_total[r,y]    = Σ_ι  pipe_import[r,ι,y]
+pipe_export_total[r,y]    = Σ_ι  pipe_export[r,ι,y]
 ```
 
 ### Objective
@@ -87,7 +92,7 @@ Minimize total system cost net of LNG consumer surplus, which is equivalent to m
 surplus:
 
 ```
-min   C_prod + C_gath + C_lngimp + C_trans + C_stor − S_lng
+min   C_prod + C_qmin + C_gath + C_lngimp + C_trans + C_stor − S_lng
 ```
 
 Each curve-based term is the area under its piecewise-linear curve. For the supply block, the
@@ -102,20 +107,30 @@ and integrating the segment gives a linear term plus a quadratic:
 ```
 C_prod  = Σ_r Σ_y Σ_k ( PBASE[r,k,y]·q + ½ σ_k·q² ) · β          q = sstep[r,k,y]
 
+C_qmin  = Σ_r Σ_y  PBASE[r,1,y] · QMIN[r,y] · β
+
 C_gath  = Σ_r Σ_y  γ[r] · production_total[r,y] · β
 
-C_lngimp= Σ_r Σ_y  c_LNG[r] · lng_import[r,y] · β
+C_lngimp= Σ_(r,ι) Σ_y  c_LNG[r,ι] · lng_import[r,ι,y] · β
 
 C_trans = Σ_(o,d) Σ_y Σ_j ( PTAR[o,d,j,y]·f + ½ τ_j·f² ) · β     τ_j = tariff slope
 
 C_stor  = Σ_r Σ_y  θ · stor_inject[r,y] · β
 
-S_lng   = Σ_ℓ Σ_y Σ_m ( PLNG[ℓ,m,y]·x + ½ π_m·x² ) · β           π_m = LNG demand slope
+S_lng   = Σ_(r,ι) Σ_y Σ_m ( PLNG[r,ι,m,y]·x + ½ π_m·x² ) · β     π_m = LNG demand slope
 ```
 
+`C_qmin` charges the committed floor QMIN, which `production_total` adds to the step volumes,
+at the curve's lowest price. It is a constant in any one solve, so it moves no quantity or
+price; it is there so that `total_cost` reports the full producer cost.
+
 `S_lng` enters with a negative sign because the LNG export demand curve slopes downward and the
-area beneath it is consumer surplus. Segments of zero width are skipped, which prevents division
-by zero in regions with no capacity of a given type.
+area beneath it is consumer surplus. A zero-width segment would divide by zero in its slope. On the
+supply and LNG curves it gets zero coefficients instead: the intercept and slope are mutable Params
+(`prod_cost_*`, `lng_surplus_*`), so a later update that gives the segment width also gives it real
+coefficients, and its segment cap holds its volume at zero meanwhile. Tariff segments of zero width
+are left out of the objective when the model is built, which is safe only because `QTAR` / `PTAR`
+are not mutable.
 
 A penalty term prices unmet demand:
 
@@ -132,8 +147,8 @@ genuine shortfall.
 
 ```
 production_total[r,y]·(1 − λ_intra[r])
-  + lng_import[r,y]
-  + canada_supply[r,y]
+  + lng_import_total[r,y]
+  + pipe_import_total[r,y]                           ← fixed
   + Σ_(o,d)→r  pipe_flow[o,d,y]·(1 − λ_pipe[o,d])
   + stor_withdraw[r,y]·(1 − λ_stor[r])
   + unserved[r,y]                                    ← unmet demand, priced at Π
@@ -144,6 +159,7 @@ production_total[r,y]·(1 − λ_intra[r])
   + Σ_r→(o,d)  pipe_flow[o,d,y]
   + stor_inject[r,y]
   + lng_export_demand[r,y]
+  + pipe_export_total[r,y]                           ← fixed
   + slack_demand[r,y]                                ← surplus disposal, free
 ```
 
@@ -157,14 +173,19 @@ sstep[r,k,y]  ≤  QBASE[r,k+1,y] − QBASE[r,k,y]
 
 ```
 tar_step[o,d,j,y]     ≤  QTAR[o,d,j+1,y] − QTAR[o,d,j,y]
-lng_export_step[ℓ,m,y] ≤  QLNG[ℓ,m+1,y]  − QLNG[ℓ,m,y]
+lng_export_step[r,ι,m,y] ≤  QLNG[r,ι,m+1,y]  − QLNG[r,ι,m,y]
 ```
 
-**LNG import capacity**: note this bounds *imports*, not exports, and is defined on all regions:
+**LNG import capacity**: note this bounds *imports*, not exports, and exists only for the pairs
+`ng_lng_import.csv` lists:
 
 ```
-lng_import[r,y]  ≤  K_LNG[r]
+lng_import[r,ι,y]  ≤  K_LNG[r,ι]
 ```
+
+International partners are not market nodes: they carry no balance constraint and no price.
+Pipeline trade is fixed volume in mutable Params (no objective term, since it would be a
+constant), and `others` is the catch-all world LNG market.
 
 **Storage rates and balance**: injection and withdrawal are rate-limited, and the annual cycle
 closes:
@@ -194,13 +215,22 @@ crv_above = [0.05, 0.15, 0.30]      volume rises above it
 elas      = [0.8, 0.7, 0.5, 0.3, 0.2]   supply elasticity per segment
 ```
 
-Quantities are cumulative products of the volume factors:
+Quantities are cumulative products of the volume factors, except the lowest breakpoint, which is
+the committed-production floor:
 
 ```
-QBASE_1 = Q0 · (1−c⁻₁)(1−c⁻₂)(1−c⁻₃)        QBASE_4 = Q0 · (1+c⁺₁)
+QBASE_1 = QMIN = f_min · Q0                 QBASE_4 = Q0 · (1+c⁺₁)
 QBASE_2 = Q0 · (1−c⁻₂)(1−c⁻₃)               QBASE_5 = Q0 · (1+c⁺₁)(1+c⁺₂)
 QBASE_3 = Q0 · (1−c⁻₃)                      QBASE_6 = Q0 · (1+c⁺₁)(1+c⁺₂)(1+c⁺₃)
 ```
+
+`f_min` is `supply_curve_qmin_fraction` in `ng_scalars.csv` (0.20). Setting `QBASE_1` to `QMIN`
+is what makes NGMM Eq 8, `PROD = Σ SSTEP + QMIN`, hold for `production_total`. The cumulative
+product, `Q0 · (1−c⁻₁)(1−c⁻₂)(1−c⁻₃)` (0.565·Q0 with the defaults), would put the curve's origin
+somewhere else. Only the quantity is replaced: `PBASE_1` keeps its cumulative-product value, so
+segment 1 runs from `QMIN` up to `QBASE_2` with its usual price at the lower end.
+`_supply_qbase_at()` in `ng_model.py` applies this rule at build time and in
+`update_supply_capacity()`.
 
 Prices follow from the elasticity definition. With ε = (dQ/Q)/(dP/P), a volume change of CRV
 implies a price change of CRV/ε, so:
@@ -241,7 +271,7 @@ marginal value lies between the slopes of the two adjacent segments. The simpler
 
 The two slack variables bound every price. `slack_demand` is free and non-negative on the uses side,
 so no price falls below zero. It is used only when demand drops below what a region cannot avoid
-supplying, its committed production floor and its Canadian imports, and wherever it takes gas the
+supplying, its committed production floor and its fixed pipeline imports, and wherever it takes gas the
 price is zero, within solver tolerance. The use is more numerical rather than economical. A region-year with
 unserved demand has its price at Π, within solver tolerance: that is the dual as solved, not a value
 imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. The two are the same pair the
@@ -271,13 +301,13 @@ the values a run solves on are always the values on disk. The two exceptions are
 | `ng_supply_anchors.csv` | region, year, q0_mult, p0_mult | year-varying path for Q0, P0 |
 | `ng_base_demand.csv` | region, sector, demand_bcf_2025 | base-year demand |
 | `ng_demand_growth.csv` | sector, annual_growth_rate | demand projection |
-| `ng_demand_elasticity.csv` | sector, own_price_elasticity | price-responsive demand |
 | `ng_pipeline_arcs.csv` | origin, destination, capacity_bcf, tariff_per_mmbtu | the arc network |
 | `ng_storage.csv` | region, working_cap_bcf, inject_cap_bcf_yr, withdraw_cap_bcf_yr | storage limits |
-| `ng_lng_export.csv` | region, year, demand_bcf | LNG export demand curve anchor |
-| `ng_lng_import.csv` | region, capacity_bcf, cost_per_mmbtu | backstop imports |
+| `ng_lng_export.csv` | region, partner, year, demand_bcf | LNG export demand curve anchor |
+| `ng_lng_import.csv` | region, partner, capacity_bcf, cost_per_mmbtu | LNG imports |
+| `ng_pipeline_trade.csv` | region, partner, year, import_bcf, export_bcf | fixed international pipeline volumes |
 | `ng_scalars.csv` | parameter, value, units, source | storage opex, LNG world price, defaults |
-| `elec_to_ng_region_map.csv` | elec_region, ng_region | crosswalk for electricity coupling |
+| `elec_to_ng_region_map.csv` | elec_region, ng_region | one-to-one region map the population-weighted crosswalk is built from |
 
 ### Cost tiers in the input are not NGMM steps
 
@@ -361,6 +391,100 @@ leaves everything else on its scalar.
 A healthy run is quiet: one `... loaded from CSV` line per input, plus two INFO lines noting the
 absent override files. A `ValueError` naming a file is the system working.
 
+## Data validation
+
+The loaded input data is checked before the pyomo model is built. `NGSequencer.build_model` loads
+the data with `load_all`, applies any inbound update packages through `NGUpdateReader`, and then
+calls `validate_all(data)` from `src/models/natural_gas/data_validation.py`. Validation therefore
+sees the data the model will actually use, including the effects of any packages.
+
+The loaders already reject missing files, missing columns and unparseable values. The validations
+go further and check that the values make sense for the model. Each of the three piecewise-linear
+curves (supply, pipeline tariff, LNG export demand) needs breakpoints that strictly increase in
+quantity and a slope sign that keeps the QP convex. Data that breaks either rule doesn't fail when
+the model is built:
+
+- **A segment of negative width** makes its segment cap infeasible, so the solve fails with nothing
+  pointing at the input that caused it.
+- **A zero-width segment** silently drops out of the objective.
+- **A wrong-signed slope** makes the objective non-convex.
+
+The validations turn each of these into a named error before the build.
+
+Each validation is independent and every one runs on each pass, so a single build reports all of
+the problems found rather than stopping at the first. Findings are written to the log as errors.
+
+### Strict validation
+
+The `strict_validation` switch in the `[common]` section of the run configuration
+(`CommonConfig.strict_validation`, default `true`) works as it does for the electricity model:
+
+- `strict_validation = true` — a failed validation raises `DataValidationError`
+  (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
+  are in the log. This is the normal setting.
+- `strict_validation = false` — failures are logged and the run continues with the data as read,
+  at the risk of an infeasible or mis-specified solve.
+
+### Validations performed
+
+- **Supply-curve shape** (`validate_supply_curve_shape`) — every `crv_below` in (0, 1), every
+  `crv_above` > 0 and every `elas` > 0, so each supply breakpoint sits strictly beyond the last.
+  Also checks that `crv_below[i] / elas[i]` < 1 for each step below the anchor. The price factor
+  there is `1 − crv/elas`, so a ratio of 1 or more would put a breakpoint price at or below zero.
+- **QMIN fraction** (`validate_qmin_fraction`) — `supply_curve_qmin_fraction` must lie in
+  [0, (1−c⁻₂)(1−c⁻₃)), 0.8075 with the shipped shape. `QBASE_1` is set to QMIN, so it has to sit
+  below `QBASE_2` for supply segment 1 to have positive width.
+- **Supply anchors** (`validate_supply_anchors`) — for every analysis region and year, the anchor
+  Q0 (summed tier capacity × `q0_mult`) must be finite and ≥ 0, and so must every tier capacity.
+  Q0 = 0 is allowed: it is how a region with no production is expressed (see below). Where Q0 > 0,
+  P0 (capacity-weighted tier cost × `p0_mult`) must be positive, or the curve prices at zero. An
+  analysis region with no supply cost tiers is flagged, since omission is more likely a mistake
+  than a deliberate zero.
+- **Tariff-curve shape** (`validate_tariff_curve_shape`) — `util_break` must start at or above zero
+  and strictly increase, and `tariff_mult` must not decrease. A falling tariff gives a negative
+  slope and a non-convex transport cost.
+- **Pipeline arcs** (`validate_pipeline_arcs`) — every arc's capacity must be > 0, since the tariff
+  breakpoints are capacity × `util_break`. Every base tariff must be ≥ 0.
+- **LNG demand curve** (`validate_lng_demand_curve`) — `q_frac` must start at or above zero and
+  strictly increase. `p_factor` must not increase and must be non-negative, and the world LNG price
+  must be positive. A rising demand curve makes the consumer-surplus term, and so the objective,
+  non-convex.
+- **LNG export capacity** (`validate_lng_export`) — every entry in `ng_lng_export.csv` must be
+  ≥ 0. Zero is allowed: it is a real state, such as a terminal not yet online, and the model gives
+  those segments zero width and zero surplus coefficients.
+
+The tariff and LNG loaders sort their breakpoints, so a repeated value is the only way those curves
+can fail the strictly-increasing checks.
+
+### Regions with no production
+
+To model a region that produces no gas, keep its rows in `ng_supply_cost_tiers.csv` and set every
+`capacity_bcf` to 0 (or set `q0_mult` to 0 in `ng_supply_anchors.csv` for chosen years). Q0 is then
+0, every supply segment has zero width and (0, 0) cost coefficients, and the region's demand is met
+by imports. P0 falls back to 3.0 (× `p0_mult`), which only matters if a later
+`update_supply_capacity` call gives the region capacity again. Do not omit the region from the
+file: validation rejects that, and with validation off the build raises a `ValueError` naming it.
+
+### Checks in the update methods
+
+The coupling-interface methods (see *Coupling interface* below) change model data after the build,
+so they check their inputs too. Each raises `ValueError` before changing anything, which leaves the
+model as it was when a call is rejected.
+
+Every method rejects a key the model does not carry rather than skipping it. Inbound packages are
+checked for exact coverage before they reach the model, so an uncarried key means something
+upstream is wrong.
+
+- **`update_lng_export`** — capacity must be finite and ≥ 0, and the world price must be > 0.
+  These are the runtime counterparts of the two LNG validations above. Each (region, partner)
+  must have an LNG export curve.
+- **`update_pipeline_trade`** — volumes must be finite and ≥ 0.
+- **`set_external_demand`** — values must be finite and ≥ 0, and each key must be a demand cell.
+- **`update_supply_capacity`** — capacities must be finite and ≥ 0. A negative one would
+  otherwise be summed into Q0 alongside the positive ones. A zero total is accepted and sets
+  Q0 = 0, the same as zero supply tiers at build. The under-relaxation factor `alpha` must lie in
+  (0, 1]; outside that range it extrapolates instead of blending.
+
 ---
 
 ## Regional subsetting
@@ -384,11 +508,10 @@ for calibration.
 
 | Method | Direction | Purpose |
 |---|---|---|
-| `update_demand` | in | write sectoral demand, e.g. electric-power gas burn |
+| `set_external_demand` | in | write demand another model supplies exactly, e.g. electric-power gas burn |
 | `update_supply_capacity` | in | rebuild QBASE/PBASE from new Q0 |
-| `update_canada_supply` | in | set Canadian import volumes |
-| `set_reference_prices` | in | capture the reference for elastic demand |
-| `update_demand_from_price` | internal | apply own-price elasticities against that reference |
+| `update_pipeline_trade` | in | set fixed pipeline import/export volumes by `TI(region, partner, year)` |
+| `update_lng_export` | in | reset LNG export capacity (by `TI`) and/or world LNG price |
 | `poll_gas_price` | out | regional prices, the balance duals, $/MMBtu |
 | `poll_total_gas_demand` | out | total demand by region-year |
 
@@ -421,11 +544,13 @@ for term it is the same expression this model minimizes the negative of:
 | Pipeline tariff area | trapezoid area under the tariff curve | identical |
 | Gathering charge | `Σ P_gath · FLOWS2H` | identical, on production |
 | LNG export demand area | `Σ PLNG·LNG + ½·LNG²·(ΔPLNG/ΔQLNG)` | identical |
+| Committed production QMIN | not in Eq 7 | added, a constant |
 | Storage operating cost | not in Eq 7 | **added** |
-| Backstop LNG import cost | not in Eq 7, imports are exogenous | **added** |
+| LNG import cost | not in Eq 7, imports are exogenous | **added** |
 
 The two quadratic surplus integrals are algebraically the same expression.
-The two extra terms are additions on this side, both linear.
+The three extra terms are additions on this side: the two operating costs are linear, and the
+QMIN charge is a constant that changes the objective's value but no solution.
 
 ### The supply curve, same structure
 
@@ -438,7 +563,8 @@ PROD = Σ_step SSTEP + QMIN
 ```
 
 That identity is `production_total[r,y]` here. Segment-range constraints (NGMM Eq 18-20) are the
-same, and the breakpoints are built around an anchor by the same cumulative-product rule.
+same, and the breakpoints are built around an anchor by the same cumulative-product rule, except
+that `QBASE_1` is set to `QMIN` (see *The supply curve* above).
 
 **One structural difference.** NGMM indexes supply by `(suptype, qps)`, supply type by supply
 region, where `suptype` distinguishes **associated-dissolved from nonassociated** gas, so each

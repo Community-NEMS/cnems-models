@@ -187,10 +187,11 @@ pyrefly = '*'     # lint-pyrefly
 prettier = '*'    # format-yaml
 prek = '*'        # prek-update
 pixi-pycharm = ">=0.0.12,<0.0.13"
-frictionless = ">=5.19.0,<6"
-pandera = ">=0.32.1,<0.33"
-universal-pathlib = ">=0.3.10,<0.4"
+frictionless = "*"
+pandera = "*"
+universal-pathlib = "*"
 zensical = "*"
+rich = "*"
 
 
 [tool.pixi.tasks]
@@ -212,6 +213,16 @@ test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 # C-HSM, the hydrocarbon supply model.
 hsm = { cmd = "python -m src.models.hsm.sequencer", description = "Run C-HSM using run_configs/basic_hsm_config.toml." }
+
+# The integrated control loop:  the models in run_configs/jacobi_small.toml solve in parallel,
+# exchanging update packages each iteration, with the iteration monitor on the console.
+# TODO:  This is for development work only; the task runs main.py's integrated (Jacobi) mode
+jacobi = { cmd = "python main.py run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
+
+# The experimental Gauss-Seidel loop on run_configs/gs_compare.toml (every region, 2025 and
+# 2030), and a side-by-side comparison of it with the Jacobi loop on the same config.
+gs = { cmd = "python main.py run_configs/gs_compare.toml", description = "Run the integrated Gauss-Seidel loop using run_configs/gs_compare.toml." }
+gs-compare = { cmd = "python -m analysis_tools.compare_iterators run_configs/gs_compare.toml", description = "Run Jacobi and Gauss-Seidel on run_configs/gs_compare.toml and write a comparison table." }
 
 # Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
 # absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then

@@ -14,6 +14,7 @@ Collection of sets used by model.
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Collection, Iterable
+from enum import Enum, unique
 from itertools import chain
 
 import pandas as pd
@@ -29,6 +30,19 @@ logger = logging.getLogger(__name__)
 
 CI = namedtuple('CI', ['region', 'tech', 'step', 'year'])
 """a fixed index type for capacity index entries"""
+
+
+@unique
+class CapacityOrigin(Enum):
+    """Why a (region, tech, step, year) is in ``ModelSets.capacity_index``.
+
+    The value is a readable phrase for log and error messages.  A key may carry more than one
+    origin (e.g. existing capacity that is also buildable).
+    """
+
+    EXISTING = 'existing capacity'
+    BUILDABLE = 'buildable capacity'
+    CARRIED = 'capacity carried forward from an earlier build year'
 
 
 def _parse_steps(raw: str, tech: str) -> list[int]:
@@ -82,8 +96,13 @@ class ModelSets:
     """
 
     buildable_capacity: list[CI]
+    """capital-cost keys screened to buildable techs and analyzed regions (expansion only)"""
     capacity_index: list[CI]
-    """The MASTER capacity index, augmented with Hour"""
+    """The MASTER capacity index:  existing | buildable | carried"""
+    carried_capacity: list[CI]
+    """years after a location's first build year in which it is not buildable (expansion only)"""
+    existing_capacity: list[CI]
+    """keys of the ``available_capacity`` supply curve"""
     generation_demand_index: defaultdict
     generation_dispatchable_ub_index: list[tuple]
     generation_hydro_ub_index: list[tuple]
@@ -239,6 +258,8 @@ class ModelSets:
         Built by crossing techs with hours and capacity tech, step combos.  With expansion on,
         the capacity index is the existing capacity plus each buildable location in every model
         year from its first capital-cost year; builds are restricted to the capital-cost keys.
+        The three pieces are kept as ``existing_capacity``, ``buildable_capacity`` and
+        ``carried_capacity`` (see :meth:`capacity_origins`).
         """
         existing_capacity_index = set(available_capacity_index)
         if not existing_capacity_index:
@@ -269,18 +290,21 @@ class ModelSets:
                 for (r, t, s), first_year in first_build.items()
                 for y in model_years
                 if y >= first_year
-            }
+            } - buildable_capacity
             logger.info(
                 'Capacity index carries builds forward into: %d non-buildable '
                 'region-tech-year combos',
-                len(carried_capacity - buildable_capacity),
+                len(carried_capacity),
             )
             self.buildable_capacity = sorted(buildable_capacity)
+            self.carried_capacity = sorted(carried_capacity)
             capacity_index = sorted(existing_capacity_index | buildable_capacity | carried_capacity)
 
         else:
             self.buildable_capacity = []
+            self.carried_capacity = []
             capacity_index = sorted(existing_capacity_index)
+        self.existing_capacity = sorted(existing_capacity_index)
 
         logger.info('Built Capacity Index of size: %d', len(capacity_index))
 
@@ -415,6 +439,21 @@ class ModelSets:
             logger.warning('generation_vre_index is empty')
 
         self.capacity_index = capacity_index
+
+    def capacity_origins(self) -> dict[CapacityOrigin, list[CI]]:
+        """The labelled pieces of ``capacity_index``, whose union it is.
+
+        Returns
+        -------
+        dict[CapacityOrigin, list[CI]]
+            Each origin's keys.  The pieces may overlap (existing vs. buildable/carried), but
+            buildable and carried never do.  Buildable and carried are empty without expansion.
+        """
+        return {
+            CapacityOrigin.EXISTING: self.existing_capacity,
+            CapacityOrigin.BUILDABLE: self.buildable_capacity,
+            CapacityOrigin.CARRIED: self.carried_capacity,
+        }
 
     def build_international_trade_index(
         self, intl_capacity: DataFrame, intl_gen_limit: DataFrame

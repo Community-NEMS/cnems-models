@@ -25,8 +25,16 @@ from src.models.electricity.data_validation import (
     validate_hourly_coverage,
     validate_seasonal_coverage,
 )
+from src.models.electricity.model_sets import CapacityOrigin
+from tests.electric.test_mini_model import add_solar_expansion
 
 VALIDATION_LOGGER = 'src.models.electricity.data_validation'
+
+EXISTING, BUILDABLE, CARRIED = (
+    CapacityOrigin.EXISTING,
+    CapacityOrigin.BUILDABLE,
+    CapacityOrigin.CARRIED,
+)
 
 SEASONS = ('winter', 'spring', 'summer', 'fall')
 HOURS = (1, 2, 3, 4)
@@ -243,7 +251,7 @@ def test_generation_cost_coverage_exact_match(validation_log, capacity_table):
     """Matching coverage is valid: nothing raised, nothing logged."""
     price = _price_table(capacity_table)
 
-    assert validate_generation_cost_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage({EXISTING: capacity_table}, price) is True
 
     assert validation_log.records == []
 
@@ -252,7 +260,7 @@ def test_generation_cost_coverage_single_season_price(validation_log, capacity_t
     """Season count in the price table is irrelevant here -- only the trimmed index matters."""
     price = _price_table(capacity_table, seasons=('winter',))
 
-    assert validate_generation_cost_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage({EXISTING: capacity_table}, price) is True
 
     assert validation_log.records == []
 
@@ -269,7 +277,7 @@ def test_generation_cost_coverage_extra_price_warns_only(validation_log, capacit
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030)]))
 
-    assert validate_generation_cost_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage({EXISTING: capacity_table}, price) is True
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
@@ -284,7 +292,7 @@ def test_generation_cost_coverage_extra_price_warns_once_per_omission(
     price = _price_table(capacity_table)
     price.update(_price_table([('NY', 'NG', 1, 2030), ('NY', 'NG', 2, 2030)]))
 
-    assert validate_generation_cost_coverage(capacity_table, price) is True
+    assert validate_generation_cost_coverage({EXISTING: capacity_table}, price) is True
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2
@@ -295,7 +303,7 @@ def test_generation_cost_coverage_missing_price_raises(validation_log, capacity_
     price = _price_table([idx for idx in capacity_table if idx[0] != 'TX'])
 
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_generation_cost_coverage(capacity_table, price)
+        validate_generation_cost_coverage({EXISTING: capacity_table}, price)
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == 1
@@ -305,7 +313,7 @@ def test_generation_cost_coverage_missing_price_raises(validation_log, capacity_
 def test_generation_cost_coverage_empty_price_raises(validation_log, capacity_table):
     """An entirely missing price table reports every capacity index before raising."""
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_generation_cost_coverage(capacity_table, {})
+        validate_generation_cost_coverage({EXISTING: capacity_table}, {})
 
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
     assert len(errors) == len(capacity_table)
@@ -317,7 +325,7 @@ def test_generation_cost_coverage_both_directions_missing(validation_log, capaci
     price.update(_price_table([('NY', 'NG', 1, 2030)]))
 
     with pytest.raises(ValueError, match='Capacity without corresponding price'):
-        validate_generation_cost_coverage(capacity_table, price)
+        validate_generation_cost_coverage({EXISTING: capacity_table}, price)
 
     warnings = [r for r in validation_log.records if r.levelno == logging.WARNING]
     errors = [r for r in validation_log.records if r.levelno == logging.ERROR]
@@ -325,6 +333,114 @@ def test_generation_cost_coverage_both_directions_missing(validation_log, capaci
     assert "('NY', 'NG', 1, 2030)" in warnings[0].getMessage()
     assert len(errors) == 1
     assert "('TX', 'Coal', 1, 2030)" in errors[0].getMessage()
+
+
+# keys spanning each origin, and an overlap of existing with buildable
+CAPACITY_BY_ORIGIN = {
+    EXISTING: [('CA', 'NG', 1, 2030), ('TX', 'Wind', 1, 2030)],
+    BUILDABLE: [('TX', 'Wind', 1, 2030), ('TX', 'Solar', 1, 2030)],
+    CARRIED: [('TX', 'Solar', 1, 2035)],
+}
+
+
+@pytest.mark.parametrize(
+    'omission, label',
+    [
+        pytest.param(('CA', 'NG', 1, 2030), 'existing capacity', id='existing'),
+        pytest.param(('TX', 'Solar', 1, 2030), 'buildable capacity', id='buildable'),
+        pytest.param(
+            ('TX', 'Solar', 1, 2035),
+            'capacity carried forward from an earlier build year',
+            id='carried',
+        ),
+        pytest.param(
+            ('TX', 'Wind', 1, 2030), 'existing capacity and buildable capacity', id='overlap'
+        ),
+    ],
+)
+def test_generation_cost_coverage_names_origin(validation_log, omission, label):
+    """A missing price names the capacity origin(s) that need it."""
+    keys = {idx for idxs in CAPACITY_BY_ORIGIN.values() for idx in idxs}
+    price = _price_table(keys - {omission})
+
+    with pytest.raises(ValueError, match='Capacity without corresponding price'):
+        validate_generation_cost_coverage(CAPACITY_BY_ORIGIN, price)
+
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert errors == [f'generation_cost has no entry for {omission}, needed for {label}']
+
+
+# ---------------------------------------------------------------------------
+# validate_fom_cost_coverage
+# ---------------------------------------------------------------------------
+
+
+def _fom_table(indices) -> dict[tuple, float]:
+    """Trim capacity-shaped indices to a (region, tech, step) FOM table."""
+    return {idx[:3]: 5.0 for idx in indices}
+
+
+@pytest.mark.parametrize(
+    'extra_fom',
+    [pytest.param([], id='exact'), pytest.param([('NY', 'NG', 1)], id='extra-fom-ignored')],
+)
+def test_fom_cost_coverage_complete(validation_log, capacity_table, extra_fom):
+    """Full coverage is valid and silent; FOM beyond the capacity index is not reported."""
+    fom = _fom_table(capacity_table) | dict.fromkeys(extra_fom, 5.0)
+
+    assert data_validation.validate_fom_cost_coverage({EXISTING: capacity_table}, fom) is True
+
+    assert validation_log.records == []
+
+
+def test_fom_cost_coverage_missing_raises(validation_log, capacity_table):
+    """A location without FOM is fatal, logged once per (region, tech, step) with its years."""
+    capacity = dict(capacity_table) | {('TX', 'Coal', 1, 2035): 75.0}
+    fom = _fom_table(idx for idx in capacity if idx[0] != 'TX')
+
+    with pytest.raises(ValueError, match='Capacity without corresponding FOM cost'):
+        data_validation.validate_fom_cost_coverage({EXISTING: capacity}, fom)
+
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "('TX', 'Coal', 1)" in errors[0]
+    assert '[2030, 2035]' in errors[0]
+
+
+def test_fom_cost_coverage_names_origins_and_years(validation_log):
+    """A missing FOM lists each origin needing it with that origin's years, in origin order."""
+    fom = _fom_table(idx for idxs in CAPACITY_BY_ORIGIN.values() for idx in idxs)
+    del fom['TX', 'Solar', 1]
+
+    with pytest.raises(ValueError, match='Capacity without corresponding FOM cost'):
+        data_validation.validate_fom_cost_coverage(CAPACITY_BY_ORIGIN, fom)
+
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert errors == [
+        (
+            "fom_cost has no entry for ('TX', 'Solar', 1), needed for buildable capacity in "
+            '[2030]; capacity carried forward from an earlier build year in [2035]'
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    'capacity_expansion, raises',
+    [pytest.param(False, False, id='dispatch'), pytest.param(True, True, id='expansion')],
+)
+def test_fom_cost_coverage_includes_buildable(mini_data, build_mini, capacity_expansion, raises):
+    """FOM is required where a tech is only buildable, so the gap fails only with expansion on.
+
+    Solar exists in R1 only but is buildable in both regions; R2 Solar has no FOM.
+    """
+    add_solar_expansion(mini_data)
+    mini_data.drop_rows('fom_cost', [('R2', 'Solar', 1)])
+
+    if raises:
+        with pytest.raises(DataValidationError):
+            build_mini(capacity_expansion=capacity_expansion)
+    else:
+        build_mini(capacity_expansion=capacity_expansion)
 
 
 # ---------------------------------------------------------------------------
@@ -512,3 +628,24 @@ def test_data_validation_error_survives_pickling() -> None:
     error = pickle.loads(pickle.dumps(DataValidationError('Data validation failed.')))
     assert isinstance(error, DataValidationError) and isinstance(error, ValueError)
     assert str(error) == 'Data validation failed.'
+
+
+def test_generation_cost_coverage_names_carried_capacity(validation_log, mini_data, build_mini):
+    """A build carried past its last buildable year still needs a price, and is named as such.
+
+    R2 Solar is buildable only in 2030, so its 2031 key is carried; dropping its 2031 price fails.
+    """
+    add_solar_expansion(mini_data)
+    mini_data.drop_rows('capital_cost', [('R2', 'Solar', 1, 2031)])
+    mini_data.drop_rows(
+        'generation_cost', [('R2', 'Solar', 1, 2031, str(s)) for s in mini_data.seasons]
+    )
+
+    with pytest.raises(DataValidationError):
+        build_mini(capacity_expansion=True)
+
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert (
+        "generation_cost has no entry for ('R2', 'Solar', 1, 2031), needed for capacity "
+        'carried forward from an earlier build year' in errors
+    )

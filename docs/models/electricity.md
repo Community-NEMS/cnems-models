@@ -36,13 +36,13 @@ through the model configuration.
 | $\Theta_{gsrc}$        | generation_sources                            | Sparse set | Generation sources: the (region, tech, step, year) of $\Theta_{gen}$, hour dropped |
 | $\Theta_{ssrc}$        | storage_sources                               | Sparse set | Storage sources: the (region, tech, step, year) of $\Theta_{stor}$, hour dropped   |
 | $\Theta_{um}$          | unmet_load.index_set()                        | Sparse Set | All unmet load set                                           |
-| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus, when capacity_expansion is on, each buildable location in every year from its first `capital_cost` year |
+| $\Theta_{SC}$          | capacity_index                                | Sparse Set | Total capacity set: existing capacity, plus, when capacity_expansion is on, each buildable location in every year from its first `capital_cost` year (its $\Theta_{new}$ years, and the later years its builds are carried into) |
 | $\Theta_{dt^{max}}$    | generation_dispatchable_ub_index              | Sparse Set | Dispatchable technology generation upper bound set           |
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
 | $\Theta_{hs}$          | seasonal_hydro_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
 | $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
-| $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set                                       |
+| $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set: the `capital_cost` keys whose (tech, step) is in tech_buildable, in region_analyze |
 | $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
 | $\Theta_{cc0}$         | capital_cost_initial.keys()              | Sparse Set | Set of initial year's capacity costs                         |
 | $\Theta_{SBFH}$        | storage_first_hour_balance_index              | Sparse set | First hour storage balance set                               |
@@ -715,7 +715,9 @@ an obscure `KeyError` or an unexpectedly infeasible solve.
 
 Each validation is independent and every one runs on each pass, so a single build reports all of the
 problems found rather than stopping at the first. Findings are written to the log, the less serious
-as warnings and the rest as errors. Any finding, warning or error, marks the validation as failed.
+as warnings and the rest as errors. Each check below states which of its findings fail validation:
+every error does, and so do some warnings, while the rest (and the INFO-level build cost notes) are
+advisory only.
 
 ### Strict validation
 
@@ -724,28 +726,41 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 
 - `strict_validation = true` — a failed validation raises `DataValidationError`
   (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
-  are in the log. Warning-level findings stop the build too. This is the normal setting.
+  are in the log. A warning that fails its check stops the build too. This is the normal setting.
 - `strict_validation = false` — failures are logged and the run continues with the data as read.
   Useful when working with known-incomplete input data, at the risk of a downstream failure or a
   silently mis-specified model.
 
 ### Validations performed
 
+- **Region sets** (`validate_region_sets`) — every region must be marked either domestic or
+  international, and none may be marked both. Either problem is an error.
 - **Seasonal coverage** (`validate_seasonal_coverage`) — for `generation_cost` and
   `capacity_factor_seasonal`, every base index (the index with the season removed) must carry exactly
-  the model's expected set of seasons: no gaps and no strays.
+  the model's expected set of seasons: no gaps and no strays. An empty table is skipped.
 - **Hourly coverage** (`validate_hourly_coverage`) — the same check on the hour dimension for the
   transmission tables `ParamData` expands from season to hour (`tran_limit`, `tran_limit_cap_intl`,
   `supply_limit_intl`), reporting the missing and unexpected hours for each offending base index.
 - **Capacity index vs. generation cost coverage** (`validate_generation_cost_coverage`) — every
-  location in the capacity index (existing `available_capacity` plus anything buildable) must have a
-  `generation_cost`; a location with no cost is fatal. A cost with no matching capacity index entry
-  is allowed and ignored (logged as a warning).
+  (region, tech, step, year) in the capacity index $\Theta_{SC}$ must have a `generation_cost`, and
+  a missing one is an error. The error names the part of $\Theta_{SC}$ that needs the entry:
+  *existing capacity* (an `available_capacity` key), *buildable capacity* (a key of
+  $\Theta_{new}$), or *capacity carried forward from an earlier build year* (a later year with no
+  `capital_cost`, indexed because capacity built earlier stays in service), or more than one of
+  these. A cost with no matching capacity index entry is allowed and ignored (logged as a warning,
+  which does not fail validation).
+- **Capacity index vs. FOM cost coverage** (`validate_fom_cost_coverage`) — every
+  (region, tech, step) in $\Theta_{SC}$ must have a `fom_cost`, since $C_{fom}$ (5) charges it on
+  every $\mathbf{CAP^{tot}}$ and the parameter has no default. A missing entry is an error naming the
+  same parts of $\Theta_{SC}$ along with the years each one covers. `fom_cost` has no year, so a
+  carried location always shares its key with a buildable one, and its years show how far the gap
+  reaches. FOM entries beyond $\Theta_{SC}$ are expected and ignored.
 - **Domestic transmission network** (`validate_domestic_network`) — neither `tran_limit` nor
   `tran_cost` may contain a self-loop (a region trading with itself), and the two must cover the
   same `(destination, source, year)` links. Self-loops and a cost without a matching limit are
-  logged as warnings, and a limit without a matching cost as an error. A self-loop stops the coverage
-  comparison, so coverage gaps show up only once the loops are removed.
+  logged as warnings, and a limit without a matching cost as an error; all three fail validation.
+  A self-loop stops the coverage comparison, so coverage gaps show up only once the loops are
+  removed.
 - **Build cost coverage** (`validate_build_cost_coverage`) — when `capacity_expansion` is on,
   `capital_cost` is screened against every `region_analyze` × `tech_buildable` × year. This check
   is advisory: a gap is logged at INFO, naming the (region, tech, step) and the missing years, and
@@ -778,7 +793,7 @@ and year:
   the capacity index even with no `available_capacity`, so it is dispatched and must be priced; a
   missing entry fails validation (and would otherwise fail the model build).
 - Give it a `fom_cost` entry for that region. Fixed O&M is charged on every capacity index entry
-  and has no default.
+  and has no default, so a missing entry fails validation.
 - For a VRE tech, give it `capacity_factor_hourly` entries for that region. These default to
   0.0, so a missing profile is not an error: the location can be built but generates nothing.
   The 0.0 default is temporary, pending updates to the input data. Once it is removed, a VRE tech

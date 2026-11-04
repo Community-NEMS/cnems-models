@@ -374,6 +374,37 @@
       }
     },
     {
+      "name": "heat_rate",
+      "type": "table",
+      "path": "parameters/heat_rate.csv",
+      "scheme": "file",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Natural gas burned per MWh generated, for each technology flagged is_gas_fired in tech.csv.",
+      "schema": {
+        "fields": [
+          {
+            "name": "tech",
+            "type": "string"
+          },
+          {
+            "name": "heat_rate_mmbtu_per_mwh",
+            "type": "number",
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Heat rate, MMBtu of natural gas per MWh generated."
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "description": "Free-text notes."
+          }
+        ]
+      }
+    },
+    {
       "name": "hydro_capacity_factor",
       "type": "table",
       "path": "parameters/hydro_capacity_factor.csv",
@@ -863,7 +894,7 @@
       "format": "csv",
       "mediatype": "text/csv",
       "encoding": "utf-8",
-      "description": "Valid technologies, their valid supply steps, display attributes and subset membership (conventional, renewable, hydro, storage, VRE, wind, solar, hydrogen, dispatchable, generator).",
+      "description": "Valid technologies, their valid supply steps, display attributes and subset membership (conventional, renewable, hydro, storage, VRE, wind, solar, hydrogen, dispatchable, generator, gas-fired).",
       "schema": {
         "fields": [
           {
@@ -1018,6 +1049,16 @@
           },
           {
             "name": "is_generator",
+            "type": "boolean",
+            "trueValues": [
+              "True"
+            ],
+            "falseValues": [
+              "False"
+            ]
+          },
+          {
+            "name": "is_gas_fired",
             "type": "boolean",
             "trueValues": [
               "True"

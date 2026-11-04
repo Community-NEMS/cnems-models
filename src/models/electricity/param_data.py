@@ -84,6 +84,7 @@ class ParamDicts(TypedDict, total=False):
     planning_reserve_margin: dict[tuple, float]
     reserve_tech_limit: dict[tuple[ReserveType, str], float]
     supply_curve_learning: dict[tuple, float]
+    heat_rate: dict[tuple, float]
 
 
 class ParamData:

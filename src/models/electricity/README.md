@@ -121,6 +121,8 @@ are defined in tech.csv within the input/electricity directory as **True**/**Fal
 * is_hydrogen: hydrogen
 * is_dispatchable: dispatchable
 * is_generator: generating
+* is_gas_fired: burns natural gas.  Each gas-fired technology needs a heat rate in heat_rate.csv (and only those may
+  have one); the heat rate converts its generation into the gas burn reported to the natural gas model
 
 When capacity_expansion is turned on, a user can select which technologies they want to have expansion and retirement
 capabilities. Turning these switches on allows for builds and/or retirements of a given technology and supply curve

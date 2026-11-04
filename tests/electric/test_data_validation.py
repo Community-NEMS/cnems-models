@@ -444,6 +444,79 @@ def test_fom_cost_coverage_includes_buildable(mini_data, build_mini, capacity_ex
 
 
 # ---------------------------------------------------------------------------
+# validate_heat_rate_coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    'gas_fired, heat_rate',
+    [
+        pytest.param(['CT', 'CC'], {('CT',): 9.5, ('CC',): 7.1}, id='matched'),
+        pytest.param([], {}, id='no-gas-fired-techs'),
+    ],
+)
+def test_heat_rate_coverage_complete(validation_log, gas_fired, heat_rate):
+    """The flag and the table naming the same techs is valid and silent."""
+    assert data_validation.validate_heat_rate_coverage(gas_fired, heat_rate) is True
+
+    assert validation_log.records == []
+
+
+@pytest.mark.parametrize(
+    'gas_fired, heat_rate, expected',
+    [
+        pytest.param(
+            ['CT', 'CC'],
+            {('CT',): 9.5},
+            ['Tech CC is flagged is_gas_fired but has no heat_rate entry'],
+            id='missing-heat-rate',
+        ),
+        pytest.param(
+            ['CT'],
+            {('CT',): 9.5, ('Coal',): 10.0},
+            ['Tech Coal has a heat_rate entry but is not flagged is_gas_fired'],
+            id='stray-heat-rate',
+        ),
+        pytest.param(
+            ['CC'],
+            {('CT',): 9.5},
+            [
+                'Tech CC is flagged is_gas_fired but has no heat_rate entry',
+                'Tech CT has a heat_rate entry but is not flagged is_gas_fired',
+            ],
+            id='both',
+        ),
+    ],
+)
+def test_heat_rate_coverage_mismatch(validation_log, gas_fired, heat_rate, expected):
+    """Each tech in only one of the flag and the table fails validation and is logged."""
+    assert data_validation.validate_heat_rate_coverage(gas_fired, heat_rate) is False
+
+    errors = [r.getMessage() for r in validation_log.records if r.levelno == logging.ERROR]
+    assert errors == expected
+
+
+@pytest.mark.parametrize(
+    'flagged, with_rate',
+    [(True, True), (True, False), (False, True)],
+    ids=['matched', 'flag-only', 'rate-only'],
+)
+def test_heat_rate_coverage_on_build(mini_data, build_mini, flagged, with_rate):
+    """A flag without a heat rate, or a heat rate without a flag, stops the build."""
+    flags = ['is_dispatchable', 'is_generator'] + (['is_gas_fired'] if flagged else [])
+    mini_data.add_tech('GasCT', flags=flags)
+    if with_rate:
+        mini_data.add_rows('heat_rate', {('GasCT',): 9.51})
+
+    if flagged and with_rate:
+        _, model = build_mini()
+        assert dict(model.heat_rate.items()) == {'GasCT': 9.51}
+    else:
+        with pytest.raises(DataValidationError):
+            build_mini()
+
+
+# ---------------------------------------------------------------------------
 # validate_domestic_network
 # ---------------------------------------------------------------------------
 

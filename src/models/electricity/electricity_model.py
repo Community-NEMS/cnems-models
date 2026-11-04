@@ -133,6 +133,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             within=self.tech_h2 * self.step,
             initialize=[(t, s) for t in self.tech_h2 for s in self.steps_for_tech[t]],
         )
+        self.tech_gas_fired = pyo.Set(initialize=model_sets.tech_gas_fired, within=self.tech)
         self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
         self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)
         self.tech_gen_step = pyo.Set(
@@ -488,6 +489,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
 
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
+
+        # gas burned per MWh generated, for the gas-fired techs.  Used only to report gas burn to
+        # the natural gas model; it is not part of the objective or any constraint
+        self.heat_rate = pyo.Param(
+            self.tech_gas_fired, initialize=all_dicts['heat_rate'], within=pyo.PositiveReals
+        )
 
         self.fom_cost = pyo.Param(
             self.region_analyze, self.tech_step, initialize=all_dicts['fom_cost']

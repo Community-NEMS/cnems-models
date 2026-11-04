@@ -13,7 +13,7 @@
 [[property_source]]
 key = "tech"
 filename = "tech.csv"
-property_cols = ["tech", "is_conventional", "is_renewable", "is_hydro", "is_hydro_seasonal", "is_hydro_regular", "is_storage", "is_vre", "is_wind", "is_solar", "is_solar_utility", "is_solar_end_use", "is_hydrogen", "is_dispatchable", "is_generator"]
+property_cols = ["tech", "is_conventional", "is_renewable", "is_hydro", "is_hydro_seasonal", "is_hydro_regular", "is_storage", "is_vre", "is_wind", "is_solar", "is_solar_utility", "is_solar_end_use", "is_hydrogen", "is_dispatchable", "is_generator", "is_gas_fired"]
 index_cols = ["tech"]
 # steps: slash-separated supply curve steps valid for the tech, e.g. "1/2/3"
 attribute_cols = ["steps", "label", "abbreviation", "color"]

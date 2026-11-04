@@ -17,8 +17,8 @@ from src.models.electricity.property_source_loader import PropertySource, load_p
 PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
 
 # Expected reference, per the C-EMM data-needs sheet: each file is named for its key and the
-# membership flags read as ``is_*``.  The hydro and solar sub-flags are not on the sheet; they
-# follow the same convention.
+# membership flags read as ``is_*``.  The hydro and solar sub-flags and ``is_gas_fired`` are not on
+# the sheet; they follow the same convention.
 _ORIGINAL_PROPERTY_SOURCES = {
     'tech': (
         'tech.csv',
@@ -38,6 +38,7 @@ _ORIGINAL_PROPERTY_SOURCES = {
             'is_hydrogen',
             'is_dispatchable',
             'is_generator',
+            'is_gas_fired',
         ],
         ('tech',),
     ),

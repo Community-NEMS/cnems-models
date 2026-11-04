@@ -168,3 +168,10 @@ filename = "supply_limit_intl.csv"
 index_cols = ["region_intl", "step", "year", "season"]
 value_col = "supply_limit_intl_mw"
 required = false  # regional_exchange
+
+[[param_source]]
+key = "heat_rate"
+filename = "heat_rate.csv"
+index_cols = ["tech"]
+value_col = "heat_rate_mmbtu_per_mwh"
+required = false  # needed only where tech.csv flags is_gas_fired; data_validation checks coverage

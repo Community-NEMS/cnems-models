@@ -23,11 +23,11 @@ from src.common.update_package import (
     ExchangeSpec,
     NGElectricalDemandPackage,
 )
-from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH, NG_PRICE_LINKED_TECHS
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.electricity.update_writer import gas_demand_by_region
+from tests.electric.mini_model import MiniModelData
 
 # the gas-burn exchange alone, with the electricity <-> natural gas crosswalk
 DEMAND_EXCHANGE = ExchangeSpec.build(
@@ -40,18 +40,55 @@ def independent_gas_demand(model: PowerModel) -> pd.Series:
     rows = [
         (r, t, y, h, value(var))
         for (r, t, _s, y, h), var in model.generation_total.items()
-        if t in NG_HEAT_RATE_MMBTU_PER_MWH
+        if t in model.tech_gas_fired
     ]
     df = pd.DataFrame(rows, columns=['region', 'tech', 'year', 'hour', 'mwh'])
     df['days'] = [value(model.weight_day[value(model.map_hour_day[h])]) for h in df['hour']]
-    df['heat_rate'] = df['tech'].map(NG_HEAT_RATE_MMBTU_PER_MWH)
+    df['heat_rate'] = [value(model.heat_rate[t]) for t in df['tech']]
     df['mmbtu'] = df['mwh'] * df['days'] * df['heat_rate']
     return df.groupby(['region', 'year'])['mmbtu'].sum().sort_index()
 
 
-def test_linked_techs_are_exactly_the_heat_rate_techs() -> None:
-    """The price link and the demand poll must name the same techs."""
-    assert set(NG_PRICE_LINKED_TECHS) == set(NG_HEAT_RATE_MMBTU_PER_MWH)
+# heat rate of the mini model's gas-fired GasCT, and a non-unit day weight so it counts
+GAS_CT_HEAT_RATE = 10.0
+DAY_WEIGHT = 3.0
+
+
+def test_gas_demand_hand_computed(mini_data: MiniModelData, build_mini) -> None:
+    """The burn is generation x day weight x heat rate, summed over the hours of a year.
+
+    GasCT serves the 80 MW load in each of the 4 hours (unit hour weights), and each day stands
+    for 3 days, so every (region, year) burns 80 x 4 x 3 x 10 = 9,600 MMBtu.
+    """
+    mini_data.add_tech(
+        'GasCT', flags=['is_conventional', 'is_dispatchable', 'is_generator', 'is_gas_fired']
+    )
+    mini_data.add_capacity('GasCT', 100.0)
+    mini_data.add_operating_costs('GasCT', generation_cost=20.0, fom_cost=10.0)
+    mini_data.add_rows('heat_rate', {('GasCT',): GAS_CT_HEAT_RATE})
+    mini_data.cw_temporal['WeightDay'] = DAY_WEIGHT
+    sequencer, model = build_mini()
+    _, status = sequencer.solve_model()
+    assert status is IterationStatus.BEST
+
+    got = gas_demand_by_region(model)
+
+    expected = 80.0 * len(mini_data.hours) * DAY_WEIGHT * GAS_CT_HEAT_RATE
+    assert got.to_dict() == pytest.approx(
+        dict.fromkeys(mini_data.every('region', 'year'), expected)
+    )
+
+
+def test_gas_demand_without_gas_fired_techs(build_mini, caplog: pytest.LogCaptureFixture) -> None:
+    """With no gas-fired tech, every (region, year) is sent as 0.0, with a warning."""
+    _, model = build_mini()
+
+    with caplog.at_level('WARNING', logger='src.models.electricity.update_writer'):
+        got = gas_demand_by_region(model)
+
+    assert len(got) == 4
+    assert (got == 0.0).all()
+    assert 'No generation rows for gas-fired techs' in caplog.text
 
 
 def test_gas_demand_matches_independent_sum(

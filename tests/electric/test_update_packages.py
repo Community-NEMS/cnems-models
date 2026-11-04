@@ -16,7 +16,6 @@ from src.common.common_config import CommonConfig
 from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
 from src.models.electricity.constants import (
     INITIAL_NG_PRICE,
-    NG_PRICE_LINKED_TECHS,
     PRICE_COST_PROPORTION,
 )
 from src.models.electricity.elec_config import ElecConfig
@@ -66,7 +65,7 @@ def test_ng_price_package_scales_linked_techs(
     ElecUpdateReader().apply_package(package, param_data)
 
     after = param_data.param_frames['generation_cost']
-    linked = after.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
+    linked = after.index.get_level_values('tech').isin(param_data.model_sets.tech_gas_fired)
     assert linked.any(), 'test data holds no gas-linked tech rows'
     pd.testing.assert_frame_equal(after[~linked], before[~linked])
     pd.testing.assert_frame_equal(after[linked], before[linked] * expected_factor)

@@ -26,7 +26,6 @@ from src.common.update_package import (
 )
 from src.models.electricity.constants import (
     INITIAL_NG_PRICE,
-    NG_PRICE_LINKED_TECHS,
     PRICE_COST_PROPORTION,
     SUPPLY_PRICE_CHANGE_WARN_FRACTION,
 )
@@ -104,7 +103,7 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
     def _(self, ng_price_update: NGPricePackage, data: ParamData) -> None:
         """Move the supply price of the gas-linked techs with the received natural gas price.
 
-        A share ``PRICE_COST_PROPORTION`` of each ``NG_PRICE_LINKED_TECHS`` row of
+        A share ``PRICE_COST_PROPORTION`` of each gas-fired (``tech_gas_fired``) row of
         ``generation_cost`` is taken to be fuel cost embedding a gas price of ``INITIAL_NG_PRICE``,
         so the row is scaled by
         ``1 + PRICE_COST_PROPORTION * (price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE`` using the
@@ -132,11 +131,11 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
         )
         # locate the NG-based techs in the parameter data for supply prices...
         prices = data.param_frames['generation_cost']
-        tech_mask = prices.index.get_level_values('tech').isin(NG_PRICE_LINKED_TECHS)
+        gas_fired = sorted(data.model_sets.tech_gas_fired)
+        tech_mask = prices.index.get_level_values('tech').isin(gas_fired)
         if not tech_mask.any():
             logger.warning(
-                'No generation_cost rows matched gas-linked techs %s; prices unchanged',
-                NG_PRICE_LINKED_TECHS,
+                'No generation_cost rows matched gas-fired techs %s; prices unchanged', gas_fired
             )
             return
         factor = 1 + PRICE_COST_PROPORTION * (new_price - INITIAL_NG_PRICE) / INITIAL_NG_PRICE
@@ -177,7 +176,7 @@ class ElecUpdateReader(UpdatePackageReader[ParamData]):
             '%0.3f',
             covered.sum(),
             tech_mask.sum(),
-            NG_PRICE_LINKED_TECHS,
+            gas_fired,
             row_factor[covered].min(),
             row_factor[covered].max(),
         )
@@ -216,7 +215,7 @@ class ElecModelUpdateReader(UpdatePackageReader[PowerModel]):
     def _(self, ng_price_update: NGPricePackage, data: PowerModel) -> None:
         """Write the received gas price into ``ng_fuel_adj`` for the gas-linked techs.
 
-        Each ``NG_PRICE_LINKED_TECHS`` entry is set to :func:`ng_price_adjustment` of its built
+        Each gas-fired (``tech_gas_fired``) entry is set to :func:`ng_price_adjustment` of its built
         ``generation_cost`` and the price received for its ``(region, year)``, so the effective
         price ``generation_cost + ng_fuel_adj`` is what a rebuild with the same package would
         give, for a model built without update packages (``ElectricitySequencer.update_model``
@@ -247,7 +246,7 @@ class ElecModelUpdateReader(UpdatePackageReader[PowerModel]):
         for key in data.ng_fuel_adj:
             # ng_fuel_adj and generation_cost keys flatten to (region, tech, step, year, season)
             region, tech, _, year, _ = key
-            if tech not in NG_PRICE_LINKED_TECHS:
+            if tech not in data.tech_gas_fired:
                 continue
             price = prices[(str(region), int(year))]
             # pyrefly: ignore[bad-argument-type]  - generation_cost is initialized, never None
@@ -257,7 +256,7 @@ class ElecModelUpdateReader(UpdatePackageReader[PowerModel]):
         logger.info(
             'Set ng_fuel_adj for %d gas-linked entries (techs %s) from received NG prices',
             written,
-            NG_PRICE_LINKED_TECHS,
+            sorted(data.tech_gas_fired),
         )
 
 
@@ -277,7 +276,8 @@ def ng_price_adjustment(generation_cost: float, price: float, tech: str) -> floa
     price : float
         The gas price received for the row's ``(region, year)``, in $/MMBtu.
     tech : str
-        The row's technology.  Unused by the multiplicative link; a heat-rate based link needs it.
+        The row's technology.  Unused by the multiplicative link; a link based on the tech's
+        ``heat_rate`` would need it.
 
     Returns
     -------

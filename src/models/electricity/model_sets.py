@@ -150,6 +150,9 @@ class ModelSets:
         self.tech_solar_utility = td['is_solar_utility']
         self.tech_solar_end_use = td['is_solar_end_use']
         self.tech_h2 = td['is_hydrogen']
+        # gas-fired techs burn natural gas: their gas burn is reported to the gas model (at their
+        # heat_rate) and their generation_cost moves with the gas price received from it
+        self.tech_gas_fired = td['is_gas_fired']
         self.tech_disp = td['is_dispatchable']
         self.tech_gen = td['is_generator']
         self.tech_stor = td['is_storage']

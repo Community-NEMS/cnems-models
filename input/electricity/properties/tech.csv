@@ -2,7 +2,7 @@ tech,steps,label,abbreviation,color,is_conventional,is_renewable,is_hydro,is_hyd
 1,1/2/3,Coal Steam,COALST,#00FFD7,True,False,False,False,False,False,False,False,False,False,False,False,True,True,False
 2,1/2/3,Oil Steam,OILSTM,#7F7F7F,True,False,False,False,False,False,False,False,False,False,False,False,True,True,False
 3,1/2/3,Gas Turbine,GASTUR,#8B4726,True,False,False,False,False,False,False,False,False,False,False,False,True,True,True
-4,1/2/3,Gas Combined Cycle,GASCCY,#EE7942,True,False,False,False,False,False,False,False,False,False,False,False,True,True,False
+4,1/2/3,Gas Combined Cycle,GASCCY,#EE7942,True,False,False,False,False,False,False,False,False,False,False,False,True,True,True
 5,1,Hydrogen Turbine,H2TURB,#00FFFF,False,False,False,False,False,False,False,False,False,False,False,True,True,True,False
 6,1,Nuclear,NUCLER,#FF0000,True,False,False,False,False,False,False,False,False,False,False,False,True,True,False
 7,1,Biomass,BIOMAS,#008B00,False,True,False,False,False,False,False,False,False,False,False,False,True,True,False

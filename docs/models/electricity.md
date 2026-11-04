@@ -197,11 +197,11 @@ C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s
 $$
 
 $NGADJ$ is zero in a standalone run. In an integrated run with the natural gas model, the
-generation cost of the gas-fired technologies $T^{gas}$ (the gas turbine in the shipped data) follows
-the gas price $p$ received for its region and year: half of $SPR$ is taken to be fuel bought at
-4 USD/MMBtu, so the cost becomes $SPR \times (1 + 0.5 (p - 4)/4)$. Gauss-Seidel writes the change
-into $NGADJ$ on the built model, and Jacobi rescales $SPR$ before each build; both give the same
-cost.
+generation cost of the gas-fired technologies $T^{gas}$ (the gas turbine and combined cycle in the
+shipped data) follows the gas price $p$ received for its region and year: half of $SPR$ is taken to
+be fuel bought at 4 USD/MMBtu, so the cost becomes $SPR \times (1 + 0.5 (p - 4)/4)$. Gauss-Seidel
+writes the change into $NGADJ$ on the built model, and Jacobi rescales $SPR$ before each build; both
+give the same cost.
 
 Storage pays half its price $SPR$ on each MWh charged and half on each MWh discharged. With the efficiency
 $EFF_t$ applied on charging, that is $0.5 \times SPR \times (1 + 1/EFF_t)$ per MWh discharged, about 1.09 to

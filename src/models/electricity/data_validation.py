@@ -17,7 +17,7 @@ file and/or halt on showstoppers
 
 import logging
 from collections import defaultdict, namedtuple
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Literal
 
 from pandas import DataFrame
@@ -25,7 +25,7 @@ from pandas import DataFrame
 from src.common.exceptions import DataValidationError
 from src.common.season import Season
 from src.models.electricity.elec_config import ExpansionLearningType
-from src.models.electricity.model_sets import ModelSets
+from src.models.electricity.model_sets import CapacitySource, ModelSets
 from src.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
@@ -92,10 +92,20 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 name, _frame_to_dict(df), df.index.names.index('hour'), model_sets.hour
             )
 
-    # capacity index (existing + buildable) vs. generation cost:  every location needs a price
+    # capacity index (existing | buildable | carried) vs. generation cost and FOM cost:  every
+    # location needs both, as each is charged on every capacity_index key
+    capacity_sources = model_sets.capacity_sources()
     try:
         all_valid &= validate_generation_cost_coverage(
-            model_sets.capacity_index, _frame_to_dict(frames['generation_cost'])
+            capacity_sources, _frame_to_dict(frames['generation_cost'])
+        )
+    except ValueError as e:
+        logger.error(e)
+        all_valid = False
+
+    try:
+        all_valid &= validate_fom_cost_coverage(
+            capacity_sources, param_data.param_dicts['fom_cost']
         )
     except ValueError as e:
         logger.error(e)
@@ -258,20 +268,36 @@ def validate_hourly_coverage(
     return valid
 
 
+def _source_label(sources: Iterable[CapacitySource]) -> str:
+    """Join the sources (in ``CapacitySource`` order) into a phrase for a log message."""
+    found = set(sources)
+    return ' and '.join(source.value for source in CapacitySource if source in found)
+
+
+def _source_years_label(years_by_source: Mapping[CapacitySource, Iterable[int]]) -> str:
+    """Describe each source with its years, e.g. ``buildable capacity in [2030, 2031]``."""
+    return '; '.join(
+        f'{source.value} in {sorted(years_by_source[source])}'
+        for source in CapacitySource
+        if source in years_by_source
+    )
+
+
 def validate_generation_cost_coverage(
-    capacity_index: Iterable[tuple], price: dict[tuple, float]
+    capacity_sources: Mapping[CapacitySource, Iterable[tuple]], price: dict[tuple, float]
 ) -> bool:
     """Compare the capacity index coverage to the ``generation_cost`` coverage.
 
-    The capacity index is existing capacity plus anything buildable (``ModelSets.capacity_index``),
-    so a location with no ``available_capacity`` still needs a price if it can be built.  This
-    test omits the coverage of seasons within the cost table, which is inspected separately.
-    The season is assumed to occupy the last position of the cost index.
+    The capacity index is the union of the sources (``ModelSets.capacity_sources``), so a
+    location with no ``available_capacity`` still needs a price where it can be built, and in each
+    later year a build carries into.  Each missing price is reported with the source(s) that need
+    it.  This test omits the coverage of seasons within the cost table, which is inspected
+    separately.  The season is assumed to occupy the last position of the cost index.
 
     Parameters
     ----------
-    capacity_index : Iterable[tuple]
-        (region, tech, step, year) of every location in the model's capacity index.
+    capacity_sources : Mapping[CapacitySource, Iterable[tuple]]
+        (region, tech, step, year) keys of each piece of the model's capacity index.
     price : dict[tuple, float]
         ``generation_cost`` data keyed by the same index plus a trailing season.
 
@@ -286,18 +312,73 @@ def validate_generation_cost_coverage(
     ValueError
         If any capacity index has no corresponding cost entry.
     """
-    capacity_keys = set(capacity_index)
+    sources_by_key: defaultdict[tuple, set[CapacitySource]] = defaultdict(set)
+    for source, keys in capacity_sources.items():
+        for idx in keys:
+            sources_by_key[tuple(idx)].add(source)
     price_coverage = {idx[:-1] for idx in price}  # trim "season" off
-    for omission in sorted(price_coverage - capacity_keys):
+    for omission in sorted(price_coverage - sources_by_key.keys()):
         logger.warning('Price exists for %s without corresponding capacity index entry', omission)
 
-    price_omissions = sorted(capacity_keys - price_coverage)
+    price_omissions = sorted(sources_by_key.keys() - price_coverage)
     if price_omissions:
         for omission in price_omissions:
             logger.error(
-                'Capacity index entry %s has no corresponding entry in price data', omission
+                'generation_cost has no entry for %s, needed for %s',
+                omission,
+                _source_label(sources_by_key[omission]),
             )
         raise ValueError('Capacity without corresponding price.  See log for details.')
+
+    return True
+
+
+def validate_fom_cost_coverage(
+    capacity_sources: Mapping[CapacitySource, Iterable[tuple]], fom_cost: dict[tuple, float]
+) -> bool:
+    """Ensure every (region, tech, step) in the capacity index has a ``fom_cost`` entry.
+
+    The objective charges FOM on every ``capacity_total`` key, so the coverage required is that of
+    the union of the sources (``ModelSets.capacity_sources``) with the year dropped.  Since
+    ``fom_cost`` has no year, a carried location always shares its key with a buildable one; the
+    carried years are reported to show the full span the missing entry affects.  FOM entries
+    beyond the capacity index are expected (the table is typically dense over regions and tech
+    steps) and are ignored.
+
+    Parameters
+    ----------
+    capacity_sources : Mapping[CapacitySource, Iterable[tuple]]
+        (region, tech, step, year) keys of each piece of the model's capacity index.
+    fom_cost : dict[tuple, float]
+        ``fom_cost`` data keyed (region, tech, step).
+
+    Returns
+    -------
+    bool
+        True when coverage is complete.
+
+    Raises
+    ------
+    ValueError
+        If any (region, tech, step) in the capacity index has no FOM entry.  Each omission is
+        logged as an error, with the source(s) and years that need it, before the raise.
+    """
+    years_by_key: defaultdict[tuple, defaultdict[CapacitySource, set[int]]] = defaultdict(
+        lambda: defaultdict(set)
+    )
+    for source, keys in capacity_sources.items():
+        for idx in keys:
+            years_by_key[tuple(idx[:3])][source].add(idx[3])
+
+    omissions = sorted(years_by_key.keys() - fom_cost.keys())
+    if omissions:
+        for omission in omissions:
+            logger.error(
+                'fom_cost has no entry for %s, needed for %s',
+                omission,
+                _source_years_label(years_by_key[omission]),
+            )
+        raise ValueError('Capacity without corresponding FOM cost.  See log for details.')
 
     return True
 

@@ -33,11 +33,11 @@ CI = namedtuple('CI', ['region', 'tech', 'step', 'year'])
 
 
 @unique
-class CapacitySource(Enum):
+class CapacityOrigin(Enum):
     """Why a (region, tech, step, year) is in ``ModelSets.capacity_index``.
 
     The value is a readable phrase for log and error messages.  A key may carry more than one
-    source (e.g. existing capacity that is also buildable).
+    origin (e.g. existing capacity that is also buildable).
     """
 
     EXISTING = 'existing capacity'
@@ -259,7 +259,7 @@ class ModelSets:
         the capacity index is the existing capacity plus each buildable location in every model
         year from its first capital-cost year; builds are restricted to the capital-cost keys.
         The three pieces are kept as ``existing_capacity``, ``buildable_capacity`` and
-        ``carried_capacity`` (see :meth:`capacity_sources`).
+        ``carried_capacity`` (see :meth:`capacity_origins`).
         """
         existing_capacity_index = set(available_capacity_index)
         if not existing_capacity_index:
@@ -440,19 +440,19 @@ class ModelSets:
 
         self.capacity_index = capacity_index
 
-    def capacity_sources(self) -> dict[CapacitySource, list[CI]]:
+    def capacity_origins(self) -> dict[CapacityOrigin, list[CI]]:
         """The labelled pieces of ``capacity_index``, whose union it is.
 
         Returns
         -------
-        dict[CapacitySource, list[CI]]
-            Each source's keys.  The pieces may overlap (existing vs. buildable/carried), but
+        dict[CapacityOrigin, list[CI]]
+            Each origin's keys.  The pieces may overlap (existing vs. buildable/carried), but
             buildable and carried never do.  Buildable and carried are empty without expansion.
         """
         return {
-            CapacitySource.EXISTING: self.existing_capacity,
-            CapacitySource.BUILDABLE: self.buildable_capacity,
-            CapacitySource.CARRIED: self.carried_capacity,
+            CapacityOrigin.EXISTING: self.existing_capacity,
+            CapacityOrigin.BUILDABLE: self.buildable_capacity,
+            CapacityOrigin.CARRIED: self.carried_capacity,
         }
 
     def build_international_trade_index(

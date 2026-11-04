@@ -1,34 +1,34 @@
 """Tests for the price-extraction interface between the electricity model and the integrator."""
 
-from src.integrator.utilities import get_elec_price, regional_annual_prices
-from src.models.electricity.sequencer import ElectricitySequencer
+import pytest
+
+from src.common.integrated_model_sequencer import IterationStatus
+from src.integrator.utilities import HI, get_elec_price, regional_annual_prices
+from tests.electric.mini_model import add_gas_ct
 
 
-def test_poll_elec_prices(config_set):
-    """Test that we can poll prices from elec and get "reasonable" answers."""
-    # dev note:  currently, this test is a little "shaky", but it is a good pattern for testing
-    #            extracted prices, so it is retained, minimally as a pattern going forward.
-    common_config, elec_config = config_set
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
+def test_poll_elec_prices(mini_data, build_mini):
+    """Polled prices are the marginal generation cost, with the day and year weights removed.
 
-    sequencer.solve_model()
+    GasCT ($20/MWh, 100 MW) is marginal against the 80 MW load of day 1.  Day 2's 150 MW load
+    also needs Gas ($30/MWh).  Day 2 stands for 3 days, so the annual price weights its two hours
+    3:1 against day 1's:  (2 x 1 x 20 + 2 x 3 x 30) / (2 x 1 + 2 x 3) = 27.5.
+    """
+    add_gas_ct(mini_data)
+    for region in mini_data.regions:
+        mini_data.set_load(region, {1: 80.0, 2: 80.0, 3: 150.0, 4: 150.0})
+    cw = mini_data.cw_temporal
+    cw.loc[cw['Map_day'] == 2, 'WeightDay'] = 3.0
+    sequencer, model = build_mini()
+    _, status = sequencer.solve_model()
+    assert status is IterationStatus.BEST
 
-    # we are just testing to see if we got *something* back ...
-    # this should have hundreds of entries...
-    new_prices = get_elec_price(elec_model)
-    assert len(new_prices) > 1, 'should have at least 1 price'
+    prices = get_elec_price(model).set_index(['region', 'year', 'hour'])
 
-    # test for signage of observations
-    price_records = new_prices.to_records()
-    assert all((price >= 0 for *_, price in price_records)), 'expecting prices to be positive'
+    for r, y, hr in mini_data.every('region', 'year', 'hour'):
+        day_two = hr in (3, 4)
+        assert prices.loc[(r, y, hr), 'day_weight'] == (3.0 if day_two else 1.0)
+        assert prices.loc[(r, y, hr), 'raw_price'] == pytest.approx(30.0 if day_two else 20.0)
 
-    # TODO:  Why does this fail?  there appear to be zero prices...
-    #        Non binding constraint in these areas??
-    # assert all((price > 0 for _, price in new_prices)), 'price should be non-zero, right???'
-
-    # test for average price mehhhh above $1/MWh
-    lut = regional_annual_prices(elec_model)
-    # TODO:  When price data stabilizes fix this to test that ALL are >1.
-    #        RN region 7 has low costs
-    assert max(lut.values()) > 1, 'cost should be over $1/MWh'
+    expected = {HI(region=r, year=y): 27.5 for r, y in mini_data.every('region', 'year')}
+    assert regional_annual_prices(model) == pytest.approx(expected)

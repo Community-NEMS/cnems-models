@@ -172,22 +172,27 @@ lets a run represent multiple actual years with one solved representative year, 
 ### Tests
 
 `tests/electric/conftest.py` provides four fixtures: `config_set` (a `(CommonConfig, ElecConfig)` pair
-built from `tests/electric/basic_elec_config.toml`), `learning_config_set` (the single-region
-linear-learning micro dataset under `tests/electric/learning/linear_micro_data/`), and
-`unsolved_model` / `solved_model`, which add a `PowerModel` built via `ElectricitySequencer`.
+built from `tests/electric/basic_elec_config.toml`, for the few tests that check the shipped data
+itself), `learning_config_set` (the single-region linear-learning micro dataset under
+`tests/electric/learning/linear_micro_data/`), and the mini model's `mini_data` / `build_mini`
+(below).
 
 Learning tests live in the `tests/electric/learning/` subpackage: the shared curve
 (`test_learning_curve.py`), the linear helpers plus full runs on the micro dataset
-(`test_learning_linear.py`), and the nonlinear objective checks (`test_learning_nonlinear.py`, with
-its `nonlinear_configs` / `nonlinear_model` fixtures in `learning/conftest.py`).
+(`test_learning_linear.py`), and the nonlinear objective checks on the mini model
+(`test_learning_nonlinear.py`).
 
 For new tests, prefer the CSV-free **mini model** (`tests/electric/mini_model.py`) over the shipped
-data: 2 regions (R1, R2), 2 techs (Gas, Solar), 2 years, 2 rep days x 2 hours, and unit time weights.
-The base has only Gas capacity and costs, and Solar is declared with no data. Its `patch_loaders`
-monkeypatches the raw loaders, so the real `ModelSets` / `ParamData` / `validate_all` / sequencer
-run on it. To use it, take the `mini_data` fixture and augment it with the `MiniModelData` helpers
-(`add_tech`, `add_capacity`, `add_operating_costs`, `add_rows`, `set_buildable`, `set_load`, `every`).
-Then call the `build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`.
+data, which costs about 3 s per test to load: 2 regions (R1, R2), 2 techs (Gas, Solar), 2 years,
+2 rep days x 2 hours, and unit time weights. The base has only Gas capacity and costs, and Solar is
+declared with no data. Its `patch_loaders` monkeypatches the raw loaders, so the real `ModelSets` /
+`ParamData` / `validate_all` / sequencer run on it. To use it, take the `mini_data` fixture and
+augment it with the `MiniModelData` helpers (`add_tech`, `add_capacity`, `add_operating_costs`,
+`add_rows`, `drop_rows`, `set_buildable`, `set_load`, `every`), or with the shared augmentations in
+`mini_model.py` (`add_solar_expansion`, `add_solar_learning`, and `add_gas_ct` for a gas-fired tech).
+For non-unit time weights, edit `mini_data.cw_temporal['WeightDay']` before building. Then call the
+`build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`. For `ParamData` alone or a
+`full_run`, call `patch_loaders` and `mini_configs` directly (see `test_update_packages.py`).
 `tests/electric/test_mini_model.py` has worked examples, including adding storage.
 
 `analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,

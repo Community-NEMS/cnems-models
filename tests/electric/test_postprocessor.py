@@ -13,6 +13,7 @@ import pyomo.environ as pyo
 import pytest
 
 from src.models.electricity.data_ingestor import load_attribute_data
+from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.postprocessor import (
     core_variable_indices,
     export_variables_to_csv,
@@ -23,6 +24,14 @@ from src.models.electricity.postprocessor import (
     transfer_tech_data,
     variable_to_dataframe,
 )
+
+
+@pytest.fixture
+def solved_mini(build_mini) -> PowerModel:
+    """The bare mini model, solved."""
+    sequencer, model = build_mini()
+    sequencer.solve_model()
+    return model
 
 
 def test_scalar_var():
@@ -93,9 +102,9 @@ def test_get_known_column_names():
     ],
     ids=['crossed-Set var', 'raw-tuple-list var'],
 )
-def test_column_names_on_real_model(solved_model, var_name, expected_columns):
+def test_column_names_on_real_model(solved_mini, var_name, expected_columns):
     """Column derivation on the real PowerModel: crossed Sets decompose, tuple lists fall back."""
-    _, _, elec_model = solved_model
+    elec_model = solved_mini
     var = getattr(elec_model, var_name)
 
     df = variable_to_dataframe(var)
@@ -105,12 +114,12 @@ def test_column_names_on_real_model(solved_model, var_name, expected_columns):
     assert not df[var_name].isna().any()
 
 
-def test_extract_all_variables_covers_every_var(solved_model):
+def test_extract_all_variables_covers_every_var(solved_mini):
     """With core_only=False, extract_all_variables returns exactly the Vars on the model.
 
     No more, no less.
     """
-    _, _, elec_model = solved_model
+    elec_model = solved_mini
 
     dfs = extract_all_variables(elec_model, core_only=False)
 
@@ -118,11 +127,11 @@ def test_extract_all_variables_covers_every_var(solved_model):
     assert set(dfs.keys()) == expected_names
 
 
-def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
+def test_extract_all_variables_core_only_excludes_non_core_vars(solved_mini):
     """The core_only default must skip active Vars that aren't in core_variable_indices."""
-    _, _, elec_model = solved_model
+    elec_model = solved_mini
 
-    # every Var the basic config builds is a core one, so attach a non-core Var to exclude
+    # every Var the mini model builds is a core one, so attach a non-core Var to exclude
     elec_model.scratch_var = pyo.Var(elec_model.region_analyze, elec_model.year)
 
     dfs = extract_all_variables(elec_model)
@@ -132,9 +141,9 @@ def test_extract_all_variables_core_only_excludes_non_core_vars(solved_model):
     assert set(dfs.keys()) == all_names & set(core_variable_indices)
 
 
-def test_export_variables_to_csv_writes_files(solved_model, tmp_path):
+def test_export_variables_to_csv_writes_files(solved_mini, tmp_path):
     """CSV export writes one file per variable and round-trips row counts."""
-    _, _, elec_model = solved_model
+    elec_model = solved_mini
 
     dfs = export_variables_to_csv(elec_model, output_dir=tmp_path)
 

@@ -8,6 +8,7 @@ import pytest
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import CommonConfig
+from src.integrator.utilities import create_temporal_mapping
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.model_sets import ModelSets, _parse_steps
 from src.models.electricity.param_data import ParamData
@@ -16,19 +17,32 @@ from src.models.electricity.utilities import annual_count
 logger = getLogger(__name__)
 
 
-def test_sets(unsolved_model):
-    """Test to ensure the years set is injested properly."""
-    common_config, _, elec_model = unsolved_model
+def test_sets(mini_data, build_mini):
+    """The model carries the configured years, and its time weights follow the crosswalk.
 
-    # check that the years are set correctly
-    config_years = common_config.summary_years
+    Day 2 of the mini model is weighted 3, so its two hours count 3 each and day 1's count 1.
+    """
+    cw = mini_data.cw_temporal
+    cw.loc[cw['Map_day'] == 2, 'WeightDay'] = 3.0
+    _, elec_model = build_mini()
 
-    assert not common_config.aggregate_years, 'aggregate_years should be False in test case'
-    assert elec_model.year == config_years, 'years in model do not match config'
+    assert list(elec_model.year) == mini_data.years, 'years in model do not match config'
+    assert {hr: annual_count(hr, elec_model) for hr in elec_model.hour} == {
+        1: 1.0,
+        2: 1.0,
+        3: 3.0,
+        4: 3.0,
+    }
 
-    # Assert the years in this non-aggregated base model match the settings
-    # Assert the weighted sum of hours is 8760
-    assert sum(annual_count(t, elec_model) for t in elec_model.hour) == 8760, (
+
+@pytest.mark.parametrize('temporal_resolution', ['default', 'd6h12', 'd4h24'])
+def test_temporal_mapping_covers_a_year(temporal_resolution: str):
+    """Each shipped temporal crosswalk maps all 8760 hours, and its weights add back to 8760."""
+    cw = create_temporal_mapping(temporal_resolution)
+
+    assert sorted(cw['hour']) == list(range(1, 8761))
+    rep_hours = cw.drop_duplicates('Map_hour')
+    assert (rep_hours['WeightDay'] * rep_hours['WeightHour']).sum() == 8760, (
         'Annualized hours do not add up!'
     )
 

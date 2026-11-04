@@ -48,27 +48,6 @@ def learning_config_set() -> tuple[CommonConfig, ElecConfig]:
 
 
 @pytest.fixture
-def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """Build an un-solved PowerModel for testing."""
-    common_config, elec_config = config_set
-
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
-    return common_config, elec_config, elec_model
-
-
-@pytest.fixture
-def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """Build a solved PowerModel for testing."""
-    common_config, elec_config = config_set
-
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
-    sequencer.solve_model()
-    return common_config, elec_config, elec_model
-
-
-@pytest.fixture
 def mini_data() -> MiniModelData:
     """A fresh copy of the bare mini model data (see ``tests/electric/mini_model.py``).
 

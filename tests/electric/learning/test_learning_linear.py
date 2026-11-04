@@ -30,8 +30,7 @@ from src.models.electricity.learning import (
     update_expansion_cost,
 )
 from src.models.electricity.sequencer import _LEARNING_TOLERANCE, ElectricitySequencer
-from tests.electric.mini_model import MiniModelData
-from tests.electric.test_mini_model import add_solar_expansion
+from tests.electric.mini_model import add_solar_learning
 
 # "verbose" mode prints the per-iteration capital_cost updates from test_linear_learning
 verbose = False
@@ -302,17 +301,6 @@ def test_linear_learning_prices_builds_on_the_curve(learning_config_set):
     # would miss a change of a few dollars in it.  It is pinned on its own, tighter.
     assert value(model.capacity_expansion_cost) == pytest.approx(2525039.4414830687, rel=1e-9)
     assert value(model.total_cost) == pytest.approx(9513531839.477724)
-
-
-def add_solar_learning(data: MiniModelData) -> MiniModelData:
-    """Make Solar buildable as in ``add_solar_expansion``, with learning data in both regions."""
-    add_solar_expansion(data)
-    data.add_rows(
-        'capital_cost_initial', {(r, 'Solar', 1): 1000.0 for (r,) in data.every('region')}
-    )
-    data.add_rows('learning_rate', {('Solar',): 0.1})
-    data.add_rows('supply_curve_learning', {('Solar',): 100.0})
-    return data
 
 
 @pytest.mark.parametrize(

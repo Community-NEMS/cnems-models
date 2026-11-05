@@ -25,6 +25,7 @@ from upath import UPath
 
 from definitions import PROJECT_ROOT
 from src.models.electricity.param_source_loader import ParamSource, load_param_sources
+from src.models.electricity.policy_source_loader import PolicySource, load_policy_sources
 from src.models.electricity.property_source_loader import PropertySource, load_property_sources
 
 logger = logging.getLogger(__name__)
@@ -55,8 +56,14 @@ PROPERTY_SOURCES: dict[str, PropertySource] = load_property_sources(
     PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
 )
 
+# Schema metadata (filename, index columns, value column, required) for each policy source,
+# read from policy_sources.toml -- see policy_source_loader.py for the PolicySource model.
+POLICY_SOURCES: dict[str, PolicySource] = load_policy_sources(
+    PROJECT_ROOT / 'src/models/electricity/policy_sources.toml'
+)
+
 # columns we always want to convert to integer to enable arithmetic on them...
-INTEGER_COLS = {'step', 'year', 'hour'}
+INTEGER_COLS = {'step', 'year', 'hour', 'first_year'}
 
 
 @dataclass
@@ -187,6 +194,32 @@ def convert_to_df(param_dict: dict, index_names: Sequence[str], value_name: str)
     return df.reset_index()
 
 
+def _check_unique(idx: tuple, seen: set[tuple], line: int, file_path: Path) -> None:
+    """Record ``idx`` in ``seen``, raising if an earlier row of the file already had it.
+
+    Parameters
+    ----------
+    idx : tuple
+        the row's index values.
+    seen : set[tuple]
+        indices of the rows read so far; updated in place.
+    line : int
+        the row's line number in the file, for the message.
+    file_path : Path
+        the file being read, for the message.
+
+    Raises
+    ------
+    ValueError
+        if ``idx`` is already in ``seen``.
+    """
+    if idx in seen:
+        msg = f'Duplicate index {idx} on line {line} of {file_path}'
+        logger.error(msg)
+        raise ValueError(msg)
+    seen.add(idx)
+
+
 def read_parameter_csv(
     file_path: Path,
     index_cols: Sequence[str],
@@ -195,10 +228,12 @@ def read_parameter_csv(
 ) -> dict[tuple, float]:
     """Read a CSV file into a dictionary mapping index tuples to float values.
 
-    Optional region and year filtering is applied while reading.
+    Optional region and year filtering is applied while reading.  Duplicate index rows are an
+    error, checked across the whole file before filtering.
     """
     with open(file_path) as f:
         res = {}
+        seen: set[tuple] = set()
         reader = DictReader(f)
         flag_floats = False
         for row in reader:
@@ -219,6 +254,14 @@ def read_parameter_csv(
                                 f'Unable to convert {row[col_label]} to int in file {file_path}'
                             ) from err
 
+            # make an index tuple
+            try:
+                idx = tuple(row[col] for col in index_cols)
+            except KeyError:
+                logger.error('Expecting index columns %s in csv file: %s', index_cols, file_path)
+                raise
+            _check_unique(idx, seen, reader.line_num, file_path)
+
             # apply filters, if any
             if filter_package:
                 if filter_package.region_filter:
@@ -233,13 +276,6 @@ def read_parameter_csv(
                     }
                     if not discovered_years.issubset(filter_package.year_filter):
                         continue
-
-            # make an index tuple
-            try:
-                idx = tuple(row[col] for col in index_cols)
-            except KeyError:
-                logger.error('Expecting index columns %s in csv file: %s', index_cols, file_path)
-                raise
 
             # capture the value
             try:
@@ -262,13 +298,14 @@ def read_property_csv(
     """Read a 'properties as columns' csv into a dict of indices satisfying each property.
 
     Assume the first column is the index/reference column and gather those entries in master set.
-    For other columns, look for True/true and capture.
+    For other columns, look for True/true and capture.  Duplicate index rows are an error.
 
     The collected index keys are heterogeneous: a tuple when ``index_cols`` names more than one
     column, otherwise the bare value -- an int for anything in ``INTEGER_COLS``, else a str.
     """
     with open(file_path) as f:
         reader = DictReader(f)
+        seen: set[tuple] = set()
         flag_floats = False
         # make set of dictionaries to catch the "True" vals
         res = {label: [] for label in param_cols}
@@ -293,12 +330,13 @@ def read_property_csv(
             # grab index
             try:
                 idx = tuple(row[col] for col in index_cols)
-                # de-tuple any singletons
-                if len(idx) == 1:
-                    idx = idx[0]
             except KeyError:
                 logger.error('Expecting index columns %s in csv file: %s', index_cols, file_path)
                 raise
+            _check_unique(idx, seen, reader.line_num, file_path)
+            # de-tuple any singletons
+            if len(idx) == 1:
+                idx = idx[0]
             for col_label in param_cols:
                 # look for "true" value in each property column, if found, add to that collection
                 # also capture if the column name is in the index set to create master set(s)
@@ -412,6 +450,9 @@ def load_param_data(
 def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
     """Read every source in ``PROPERTY_SOURCES`` from ``input_dir``, keyed by source name.
 
+    An absent ``required = false`` file loads as empty membership lists; a missing required
+    file raises ``FileNotFoundError``.
+
     Parameters
     ----------
     input_dir : Path
@@ -422,10 +463,44 @@ def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
     dict[str, dict[str, list[str]]]
         one entry per property source, mapping each property name to the indices that satisfy it.
     """
-    return {
-        k: read_property_csv(input_dir / source.filename, source.property_cols, source.index_cols)
-        for k, source in PROPERTY_SOURCES.items()
-    }
+    res: dict[str, dict[str, list]] = {}
+    for k, source in PROPERTY_SOURCES.items():
+        file_path = input_dir / source.filename
+        if not source.required and not file_path.exists():
+            logger.info('Optional property source %s absent (%s); using empty data', k, file_path)
+            res[k] = {col: [] for col in source.property_cols}
+            continue
+        res[k] = read_property_csv(file_path, source.property_cols, source.index_cols)
+    return res
+
+
+def load_policy_data(policy_dir: Path) -> dict[str, dict[tuple, float]]:
+    """Load every policy source into a dict of index-tuple -> value maps, unfiltered.
+
+    No region/year filter is applied (policy region columns may hold keywords such as
+    ``all``); screening against the model's sets happens in processing.  As in
+    ``load_param_data``, an absent ``required = false`` file maps to an empty dict.
+
+    Parameters
+    ----------
+    policy_dir : Path
+        directory holding the policy CSVs named in ``POLICY_SOURCES``
+        (``ElecConfig.policy_path``).
+
+    Returns
+    -------
+    dict[str, dict[tuple, float]]
+        One entry per ``POLICY_SOURCES`` key; empty for absent optional files.
+    """
+    res: dict[str, dict[tuple, float]] = {}
+    for k, source in POLICY_SOURCES.items():
+        file_path = policy_dir / source.filename
+        if not source.required and not file_path.exists():
+            logger.info('Optional policy source %s absent (%s); using empty data', k, file_path)
+            res[k] = {}
+            continue
+        res[k] = read_parameter_csv(file_path, source.index_cols, source.value_col)
+    return res
 
 
 def load_attribute_data(input_dir: Path) -> dict[str, dict[str, dict]]:

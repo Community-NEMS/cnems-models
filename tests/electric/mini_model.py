@@ -119,6 +119,8 @@ class MiniModelData:
                 'tech': {col: [] for col in PROPERTY_SOURCES['tech'].property_cols},
                 'tech_build': {'is_buildable': []},
                 'tech_retire': {'is_retirable': []},
+                # optional; empty, as load_property_data returns it when the file is absent
+                'rps_group': {'group_id': []},
                 'region': {
                     'region': ['R1', 'R2'],
                     'is_domestic': ['R1', 'R2'],

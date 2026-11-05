@@ -25,7 +25,6 @@ from src.common.update_package import (
     UpdatePackageWriter,
 )
 from src.integrator.region_crosswalk import QuantityKind
-from src.models.electricity.constants import NG_HEAT_RATE_MMBTU_PER_MWH
 from src.models.electricity.electricity_model import PowerModel
 
 logger = getLogger(__name__)
@@ -85,9 +84,9 @@ class ElecUpdateWriter(UpdatePackageWriter[PowerModel]):
 def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     """Annual natural gas burned by the gas-fired techs of a solved model, by region and year.
 
-    Sums the solved ``generation_total`` of every tech in ``NG_HEAT_RATE_MMBTU_PER_MWH`` over
-    the representative hours, weighting each hour by the days its representative day stands for
-    (the same ``weight_day`` the objective applies), and converts with the tech's heat rate::
+    Sums the solved ``generation_total`` of every tech in ``tech_gas_fired`` over the
+    representative hours, weighting each hour by the days its representative day stands for
+    (the same ``weight_day`` the objective applies), and converts with the tech's ``heat_rate``::
 
         MMBtu = MWh x MMBtu/MWh
 
@@ -107,9 +106,9 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     # pyrefly sees the pyomo components declared on PowerModel as None; they are Var/Param
     # instances on a built model, and value() of a solved Var is a float
     for region, tech, step, year, hour in instance.generation_total:  # pyrefly: ignore[not-iterable]
-        heat_rate = NG_HEAT_RATE_MMBTU_PER_MWH.get(tech)
-        if heat_rate is None:
+        if tech not in instance.tech_gas_fired:
             continue
+        heat_rate = value(instance.heat_rate[tech])
         gen_mwh = value(instance.generation_total[region, tech, step, year, hour])
         days = value(instance.weight_day[instance.map_hour_day[hour]])
         # pyrefly: ignore[unsupported-operation]
@@ -117,7 +116,7 @@ def gas_demand_by_region(instance: PowerModel) -> pd.Series:
     if not mmbtu:
         logger.warning(
             'No generation rows for gas-fired techs %s; gas demand is zero everywhere',
-            list(NG_HEAT_RATE_MMBTU_PER_MWH),
+            sorted(instance.tech_gas_fired),
         )
     # every (region, year) the model carries, so a region without gas-fired techs is sent as 0.0
     grid = pd.MultiIndex.from_product(

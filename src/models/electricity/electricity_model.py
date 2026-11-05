@@ -133,6 +133,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             within=self.tech_h2 * self.step,
             initialize=[(t, s) for t in self.tech_h2 for s in self.steps_for_tech[t]],
         )
+        self.tech_gas_fired = pyo.Set(initialize=model_sets.tech_gas_fired, within=self.tech)
+        self.tech_gas_fired_step = pyo.Set(
+            dimen=2,
+            within=self.tech_gas_fired * self.step,
+            initialize=[(t, s) for t in self.tech_gas_fired for s in self.steps_for_tech[t]],
+        )
         self.tech_disp = pyo.Set(initialize=model_sets.tech_disp, within=self.tech)
         self.tech_gen = pyo.Set(initialize=model_sets.tech_gen, within=self.tech)
         self.tech_gen_step = pyo.Set(
@@ -432,9 +438,10 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
 
         # Gas fuel-cost adjustment, written by the natural gas coupling between solves and added
-        # to generation_cost in dispatch_cost, so it is indexed over the same sets. It is a delta
-        # against a reference gas price, not a price level, which keeps the fuel cost already in
-        # generation_cost. Zero by default, so an uncoupled run is unaffected.
+        # to generation_cost in dispatch_cost for the gas-fired techs, so it is indexed over the
+        # gas-fired subset of generation_cost's sets. It is a delta against a reference gas price,
+        # not a price level, which keeps the fuel cost already in generation_cost. Zero at build,
+        # so an uncoupled run is unaffected.
         #
         # within=Reals is load-bearing: the delta is negative whenever gas is below its
         # reference, and Pyomo raises ValueError on a negative write into NonNegativeReals.
@@ -442,7 +449,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # generation_cost.
         self.ng_fuel_adj = pyo.Param(
             self.region_analyze,
-            self.tech_step,
+            self.tech_gas_fired_step,
             self.year,
             self.season,
             initialize=0.0,
@@ -488,6 +495,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         )
 
         self.storage_level_cost = pyo.Param(initialize=STORAGE_LEVEL_COST)
+
+        # gas burned per MWh generated, for the gas-fired techs.  Used only to report gas burn to
+        # the natural gas model; it is not part of the objective or any constraint
+        self.heat_rate = pyo.Param(
+            self.tech_gas_fired, initialize=all_dicts['heat_rate'], within=pyo.PositiveReals
+        )
 
         self.fom_cost = pyo.Param(
             self.region_analyze, self.tech_step, initialize=all_dicts['fom_cost']
@@ -720,7 +733,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         m.weight_year[y]
                         * (
                             m.generation_cost[r, tech, step, y, season]
-                            + m.ng_fuel_adj[r, tech, step, y, season]
+                            + (
+                                m.ng_fuel_adj[r, tech, step, y, season]
+                                if tech in m.tech_gas_fired
+                                else 0.0
+                            )
                         )
                         * m.generation_total[r, tech, step, y, hr]
                         for (r, tech, step, y) in m.generation_sources

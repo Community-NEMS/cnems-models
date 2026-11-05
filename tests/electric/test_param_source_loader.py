@@ -14,9 +14,10 @@ from src.models.electricity.param_source_loader import ParamSource, load_param_s
 
 PARAM_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
 
-# Expected reference: one entry per C-EMM data-needs sheet row.  Each file is named for its key
-# and the value column carries its units (MW, MWh, USD, frac, hr).  Used to audit that the TOML
-# matches expectations.
+# Expected reference: one entry per C-EMM data-needs sheet row, plus ``heat_rate`` (not on the
+# sheet; it feeds the natural gas coupling).  Each file is named for its key and the value column
+# carries its units (MW, MWh, USD, frac, hr, MMBtu).  Used to audit that the TOML matches
+# expectations.
 _EXPECTED_PARAM_SOURCES = {
     'storage_efficiency': ('storage_efficiency.csv', ('tech',), 'storage_efficiency_frac'),
     'capital_cost': (
@@ -92,6 +93,7 @@ _EXPECTED_PARAM_SOURCES = {
         ('region_intl', 'step', 'year', 'season'),
         'supply_limit_intl_mw',
     ),
+    'heat_rate': ('heat_rate.csv', ('tech',), 'heat_rate_mmbtu_per_mwh'),
 }
 
 _REQUIRED_KEYS = {
@@ -106,10 +108,10 @@ _REQUIRED_KEYS = {
 
 
 def test_load_param_sources_count_and_keys():
-    """All 22 entries load, keyed by the expected names."""
+    """All 23 entries load, keyed by the expected names."""
     loaded = load_param_sources(PARAM_SOURCES_TOML)
 
-    assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 22
+    assert len(loaded) == len(_EXPECTED_PARAM_SOURCES) == 23
     assert set(loaded.keys()) == set(_EXPECTED_PARAM_SOURCES.keys())
 
 

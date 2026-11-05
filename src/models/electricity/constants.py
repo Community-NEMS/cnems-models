@@ -46,15 +46,3 @@ PRICE_COST_PROPORTION = 0.5  # TODO:  Confirm against source of tech operating c
 # fractional change (either direction) in a gas-linked generation_cost row, relative to the held
 # value it replaces, at or above which a warning is logged
 SUPPLY_PRICE_CHANGE_WARN_FRACTION = 0.5
-
-# TODO:  The table/dict below should be a data file to avoid hard-coding them.  This is a temp
-#        fixture until the mechanics of feedback are ironed out!
-# Heat rate of each natural-gas-consuming tech, MMBtu of gas per MWh generated.  Representative
-# constants, not derived from this repo's data; see input/electricity/tech.csv for the techs.
-# '4' (Gas Combined Cycle) would be ~7.12 when it is added.
-NG_HEAT_RATE_MMBTU_PER_MWH: dict[str, float] = {
-    '3': 9.51,  # Gas Turbine
-}
-# techs whose generation_cost is linked to the natural gas price and whose generation burns gas:
-# exactly the techs with a heat rate above, so the two lists cannot drift apart
-NG_PRICE_LINKED_TECHS: tuple[str, ...] = tuple(NG_HEAT_RATE_MMBTU_PER_MWH)

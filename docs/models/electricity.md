@@ -30,6 +30,7 @@ through the model configuration.
 | $T^{hreg}$             | tech_hydro_regular                            | Subset     | Regular hydro                                                |
 | $T^{hseas}$            | tech_hydro_seasonal                           | Subset     | Seasonal hydro                                               |
 | $T^{conv}$             | tech_conv                                     | Subset     | Conventional technologies, the ones with ramping constraints |
+| $T^{gas}$              | tech_gas_fired                                | Subset     | Gas-fired technologies (`is_gas_fired` in `tech.csv`): their gas burn goes to the natural gas model, and their generation cost follows its gas price |
 | $\Theta_{load}$        | elec_load.index_set()                         | Sparse set | All load sparse set                                          |
 | $\Theta_{gen}$         | generation_index                              | Sparse set | All non-storage generation sparse set                        |
 | $\Theta_{stor}$        | storage_index                                 | Sparse set | All storage set                                              |
@@ -110,12 +111,13 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $LOAD_{r,y,h}$                    | elec_load                | $\mathbb{R}^+_0$ | Electricity demand                                                                           | MWh                        |
 | $CAP^{exist}_{r,t,s,y}$           | available_capacity       | $\mathbb{R}^+_0$ | Existing capacity (prescribed or initial)                                                    | MW                         |
 | $SPR_{r,t,s,y,seas}$              | generation_cost          | $\mathbb{R}^+_0$ | Fuel + variable O&M price                                                                    | USD/MWh                    |
-| $NGADJ_{r,t,s,y,seas}$            | ng_fuel_adj              | $\mathbb{R}$     | Gas fuel-cost adjustment, set by the natural gas coupling; zero in a standalone run          | USD/MWh                    |
+| $NGADJ_{r,t,s,y,seas}$            | ng_fuel_adj              | $\mathbb{R}$     | Gas fuel-cost adjustment for each technology in $T^{gas}$, set by the natural gas coupling; zero in a standalone run, and taken as zero for other technologies in (2) | USD/MWh                    |
 | $CF^{hr}_{r,t,s,h}$               | capacity_factor_hourly   | $\mathbb{R}^+_0$ | Hourly capacity factor of the intermittent technologies; the same in every year, and 0 where no profile is given | fraction                   |
 | $CF^{seas}_{r,t,s,seas}$          | capacity_factor_seasonal | $\mathbb{R}^+_0$ | Seasonal capacity factor of the hydro technologies                                           | fraction                   |
 | $STORLC$                          | storage_level_cost       | $\mathbb{R}^+_0$ | Cost of holding stored energy, per MWh held per hour; a constant (1e-11), so negligible. Storage losses come from $EFF_t$ | USD/MWh per hour           |
 | $EFF_t$                           | storage_efficiency       | $\mathbb{R}^+_0$ | Roundtrip efficiency of storage                                                              | fraction                   |
 | $STOR^{dur}_t$                    | storage_duration         | $\mathbb{R}^+_0$ | Storage duration                                                                             | hours                      |
+| $HR_t$                            | heat_rate                | $\mathbb{R}^+$   | Gas burned per MWh generated, for each technology in $T^{gas}$ (`heat_rate.csv`). Used only to report gas burn to the natural gas model; not in the objective or any constraint | MMBtu/MWh                  |
 | $UMLPEN$                          | unmet_load_penalty       | $\mathbb{R}^+_0$ | Unmet load penalty, a constant (50,000)                                                      | USD/MWh                    |
 | $WY_y$                            | weight_year              | $\mathbb{I}$     | number of years represented by a representative year (weight)                                | years/representative years |
 | $HW_h$                            | weight_hour              | $\mathbb{I}$     | Number of hours represented by a representative hour (weight)                                | hours/representative hour  |
@@ -195,11 +197,11 @@ C_{disp} = \sum_{y \in Y} WY_y \sum_{h \in H} WD_h \Big( &\sum_{(r,t,s) | (r,t,s
 $$
 
 $NGADJ$ is zero in a standalone run. In an integrated run with the natural gas model, the
-generation cost of the gas-linked technologies (the gas turbine in the shipped constants) follows
-the gas price $p$ received for its region and year: half of $SPR$ is taken to be fuel bought at
-4 USD/MMBtu, so the cost becomes $SPR \times (1 + 0.5 (p - 4)/4)$. Gauss-Seidel writes the change
-into $NGADJ$ on the built model, and Jacobi rescales $SPR$ before each build; both give the same
-cost.
+generation cost of the gas-fired technologies $T^{gas}$ (the gas turbine and combined cycle in the
+shipped data) follows the gas price $p$ received for its region and year: half of $SPR$ is taken to
+be fuel bought at 4 USD/MMBtu, so the cost becomes $SPR \times (1 + 0.5 (p - 4)/4)$. Gauss-Seidel
+writes the change into $NGADJ$ on the built model, and Jacobi rescales $SPR$ before each build; both
+give the same cost.
 
 Storage pays half its price $SPR$ on each MWh charged and half on each MWh discharged. With the efficiency
 $EFF_t$ applied on charging, that is $0.5 \times SPR \times (1 + 1/EFF_t)$ per MWh discharged, about 1.09 to

@@ -111,6 +111,11 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
         logger.error(e)
         all_valid = False
 
+    # the gas-fired flag and the heat rate table must name the same techs
+    all_valid &= validate_heat_rate_coverage(
+        model_sets.tech_gas_fired, param_data.param_dicts['heat_rate']
+    )
+
     # domestic transmission network to exclude self loops and ensure compatible cost-limit
     # coverage
     if exchange:
@@ -381,6 +386,33 @@ def validate_fom_cost_coverage(
         raise ValueError('Capacity without corresponding FOM cost.  See log for details.')
 
     return True
+
+
+def validate_heat_rate_coverage(gas_fired: Iterable[str], heat_rate: Mapping[tuple, float]) -> bool:
+    """Ensure ``heat_rate`` covers exactly the techs flagged ``is_gas_fired``.
+
+    A gas-fired tech without a heat rate would report no gas burn.  A heat rate on a tech that is
+    not gas-fired would be ignored.  Both are errors, so the flag and the table cannot drift apart.
+
+    Parameters
+    ----------
+    gas_fired : Iterable[str]
+        The gas-fired techs, e.g. ``ModelSets.tech_gas_fired``.
+    heat_rate : Mapping[tuple, float]
+        ``heat_rate`` data keyed (tech,).
+
+    Returns
+    -------
+    bool
+        True when the two name the same techs.  Each mismatched tech is logged as an error.
+    """
+    flagged = set(gas_fired)
+    with_rate = {key[0] for key in heat_rate}
+    for tech in sorted(flagged - with_rate):
+        logger.error('Tech %s is flagged is_gas_fired but has no heat_rate entry', tech)
+    for tech in sorted(with_rate - flagged):
+        logger.error('Tech %s has a heat_rate entry but is not flagged is_gas_fired', tech)
+    return flagged == with_rate
 
 
 def validate_build_cost_coverage(

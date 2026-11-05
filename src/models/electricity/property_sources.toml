@@ -3,12 +3,17 @@
 # per-run configuration) -- do not confuse with run_configs/*.toml, which holds user-facing
 # run settings.
 #
-# Unlike param_sources.toml, there is no `required` flag here: all property sources are
-# consumed unconditionally in ModelSets.__init__, regardless of ElecConfig switches.
+# required = true  (the default) -> the file must be present
+# required = false -> only used when a specific ElecConfig switch is enabled (see comment per
+#                     entry); an absent file loads as empty membership lists
 #
 # `property_cols` are pivoted into truthy-membership sets (the is_* group flags).  The optional
 # `attribute_cols` are instead carried through as raw per-index values -- descriptive data that
 # is not a yes/no membership test.  Sources without any may omit the key.
+#
+# A property column that is also an index column collects every row's index (the master list,
+# e.g. `tech` in tech.csv).  A flat relation table uses this alone:  rps_group lists each
+# (group_id, tech, tech_group) row under `group_id`.
 
 [[property_source]]
 key = "tech"
@@ -36,3 +41,11 @@ filename = "region.csv"
 property_cols = ["region", "is_domestic", "is_international"]
 index_cols = ["region"]
 attribute_cols = ["label"]
+
+[[property_source]]
+# one row per group member:  a tech, or a tech.csv `is_*` column (tech_group), never both
+key = "rps_group"
+filename = "rps_group.csv"
+property_cols = ["group_id"]
+index_cols = ["group_id", "tech", "tech_group"]
+required = false  # rps_required

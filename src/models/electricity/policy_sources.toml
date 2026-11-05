@@ -1,0 +1,19 @@
+# Schema metadata describing the policy-source CSV files consumed by data_ingestor.py's
+# load_policy_data().  Fixed, developer-owned metadata, like param_sources.toml, whose shape
+# these entries share:  index_cols (in order) map to a single value_col.  Files live in
+# ElecConfig.policy_path (the `policy` folder beside `parameters`).
+#
+# required = true  -> the file must be present
+# required = false -> only used when a specific ElecConfig switch is enabled (see comment per
+#                     entry); an absent file loads as an empty dict
+#
+# Policy files are read without the region/year filter:  their region columns can hold
+# keywords (e.g. RPS `all`), so screening happens in processing.
+
+[[policy_source]]
+# requirement_type is an RPSRequirementType value (RLL / BTM); region is a region or `all`
+key = "rps_requirement"
+filename = "rps_requirement.csv"
+index_cols = ["group_id", "region", "requirement_type", "first_year"]
+value_col = "min_share_frac"
+required = false  # rps_required

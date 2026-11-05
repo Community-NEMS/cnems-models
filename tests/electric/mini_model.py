@@ -32,7 +32,7 @@ import pytest
 
 from src.common.common_config import CommonConfig
 from src.common.season import Season
-from src.models.electricity.data_ingestor import PARAM_SOURCES, PROPERTY_SOURCES
+from src.models.electricity.data_ingestor import PARAM_SOURCES, POLICY_SOURCES, PROPERTY_SOURCES
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.param_data import ParamData
 
@@ -57,7 +57,8 @@ class MiniModelData:
     Attributes mirror the loader outputs:  ``properties`` <- ``load_property_data``,
     ``attributes`` <- ``load_attribute_data``, ``cw_temporal`` <- ``create_temporal_mapping``,
     ``params`` <- ``load_param_data`` (one dict per ``PARAM_SOURCES`` key, keyed by its
-    ``index_cols``), and ``load`` <- ``ParamData.build_load_dataframe``.
+    ``index_cols``), ``policy`` <- ``load_policy_data`` (likewise, per ``POLICY_SOURCES`` key),
+    and ``load`` <- ``ParamData.build_load_dataframe``.
     """
 
     regions: list[str]
@@ -69,6 +70,9 @@ class MiniModelData:
     cw_temporal: pd.DataFrame
     params: dict[str, dict[tuple, float]] = field(
         default_factory=lambda: {k: {} for k in PARAM_SOURCES}
+    )
+    policy: dict[str, dict[tuple, float]] = field(
+        default_factory=lambda: {k: {} for k in POLICY_SOURCES}
     )
     load: pd.DataFrame = field(
         default_factory=lambda: pd.DataFrame(columns=['region', 'year', 'hour', 'Load'])
@@ -259,6 +263,53 @@ class MiniModelData:
             if len(idx) != len(index_cols):
                 raise ValueError(f'{key} row {idx} does not match index_cols {index_cols}')
         self.params[key].update({idx: float(v) for idx, v in rows.items()})
+        return self
+
+    def add_rps_group(
+        self, group_id: str, techs: Iterable[str] = (), tech_groups: Iterable[str] = ()
+    ) -> MiniModelData:
+        """Add ``rps_group`` rows:  one per tech and one per tech.csv flag column.
+
+        Parameters
+        ----------
+        group_id : str
+        techs : Iterable[str]
+            techs named directly.
+        tech_groups : Iterable[str]
+            tech.csv ``is_*`` columns whose techs join the group.
+
+        Returns
+        -------
+        MiniModelData
+            self, for chaining.
+        """
+        rows = self.properties['rps_group']['group_id']
+        rows.extend((group_id, tech, '') for tech in techs)
+        rows.extend((group_id, '', tech_group) for tech_group in tech_groups)
+        return self
+
+    def add_rps_requirement(
+        self, group_id: str, region: str, requirement_type: str, first_year: int, min_share: float
+    ) -> MiniModelData:
+        """Add an ``rps_requirement`` row.
+
+        Parameters
+        ----------
+        group_id : str
+        region : str
+            a region or ``'all'``.
+        requirement_type : str
+            ``'RLL'`` or ``'BTM'`` (as written in the csv).
+        first_year : int
+        min_share : float
+
+        Returns
+        -------
+        MiniModelData
+            self, for chaining.
+        """
+        key = (group_id, region, requirement_type, first_year)
+        self.policy['rps_requirement'][key] = float(min_share)
         return self
 
     def add_capacity(
@@ -472,6 +523,10 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
         'src.models.electricity.param_data.load_param_data',
         lambda input_dir, param_filter=None: copy.deepcopy(data.params),
     )
+    monkeypatch.setattr(
+        'src.models.electricity.param_data.load_policy_data',
+        lambda _path: copy.deepcopy(data.policy),
+    )
     monkeypatch.setattr(ParamData, 'build_load_dataframe', lambda self: data.load.copy())
 
 
@@ -496,7 +551,8 @@ def mini_configs(
     -------
     tuple[CommonConfig, ElecConfig]
     """
-    for sub in ('data', 'residential', 'params', 'output'):
+    # policy sits beside params, where ElecConfig.policy_path expects it
+    for sub in ('data', 'residential', 'params', 'policy', 'output'):
         (root / sub).mkdir(exist_ok=True)
     common_config = CommonConfig(
         mode='standalone',

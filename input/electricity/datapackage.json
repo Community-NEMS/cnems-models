@@ -392,9 +392,9 @@
             "name": "heat_rate_mmbtu_per_mwh",
             "type": "number",
             "constraints": {
-              "minimum": 0
+              "minimum": 3.412
             },
-            "description": "Heat rate, MMBtu of natural gas per MWh generated."
+            "description": "Heat rate, MMBtu of natural gas per MWh generated. Floor of 3.412 is the 100% efficiency limit (3.412 MMBtu/MWh)."
           },
           {
             "name": "notes",

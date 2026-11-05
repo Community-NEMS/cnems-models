@@ -17,6 +17,7 @@ import pytest
 
 from definitions import PROJECT_ROOT
 from src.models.electricity.data_ingestor import load_policy_data, load_property_data
+from src.models.electricity.elec_config import ElecConfig
 from tests.electric.mini_model import mini_configs
 
 SHIPPED_PROPERTIES = PROJECT_ROOT / 'input/electricity/properties'
@@ -39,26 +40,26 @@ def test_rps_off_by_default(tmp_path: Path) -> None:
 
 def test_policy_path_beside_input_path(tmp_path: Path) -> None:
     """The policy folder is a sibling of the parameters (``input_path``) folder."""
-    (tmp_path / 'policy').mkdir()
     _, elec_config = mini_configs(tmp_path, [2030], capacity_expansion=True, rps_required=True)
     assert elec_config.policy_path == elec_config.input_path.parent / 'policy'
     assert elec_config.policy_path == tmp_path / 'policy'
 
 
 @pytest.mark.parametrize(
-    ('make_policy', 'switches', 'match'),
+    ('keep_policy', 'switches', 'match'),
     [
         (True, {'rps_required': True}, 'requires capacity_expansion'),
         (False, {'rps_required': True, 'capacity_expansion': True}, 'requires a policy folder'),
     ],
     ids=['no_expansion', 'no_policy_folder'],
 )
-def test_rps_config_errors(tmp_path: Path, make_policy: bool, switches: dict, match: str) -> None:
+def test_rps_config_errors(tmp_path: Path, keep_policy: bool, switches: dict, match: str) -> None:
     """Bad RPS switch combinations fail config validation."""
-    if make_policy:
-        (tmp_path / 'policy').mkdir()
+    _, base = mini_configs(tmp_path, [2030])
+    if not keep_policy:
+        base.policy_path.rmdir()
     with pytest.raises(ValueError, match=match):
-        mini_configs(tmp_path, [2030], **switches)
+        ElecConfig(**(base.model_dump() | switches))
 
 
 # ---------------------------------------------------------------- groups table

@@ -190,9 +190,12 @@ declared with no data. Its `patch_loaders` monkeypatches the raw loaders, so the
 augment it with the `MiniModelData` helpers (`add_tech`, `add_capacity`, `add_operating_costs`,
 `add_rows`, `drop_rows`, `set_buildable`, `set_load`, `every`), or with the shared augmentations in
 `mini_model.py` (`add_solar_expansion`, `add_solar_learning`, and `add_gas_ct` for a gas-fired tech).
-For non-unit time weights, edit `mini_data.cw_temporal['WeightDay']` before building. Then call the
-`build_mini(**elec_switches)` factory fixture to get `(sequencer, model)`. For `ParamData` alone or a
-`full_run`, call `patch_loaders` and `mini_configs` directly (see `test_update_packages.py`).
+For non-unit time weights, edit `mini_data.cw_temporal['WeightDay']` and/or `['WeightHour']`
+before building. Then call the `build_mini(**elec_switches)` factory fixture to get
+`(sequencer, model)`; for year aggregation, also pass `summary_years` and `aggregate_start_year`
+(e.g. `summary_years=[2031], aggregate_start_year=2030` gives 2031 a year weight of 2). For
+`ParamData` alone or a `full_run`, call `patch_loaders` and `mini_configs` directly (see
+`test_update_packages.py`).
 `tests/electric/test_mini_model.py` has worked examples, including adding storage.
 
 `analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,

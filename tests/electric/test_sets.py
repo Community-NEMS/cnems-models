@@ -20,18 +20,21 @@ logger = getLogger(__name__)
 def test_sets(mini_data, build_mini):
     """The model carries the configured years, and its time weights follow the crosswalk.
 
-    Day 2 of the mini model is weighted 3, so its two hours count 3 each and day 1's count 1.
+    Day 2 of the mini model has day weight 3 and hour weight 2, so its two hours count 3 x 2 = 6
+    each, while day 1's keep unit weights and count 1.
     """
     cw = mini_data.cw_temporal
-    cw.loc[cw['Map_day'] == 2, 'WeightDay'] = 3.0
+    day_2 = cw['Map_day'] == 2
+    cw.loc[day_2, 'WeightDay'] = 3.0
+    cw.loc[day_2, 'WeightHour'] = 2.0
     _, elec_model = build_mini()
 
     assert list(elec_model.year) == mini_data.years, 'years in model do not match config'
     assert {hr: annual_count(hr, elec_model) for hr in elec_model.hour} == {
         1: 1.0,
         2: 1.0,
-        3: 3.0,
-        4: 3.0,
+        3: 6.0,
+        4: 6.0,
     }
 
 

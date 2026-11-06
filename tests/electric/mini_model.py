@@ -474,7 +474,11 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
 
 
 def mini_configs(
-    root: Path, years: list[int], **elec_switches: Any
+    root: Path,
+    years: list[int],
+    *,
+    aggregate_start_year: int | None = None,
+    **elec_switches: Any,
 ) -> tuple[CommonConfig, ElecConfig]:
     """Build a (CommonConfig, ElecConfig) pair for the mini model.
 
@@ -487,6 +491,9 @@ def mini_configs(
         empty scratch directory (e.g. pytest's ``tmp_path``).
     years : list[int]
         summary years.
+    aggregate_start_year : int, optional
+        turns on year aggregation from this year onto ``years``; off when omitted.  The data
+        must carry every year from here through the last summary year.
     **elec_switches
         ``ElecConfig`` overrides (e.g. ``capacity_expansion=True``).
 
@@ -504,8 +511,8 @@ def mini_configs(
         output_path=root / 'output',
         scenario_name='mini_model',
         temporal_resolution='mini',
-        aggregate_years=False,
-        aggregate_start_year=None,
+        aggregate_years=aggregate_start_year is not None,
+        aggregate_start_year=aggregate_start_year,
         summary_years=years,
     )
     elec_config = ElecConfig(input_path=root / 'params', **(_DEFAULT_SWITCHES | elec_switches))

@@ -25,7 +25,7 @@ rps_required = true
   `input_path` (`parameters`) folder, e.g. `input/electricity/policy`.
 
 With `rps_required` off, the RPS tables are not read and the model is unchanged.
-`run_configs/rps_elec_config.toml` is a worked example (see
+`../../run_configs/rps_check_config.toml` is a worked example (see
 [The Feasibility Report](#the-feasibility-report)).
 
 ## Requirement Types
@@ -285,7 +285,7 @@ holds that may block them.
 
 ### Sample
 
-The report from `run_configs/rps_elec_config.toml`: the shipped data with
+The report from `../../run_configs/rps_check_config.toml`: the shipped data with
 `region_filter = ['7', '8', '9']` and model years 2025, 2030 and 2035. Its group is the `clean`
 group of the [Input Tables](#input-tables) example, and its requirements are the shipped
 `policy/rps_requirement.csv` (notes left out here). For variety, the shipped build data makes

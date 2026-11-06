@@ -745,7 +745,9 @@ $$
 \end{aligned} \tag{36}
 $$
 
-A requirement with a minimum of 0 writes no constraint, since it can never bind.
+A requirement with a minimum of 0 writes no constraint, since it can never bind. The input tables, the
+supersession rules with a worked example, and the feasibility report are in
+[Regional Portfolio Standards](electricity_rps.md).
 
 ## Data Validation
 
@@ -821,7 +823,8 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   group capacity ($\theta^{rpsg}$ not empty) in its regions and year, or (35) could never be met.
   A requirement without one is an error. Problems in the RPS tables themselves (unknown groups,
   technologies or regions, shares outside [0, 1], duplicate rows) stop the build before
-  validation runs, all reported in one error.
+  validation runs, all reported in one error. See
+  [Regional Portfolio Standards](electricity_rps.md#checks).
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
@@ -856,6 +859,14 @@ and year:
   the model build. `hydro_capacity_factor.csv` carries only region and season, and `ParamData`
   applies each row to every hydro (tech, step), so in practice this means a row for every season
   in each region where hydro can be built.
+
+### Portfolio Standards
+
+With `rps_required` (and `capacity_expansion`) on, groups of generator technologies are held to a
+minimum share of the generator capacity in a region or across all regions, by Build To Minima or
+Retirement Lower Limit requirements read from `rps_group.csv` and `policy/rps_requirement.csv`.
+See [Regional Portfolio Standards](electricity_rps.md) for the tables, the rules for overlapping
+requirements, and the `rps_feasibility` pre-solve report.
 
 ### Year Aggregation
 

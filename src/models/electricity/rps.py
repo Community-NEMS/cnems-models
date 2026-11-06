@@ -49,6 +49,26 @@ class RPSRequirement:
     first_year: int
 
 
+@dataclass(frozen=True)
+class RPSRequirementRow:
+    """One row of ``rps_requirement.csv`` as entered, for reporting.
+
+    Parameters
+    ----------
+    group_id : str
+    region : str
+        a region name or ``RPS_ALL_REGIONS`` (the region key).
+    requirement : RPSRequirement
+    in_run : bool
+        False for a region the region filter excludes; such a row is never in force.
+    """
+
+    group_id: str
+    region: str
+    requirement: RPSRequirement
+    in_run: bool
+
+
 def _raise_if(errors: list[str], table: str) -> None:
     """Log each problem and raise them together, if there are any."""
     if not errors:
@@ -243,6 +263,45 @@ def resolve_requirements(
     return res
 
 
+def requirement_rows(
+    raw: Mapping[tuple[str, str, str, int], float], region_analyze: Collection[str]
+) -> list[RPSRequirementRow]:
+    """Type the ``rps_requirement`` rows as entered, including those not in this run.
+
+    Call after ``resolve_requirements`` has checked ``raw``.
+
+    Parameters
+    ----------
+    raw : Mapping[tuple[str, str, str, int], float]
+        ``(group_id, region, requirement_type, first_year) -> min_share_frac``, as read.
+    region_analyze : Collection[str]
+        the regions in this run.
+
+    Returns
+    -------
+    list[RPSRequirementRow]
+        one per row, sorted by group, region, first year and type.
+    """
+    rows = [
+        RPSRequirementRow(
+            group_id,
+            region,
+            RPSRequirement(RPSRequirementType(type_name.upper()), share, first_year),
+            region == RPS_ALL_REGIONS or region in region_analyze,
+        )
+        for (group_id, region, type_name, first_year), share in raw.items()
+    ]
+    return sorted(
+        rows,
+        key=lambda r: (
+            r.group_id,
+            r.region,
+            r.requirement.first_year,
+            r.requirement.requirement_type.value,
+        ),
+    )
+
+
 def region_members(
     region_keys: Iterable[str], region_analyze: Iterable[str]
 ) -> dict[str, tuple[str, ...]]:
@@ -350,4 +409,11 @@ def rll_floors(
             )
             continue
         floors[group_id, rk, year] = requirement.min_share * total_mw
+        logger.debug(
+            'RPS RLL (group %s, region %s, year %d) floor:  %.1f MW',
+            group_id,
+            rk,
+            year,
+            floors[group_id, rk, year],
+        )
     return floors

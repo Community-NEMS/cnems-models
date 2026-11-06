@@ -22,12 +22,13 @@ run configuration TOMLs under `run_configs/`, and post-run inspection helpers in
 ## Run Modes
 
 - [Standalone Runs](run_modes/standalone.md): one model is built, solved, and reported through
-  its sequencer.
+  its sequencer. The RPS feasibility run is described there too.
 - [Integrated Runs](run_modes/integrated.md): models are solved together with Jacobi iteration
   and exchange results through update packages.
 
 ## Models
 
-- [Electricity](models/electricity.md) — capacity expansion and dispatch.
+- [Electricity](models/electricity.md) — capacity expansion and dispatch, with
+  [Regional Portfolio Standards](models/electricity_rps.md).
 - [Natural Gas](models/natural_gas.md) — C-NGMM, a multi-regional gas market model.
 - [Magic](models/magic.md) — a small model used for development testing.

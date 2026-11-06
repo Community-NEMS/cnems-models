@@ -14,9 +14,9 @@ pixi run jacobi      # runs run_configs/jacobi_small.toml, a reduced run
 ```
 
 The run config holds a `[common]` section plus one section per participating model
-(`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`). The `[common]`
-`models_to_run` list selects the models; `all` selects every model except the dev/test MAGIC
-model, which runs only when named explicitly.
+(`[elec_config]`, `[natural_gas]`, `[magic_hsm]`, and optionally `[magic_config]`). The
+`[common]` `models_to_run` list selects the models; `all` selects every model except the test
+models MAGIC and MAGIC_HSM, which run only when named (for example `['all', 'magic_hsm']`).
 
 ### Iterator Settings
 
@@ -84,8 +84,8 @@ under the crosswalk. With no region filters, that means full coverage.
 `jacobi_iterator.py` couples the models with **Jacobi-style** iteration. Every selected model
 solves in the same iteration, in parallel. The *circuit* is the selected models in a fixed order,
 which sets the order packages are routed and applied in, so results are deterministic. By default
-it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, natural gas);
-`JacobiIterator.run(..., circuit=...)` overrides it. Each model
+it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, magic HSM, natural
+gas); `JacobiIterator.run(..., circuit=...)` overrides it. Each model
 sees only the results the others sent at the end of the *previous* iteration. (In a Gauss-Seidel
 scheme, by contrast, the models would solve one after another, and each would see results from
 the models ahead of it in the same iteration.) Jacobi iteration lets the models run
@@ -100,6 +100,7 @@ flowchart TD
         E["Electricity<br/><code>full_run</code>"]
         N["Natural gas<br/><code>full_run</code>"]
         M["Magic<br/><code>full_run</code>"]
+        H["Magic HSM<br/><code>full_run</code>"]
     end
     P --> R["Collect <code>IterationResult</code>s<br/>status, objective, outbound packages"]
     R --> V["Record objectives<br/>print the monitor block"]
@@ -135,15 +136,16 @@ Things to know about the current loop:
   monitor to the console.
 - **No result files are written yet.** `full_run` doesn't call `full_postprocess`, so the scenario
   folder ends up holding only `MAIN.log` and the per-model logs (`electricity.log`,
-  `natural_gas.log`, plus `magic.log` when MAGIC runs). The objective plot is shown but not saved.
+  `natural_gas.log`, plus `magic.log` or `magic_hsm.log` when MAGIC or MAGIC_HSM runs). The
+  objective plot is shown but not saved.
 - **The run ends** when every model with an objective has changed by less than `epsilon`,
   relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
   `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative
   change makes the test independent of each model's objective scale. Models without an objective
-  (MAGIC) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`, `USABLE`)
-  holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate but lean on
-  a soft limit such as unmet demand. `main.py` then plots each model's objective by iteration; the
-  plot window blocks until it is closed.
+  (MAGIC, MAGIC_HSM) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`,
+  `USABLE`) holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate
+  but lean on a soft limit such as unmet demand. `main.py` then plots each model's objective by
+  iteration; the plot window blocks until it is closed.
 
 !!! warning "Region filters in integrated runs"
 
@@ -158,8 +160,8 @@ Things to know about the current loop:
 ## Gauss-Seidel Iteration (experimental)
 
 `GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
-`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
-with `[common]` mode `"integrated gs"`:
+`IterativeSequencer`. It runs electricity with natural gas, Magic HSM with natural gas, or all three
+(`GS_RUNS`), through `main.py` with `[common]` mode `"integrated gs"`:
 
 ```sh
 pixi shell
@@ -170,11 +172,11 @@ pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
 
 It differs from the Jacobi iterator in how the models are run, not in what they exchange:
 
-- Both models are built once and held. Each iteration applies the inbound packages to the
+- The models are built once and held. Each iteration applies the inbound packages to the
   built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
-  its solver between solves.
-- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
-  the same iteration.
+  its solver between solves. Magic HSM has no solver; an update sets its held hub price.
+- The models solve in turn, Magic HSM, then electricity, then gas (`GS_ORDER`), so gas sees that
+  iteration's capacity and burn.
 - Region coverage is checked by the writers and readers, as for Jacobi (see *Exchanges and
   Region Crosswalks*). A run whose regions are not closed under the crosswalk fails on the first
   exchange.
@@ -186,12 +188,39 @@ logging, the monitor display and the final status) is in `../../src/integrator/b
 both iterators call. The number in brackets on each monitor arrow is how many
 entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
 iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
-burn and the mean gas price by year. The settings are in
-`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
-`monitor_delta_mode`, and `exchanges`.
+burn and the mean gas price by year, and with Magic HSM its national capacity and the hub price by
+year. The settings are in `src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as
+Jacobi's, `monitor_delta_mode`, and `exchanges`.
 
 `python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
 same settings, and writes a side-by-side table to the output folder.
+
+## Magic HSM and Natural Gas
+
+[Magic HSM](../models/magic_hsm.md), a test model, couples to C-NGMM with one package each way:
+
+- Magic HSM sends gas production capacity by gas region and summary year
+  (`HSMSupplyCapacityPackage`). C-NGMM sets its supply anchor Q0 to it, keeps its price anchor
+  P0, and rebuilds its supply curve.
+- C-NGMM sends the price of West South Central, the region that holds Henry Hub, by summary year
+  (`NGHubPricePackage`). Magic HSM's capacity follows it.
+
+Both iterators run the pair, with or without electricity:
+
+```sh
+pixi shell
+python main.py run_configs/gs_magic_hsm_ng.toml        # Magic HSM and gas, Gauss-Seidel
+python main.py run_configs/jacobi_magic_hsm_ng.toml    # Magic HSM and gas, Jacobi
+python main.py run_configs/gs_magic_hsm_elec_ng.toml   # gs_compare.toml plus Magic HSM
+```
+
+Magic HSM has no objective, so a run of the pair stops on C-NGMM's. Before any build,
+`check_model_configs` refuses a run of the pair with:
+
+- a `[natural_gas] region_filter`: Magic HSM sends every domestic gas region;
+- a `[magic_hsm] ng_input_path` other than `[natural_gas] input_path`;
+- a `[magic_hsm] reference_dollar_year` other than `PRICE_DOLLAR_YEAR` in
+  `src/models/natural_gas/constants.py`.
 
 ## Inter-model Communication
 
@@ -234,6 +263,8 @@ The packages exchanged today:
 |:-----------------|:----------------------------|:------------------|:-----------------------------------------------------------------------------------|
 | NG Demand        | `NGElectricalDemandPackage` | Electricity → NG  | Replaces `electric_power` sector gas demand; that sector's growth projection is switched off |
 | NG Prices        | `NGPricePackage`            | NG → Electricity  | Scales the supply price of gas-linked techs with the regional gas price             |
+| HSM Capacity     | `HSMSupplyCapacityPackage`  | Magic HSM → NG    | Sets Q0 by gas region and year; the supply curve is rebuilt                         |
+| Hub Price        | `NGHubPricePackage`         | NG → Magic HSM    | Sets the hub price that Magic HSM's capacity follows                                |
 | Elec Price Scaler | `ElectricityPriceScaler`   | Magic → Electricity | Mock: scales supply prices of named techs                                        |
 | NG Demand Scaler | `NGDemandScaler`            | Magic → NG        | Mock: scales all gas demand                                                        |
 

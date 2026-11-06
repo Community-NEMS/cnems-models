@@ -14,30 +14,7 @@ import pyomo.environ as pyo
 import pytest
 
 from src.common.integrated_model_sequencer import IterationStatus
-from tests.electric.mini_model import MiniModelData
-
-
-def add_solar_expansion(data: MiniModelData) -> MiniModelData:
-    """Make Solar existing in R1 only, but buildable in both regions, and short R2 by day.
-
-    Solar runs at CF 0.5 in the day hours (2, 4) and 0 at night.  R2's day load rises to 150 MW
-    against 100 MW of Gas, so the 50 MW gap needs exactly 100 MW of new Solar in R2 in 2030.
-    """
-    data.set_buildable('Solar', 1)
-    data.add_capacity('Solar', 50.0, regions=['R1'])
-    data.add_operating_costs('Solar', generation_cost=0.0, fom_cost=5.0)
-    data.add_rows(
-        'capacity_factor_hourly',
-        {
-            (r, 'Solar', 1, hr): 0.5 if hr % 2 == 0 else 0.0
-            for r, hr in data.every('region', 'hour')
-        },
-    )
-    data.add_rows(
-        'capital_cost', {(r, 'Solar', 1, y): 1000.0 for r, y in data.every('region', 'year')}
-    )
-    data.set_load('R2', {1: 50.0, 2: 150.0, 3: 50.0, 4: 150.0})
-    return data
+from tests.electric.mini_model import add_solar_expansion
 
 
 @pytest.mark.parametrize('capacity_expansion', [False, True], ids=['dispatch', 'expansion'])

@@ -26,7 +26,7 @@ from src.models.electricity.data_validation import (
     validate_seasonal_coverage,
 )
 from src.models.electricity.model_sets import CapacityOrigin
-from tests.electric.test_mini_model import add_solar_expansion
+from tests.electric.mini_model import add_solar_expansion
 
 VALIDATION_LOGGER = 'src.models.electricity.data_validation'
 

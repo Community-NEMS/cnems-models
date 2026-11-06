@@ -379,6 +379,70 @@ class MiniModelData:
         return self
 
 
+# ---------------------------------------------------------- augmentations shared across tests
+
+GAS_CT_HEAT_RATE = 10.0
+"""``heat_rate`` (MMBtu/MWh) given to GasCT by ``add_gas_ct``"""
+
+
+def add_solar_expansion(data: MiniModelData) -> MiniModelData:
+    """Make Solar existing in R1 only, but buildable in both regions, and short R2 by day.
+
+    Solar runs at CF 0.5 in the day hours (2, 4) and 0 at night.  R2's day load rises to 150 MW
+    against 100 MW of Gas, so the 50 MW gap needs exactly 100 MW of new Solar in R2 in 2030.
+    """
+    data.set_buildable('Solar', 1)
+    data.add_capacity('Solar', 50.0, regions=['R1'])
+    data.add_operating_costs('Solar', generation_cost=0.0, fom_cost=5.0)
+    data.add_rows(
+        'capacity_factor_hourly',
+        {
+            (r, 'Solar', 1, hr): 0.5 if hr % 2 == 0 else 0.0
+            for r, hr in data.every('region', 'hour')
+        },
+    )
+    data.add_rows(
+        'capital_cost', {(r, 'Solar', 1, y): 1000.0 for r, y in data.every('region', 'year')}
+    )
+    data.set_load('R2', {1: 50.0, 2: 150.0, 3: 50.0, 4: 150.0})
+    return data
+
+
+def add_solar_learning(data: MiniModelData) -> MiniModelData:
+    """Make Solar buildable as in ``add_solar_expansion``, with learning data in both regions."""
+    add_solar_expansion(data)
+    data.add_rows(
+        'capital_cost_initial', {(r, 'Solar', 1): 1000.0 for (r,) in data.every('region')}
+    )
+    data.add_rows('learning_rate', {('Solar',): 0.1})
+    data.add_rows('supply_curve_learning', {('Solar',): 100.0})
+    return data
+
+
+def add_gas_ct(data: MiniModelData) -> MiniModelData:
+    """Add GasCT:  a gas-fired tech, 100 MW everywhere, cheaper to run than Gas.
+
+    GasCT generates at $20/MWh (Gas is $30) with $10/MW-yr FOM, so it serves the base 80 MW load
+    on its own.  Its heat rate is ``GAS_CT_HEAT_RATE``.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the mini data, edited in place.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    data.add_tech(
+        'GasCT', flags=['is_conventional', 'is_dispatchable', 'is_generator', 'is_gas_fired']
+    )
+    data.add_capacity('GasCT', 100.0)
+    data.add_operating_costs('GasCT', generation_cost=20.0, fom_cost=10.0)
+    return data.add_rows('heat_rate', {('GasCT',): GAS_CT_HEAT_RATE})
+
+
 def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     """Point the electricity loaders at ``data`` instead of the filesystem.
 
@@ -410,7 +474,11 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
 
 
 def mini_configs(
-    root: Path, years: list[int], **elec_switches: Any
+    root: Path,
+    years: list[int],
+    *,
+    aggregate_start_year: int | None = None,
+    **elec_switches: Any,
 ) -> tuple[CommonConfig, ElecConfig]:
     """Build a (CommonConfig, ElecConfig) pair for the mini model.
 
@@ -423,6 +491,9 @@ def mini_configs(
         empty scratch directory (e.g. pytest's ``tmp_path``).
     years : list[int]
         summary years.
+    aggregate_start_year : int, optional
+        turns on year aggregation from this year onto ``years``; off when omitted.  The data
+        must carry every year from here through the last summary year.
     **elec_switches
         ``ElecConfig`` overrides (e.g. ``capacity_expansion=True``).
 
@@ -440,8 +511,8 @@ def mini_configs(
         output_path=root / 'output',
         scenario_name='mini_model',
         temporal_resolution='mini',
-        aggregate_years=False,
-        aggregate_start_year=None,
+        aggregate_years=aggregate_start_year is not None,
+        aggregate_start_year=aggregate_start_year,
         summary_years=years,
     )
     elec_config = ElecConfig(input_path=root / 'params', **(_DEFAULT_SWITCHES | elec_switches))

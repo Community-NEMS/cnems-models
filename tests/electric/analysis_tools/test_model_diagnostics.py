@@ -11,64 +11,69 @@ Tests for tests/model_diagnostics.py::breakdown_obj_terms
 import pytest
 
 from analysis_tools.model_diagnostics import breakdown_obj_terms
+from src.models.electricity.electricity_model import PowerModel
+from tests.electric.mini_model import add_gas_ct
 
-# variable names that should appear in the objective for the baseline test config
-# (capacity_expansion / regional_exchange / ramping / reserves all disabled, so
-# total_cost reduces to dispatch_cost + unmet_load_cost + fixed_om_cost)
-_EXPECTED_VAR_NAMES = {
-    'capacity_total',  # FOM, $/MW-yr, carries the largest coefficients
-    'generation_total',
-    'storage_inflow',
-    'storage_outflow',
-    'storage_level',
-    'unmet_load',
-}
+# (variable, coefficient, terms sharing it) for the mini model below, all weights 1, sorted by
+# descending coefficient as breakdown_obj_terms prints them
+_EXPECTED_ROWS = [
+    ('unmet_load', 5.0e4, 16),  # the unmet load penalty, 2 regions x 2 years x 4 hours
+    ('generation_total', 30.0, 16),  # Gas
+    ('generation_total', 20.0, 16),  # GasCT
+    ('capacity_total', 10.0, 8),  # FOM, Gas and GasCT
+    ('capacity_total', 2.0, 4),  # FOM, Battery
+    ('storage_inflow', 0.5, 32),  # half the Battery price, on inflow and outflow
+    ('storage_level', 1.0e-11, 16),  # the storage level cost
+]
 
 
-def test_breakdown_obj_terms(solved_model, capsys):
+@pytest.fixture
+def diagnostics_model(mini_data, build_mini) -> PowerModel:
+    """The mini model with GasCT and a Battery, so the objective has several coefficients."""
+    add_gas_ct(mini_data)
+    mini_data.add_tech('Battery', flags=['is_storage'])
+    mini_data.add_capacity('Battery', 20.0)
+    mini_data.add_operating_costs('Battery', generation_cost=1.0, fom_cost=2.0)
+    mini_data.add_rows('storage_efficiency', {('Battery',): 0.85})
+    mini_data.add_rows('storage_duration', {('Battery',): 4.0})
+    sequencer, model = build_mini()
+    sequencer.solve_model()
+    return model
+
+
+def test_breakdown_obj_terms(diagnostics_model, capsys):
     """breakdown_obj_terms prints a header row followed by (variable, index, coefficient) triplets.
 
     Triplets are sorted by descending coefficient magnitude, with duplicate coefficients collapsed
     into a single row plus an "... and x others" summary line.
     """
-    _, _, elec_model = solved_model
+    breakdown_obj_terms(diagnostics_model)
 
-    breakdown_obj_terms(elec_model)
-
-    captured = capsys.readouterr()
-    lines = captured.out.strip().splitlines()
+    lines = capsys.readouterr().out.strip().splitlines()
 
     header = lines[0]
     assert 'Variable' in header
     assert 'Index' in header
     assert 'Coefficient' in header
 
-    data_lines = [line for line in lines[1:] if not line.startswith('  ...')]
-    summary_lines = [line for line in lines[1:] if line.startswith('  ...')]
+    rows = []
+    for line in lines[1:]:
+        if line.startswith('  ...'):
+            # "  ... and n others with same coefficient" adds n terms to the row above
+            name, coefficient, count = rows[-1]
+            rows[-1] = (name, coefficient, count + int(line.split()[2]))
+        else:
+            rows.append((line.split()[0], float(line.split()[-1]), 1))
 
-    # at least a handful of term rows, and some collapsing of duplicate coefficients
-    assert len(data_lines) > 5
-    assert summary_lines
-
-    for line in summary_lines:
-        assert line.split()[-1] == 'coefficient'
-        assert int(line.split()[-5]) > 0
-
-    # inspect the first few data rows for plausible content and descending sort order
-    coefficients = [float(line.split()[-1]) for line in data_lines[:5]]
-    for line, coefficient in zip(data_lines[:5], coefficients, strict=True):
-        var_name = line.split()[0]
-        assert var_name in _EXPECTED_VAR_NAMES
-        assert coefficient >= 0
-
-    assert coefficients == sorted(coefficients, reverse=True)
+    assert rows == [
+        (name, pytest.approx(coefficient), count) for name, coefficient, count in _EXPECTED_ROWS
+    ]
 
 
 verbose = False
 
 
 @pytest.mark.skipif(not verbose, reason='only run verbosely')
-def test_obj_function_scaling(solved_model):
+def test_obj_function_scaling(diagnostics_model):
     """Print to screen the objective coefficients."""
-    _, _, elec_model = solved_model
-    breakdown_obj_terms(elec_model)
+    breakdown_obj_terms(diagnostics_model)

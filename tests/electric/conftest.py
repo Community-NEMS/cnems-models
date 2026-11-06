@@ -48,27 +48,6 @@ def learning_config_set() -> tuple[CommonConfig, ElecConfig]:
 
 
 @pytest.fixture
-def unsolved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """Build an un-solved PowerModel for testing."""
-    common_config, elec_config = config_set
-
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
-    return common_config, elec_config, elec_model
-
-
-@pytest.fixture
-def solved_model(config_set) -> tuple[CommonConfig, ElecConfig, PowerModel]:
-    """Build a solved PowerModel for testing."""
-    common_config, elec_config = config_set
-
-    sequencer = ElectricitySequencer()
-    elec_model = sequencer.build_model(common_config, elec_config)
-    sequencer.solve_model()
-    return common_config, elec_config, elec_model
-
-
-@pytest.fixture
 def mini_data() -> MiniModelData:
     """A fresh copy of the bare mini model data (see ``tests/electric/mini_model.py``).
 
@@ -84,13 +63,25 @@ def build_mini(
     """Factory building a PowerModel from the current state of ``mini_data``.
 
     The model goes through the real ``ElectricitySequencer.build_model`` (so ``validate_all``
-    runs, strict).  Keyword arguments are ``ElecConfig`` overrides, e.g.
-    ``build_mini(capacity_expansion=True)``; all switches default to off.
+    runs, strict).  ``summary_years`` (default ``mini_data.years``) and ``aggregate_start_year``
+    (default off) go to ``mini_configs`` to set up year aggregation, e.g.
+    ``build_mini(summary_years=[2031], aggregate_start_year=2030)``.  Other keyword arguments
+    are ``ElecConfig`` overrides, e.g. ``build_mini(capacity_expansion=True)``; all switches
+    default to off.
     """
     patch_loaders(monkeypatch, mini_data)
 
-    def _build(**elec_switches: Any) -> tuple[ElectricitySequencer, PowerModel]:
-        common_config, elec_config = mini_configs(tmp_path, mini_data.years, **elec_switches)
+    def _build(
+        summary_years: list[int] | None = None,
+        aggregate_start_year: int | None = None,
+        **elec_switches: Any,
+    ) -> tuple[ElectricitySequencer, PowerModel]:
+        common_config, elec_config = mini_configs(
+            tmp_path,
+            mini_data.years if summary_years is None else summary_years,
+            aggregate_start_year=aggregate_start_year,
+            **elec_switches,
+        )
         sequencer = ElectricitySequencer()
         model = sequencer.build_model(common_config, elec_config)
         return sequencer, model

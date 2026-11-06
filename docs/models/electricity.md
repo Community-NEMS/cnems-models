@@ -57,6 +57,10 @@ through the model configuration.
 | $\Theta_{traL^{int}}$  | trade_international_generation_ub.index_set() | Sparse set | International supply limit set: (international region, supply step, year, hour) |
 | $\Theta_{traLL}$       | tran_limit.keys()                             | Sparse set | Domestic interregional trade limit set                       |
 | $\Theta_{traLL^{int}}$ | trade_international_capacity_ub.index_set()   | Sparse set | International interregional trade line limit set             |
+| $G$                    | rps_group                                     | Set        | RPS technology groups (`rps_group.csv`)                      |
+| $K$                    | rps_region_key                                | Set        | RPS region keys: a region in $R$, or `all` for the sum over $R$ |
+| $\Theta_{btm}$         | rps_btm_index                                 | Sparse set | RPS Build To Minima requirements in force: (group, region key, year) with a share above 0 |
+| $\Theta_{rll}$         | rps_rll_index                                 | Sparse set | RPS Retirement Lower Limits in force and applied: (group, region key, year) |
 
 ### Supply Steps
 
@@ -96,6 +100,9 @@ remaining indices.
 | $\theta^{rms}_{r,y}$       | capacity_sources_seasonal_factor | Sparse subset | Hydro (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their seasonal factor, indexed by r,y |
 | $\theta^{rmc}_{r,y}$       | capacity_sources_constant_factor | Sparse subset | All other (technology, step) pairs in $\Theta_{SC}$, storage included, counted in the reserve margin at a factor of 1, indexed by r,y |
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
+| $T_g$                      | rps_group_techs           | Subset        | The member technologies of RPS group $g$, all in $T^{gen}$                          |
+| $\theta^{rpsg}_{g,k,y}$    | rps_group_sources         | Sparse subset | (region, technology, step) in $\Theta_{SC}$ with the region in key $k$ and the technology in $T_g$, indexed by g,k,y |
+| $\theta^{rpsgen}_{k,y}$    | rps_gen_sources           | Sparse subset | (region, technology, step) in $\Theta_{SC}$ with the region in key $k$ and the technology in $T^{gen}$, indexed by k,y |
 
 ### Parameters
 
@@ -142,6 +149,8 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $CAPC0_{r,t,s}$                   | capital_cost_initial     | $\mathbb{R}^+_0$ | Initial cost to build capacity, scaled by the learning multiplier in the learning modes      | USD/MW                     |
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from. Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | MW                         |
+| $RPSMIN_{g,k,y}$                  | rps_min_share            | $[0, 1]$         | Minimum share of generator capacity held by group $g$ under a Build To Minima requirement     | fraction                   |
+| $RPSFLR_{g,k,y}$                  | rps_rll_floor            | $\mathbb{R}^+_0$ | Retirement Lower Limit floor: the minimum share times the existing generator capacity, $\sum_{(r,t,s) \in \theta^{rpsgen}_{k,y}}{CAP^{exist}_{r,t,s,y}}$ | MW                         |
 
 ### Variables
 
@@ -704,6 +713,40 @@ $$
 
 Storage reserves use discharge headroom (17) but are not limited by the state of charge.
 
+#### Regional Portfolio Standards
+
+Regional Portfolio Standard (RPS) constraints keep a group of technologies at a minimum share of the generator
+capacity ($T^{gen}$) in a region, or in all the analyzed regions together (the region key `all`). They exist only when
+`rps_required` is true, which requires `capacity_expansion`. The share is of capacity, not generation, and is summed
+over every step. Each (group, region key, year) has at most one requirement in force, a Build To Minima (35) or a
+Retirement Lower Limit (36): of the requirements started by year $y$, the latest-starting Build To Minima if there is
+one, and otherwise the latest-starting Retirement Lower Limit. Requirements for different region keys are independent,
+so a region can be held both on its own and as part of `all`.
+
+A Build To Minima requirement holds the group's share at $RPSMIN$ or above, by building where needed:
+
+$$
+\begin{aligned}
+\sum_{(r,t,s) \in \theta^{rpsg}_{g,k,y}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \geq &RPSMIN_{g,k,y} \times \sum_{(r,t,s) \in \theta^{rpsgen}_{k,y}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \\
+&\forall {g,k,y} \in \Theta_{btm} \\
+&\quad \text{if RPS is on}
+\end{aligned} \tag{35}
+$$
+
+A Retirement Lower Limit never forces builds. It limits retirements, holding the group's capacity at the floor
+$RPSFLR$ set by the existing capacity, and it applies only where the group's existing share already meets the minimum.
+Because the floor is a constant, no retirement at all always satisfies it:
+
+$$
+\begin{aligned}
+\sum_{(r,t,s) \in \theta^{rpsg}_{g,k,y}}{\mathbf{CAP^{tot}}_{r,t,s,y}} \geq &RPSFLR_{g,k,y} \\
+&\forall {g,k,y} \in \Theta_{rll} \\
+&\quad \text{if RPS is on}
+\end{aligned} \tag{36}
+$$
+
+A requirement with a minimum of 0 writes no constraint, since it can never bind.
+
 ## Data Validation
 
 The raw input data is checked before the pyomo model is built. `ElectricitySequencer.build_model`
@@ -772,6 +815,13 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   entries in either table are allowed and ignored. See
   [Making a Technology Buildable](#making-a-technology-buildable) for the full set of inputs a
   buildable technology needs.
+
+- **RPS Build To Minima capacity** (`validate_rps_btm_sources`) — when `rps_required` is on,
+  every Build To Minima requirement with a share above 0 must have some existing or buildable
+  group capacity ($\theta^{rpsg}$ not empty) in its regions and year, or (35) could never be met.
+  A requirement without one is an error. Problems in the RPS tables themselves (unknown groups,
+  technologies or regions, shares outside [0, 1], duplicate rows) stop the build before
+  validation runs, all reported in one error.
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

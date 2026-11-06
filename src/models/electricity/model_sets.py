@@ -483,7 +483,8 @@ class ModelSets:
         """Build the RPS index sets from the requirements in force.
 
         Must follow :meth:`build_advanced_indexes`, as the summation sets are drawn from
-        ``capacity_index`` (so they are step-blind sums over valid tech-steps).
+        ``capacity_index`` (so they are step-blind sums over valid tech-steps).  A BTM with a zero
+        share gets no index entry (logged at INFO), as it can never bind; it still supersedes.
 
         Parameters
         ----------
@@ -496,9 +497,17 @@ class ModelSets:
         self.rps_region_members = region_members(
             {rk for _, rk, _ in requirements}, self.region_analyze
         )
-        self.rps_btm_index = sorted(
+        btm = sorted(
             k for k, r in requirements.items() if r.requirement_type is RPSRequirementType.BTM
         )
+        self.rps_btm_index = [k for k in btm if requirements[k].min_share > 0.0]
+        for group, rk, year in sorted(set(btm) - set(self.rps_btm_index)):
+            logger.info(
+                'RPS BTM (group %s, region %s, year %d) not applied:  the minimum is 0',
+                group,
+                rk,
+                year,
+            )
         self.rps_rll_index = sorted(rll_keys)
 
         region_of = {r: rk for rk, regions in self.rps_region_members.items() for r in regions}

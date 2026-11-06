@@ -10,10 +10,10 @@ Regional Portfolio Standard (RPS) feasibility report:  a pre-solve look, from th
 parameter data, at the RPS requirements and whether they can be met.
 
 After the groups come three tables.  *Requirements* lists every ``rps_requirement.csv`` row with
-the model years it is in force.  *Requirement issues* lists only the problems, by group, region
-key and years.  *Build To Minima member coverage* lists each BTM group member (region, tech) only
-for the required years it is not buildable in.  Each problem table is followed by a legend of its
-statuses, or replaced by a line saying there are none.
+the model years it is in force.  *Requirement issues* lists the problems, and the RLL retirement
+holds, by group, region key and years.  *Build To Minima member coverage* lists each BTM group
+member (region, tech) only for the required years it is not buildable in.  Each problem table is
+followed by a legend of its statuses, or replaced by a line saying there are none.
 """
 
 import logging
@@ -36,14 +36,15 @@ RPS_FEASIBILITY_FILE = 'rps_feasibility.txt'
 # requirement issues, by (group, region key, year)
 NO_GROUP_CAPACITY = 'no group capacity'
 NO_MEMBER_BUILDABLE = 'no member buildable'
-RLL_NOT_APPLIED = 'RLL not applied'
+RLL_HOLDS_RETIREMENTS = 'RLL holds retirements'
 ISSUE_LEGEND = {
     NO_GROUP_CAPACITY: 'BTM:  no member has existing, buildable or earlier-built capacity in the '
     'region key and year, so the requirement cannot be met.  Also a validation error.',
     NO_MEMBER_BUILDABLE: 'BTM:  the existing capacity falls short of the minimum, and no member '
     'is buildable in the year or earlier.  Only retiring other generators can meet it.',
-    RLL_NOT_APPLIED: 'RLL:  the existing share is below the minimum (or there are no existing '
-    'generators), so no floor is written.  An RLL never forces builds.',
+    RLL_HOLDS_RETIREMENTS: 'RLL:  the existing share is below the minimum (or there are no '
+    'existing generators), so no group member in the region key may retire that year.  Not a '
+    'fault:  an RLL never forces builds.',
 }
 
 # BTM member coverage, by (region, tech, year)
@@ -218,7 +219,7 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
     requirements = model_sets.rps_requirements
     members = model_sets.rps_region_members
     groups = model_sets.rps_group_techs
-    floors = param_data.param_dicts['rps_rll_floor']
+    holds = set(model_sets.rps_rll_hold_index)
     existing = existing_by_tech(param_data.existing_capacity(), set(model_sets.tech_gen))
     years = sorted(set(model_sets.year_map.values()))
     build = _Buildability(model_sets)
@@ -236,7 +237,7 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
         if req.min_share == 0.0:
             pass
         elif req.requirement_type is RPSRequirementType.RLL:
-            status = None if key in floors else RLL_NOT_APPLIED
+            status = RLL_HOLDS_RETIREMENTS if key in holds else None
         elif not model_sets.rps_group_sources[key]:
             status = NO_GROUP_CAPACITY
         elif existing_mw(rk, groups[group], year) < req.min_share * existing_mw(
@@ -330,7 +331,7 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
             + '\n\n'
             + _requirements_table(model_sets.rps_requirement_rows, requirements, years),
             'Requirement issues\n\n'
-            + _wrap('Problems only, by group, region key and model years.')
+            + _wrap('Problems, and RLL retirement holds, by group, region key and model years.')
             + '\n\n'
             + issues_text,
             'Build To Minima member coverage\n\n'

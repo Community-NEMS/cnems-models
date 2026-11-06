@@ -139,6 +139,8 @@ class ModelSets:
     """every rps_requirement.csv row as entered, in force or not (RPS only, for reporting)"""
     rps_rll_index: list[RPSKey]
     """(group, region key, year) with an RLL floor applied (RPS only)"""
+    rps_rll_hold_index: list[RPSKey]
+    """(group, region key, year) with an RLL retirement hold:  no group member retires (RPS only)"""
     season: list[Season]
     """The model's seasons, in natural (``Season.sort_order``) order"""
     seasonal_hydro_index: list[tuple]
@@ -208,6 +210,7 @@ class ModelSets:
         self.rps_region_members = {}
         self.rps_btm_index = []
         self.rps_rll_index = []
+        self.rps_rll_hold_index = []
         self.rps_group_sources = {}
         self.rps_gen_sources = {}
 
@@ -490,20 +493,27 @@ class ModelSets:
         self,
         requirements: Mapping[RPSKey, RPSRequirement],
         rll_keys: Iterable[RPSKey],
+        rll_holds: Iterable[RPSKey] = (),
         rows: Iterable[RPSRequirementRow] = (),
     ) -> None:
-        """Build the RPS index sets from the requirements in force.
+        """Build the RPS index sets from the requirements in force, and apply the RLL holds.
 
         Must follow :meth:`build_advanced_indexes`, as the summation sets are drawn from
         ``capacity_index`` (so they are step-blind sums over valid tech-steps).  A BTM with a zero
         share gets no index entry (logged at INFO), as it can never bind; it still supersedes.
+
+        An RLL hold removes from ``retirement_index`` every entry of a group member in the region
+        key's regions in that year (every step), so none can retire; the count removed is logged
+        at INFO.
 
         Parameters
         ----------
         requirements : Mapping[RPSKey, RPSRequirement]
             (group, region key, year) -> the requirement in force (``rps.resolve_requirements``).
         rll_keys : Iterable[RPSKey]
-            the RLL keys whose floor applies (``rps.rll_floors``); other RLL keys are dropped.
+            the RLL keys whose floor applies (``rps.rll_limits``).
+        rll_holds : Iterable[RPSKey], optional
+            the RLL keys that hold retirements instead (``rps.rll_limits``).
         rows : Iterable[RPSRequirementRow], optional
             the requirement rows as entered (``rps.requirement_rows``), kept for reporting.
         """
@@ -524,6 +534,22 @@ class ModelSets:
                 year,
             )
         self.rps_rll_index = sorted(rll_keys)
+        self.rps_rll_hold_index = sorted(rll_holds)
+        held = {
+            (r, t, year)
+            for group, rk, year in self.rps_rll_hold_index
+            for r in self.rps_region_members[rk]
+            for t in self.rps_group_techs[group]
+        }
+        if held:
+            kept = [idx for idx in self.retirement_index if (idx[0], idx[1], idx[3]) not in held]
+            logger.info(
+                'RPS RLL holds:  %d retirement index entries removed for %d (group, region, year) '
+                'holds',
+                len(self.retirement_index) - len(kept),
+                len(self.rps_rll_hold_index),
+            )
+            self.retirement_index = kept
 
         region_of = {r: rk for rk, regions in self.rps_region_members.items() for r in regions}
         by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
@@ -544,9 +570,10 @@ class ModelSets:
             members = self.rps_group_techs[group]
             self.rps_group_sources[key] = [rts for rts in gen if rts[1] in members]
         logger.info(
-            'RPS sets:  %d BTM and %d RLL (group, region, year) requirements',
+            'RPS sets:  %d BTM, %d RLL floor and %d RLL hold (group, region, year) requirements',
             len(self.rps_btm_index),
             len(self.rps_rll_index),
+            len(self.rps_rll_hold_index),
         )
 
     def capacity_origins(self) -> dict[CapacityOrigin, list[CI]]:

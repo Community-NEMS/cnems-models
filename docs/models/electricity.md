@@ -42,7 +42,7 @@ through the model configuration.
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
 | $\Theta_{hs}$          | seasonal_hydro_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
-| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
+| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set: the $\Theta_{SC}$ entries whose (tech, step) is retirable, less those held by an RPS Retirement Lower Limit ($\Theta_{rllh}$) |
 | $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set: the `capital_cost` keys whose (tech, step) is in tech_buildable, in region_analyze |
 | $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
 | $\Theta_{cc0}$         | capital_cost_initial.keys()              | Sparse Set | Set of initial year's capacity costs                         |
@@ -60,7 +60,8 @@ through the model configuration.
 | $G$                    | rps_group                                     | Set        | RPS technology groups (`rps_group.csv`)                      |
 | $K$                    | rps_region_key                                | Set        | RPS region keys: a region in $R$, or `all` for the sum over $R$ |
 | $\Theta_{btm}$         | rps_btm_index                                 | Sparse set | RPS Build To Minima requirements in force: (group, region key, year) with a share above 0 |
-| $\Theta_{rll}$         | rps_rll_index                                 | Sparse set | RPS Retirement Lower Limits in force and applied: (group, region key, year) |
+| $\Theta_{rll}$         | rps_rll_index                                 | Sparse set | RPS Retirement Lower Limits in force with a floor (existing share at or above the minimum): (group, region key, year) |
+| $\Theta_{rllh}$        | rps_rll_hold_index                            | Sparse set | RPS Retirement Lower Limits in force that hold retirements (existing share below the minimum): (group, region key, year). Not a pyomo set: it removes entries from $\Theta_{ret}$ |
 
 ### Supply Steps
 
@@ -150,7 +151,7 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from. Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | MW                         |
 | $RPSMIN_{g,k,y}$                  | rps_min_share            | $[0, 1]$         | Minimum share of generator capacity held by group $g$ under a Build To Minima requirement     | fraction                   |
-| $RPSFLR_{g,k,y}$                  | rps_rll_floor            | $\mathbb{R}^+_0$ | Retirement Lower Limit floor: the minimum share times the existing generator capacity, $\sum_{(r,t,s) \in \theta^{rpsgen}_{k,y}}{CAP^{exist}_{r,t,s,y}}$ | MW                         |
+| $RPSFLR_{g,k,y}$                  | rps_rll_floor            | $\mathbb{R}^+_0$ | Retirement Lower Limit floor, over $\Theta_{rll}$: the minimum share times the existing generator capacity, $\sum_{(r,t,s) \in \theta^{rpsgen}_{k,y}}{CAP^{exist}_{r,t,s,y}}$ | MW                         |
 
 ### Variables
 
@@ -733,9 +734,9 @@ $$
 \end{aligned} \tag{35}
 $$
 
-A Retirement Lower Limit never forces builds. It limits retirements, holding the group's capacity at the floor
-$RPSFLR$ set by the existing capacity, and it applies only where the group's existing share already meets the minimum.
-Because the floor is a constant, no retirement at all always satisfies it:
+A Retirement Lower Limit never forces builds; it limits retirements. Each year it is in force, the group's existing
+share decides how. Where the existing share meets the minimum, the group's capacity is held at or above the floor
+$RPSFLR$ set by the existing capacity. Because the floor is a constant, no retirement at all always satisfies it:
 
 $$
 \begin{aligned}
@@ -745,7 +746,12 @@ $$
 \end{aligned} \tag{36}
 $$
 
-A requirement with a minimum of 0 writes no constraint, since it can never bind. The input tables, the
+Where the existing share is below the minimum (or the region key has no existing generators), the requirement is a
+*retirement hold* ($\Theta_{rllh}$) instead: no group member in the region key may retire that year. The hold writes no
+constraint. It removes those members' entries for that year, every step, from $\Theta_{ret}$, so they have no
+retirement variable. The two cases meet at the threshold, where the floor equals the group's existing capacity.
+
+A requirement with a minimum of 0 writes no constraint and no hold, since it can never bind. The input tables, the
 supersession rules with a worked example, and the feasibility report are in
 [Regional Portfolio Standards](electricity_rps.md).
 

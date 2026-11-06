@@ -172,12 +172,20 @@ def test_superseded_rll_logged(caplog: pytest.LogCaptureFixture, rows: dict, mes
     assert message in caplog.text
 
 
-def test_region_keys_are_independent() -> None:
-    """A region and ``all`` are separate requirements for the same group."""
-    raw = {('clean', 'R1', 'BTM', 2032): 0.2, ('clean', 'all', 'BTM', 2032): 0.1}
+@pytest.mark.parametrize('region_type', ['RLL', 'BTM'])
+def test_region_keys_are_independent(region_type: str) -> None:
+    """A later BTM over ``all`` does not supersede an earlier requirement on one region.
+
+    A region and ``all`` are separate requirements for the same group:  both stay in force.
+    """
+    raw = {('clean', 'R1', region_type, 2030): 0.2, ('clean', 'all', 'BTM', 2031): 0.1}
+    region_req = RPSRequirement(RPSRequirementType(region_type), 0.2, 2030)
     assert _resolve(raw) == {
-        ('clean', 'R1', 2032): RPSRequirement(BTM, 0.2, 2032),
-        ('clean', 'all', 2032): RPSRequirement(BTM, 0.1, 2032),
+        ('clean', 'R1', 2030): region_req,
+        ('clean', 'R1', 2031): region_req,
+        ('clean', 'R1', 2032): region_req,
+        ('clean', 'all', 2031): RPSRequirement(BTM, 0.1, 2031),
+        ('clean', 'all', 2032): RPSRequirement(BTM, 0.1, 2031),
     }
 
 
@@ -255,7 +263,7 @@ EXISTING = {
         ('R1', 0.5, None),  # 50/150 is below 0.5:  not applied
         ('all', 0.1, 30.0),  # 50/300 meets 0.1:  floor 0.1 * 300
         ('all', 0.2, None),  # 50/300 is below 0.2
-        ('R2', 0.0, 0.0),  # a zero share is met by no group capacity
+        ('R2', 0.0, None),  # a zero share can never bind:  not applied
     ],
 )
 def test_rll_floors(region: str, share: float, floor: float | None) -> None:

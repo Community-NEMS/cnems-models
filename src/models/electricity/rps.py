@@ -276,7 +276,8 @@ def rll_floors(
     The floor is ``min_share`` times the existing generator capacity of the requirement's
     regions and year.  It is kept only where the group's existing share already meets
     ``min_share``; otherwise (or with no existing generator capacity) the requirement is dropped
-    and logged at INFO, since RLL never forces builds.
+    and logged at INFO, since RLL never forces builds.  A zero ``min_share`` is dropped too
+    (logged at INFO):  its floor of 0 can never bind.
 
     Parameters
     ----------
@@ -306,6 +307,14 @@ def rll_floors(
     members = region_members({rk for _, rk, _ in rll}, region_analyze)
     floors: dict[RPSKey, float] = {}
     for (group_id, rk, year), requirement in sorted(rll.items()):
+        if requirement.min_share == 0.0:
+            logger.info(
+                'RPS RLL (group %s, region %s, year %d) not applied:  the minimum is 0',
+                group_id,
+                rk,
+                year,
+            )
+            continue
         group_mw = sum(
             by_tech.get((r, t, year), 0.0) for r in members[rk] for t in groups[group_id]
         )

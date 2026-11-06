@@ -30,13 +30,18 @@ from src.integrator.bookeeping_utilities import (
     log_progress,
     show_iteration,
 )
-from src.integrator.config_sections import CONFIG_SECTIONS, OPTIONAL_SECTIONS
+from src.integrator.config_sections import (
+    CONFIG_SECTIONS,
+    OPTIONAL_SECTIONS,
+    check_model_configs,
+)
 from src.integrator.convergence import ConvergenceTracker
 from src.integrator.iteration_monitor import IterationMonitor
 from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
+from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -132,6 +137,15 @@ def driver(iter_call: IterationCall) -> IterationResult:
                     return MagicSequencer(iter_call.exchange).full_run(
                         iter_call.common_config, iter_call.model_config, **iter_call.kwargs
                     )
+                case ModelType.MAGIC_HSM:
+                    if not isinstance(iter_call.model_config, MagicHSMConfig):
+                        raise TypeError(
+                            f'ModelType.MAGIC_HSM needs a MagicHSMConfig, '
+                            f'got {type(iter_call.model_config).__name__}'
+                        )
+                    return MagicHSMSequencer(iter_call.exchange).full_run(
+                        iter_call.common_config, iter_call.model_config, **iter_call.kwargs
+                    )
                 case _:
                     raise NotImplementedError()
         except Exception:
@@ -189,7 +203,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
         ------
         ValueError
             If a selected model has no config section (other than MAGIC's optional one) or no
-            Jacobi support.
+            Jacobi support, or the configs cannot run together (``check_model_configs``).
         """
         configs: dict[ModelType, ModelConfig] = {}
         for model in resolve_models_to_run(common_config.models_to_run):
@@ -201,7 +215,7 @@ class JacobiIterator(IterativeSequencer[JacobiConfig]):
                     f'{model.value!r} is in models_to_run but the config has no [{section}] section'
                 )
             configs[model] = config_cls(**remainder.get(section, {}))
-
+        check_model_configs(configs)
         return configs
 
     def run(

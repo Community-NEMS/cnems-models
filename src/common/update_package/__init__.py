@@ -16,31 +16,43 @@ from src.common.update_package.exchange import ExchangeSpec
 from src.common.update_package.reader import UpdatePackageReader, check_region_year_keys
 from src.common.update_package.routing import route_updates
 from src.common.update_package.update_package import (
+    HSM_CAPACITY_INDEX,
+    HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
+    NG_HUB_PRICE_INDEX,
+    NG_HUB_PRICE_VALUE,
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
     PACKAGE_TYPES,
     REGION_YEAR_INDEX,
     ElectricityPriceScaler,
+    HSMSupplyCapacityPackage,
     NGDemandScaler,
     NGElectricalDemandPackage,
+    NGHubPricePackage,
     NGPricePackage,
     UpdatePackage,
 )
 from src.common.update_package.writer import UpdatePackageWriter
 
 __all__ = [
+    'HSM_CAPACITY_INDEX',
+    'HSM_CAPACITY_VALUE',
     'NG_ELEC_DEMAND_INDEX',
     'NG_ELEC_DEMAND_VALUE',
+    'NG_HUB_PRICE_INDEX',
+    'NG_HUB_PRICE_VALUE',
     'NG_PRICE_INDEX',
     'NG_PRICE_VALUE',
     'PACKAGE_TYPES',
     'REGION_YEAR_INDEX',
     'ElectricityPriceScaler',
     'ExchangeSpec',
+    'HSMSupplyCapacityPackage',
     'NGDemandScaler',
     'NGElectricalDemandPackage',
+    'NGHubPricePackage',
     'NGPricePackage',
     'UpdatePackage',
     'UpdatePackageReader',

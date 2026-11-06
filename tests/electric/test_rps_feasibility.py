@@ -12,6 +12,7 @@ Tests of the RPS feasibility report (``rps_feasibility.py``) on the mini model, 
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,9 +21,13 @@ from src.common.models_modes import ModelType
 from src.models.electricity.rps_feasibility import (
     EXISTING_ONLY,
     NO_GROUP_CAPACITY,
+    NO_MEMBER_BUILDABLE,
+    PRIOR_BUILDS_ONLY,
+    RLL_NOT_APPLIED,
     RPS_FEASIBILITY_FILE,
+    UNAVAILABLE,
     FeasibilityReport,
-    _btm_status,
+    _ranges,
     rps_feasibility_report,
 )
 from src.models.electricity.sequencer import ElectricitySequencer
@@ -37,11 +42,11 @@ RPS_ON = {'capacity_expansion': True, 'rps_required': True}
 
 
 def _report(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, data: MiniModelData
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, data: MiniModelData, **switches: Any
 ) -> FeasibilityReport:
     """Load the mini data (validation non-strict, as the run mode does) and report on it."""
     patch_loaders(monkeypatch, data)
-    common_config, elec_config = mini_configs(tmp_path, data.years, **RPS_ON)
+    common_config, elec_config = mini_configs(tmp_path, data.years, **(RPS_ON | switches))
     model_sets, param_data = ElectricitySequencer().load_data(
         common_config, elec_config, strict=False
     )
@@ -65,9 +70,10 @@ def _row(text: str, *leading: str) -> list[str]:
 def rps_data(mini_data: MiniModelData) -> MiniModelData:
     """``add_solar_expansion`` plus an unbuildable Wind with no capacity; ``clean`` is the VRE.
 
-    Existing generator MW:  R1 100 Gas + 50 Solar; R2 100 Gas.  Requirements:  RLL 0.25 in R1
-    from 2030, superseded in 2031 by a zero BTM; BTM 0.3 in R2 from 2031; RLL 0.5 over ``all``
-    from 2030 (existing share 50 / 250, not applied).
+    Existing generator MW:  R1 100 Gas + 50 Solar; R2 100 Gas.  Solar is buildable in both
+    regions and years (2030, 2031).  Requirements:  RLL 0.25 in R1 from 2030, superseded in 2031
+    by a zero BTM; BTM 0.3 in R2 from 2031; RLL 0.5 over ``all`` from 2030 (existing share
+    50 / 250, not applied).
     """
     add_solar_expansion(mini_data)
     mini_data.add_tech('Wind', flags=['is_renewable', 'is_vre', 'is_wind', 'is_generator'])
@@ -79,129 +85,151 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
     return mini_data
 
 
-def test_requirement_statuses(
+@pytest.mark.parametrize(
+    ('years', 'expected'),
+    [
+        ([], '-'),
+        ([2030], '2030'),
+        ([2025, 2030, 2035, 2045], '2025–2035, 2045'),
+        ([2035, 2025], '2025, 2035'),
+    ],
+    ids=['none', 'single', 'runs', 'gap'],
+)
+def test_ranges(years: list[int], expected: str) -> None:
+    """Years are written as runs of consecutive model years."""
+    assert _ranges(years, [2025, 2030, 2035, 2040, 2045, 2050]) == expected
+
+
+def test_requirements_table(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """Each requirement in force is listed with its existing share and status."""
+    """Every row is listed with its years in force and why it is not in force."""
+    rps_data.add_rps_requirement('clean', 'R2', 'RLL', 2031, 0.1)  # the R2 BTM wins
+    rps_data.add_rps_requirement('clean', 'R2', 'BTM', 2040, 0.5)
     report = _report(monkeypatch, tmp_path, rps_data)
 
-    assert report.requirements == 5  # R1 x 2 years, R2 2031, all x 2 years
-    assert _row(report.text, 'clean', 'R1', '2030')[3:] == [
-        'RLL',
-        '2030',
-        '0.250',
-        '0.333',
-        'floor 37.5 MW',
+    # min share, in force, note
+    expected = {
+        ('R1', 'RLL', '2030'): ['0.250', '2030', 'superseded from 2031 by BTM from 2031'],
+        ('R1', 'BTM', '2031'): ['0.000', '2031', 'minimum 0:  no constraint'],
+        ('R2', 'BTM', '2031'): ['0.300', '2031', ''],
+        ('R2', 'RLL', '2031'): ['0.100', '-', 'never in force:  BTM from 2031 in force'],
+        ('R2', 'BTM', '2040'): ['0.500', '-', 'starts after the last model year'],
+        ('all', 'RLL', '2030'): ['0.500', '2030–2031', ''],
+    }
+    for leading, cells in expected.items():
+        assert _row(report.text, 'clean', *leading)[4:] == cells
+    assert report.requirement_rows == 6
+    assert report.in_force == 5  # R1 x 2 years, R2 2031, all x 2 years
+
+
+def test_filtered_region_row(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
+) -> None:
+    """A row for a region filtered out of the run is listed, never in force."""
+    report = _report(monkeypatch, tmp_path, rps_data, region_filter=['R1'])
+
+    assert _row(report.text, 'clean', 'R2', 'BTM', '2031')[5:] == ['-', 'region not in this run']
+
+
+def test_issues_and_coverage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
+) -> None:
+    """Only problems are listed:  the unapplied RLL and the unbuildable Wind in R2."""
+    report = _report(monkeypatch, tmp_path, rps_data)
+
+    # issues:  group, region key, type, years, status
+    assert _row(report.text, 'clean', 'all', 'RLL', '2030–2031')[-1] == RLL_NOT_APPLIED
+    # coverage:  region, tech, not buildable in, status, required by
+    assert _row(report.text, 'R2', 'Wind') == ['R2', 'Wind', '2031', UNAVAILABLE, 'clean@R2']
+    # R2 Solar is buildable in every required year:  not listed
+    assert not [
+        line for line in report.text.splitlines() if line.startswith('| R2 ') and 'Solar' in line
     ]
-    assert _row(report.text, 'clean', 'R1', '2031')[-1] == 'no constraint (minimum is 0)'
-    # R2 holds no group capacity yet:  0.3 / 0.7 x 100 MW Gas = 42.9 MW short
-    r2 = _row(report.text, 'clean', 'R2', '2031')
-    assert r2[6] == '0.000'
-    assert r2[7].startswith('needs builds (>= 42.9 MW more')
-    for year in ('2030', '2031'):
-        assert _row(report.text, 'clean', 'all', year)[6:] == [
-            '0.200',
-            'not applied (existing share below minimum)',
-        ]
-    assert report.needs_builds == 1
-    assert report.needs_retirements == 0
-    assert report.no_group_capacity == 0
+    assert report.issues == {NO_GROUP_CAPACITY: 0, NO_MEMBER_BUILDABLE: 0, RLL_NOT_APPLIED: 2}
+    assert report.coverage == {PRIOR_BUILDS_ONLY: 0, EXISTING_ONLY: 0, UNAVAILABLE: 1}
+    # both problem tables carry a legend
+    assert len([line for line in report.text.splitlines() if line.startswith('| status ')]) == 2
 
 
-def test_btm_coverage_flags_unavailable_member(
+def test_no_member_buildable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """Only the applied BTM (R2) is covered:  Solar is buildable there, Wind is unavailable."""
-    report = _report(monkeypatch, tmp_path, rps_data)
+    """A short BTM whose only member is existing, not buildable, is an issue.
 
-    # existing MW, buildable in, existing only in, unavailable in, flag
-    assert _row(report.text, 'clean', 'R2', 'R2', 'Solar')[4:] == ['0.0', 'all', '-', '-', '']
-    assert _row(report.text, 'clean', 'R2', 'R2', 'Wind')[4:] == [
-        '0.0',
-        '-',
-        '-',
-        'all',
-        'WARNING',
-    ]
-    assert report.unavailable_members == 1
-    assert report.existing_only_members == 0
-    # the zero BTM in R1 writes no constraint, so R1 has no coverage rows
-    assert not any(' R1 ' in line and ' Solar ' in line for line in report.text.splitlines())
-
-
-def test_btm_without_group_capacity(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
-) -> None:
-    """A BTM no group member can meet fails validation, but is still reported (non-strict)."""
-    rps_data.add_rps_group('wind', techs=['Wind'])
-    rps_data.add_rps_requirement('wind', 'R1', 'BTM', 2030, 0.1)
-    report = _report(monkeypatch, tmp_path, rps_data)
-
-    for year in ('2030', '2031'):
-        assert _row(report.text, 'wind', 'R1', year)[-1] == NO_GROUP_CAPACITY
-    assert report.no_group_capacity == 2
-
-
-def test_btm_with_existing_only_group(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
-) -> None:
-    """A short BTM whose only member is existing, not buildable, needs other generators retired.
-
-    R1 holds 50 MW Solar against 100 MW Gas (share 0.333).  With R1 Solar unbuildable, a 0.5 share
-    needs the Gas cut to 50 MW:  50 MW retired.
+    R1 holds 50 MW Solar against 100 MW Gas (share 0.333), short of 0.5, and R1 Solar is made
+    unbuildable.
     """
     rps_data.drop_rows('capital_cost', [('R1', 'Solar', 1, y) for y in rps_data.years])
     rps_data.add_rps_group('solar', techs=['Solar'])
     rps_data.add_rps_requirement('solar', 'R1', 'BTM', 2030, 0.5)
     report = _report(monkeypatch, tmp_path, rps_data)
 
-    for year in ('2030', '2031'):
-        assert _row(report.text, 'solar', 'R1', year)[6:] == [
-            '0.333',
-            'no group member buildable:  needs >= 50.0 MW of other generators retired',
-        ]
-    assert report.needs_retirements == 2
-    assert report.needs_builds == 1  # the R2 BTM, unchanged
-    # existing MW, buildable in, existing only in, unavailable in, flag
-    assert _row(report.text, 'solar', 'R1', 'R1', 'Solar')[4:] == [
-        '50.0',
-        '-',
-        'all',
-        '-',
+    assert _row(report.text, 'solar', 'R1', 'BTM', '2030–2031')[-1] == NO_MEMBER_BUILDABLE
+    assert _row(report.text, 'R1', 'Solar') == [
+        'R1',
+        'Solar',
+        '2030–2031',
         EXISTING_ONLY,
+        'solar@R1',
     ]
-    assert report.existing_only_members == 1
+    assert report.issues[NO_MEMBER_BUILDABLE] == 2
 
 
-@pytest.mark.parametrize(
-    ('share', 'group_mw', 'total_mw', 'buildable', 'expected'),
-    [
-        (0.3, 50.0, 100.0, False, ('met by existing', None)),
-        (0.5, 50.0, 150.0, True, ('needs builds (>= 50.0 MW more, others at existing)', 'builds')),
-        (
-            0.5,
-            50.0,
-            150.0,
-            False,
-            (
-                'no group member buildable:  needs >= 50.0 MW of other generators retired',
-                'retirements',
-            ),
-        ),
-        (0.5, 0.0, 100.0, False, ('needs all other generators retired', 'retirements')),
-        (1.0, 50.0, 150.0, True, ('needs all other generators retired', 'retirements')),
-    ],
-    ids=['met', 'builds', 'retirements', 'empty_group', 'full_share'],
-)
-def test_btm_status(
-    share: float,
-    group_mw: float,
-    total_mw: float,
-    buildable: bool,
-    expected: tuple[str, str | None],
+def test_prior_builds_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """The BTM status and shortfall kind against the existing capacity."""
-    assert _btm_status(share, group_mw, total_mw, buildable) == expected
+    """A member buildable only before a required year can meet it by building earlier."""
+    rps_data.drop_rows('capital_cost', [('R2', 'Solar', 1, 2031)])
+    report = _report(monkeypatch, tmp_path, rps_data)
+
+    assert _row(report.text, 'R2', 'Solar') == [
+        'R2',
+        'Solar',
+        '2031',
+        PRIOR_BUILDS_ONLY,
+        'clean@R2',
+    ]
+    assert report.issues[NO_MEMBER_BUILDABLE] == 0  # an earlier build counts
+
+
+def test_no_group_capacity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
+) -> None:
+    """A BTM no member can meet fails validation, but is still reported (non-strict)."""
+    rps_data.add_rps_group('wind', techs=['Wind'])
+    rps_data.add_rps_requirement('wind', 'R1', 'BTM', 2030, 0.1)
+    report = _report(monkeypatch, tmp_path, rps_data)
+
+    assert _row(report.text, 'wind', 'R1', 'BTM', '2030–2031')[-1] == NO_GROUP_CAPACITY
+    assert _row(report.text, 'R1', 'Wind')[2:] == ['2030–2031', UNAVAILABLE, 'wind@R1']
+    assert report.issues[NO_GROUP_CAPACITY] == 2
+
+
+def test_zero_existing_member_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
+) -> None:
+    """A 0 MW existing row, with nothing buildable, holds no capacity:  unavailable."""
+    rps_data.add_capacity('Wind', 0.0, regions=['R2'])
+    rps_data.add_operating_costs('Wind', generation_cost=0.0, fom_cost=5.0)
+    report = _report(monkeypatch, tmp_path, rps_data)
+
+    assert _row(report.text, 'R2', 'Wind')[3] == UNAVAILABLE
+
+
+def test_clean_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
+) -> None:
+    """With nothing to flag, each problem table is replaced by a line saying so."""
+    add_solar_expansion(mini_data)
+    mini_data.add_rps_group('solar', techs=['Solar'])
+    mini_data.add_rps_requirement('solar', 'R2', 'BTM', 2030, 0.3)
+    report = _report(monkeypatch, tmp_path, mini_data)
+
+    assert 'No requirement issues found.' in report.text
+    assert 'Every BTM group member is buildable in every year it is required.' in report.text
+    assert not [line for line in report.text.splitlines() if line.startswith('| status ')]
+    assert sum(report.issues.values()) == sum(report.coverage.values()) == 0
 
 
 # ---------------------------------------------------------------- main dispatch
@@ -225,7 +253,7 @@ def test_run_mode_writes_report(
     assert path == common_config.output_folder / RPS_FEASIBILITY_FILE
     assert path.read_text().startswith('RPS feasibility report')
     assert 'ModelType.MAGIC has no RPS feasibility check' in caplog.text
-    assert '5 RPS requirement(s) in force' in caplog.text
+    assert '4 RPS requirement row(s), 5 (group, region, year) in force' in caplog.text
 
 
 @pytest.mark.parametrize(

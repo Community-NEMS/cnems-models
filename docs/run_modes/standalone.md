@@ -58,8 +58,22 @@ The natural gas model has the same shape and runs through the same `_run_standal
 built from the `[natural_gas]` section. `NGSequencer` runs `load_all` → `NGUpdateReader` →
 `NGModel` for the build, then a QP solve, then `report` for postprocessing.
 
+For the electricity model, the load steps of `build_model` (sets, parameters, update packages
+and validation) are a separate method, `ElectricitySequencer.load_data`, which returns the
+`ModelSets` and `ParamData`; `build_model` calls it and then builds the `PowerModel`.
+
 !!! note "What happens with update packages in a standalone run"
 
     `build_model` still hands the (empty) package list to the model's update reader. The reader
     does nothing in that case, so the model is built from its input files alone. The sequencer
     never calls `get_outbound_updates` in a standalone run.
+
+## RPS Feasibility Runs
+
+`mode = "rps_feasibility"` is a standalone run that stops before the build. It sets up the
+scenario folder and run log as a standalone run does, then runs `ElectricitySequencer.load_data`
+with validation non-strict, writes `rps_feasibility.txt` to the scenario folder, and exits. No
+model is built or solved. It needs `electricity` in `models_to_run` and `rps_required = true`;
+other models are skipped. See
+[The Feasibility Report](../models/electricity_rps.md#the-feasibility-report) for what it reports,
+and `run_configs/rps_elec_config.toml` for a sample config.

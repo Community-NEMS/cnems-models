@@ -25,7 +25,13 @@ from src.common.season import Season
 from src.integrator.utilities import create_temporal_mapping
 from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
 from src.models.electricity.elec_config import ElecConfig, ReserveType, RPSRequirementType
-from src.models.electricity.rps import RPSKey, RPSRequirement, region_members, resolve_groups
+from src.models.electricity.rps import (
+    RPSKey,
+    RPSRequirement,
+    RPSRequirementRow,
+    region_members,
+    resolve_groups,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +135,8 @@ class ModelSets:
     """RPS region key -> the regions it sums over"""
     rps_requirements: dict[RPSKey, RPSRequirement]
     """(group, region key, year) -> the requirement in force, before RLL screening"""
+    rps_requirement_rows: list[RPSRequirementRow]
+    """every rps_requirement.csv row as entered, in force or not (RPS only, for reporting)"""
     rps_rll_index: list[RPSKey]
     """(group, region key, year) with an RLL floor applied (RPS only)"""
     season: list[Season]
@@ -196,6 +204,7 @@ class ModelSets:
             else {}
         )
         self.rps_requirements = {}
+        self.rps_requirement_rows = []
         self.rps_region_members = {}
         self.rps_btm_index = []
         self.rps_rll_index = []
@@ -478,7 +487,10 @@ class ModelSets:
         self.capacity_index = capacity_index
 
     def build_rps_sets(
-        self, requirements: Mapping[RPSKey, RPSRequirement], rll_keys: Iterable[RPSKey]
+        self,
+        requirements: Mapping[RPSKey, RPSRequirement],
+        rll_keys: Iterable[RPSKey],
+        rows: Iterable[RPSRequirementRow] = (),
     ) -> None:
         """Build the RPS index sets from the requirements in force.
 
@@ -492,8 +504,11 @@ class ModelSets:
             (group, region key, year) -> the requirement in force (``rps.resolve_requirements``).
         rll_keys : Iterable[RPSKey]
             the RLL keys whose floor applies (``rps.rll_floors``); other RLL keys are dropped.
+        rows : Iterable[RPSRequirementRow], optional
+            the requirement rows as entered (``rps.requirement_rows``), kept for reporting.
         """
         self.rps_requirements = dict(requirements)
+        self.rps_requirement_rows = list(rows)
         self.rps_region_members = region_members(
             {rk for _, rk, _ in requirements}, self.region_analyze
         )

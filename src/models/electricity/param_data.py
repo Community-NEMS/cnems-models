@@ -32,7 +32,12 @@ from src.models.electricity.data_ingestor import (
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
 from src.models.electricity.model_sets import CI, ModelSets
 from src.models.electricity.param_utilities import avg_by_group, time_map
-from src.models.electricity.rps import RPSKey, resolve_requirements, rll_floors
+from src.models.electricity.rps import (
+    RPSKey,
+    requirement_rows,
+    resolve_requirements,
+    rll_floors,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +280,11 @@ class ParamData:
             generators=set(model_sets.tech_gen),
             existing=self.existing_capacity(),
         )
-        model_sets.build_rps_sets(requirements, rll_keys=floors)
+        model_sets.build_rps_sets(
+            requirements,
+            rll_keys=floors,
+            rows=requirement_rows(raw, model_sets.region_analyze),
+        )
         self.param_dicts['rps_min_share'] = {
             key: requirements[key].min_share for key in model_sets.rps_btm_index
         }

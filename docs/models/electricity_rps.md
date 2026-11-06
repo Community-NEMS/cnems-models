@@ -288,7 +288,10 @@ holds that may block them.
 The report from `run_configs/rps_elec_config.toml`: the shipped data with
 `region_filter = ['7', '8', '9']` and model years 2025, 2030 and 2035. Its group is the `clean`
 group of the [Input Tables](#input-tables) example, and its requirements are the shipped
-`policy/rps_requirement.csv` (notes left out here):
+`policy/rps_requirement.csv` (notes left out here). For variety, the shipped build data makes
+`10_regular` (regular hydro) buildable from 2035 on in these regions, and stops `15_utility`
+(utility solar) in region 8 being buildable from 2035 on. Those rows are marked as placeholders
+in their `notes`.
 
 ```text
 group_id,region,requirement_type,first_year,min_share_frac
@@ -356,20 +359,21 @@ Each member (region, tech) of a group with a BTM in force, in the required years
 in.  Members buildable in every required year are not listed.  Required by:  the group@region key
 BTMs that need the member in those years.
 
-| region   | tech        | not buildable in   | status        | required by        |
-|----------|-------------|--------------------|---------------|--------------------|
-| 7        | 10_regular  | 2030–2035          | existing only | clean@all          |
-| 7        | 10_seasonal | 2030–2035          | existing only | clean@all          |
-| 7        | 13          | 2030–2035          | existing only | clean@all          |
-| 7        | 15_end_use  | 2030–2035          | existing only | clean@all          |
-| 8        | 10_regular  | 2030–2035          | unavailable   | clean@8, clean@all |
-| 8        | 10_seasonal | 2030–2035          | unavailable   | clean@8, clean@all |
-| 8        | 13          | 2030–2035          | existing only | clean@8, clean@all |
-| 8        | 15_end_use  | 2030–2035          | existing only | clean@8, clean@all |
-| 9        | 10_regular  | 2030–2035          | existing only | clean@all          |
-| 9        | 10_seasonal | 2030–2035          | existing only | clean@all          |
-| 9        | 13          | 2030–2035          | unavailable   | clean@all          |
-| 9        | 15_end_use  | 2030–2035          | existing only | clean@all          |
+| region   | tech        | not buildable in   | status            | required by        |
+|----------|-------------|--------------------|-------------------|--------------------|
+| 7        | 10_regular  | 2030               | existing only     | clean@all          |
+| 7        | 10_seasonal | 2030–2035          | existing only     | clean@all          |
+| 7        | 13          | 2030–2035          | existing only     | clean@all          |
+| 7        | 15_end_use  | 2030–2035          | existing only     | clean@all          |
+| 8        | 10_regular  | 2030               | unavailable       | clean@8, clean@all |
+| 8        | 10_seasonal | 2030–2035          | unavailable       | clean@8, clean@all |
+| 8        | 13          | 2030–2035          | existing only     | clean@8, clean@all |
+| 8        | 15_end_use  | 2030–2035          | existing only     | clean@8, clean@all |
+| 8        | 15_utility  | 2035               | prior builds only | clean@8, clean@all |
+| 9        | 10_regular  | 2030               | existing only     | clean@all          |
+| 9        | 10_seasonal | 2030–2035          | existing only     | clean@all          |
+| 9        | 13          | 2030–2035          | unavailable       | clean@all          |
+| 9        | 15_end_use  | 2030–2035          | existing only     | clean@all          |
 
 | status            | meaning                                                                  |
 |-------------------|--------------------------------------------------------------------------|
@@ -388,8 +392,8 @@ Reading it:
 - **Requirement issues:** region 9's RLL asks for a 60% share it doesn't have, so it holds
   retirements every year: no clean member in region 9 may retire. Region 8's RLL holds in 2025,
   its only year in force. Region 7's RLL, met by its existing share, is a floor and not listed.
-- **Coverage:** only onshore wind (`14`) and utility solar (`15_utility`) can be built in these
-  regions, so they are not listed. Hydro, offshore wind (`13`) and end-use solar (`15_end_use`)
-  never can. They hold only their existing capacity, or are unavailable where they have none, as
-  with hydro in region 8. The shipped data has no `prior builds only` case, a member buildable in
-  an earlier year but not a required one. The legend still explains it.
+- **Coverage:** regular hydro can be built only from 2035, so for 2030 it holds only its existing
+  capacity in regions 7 and 9, and is unavailable in region 8, which has none. Utility solar can't
+  be built in region 8 in 2035, so any addition for that year must be built by 2030. Seasonal
+  hydro, offshore wind (`13`) and end-use solar (`15_end_use`) can never be built in these regions.
+  Onshore wind (`14`) is buildable throughout, so it is not listed.

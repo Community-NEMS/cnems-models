@@ -264,6 +264,30 @@ def region_members(
     return {rk: analyzed if rk == RPS_ALL_REGIONS else (rk,) for rk in region_keys}
 
 
+def existing_by_tech(
+    existing: Mapping[tuple[str, str, int, int], float], generators: Collection[str]
+) -> defaultdict[tuple[str, str, int], float]:
+    """Sum the existing generator capacity over steps.
+
+    Parameters
+    ----------
+    existing : Mapping[tuple[str, str, int, int], float]
+        existing capacity, ``(region, tech, step, year) -> MW``.
+    generators : Collection[str]
+        the generator techs; others are left out.
+
+    Returns
+    -------
+    defaultdict[tuple[str, str, int], float]
+        (region, tech, year) -> MW, 0.0 where there is none.
+    """
+    by_tech: defaultdict[tuple[str, str, int], float] = defaultdict(float)
+    for (region, tech, _step, year), mw in existing.items():
+        if tech in generators:
+            by_tech[region, tech, year] += mw
+    return by_tech
+
+
 def rll_floors(
     requirements: Mapping[RPSKey, RPSRequirement],
     groups: Mapping[str, Collection[str]],
@@ -297,12 +321,7 @@ def rll_floors(
     dict[RPSKey, float]
         (group_id, region key, year) -> floor MW, for the RLL requirements kept.
     """
-    # existing MW summed over steps, by (region, tech, year)
-    by_tech: defaultdict[tuple[str, str, int], float] = defaultdict(float)
-    for (region, tech, _step, year), mw in existing.items():
-        if tech in generators:
-            by_tech[region, tech, year] += mw
-
+    by_tech = existing_by_tech(existing, generators)
     rll = {k: r for k, r in requirements.items() if r.requirement_type is RPSRequirementType.RLL}
     members = region_members({rk for _, rk, _ in rll}, region_analyze)
     floors: dict[RPSKey, float] = {}

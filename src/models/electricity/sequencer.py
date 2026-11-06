@@ -140,6 +140,55 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             raise RuntimeError('Config is not available; call build_model() first.')
         return self._common_config
 
+    def load_data(
+        self,
+        common_config: CommonConfig,
+        model_config: ElecConfig,
+        update_packages: Sequence[UpdatePackage] | None = None,
+        strict: bool | None = None,
+    ) -> tuple[ModelSets, ParamData]:
+        """Preprocess the inputs, apply the update packages, and validate the result.
+
+        Everything :meth:`build_model` does before the pyomo model is built; retains the configs.
+
+        Parameters
+        ----------
+        common_config : CommonConfig
+            Common run configuration.
+        model_config : ElecConfig
+            Electricity configuration.
+        update_packages : Sequence[UpdatePackage], optional
+            Update Packages applied to the read-in data by :class:`ElecUpdateReader`.
+        strict : bool, optional
+            Overrides ``common_config.strict_validation`` when given.
+
+        Returns
+        -------
+        tuple[ModelSets, ParamData]
+            The validated sets and parameter data.
+        """
+        logger.info('Preprocessing')
+        self._elec_config = model_config
+        self._common_config = common_config
+        model_sets = ModelSets(common_config, model_config)
+        logger.debug('Model set inputs produced')
+        model_params = ParamData(common_config, model_config, model_sets)
+        logger.debug(
+            'Model parameter inputs produced with %d dataframes and %d dictionaries',
+            len(model_params.param_frames),
+            len(model_params.param_dicts),
+        )
+        self._reader.read(update_packages, model_params)
+        self._built_with_packages = bool(update_packages)
+
+        logger.info('Validating input data')
+        validate_all(
+            model_sets,
+            model_params,
+            strict=common_config.strict_validation if strict is None else strict,
+        )
+        return model_sets, model_params
+
     def build_model(
         self,
         common_config: CommonConfig,
@@ -147,7 +196,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
         update_packages: Sequence[UpdatePackage] | None = None,
         **kwargs,
     ) -> PowerModel:
-        """Preprocess inputs and build (but do not solve) the electricity model.
+        """Load the data (:meth:`load_data`) and build (but do not solve) the electricity model.
 
         Ports ``runner.build_elec_model`` plus the preprocessing (``ModelSets`` / ``ParamData``)
         that ``runner.run_elec_model`` performed inline.
@@ -167,22 +216,7 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             The built, unsolved model (also retained as :attr:`model`).
 
         """
-        logger.info('Preprocessing')
-        self._elec_config = model_config
-        self._common_config = common_config
-        model_sets = ModelSets(common_config, model_config)
-        logger.debug('Model set inputs produced')
-        model_params = ParamData(common_config, model_config, model_sets)
-        logger.debug(
-            'Model parameter inputs produced with %d dataframes and %d dictionaries',
-            len(model_params.param_frames),
-            len(model_params.param_dicts),
-        )
-        self._reader.read(update_packages, model_params)
-        self._built_with_packages = bool(update_packages)
-
-        logger.info('Validating input data')
-        validate_all(model_sets, model_params, strict=self.common_config.strict_validation)
+        model_sets, model_params = self.load_data(common_config, model_config, update_packages)
 
         logger.info('Building model')
         instance = PowerModel(

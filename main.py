@@ -21,6 +21,7 @@ from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
 from src.integrator.iteration_plot import plot_objectives
 from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
+from src.models.electricity.rps_feasibility import RPS_FEASIBILITY_FILE, rps_feasibility_report
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
 from src.models.natural_gas.ng_config import NGConfig
@@ -63,11 +64,12 @@ def main(config_path: Path, debug: bool = False) -> None:
     run_status: RunStatus | None = None
 
     match common_config.mode:
-        case RunMode.STANDALONE:
+        case RunMode.STANDALONE | RunMode.RPS_FEASIBILITY:
             # Claim a fresh scenario output dir, then establish the logger in it.  Standalone runs
             # solve in this process with no per-model scenario log, so the run log is the
             # complete record -- solver output included.  Nothing is streamed to the console
-            # except by pyomo's own stdout handler, which echoes its INFO records (solver output)
+            # except by pyomo's own stdout handler, which echoes its INFO records (solver output).
+            # The RPS feasibility run is set up the same way, but only loads data and reports.
             common_config.make_scenario_dir()
             log_file = common_config.output_folder / 'run.log'
             setup_control_loop_logging(log_file, level=logging.DEBUG if debug else logging.INFO)
@@ -82,7 +84,10 @@ def main(config_path: Path, debug: bool = False) -> None:
                     else ''
                 )
             )
-            _run_standalone(common_config, remainder)
+            if common_config.mode is RunMode.STANDALONE:
+                _run_standalone(common_config, remainder)
+            else:
+                _run_rps_feasibility(common_config, remainder)
         case RunMode.INTEGRATED_JACOBI:
             # the iterator claims the output folder and sets up its own logging, so nothing is
             # logged here before it runs
@@ -164,6 +169,58 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
         if (obj_value := sequencer.get_objective_value()) is not None:
             logger.info('%s objective value: %0.2f', model_type, obj_value)
         sequencer.full_postprocess()
+
+
+def _run_rps_feasibility(common_config: CommonConfig, remainder: dict) -> Path:
+    """Load the electricity data and write its RPS feasibility report; nothing is solved.
+
+    Validation runs non-strict, so a failed check is logged and the report is still written.
+    Other models in ``models_to_run`` have no RPS check and are skipped (logged).
+
+    Parameters
+    ----------
+    common_config : CommonConfig
+        Common run configuration, with its scenario dir already claimed.
+    remainder : dict
+        The config file's sections other than ``[common]``.
+
+    Returns
+    -------
+    Path
+        The report file, ``RPS_FEASIBILITY_FILE`` in the scenario output folder.
+
+    Raises
+    ------
+    ValueError
+        If electricity is not in ``models_to_run``, its config section is missing, or it does
+        not set ``rps_required``.
+    """
+    models = resolve_models_to_run(common_config.models_to_run)
+    for model_type in models:
+        if model_type is not ModelType.ELECTRICITY:
+            logger.info('%s has no RPS feasibility check; skipped', model_type)
+    if ModelType.ELECTRICITY not in models:
+        msg = 'rps_feasibility mode needs electricity in models_to_run'
+        logger.error(msg)
+        raise ValueError(msg)
+    if 'elec_config' not in remainder:
+        msg = 'rps_feasibility mode needs an [elec_config] section'
+        logger.error(msg)
+        raise ValueError(msg)
+    elec_config = ElecConfig(**remainder['elec_config'])
+    if not elec_config.rps_required:
+        msg = 'rps_feasibility mode needs rps_required = true in [elec_config]'
+        logger.error(msg)
+        raise ValueError(msg)
+
+    model_sets, param_data = ElectricitySequencer().load_data(
+        common_config, elec_config, strict=False
+    )
+    report = rps_feasibility_report(model_sets, param_data)
+    path = common_config.output_folder / RPS_FEASIBILITY_FILE
+    path.write_text(report.text)
+    logger.info('RPS feasibility report written to %s:  %s', path, report.summary())
+    return path
 
 
 if __name__ == '__main__':

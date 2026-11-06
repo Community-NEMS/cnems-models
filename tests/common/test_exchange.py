@@ -21,8 +21,10 @@ from src.common.update_package import (
     PACKAGE_TYPES,
     ElectricityPriceScaler,
     ExchangeSpec,
+    HSMSupplyCapacityPackage,
     NGDemandScaler,
     NGElectricalDemandPackage,
+    NGHubPricePackage,
     NGPricePackage,
     check_region_year_keys,
 )
@@ -33,6 +35,7 @@ from src.models.magic.update_writer import MagicUpdateWriter
 ELEC = ModelType.ELECTRICITY
 NG = ModelType.NATURAL_GAS
 MAGIC = ModelType.MAGIC
+MAGIC_HSM = ModelType.MAGIC_HSM
 STANDARD = list(PACKAGE_TYPES)
 LOGGER_NAME = 'src.common.update_package.exchange'
 
@@ -41,11 +44,12 @@ LOGGER_NAME = 'src.common.update_package.exchange'
     'models, outbound, excluded',
     [
         pytest.param(
-            {ELEC, NG, MAGIC},
+            {ELEC, NG, MAGIC, MAGIC_HSM},
             {
                 ELEC: {NGElectricalDemandPackage},
-                NG: {NGPricePackage},
+                NG: {NGPricePackage, NGHubPricePackage},
                 MAGIC: {ElectricityPriceScaler, NGDemandScaler},
+                MAGIC_HSM: {HSMSupplyCapacityPackage},
             },
             [],
             id='all_models',

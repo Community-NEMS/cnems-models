@@ -17,7 +17,9 @@ from functools import singledispatchmethod
 from pyomo.environ import value
 
 from src.common.update_package import (
+    HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_VALUE,
+    HSMSupplyCapacityPackage,
     NGDemandScaler,
     NGElectricalDemandPackage,
     UpdatePackage,
@@ -43,6 +45,41 @@ SECTOR_SUPERSEDED_BY: dict[type[UpdatePackage], str] = {
 # Fractional change (either direction) in a received (region, year) demand, relative to the held
 # value it replaces, above which a warning is logged.
 DEMAND_CHANGE_WARN_FRACTION = 0.5
+
+# Smallest positive Q0 [Bcf/yr] a received capacity may set; HiGHS has crashed on the narrower
+# supply segments of a Q0 near 1e-8 Bcf/yr.  Zero is allowed.
+MIN_POSITIVE_Q0 = 1.0
+
+
+def _received_capacity(update_package: HSMSupplyCapacityPackage) -> dict[tuple[str, int], float]:
+    """Read an ``HSMSupplyCapacityPackage`` into ``{(region, year): Bcf}``.
+
+    Parameters
+    ----------
+    update_package : HSMSupplyCapacityPackage
+        Capacity by natural gas ``(region, year)``.
+
+    Returns
+    -------
+    dict of (str, int) to float
+
+    Raises
+    ------
+    ValueError
+        If any value is positive but below ``MIN_POSITIVE_Q0``.
+    """
+    received = update_package.elements[HSM_CAPACITY_VALUE]
+    values = {
+        (str(region), int(year)): float(bcf)
+        for (region, year), bcf in zip(received.index.to_list(), received.to_list(), strict=True)
+    }
+    small = {key: bcf for key, bcf in values.items() if 0.0 < bcf < MIN_POSITIVE_Q0}
+    if small:
+        raise ValueError(
+            f'Capacity below {MIN_POSITIVE_Q0} Bcf/yr but above zero for {small}; '
+            'send zero or at least the minimum'
+        )
+    return values
 
 
 class NGUpdateReader(UpdatePackageReader[NGData]):
@@ -169,6 +206,54 @@ class NGUpdateReader(UpdatePackageReader[NGData]):
             len(received),
         )
 
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_package.register  # type: ignore[no-matching-overload]
+    def _(self, update_package: HSMSupplyCapacityPackage, data: NGData) -> None:
+        """Set the supply anchor Q0 of every held ``(region, year)`` to the received capacity.
+
+        Writes ``q0_mult = capacity / tier total`` into ``data['supply_anchors']`` and keeps
+        ``p0_mult``, so the built model has ``Q0 = capacity`` and the same P0.
+
+        Parameters
+        ----------
+        update_package : HSMSupplyCapacityPackage
+            Capacity in Bcf/yr indexed by natural gas ``(region, year)``.
+        data : NGData
+            The loaded data; ``data['supply_anchors']`` is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If the package's ``(region, year)`` entries are not the held regions x years, a value
+            is positive but below ``MIN_POSITIVE_Q0``, or a region with no tier capacity receives
+            a positive value.
+        """
+        check_region_year_keys(
+            update_package.elements.index,
+            data['regions_analyze'],
+            data['years'],
+            name='HSM capacity',
+        )
+        anchors = data['supply_anchors']
+        # check every entry before writing any, so a rejected package leaves the data as it was
+        new_anchors: dict[tuple[str, int], tuple[float, float]] = {}
+        for (region, year), bcf in _received_capacity(update_package).items():
+            total = sum(cap for cap, _ in data['supply_cost_tiers'][region])
+            if total == 0.0:
+                if bcf > 0.0:
+                    raise ValueError(
+                        f'{region} has no tier capacity in ng_supply_cost_tiers.csv, so its Q0 '
+                        f'cannot be set to {bcf} Bcf/yr'
+                    )
+                continue
+            p0_mult = anchors.get((region, year), (1.0, 1.0))[1]
+            new_anchors[(region, year)] = (bcf / total, p0_mult)
+        anchors.update(new_anchors)
+        logger.info(
+            'Set Q0 from the HSM capacity for %d (region, year) entries before the build',
+            len(update_package.elements),
+        )
+
 
 class NGModelUpdateReader(UpdatePackageReader[NGModel]):
     """Applies inbound update packages to a built ``NGModel``, by package type.
@@ -254,3 +339,37 @@ class NGModelUpdateReader(UpdatePackageReader[NGModel]):
                 big_moves[:10],
             )
         logger.info('Wrote %s demand for %d (region, year) entries', sector, len(values))
+
+    # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    @apply_package.register  # type: ignore[no-matching-overload]
+    def _(self, update_package: HSMSupplyCapacityPackage, data: NGModel) -> None:
+        """Set the built model's supply anchor Q0 to the received capacity and rebuild the curve.
+
+        Writes through ``NGModel.update_supply_capacity`` with ``alpha=1``, which is idempotent and
+        keeps P0.
+
+        Parameters
+        ----------
+        update_package : HSMSupplyCapacityPackage
+            Capacity in Bcf/yr indexed by natural gas ``(region, year)``.
+        data : NGModel
+            The built model; its supply-curve parameters are modified in place.
+
+        Raises
+        ------
+        ValueError
+            If the package's ``(region, year)`` entries are not the held regions x years, or a
+            value is positive but below ``MIN_POSITIVE_Q0``.
+        """
+        check_region_year_keys(
+            update_package.elements.index, data.regions, data.year, name='HSM capacity'
+        )
+        values = _received_capacity(update_package)
+        data.update_supply_capacity(
+            {(region, 'total', year): bcf for (region, year), bcf in values.items()}, alpha=1.0
+        )
+        logger.info(
+            'Set Q0 from the HSM capacity for %d (region, year) entries:  national %.0f Bcf/yr',
+            len(values),
+            sum(values.values()),
+        )

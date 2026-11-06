@@ -13,7 +13,9 @@
 #
 # A property column that is also an index column collects every row's index (the master list,
 # e.g. `tech` in tech.csv).  A flat relation table uses this alone:  rps_group lists each
-# (group_id, tech, tech_group) row under `group_id`.
+# (group_id, tech) row under `group_id`.
+#
+# Columns not named here (e.g. a free-text `notes` column) are ignored.
 
 [[property_source]]
 key = "tech"
@@ -43,9 +45,9 @@ index_cols = ["region"]
 attribute_cols = ["label"]
 
 [[property_source]]
-# one row per group member:  a tech, or a tech.csv `is_*` column (tech_group), never both
+# one row per group member (tech); a free-text `notes` column may follow
 key = "rps_group"
 filename = "rps_group.csv"
 property_cols = ["group_id"]
-index_cols = ["group_id", "tech", "tech_group"]
+index_cols = ["group_id", "tech"]
 required = false  # rps_required

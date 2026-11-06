@@ -20,7 +20,7 @@ temporal_resolution = "default"
 # list format, cannot be less than or greater than input data
 aggregate_years=false
 aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
-summary_years = [2025, 2030] # evaluation years / aggregation summary years (if selected)
+summary_years = [2025, 2030, 2035] # evaluation years / aggregation summary years (if selected)
 
 # strict validation will terminate the run on data validation errors and should normally = true
 # (the rps_feasibility mode always validates non-strict, so the report is written regardless)
@@ -32,7 +32,7 @@ region_filter = ['7', '8', '9']  # comment line out to disable filter for "all r
 regional_exchange=false
 capacity_expansion=true  # required by rps_required
 # RPS reads properties/rps_group.csv and policy/rps_requirement.csv (beside input_path); the
-# shipped data has neither, so add them first (see docs/models/electricity_rps.md)
+# shipped tables are the demonstration in docs/models/electricity_rps.md
 rps_required=true
 expansion_learning_type='disabled'  # disabled/linear/nonlinear
 reserve_margin_required=false

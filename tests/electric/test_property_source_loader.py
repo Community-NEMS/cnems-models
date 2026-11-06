@@ -45,7 +45,7 @@ _ORIGINAL_PROPERTY_SOURCES = {
     'tech_build': ('tech_build.csv', ['is_buildable'], ('tech', 'step')),
     'tech_retire': ('tech_retire.csv', ['is_retirable'], ('tech', 'step')),
     'region': ('region.csv', ['region', 'is_domestic', 'is_international'], ('region',)),
-    'rps_group': ('rps_group.csv', ['group_id'], ('group_id', 'tech', 'tech_group')),
+    'rps_group': ('rps_group.csv', ['group_id'], ('group_id', 'tech')),
 }
 
 

@@ -67,26 +67,32 @@ group and region from its first year.
 ## Input Tables
 
 Both tables are optional files, read only when `rps_required` is on. In practice both are
-needed: with no requirements, the run stops with an error.
+needed: with no requirements, the run stops with an error. Each may end with a free-text `notes`
+column, which is ignored, as in the other input tables. The shipped data under
+`input/electricity/` includes the demonstration tables shown in [Sample](#sample).
 
 ### Groups: `properties/rps_group.csv`
 
-One row per group member, in the `properties` folder (`common_data_path`). A row names a member
-by `tech` or by `tech_group`, never both:
+One row per group member, in the `properties` folder (`common_data_path`):
 
-| Column       | Contents |
-|:-------------|:---------|
-| `group_id`   | The group's name, any string |
-| `tech`       | A technology in `tech.csv` |
-| `tech_group` | A membership column of `tech.csv` (`is_vre`, `is_hydro`, `is_wind`, ...): every tech flagged `True` in it |
+| Column     | Contents |
+|:-----------|:---------|
+| `group_id` | The group's name, any string |
+| `tech`     | A technology in `tech.csv`; it must be a generator |
+| `notes`    | Optional free text, ignored |
 
-Membership is additive: a group is the union of its rows, and a tech named both directly and
-through a `tech_group` is simply a member. Every member must be a generator.
+A group is the union of its rows. Every member is listed explicitly, so a group changes only when
+this table does: adding a technology to `tech.csv`, or changing its `is_*` flags, never changes a
+group. Listing a technology twice in one group is an error.
 
 ```text
-group_id,tech,tech_group
-clean,,is_vre
-clean,,is_hydro
+group_id,tech,notes
+clean,10_regular,Regular Hydro
+clean,10_seasonal,Seasonal Hydro
+clean,13,Offshore Wind
+clean,14,Onshore Wind
+clean,15_end_use,End-Use Solar
+clean,15_utility,Utility Solar
 onshore_wind,14,
 ```
 
@@ -101,12 +107,13 @@ One row per requirement, in the `policy` folder:
 | `requirement_type` | `BTM` or `RLL` (case-insensitive) |
 | `first_year`       | The first year the requirement applies (inclusive); it persists after that |
 | `min_share_frac`   | The minimum share, a fraction in [0, 1] |
+| `notes`            | Optional free text, ignored |
 
 ```text
-group_id,region,requirement_type,first_year,min_share_frac
-clean,7,RLL,2025,0.1
-clean,8,BTM,2030,0.3
-clean,all,BTM,2030,0.2
+group_id,region,requirement_type,first_year,min_share_frac,notes
+clean,7,RLL,2025,0.1,
+clean,8,BTM,2030,0.3,region 8 builds toward 30%
+clean,all,BTM,2030,0.2,
 ```
 
 ### Region keys and `all`
@@ -180,8 +187,8 @@ So from 2035 on, region 8 must hold at least 30% (then 40%) of its own generator
 Problems in the RPS tables stop the run before the model is built, all reported in one error per
 table:
 
-- `rps_group.csv`: a row with no `group_id`, or with both or neither of `tech` / `tech_group`;
-  an unknown `tech` or `tech_group`; a member that is not a generator.
+- `rps_group.csv`: a row with no `group_id` or `tech`; an unknown `tech`; a member that is not a
+  generator; a technology listed twice in one group.
 - `rps_requirement.csv`: no rows at all; an unknown `group_id`, `region` or
   `requirement_type`; a region that is not domestic; a `min_share_frac` outside [0, 1]; two rows
   with the same group, region, type and `first_year`.
@@ -211,9 +218,8 @@ mode = "rps_feasibility"
 models_to_run = ['electricity']
 ```
 
-then run `python main.py run_configs/rps_elec_config.toml`. The sample config runs on the shipped
-data, which has no RPS tables: add `properties/rps_group.csv` and `policy/rps_requirement.csv`
-under `input/electricity/` first, for example the tables above.
+then run `python main.py run_configs/rps_elec_config.toml`. That sample config runs on the shipped
+data and its demonstration RPS tables, and produces the report in [Sample](#sample).
 
 The report goes to `rps_feasibility.txt` in the scenario output folder, beside `run.log`, and the
 log gets a one-line summary. Validation runs non-strict in this mode, whatever
@@ -267,8 +273,8 @@ years it is not buildable in:
 A member is buildable "in the year or earlier" because capacity built in one year stays in service
 in later years. Buildability depends only on the region, tech and year, so each member has one row
 per status. `required by` names the BTMs that need it in those years, as `group@region key`. A
-group defined by a broad `tech_group`, such as `is_vre`, will list every member that is never
-buildable. That is deliberate: a member is expected to be buildable wherever a BTM needs it.
+broad group lists every member that is never buildable. That is deliberate: a member is expected
+to be buildable wherever a BTM needs it.
 
 Each problem table is followed by a legend of its statuses. When there is nothing to list, a single
 line replaces the table and its legend.
@@ -279,10 +285,10 @@ holds that may block them.
 
 ### Sample
 
-The report from the shipped data with `region_filter = ['7', '8', '9']`, model years 2025, 2030
-and 2035, and the `clean` group of the [Input Tables](#input-tables) example. Two changes to the
-build data give it some variety: `10_regular` (regular hydro) is made buildable from 2035 on, and
-`15_utility` (utility solar) in region 8 is not buildable from 2035 on. The requirements are:
+The report from `run_configs/rps_elec_config.toml`: the shipped data with
+`region_filter = ['7', '8', '9']` and model years 2025, 2030 and 2035. Its group is the `clean`
+group of the [Input Tables](#input-tables) example, and its requirements are the shipped
+`policy/rps_requirement.csv` (notes left out here):
 
 ```text
 group_id,region,requirement_type,first_year,min_share_frac
@@ -350,21 +356,20 @@ Each member (region, tech) of a group with a BTM in force, in the required years
 in.  Members buildable in every required year are not listed.  Required by:  the group@region key
 BTMs that need the member in those years.
 
-| region   | tech        | not buildable in   | status            | required by        |
-|----------|-------------|--------------------|-------------------|--------------------|
-| 7        | 10_regular  | 2030               | existing only     | clean@all          |
-| 7        | 10_seasonal | 2030–2035          | existing only     | clean@all          |
-| 7        | 13          | 2030–2035          | existing only     | clean@all          |
-| 7        | 15_end_use  | 2030–2035          | existing only     | clean@all          |
-| 8        | 10_regular  | 2030               | unavailable       | clean@8, clean@all |
-| 8        | 10_seasonal | 2030–2035          | unavailable       | clean@8, clean@all |
-| 8        | 13          | 2030–2035          | existing only     | clean@8, clean@all |
-| 8        | 15_end_use  | 2030–2035          | existing only     | clean@8, clean@all |
-| 8        | 15_utility  | 2035               | prior builds only | clean@8, clean@all |
-| 9        | 10_regular  | 2030               | existing only     | clean@all          |
-| 9        | 10_seasonal | 2030–2035          | existing only     | clean@all          |
-| 9        | 13          | 2030–2035          | unavailable       | clean@all          |
-| 9        | 15_end_use  | 2030–2035          | existing only     | clean@all          |
+| region   | tech        | not buildable in   | status        | required by        |
+|----------|-------------|--------------------|---------------|--------------------|
+| 7        | 10_regular  | 2030–2035          | existing only | clean@all          |
+| 7        | 10_seasonal | 2030–2035          | existing only | clean@all          |
+| 7        | 13          | 2030–2035          | existing only | clean@all          |
+| 7        | 15_end_use  | 2030–2035          | existing only | clean@all          |
+| 8        | 10_regular  | 2030–2035          | unavailable   | clean@8, clean@all |
+| 8        | 10_seasonal | 2030–2035          | unavailable   | clean@8, clean@all |
+| 8        | 13          | 2030–2035          | existing only | clean@8, clean@all |
+| 8        | 15_end_use  | 2030–2035          | existing only | clean@8, clean@all |
+| 9        | 10_regular  | 2030–2035          | existing only | clean@all          |
+| 9        | 10_seasonal | 2030–2035          | existing only | clean@all          |
+| 9        | 13          | 2030–2035          | unavailable   | clean@all          |
+| 9        | 15_end_use  | 2030–2035          | existing only | clean@all          |
 
 | status            | meaning                                                                  |
 |-------------------|--------------------------------------------------------------------------|
@@ -383,7 +388,8 @@ Reading it:
 - **Requirement issues:** region 9's RLL asks for a 60% share it doesn't have, so it holds
   retirements every year: no clean member in region 9 may retire. Region 8's RLL holds in 2025,
   its only year in force. Region 7's RLL, met by its existing share, is a floor and not listed.
-- **Coverage:** in region 8, regular hydro can be built only from 2035, so it is unavailable for
-  2030. Utility solar can't be built in 2035, so any addition for that year must be built by 2030.
-  Offshore wind (`13`) and end-use solar (`15_end_use`) can never be built in these regions, so
-  they hold only their existing capacity.
+- **Coverage:** only onshore wind (`14`) and utility solar (`15_utility`) can be built in these
+  regions, so they are not listed. Hydro, offshore wind (`13`) and end-use solar (`15_end_use`)
+  never can. They hold only their existing capacity, or are unavailable where they have none, as
+  with hydro in region 8. The shipped data has no `prior builds only` case, a member buildable in
+  an earlier year but not a required one. The legend still explains it.

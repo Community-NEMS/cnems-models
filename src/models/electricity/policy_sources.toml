@@ -8,7 +8,8 @@
 #                     entry); an absent file loads as an empty dict
 #
 # Policy files are read without the region/year filter:  their region columns can hold
-# keywords (e.g. RPS `all`), so screening happens in processing.
+# keywords (e.g. RPS `all`), so screening happens in processing.  Columns not named here (e.g. a
+# free-text `notes` column) are ignored.
 
 [[policy_source]]
 # requirement_type is an RPSRequirementType value (RLL / BTM); region is a region or `all`

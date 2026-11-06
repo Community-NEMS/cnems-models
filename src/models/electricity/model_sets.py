@@ -197,9 +197,9 @@ class ModelSets:
         self.rps_group_techs = (
             resolve_groups(
                 # pyrefly: ignore[bad-argument-type]  - load_property_data's list[str] is loose:
-                # a multi-column index (here group_id, tech, tech_group) is read as a tuple
+                # a multi-column index (here group_id, tech) is read as a tuple
                 set_data['rps_group']['group_id'],
-                td,
+                self.tech,
                 self.tech_gen,
             )
             if elec_config.rps_required

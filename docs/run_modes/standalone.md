@@ -76,4 +76,4 @@ with validation non-strict, writes `rps_feasibility.txt` to the scenario folder,
 model is built or solved. It needs `electricity` in `models_to_run` and `rps_required = true`;
 other models are skipped. See
 [The Feasibility Report](../models/electricity_rps.md#the-feasibility-report) for what it reports,
-and `run_configs/rps_elec_config.toml` for a sample config.
+and `../../run_configs/rps_check_config.toml` for a sample config.

@@ -161,7 +161,9 @@ vice versa, so the two stay in agreement.
 - Input data lives under `input/electricity/`: `properties/` (region/tech set-membership CSVs,
   `CommonConfig.common_data_path`), `parameters/` (regionally/technology-indexed CSVs for costs,
   transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (policy tables such as `rps_requirement.csv`,
-  `ElecConfig.policy_path`; none shipped).
+  `ElecConfig.policy_path`). The shipped `policy/rps_requirement.csv` and
+  `properties/rps_group.csv` are the RPS demonstration run by `run_configs/rps_elec_config.toml`;
+  they are read only when `rps_required` is on.
   `datapackage.json` sits at the top of `input/electricity/`. `input/electricity_light/` mirrors
   this layout.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity

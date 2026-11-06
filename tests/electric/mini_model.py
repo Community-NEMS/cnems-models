@@ -265,18 +265,14 @@ class MiniModelData:
         self.params[key].update({idx: float(v) for idx, v in rows.items()})
         return self
 
-    def add_rps_group(
-        self, group_id: str, techs: Iterable[str] = (), tech_groups: Iterable[str] = ()
-    ) -> MiniModelData:
-        """Add ``rps_group`` rows:  one per tech and one per tech.csv flag column.
+    def add_rps_group(self, group_id: str, techs: Iterable[str]) -> MiniModelData:
+        """Add ``rps_group`` rows, one per member tech.
 
         Parameters
         ----------
         group_id : str
         techs : Iterable[str]
-            techs named directly.
-        tech_groups : Iterable[str]
-            tech.csv ``is_*`` columns whose techs join the group.
+            the member techs.
 
         Returns
         -------
@@ -284,8 +280,7 @@ class MiniModelData:
             self, for chaining.
         """
         rows = self.properties['rps_group']['group_id']
-        rows.extend((group_id, tech, '') for tech in techs)
-        rows.extend((group_id, '', tech_group) for tech_group in tech_groups)
+        rows.extend((group_id, tech) for tech in techs)
         return self
 
     def add_rps_requirement(

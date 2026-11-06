@@ -1,0 +1,7 @@
+group_id,region,requirement_type,first_year,min_share_frac,notes
+clean,7,RLL,2025,0.1,demonstration (docs/models/electricity_rps.md)
+clean,8,RLL,2025,0.1,demonstration:  superseded by the BTM from 2030
+clean,8,BTM,2030,0.3,demonstration
+clean,8,RLL,2035,0.2,demonstration:  never in force (the BTM from 2030 is)
+clean,9,RLL,2025,0.6,demonstration:  above the existing share (a retirement hold)
+clean,all,BTM,2030,0.2,demonstration

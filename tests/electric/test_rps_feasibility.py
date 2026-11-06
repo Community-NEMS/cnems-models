@@ -77,7 +77,7 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
     """
     add_solar_expansion(mini_data)
     mini_data.add_tech('Wind', flags=['is_renewable', 'is_vre', 'is_wind', 'is_generator'])
-    mini_data.add_rps_group('clean', tech_groups=['is_vre'])
+    mini_data.add_rps_group('clean', techs=['Solar', 'Wind'])
     mini_data.add_rps_requirement('clean', 'R1', 'RLL', 2030, 0.25)
     mini_data.add_rps_requirement('clean', 'R1', 'BTM', 2031, 0.0)
     mini_data.add_rps_requirement('clean', 'R2', 'BTM', 2031, 0.3)

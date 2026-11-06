@@ -37,12 +37,7 @@ from tests.electric.mini_model import (
 BTM = RPSRequirementType.BTM
 RLL = RPSRequirementType.RLL
 
-TECH_FLAGS = {
-    'tech': ['Gas', 'Solar', 'Wind', 'Batt'],
-    'is_vre': ['Solar', 'Wind'],
-    'is_storage': ['Batt'],
-    'is_hydro': [],
-}
+TECHS = ['Gas', 'Solar', 'Wind', 'Batt']
 GENERATORS = {'Gas', 'Solar', 'Wind'}
 
 YEARS = (2030, 2031, 2032)
@@ -64,9 +59,9 @@ def _resolve(raw: dict, analyze: tuple[str, ...] = ('R1', 'R2')) -> dict:
 
 
 def test_resolve_groups_is_additive() -> None:
-    """Direct techs and tech_group members union; repeats are harmless."""
-    rows = [('clean', 'Solar', ''), ('clean', '', 'is_vre'), ('gas', 'Gas', '')]
-    assert resolve_groups(rows, TECH_FLAGS, GENERATORS) == {
+    """A group is the union of its rows."""
+    rows = [('clean', 'Solar'), ('clean', 'Wind'), ('gas', 'Gas')]
+    assert resolve_groups(rows, TECHS, GENERATORS) == {
         'clean': frozenset({'Solar', 'Wind'}),
         'gas': frozenset({'Gas'}),
     }
@@ -75,37 +70,24 @@ def test_resolve_groups_is_additive() -> None:
 @pytest.mark.parametrize(
     ('row', 'match'),
     [
-        (('', 'Solar', ''), 'missing group_id'),
-        (('g', 'Solar', 'is_vre'), 'exactly one of tech / tech_group'),
-        (('g', '', ''), 'exactly one of tech / tech_group'),
-        (('g', 'Coal', ''), "unknown tech 'Coal'"),
-        (('g', '', 'is_nuclear'), "unknown tech_group 'is_nuclear'"),
-        (('g', '', 'tech'), "unknown tech_group 'tech'"),
-        (('g', 'Batt', ''), r"non-generator members \['Batt'\]"),
-        (('g', '', 'is_hydro'), 'has no member techs'),
+        (('', 'Solar'), 'missing group_id'),
+        (('g', ''), 'missing tech'),
+        (('g', 'Coal'), "unknown tech 'Coal'"),
+        (('g', 'Batt'), r"non-generator members \['Batt'\]"),
     ],
-    ids=[
-        'no_group',
-        'both',
-        'neither',
-        'unknown_tech',
-        'unknown_flag',
-        'master_column',
-        'non_generator',
-        'empty_group',
-    ],
+    ids=['no_group', 'no_tech', 'unknown_tech', 'non_generator'],
 )
 def test_resolve_groups_errors(row: tuple, match: str) -> None:
     """Each bad group row or group is reported."""
     with pytest.raises(ValueError, match=match):
-        resolve_groups([row], TECH_FLAGS, GENERATORS)
+        resolve_groups([row], TECHS, GENERATORS)
 
 
 def test_resolve_groups_reports_every_problem() -> None:
     """All problems are raised together, not just the first."""
-    rows = [('g', 'Coal', ''), ('h', '', 'is_nuclear')]
+    rows = [('g', 'Coal'), ('h', '')]
     with pytest.raises(ValueError, match=r'2 problem\(s\) in rps_group'):
-        resolve_groups(rows, TECH_FLAGS, GENERATORS)
+        resolve_groups(rows, TECHS, GENERATORS)
 
 
 # ---------------------------------------------------------------- resolve_requirements
@@ -322,7 +304,7 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
     retirement hold).
     """
     add_solar_expansion(mini_data)
-    mini_data.add_rps_group('clean', tech_groups=['is_vre'])
+    mini_data.add_rps_group('clean', techs=['Solar'])
     mini_data.add_rps_requirement('clean', 'R2', 'BTM', 2031, 0.3)
     mini_data.add_rps_requirement('clean', 'R1', 'RLL', 2030, 0.25)
     mini_data.add_rps_requirement('clean', 'all', 'RLL', 2030, 0.5)

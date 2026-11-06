@@ -25,8 +25,10 @@ SHIPPED_PROPERTIES = PROJECT_ROOT / 'input/electricity/properties'
 
 @pytest.fixture
 def properties_dir(tmp_path: Path) -> Path:
-    """A copy of the shipped properties folder, which has no rps_group.csv."""
-    return Path(shutil.copytree(SHIPPED_PROPERTIES, tmp_path / 'properties'))
+    """A copy of the shipped properties folder, without its rps_group.csv."""
+    properties = Path(shutil.copytree(SHIPPED_PROPERTIES, tmp_path / 'properties'))
+    (properties / 'rps_group.csv').unlink(missing_ok=True)
+    return properties
 
 
 # ---------------------------------------------------------------- config
@@ -71,12 +73,12 @@ def test_rps_group_absent(properties_dir: Path) -> None:
 
 
 def test_rps_group_rows(properties_dir: Path) -> None:
-    """Each row is kept whole, in order, with blank cells as ''; checks come later."""
+    """Each row is kept whole, in order, with blank cells as '' and notes ignored."""
     (properties_dir / 'rps_group.csv').write_text(
-        'group_id,tech,tech_group\nclean,13,\nclean,,is_vre\nwind,13,\n'
+        'group_id,tech,notes\nclean,13,offshore wind\nclean,14,\nwind,,blank tech\n'
     )
     assert load_property_data(properties_dir)['rps_group'] == {
-        'group_id': [('clean', '13', ''), ('clean', '', 'is_vre'), ('wind', '13', '')]
+        'group_id': [('clean', '13'), ('clean', '14'), ('wind', '')]
     }
 
 
@@ -101,9 +103,9 @@ def test_rps_requirement_rows(tmp_path: Path) -> None:
     No region filter applies, so the ``all`` keyword comes through.
     """
     (tmp_path / 'rps_requirement.csv').write_text(
-        'group_id,region,requirement_type,first_year,min_share_frac\n'
-        'clean,7,BTM,2030,0.25\n'
-        'clean,all,RLL,2031,0.5\n'
+        'group_id,region,requirement_type,first_year,min_share_frac,notes\n'
+        'clean,7,BTM,2030,0.25,a note\n'
+        'clean,all,RLL,2031,0.5,\n'
     )
     assert load_policy_data(tmp_path)['rps_requirement'] == {
         ('clean', '7', 'BTM', 2030): 0.25,

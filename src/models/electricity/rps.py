@@ -79,22 +79,18 @@ def _raise_if(errors: list[str], table: str) -> None:
 
 
 def resolve_groups(
-    rows: Iterable[tuple[str, str, str]],
-    tech_flags: Mapping[str, Iterable[str]],
-    generators: Collection[str],
+    rows: Iterable[tuple[str, str]], techs: Collection[str], generators: Collection[str]
 ) -> dict[str, frozenset[str]]:
     """Resolve ``rps_group`` rows into each group's member techs.
 
-    Membership is additive across rows; a tech named directly and through a ``tech_group`` (or
-    twice) is simply a member.
+    Each row names one member; a group is the union of its rows.
 
     Parameters
     ----------
-    rows : Iterable[tuple[str, str, str]]
-        raw ``(group_id, tech, tech_group)`` rows, blank cells as ``''``.
-    tech_flags : Mapping[str, Iterable[str]]
-        the tech.csv property read:  ``'tech'`` -> every tech, and each ``is_*`` column -> the
-        techs flagged True.  The ``is_*`` names are the valid ``tech_group`` values.
+    rows : Iterable[tuple[str, str]]
+        raw ``(group_id, tech)`` rows, blank cells as ``''``.
+    techs : Collection[str]
+        every tech in tech.csv.
     generators : Collection[str]
         the generator techs; every member must be one.
 
@@ -106,34 +102,24 @@ def resolve_groups(
     Raises
     ------
     ValueError
-        listing every row with no group_id, with both or neither of tech / tech_group, or naming
-        an unknown tech or tech_group, and every group that is empty or has a non-generator
-        member.
+        listing every row with no group_id or tech, or naming an unknown tech, and every group
+        with a non-generator member.
     """
-    techs = set(tech_flags['tech'])
+    known = set(techs)
     members: defaultdict[str, set[str]] = defaultdict(set)
     errors = []
-    for group_id, tech, tech_group in rows:
-        row = f'row {(group_id, tech, tech_group)}'
+    for group_id, tech in rows:
+        row = f'row {(group_id, tech)}'
         if not group_id:
             errors.append(f'{row}: missing group_id')
-        elif bool(tech) == bool(tech_group):
-            errors.append(f'{row}: give exactly one of tech / tech_group')
-        elif tech:
-            if tech in techs:
-                members[group_id].add(tech)
-            else:
-                errors.append(f'{row}: unknown tech {tech!r}')
-        elif tech_group != 'tech' and tech_group in tech_flags:
-            members[group_id].update(tech_flags[tech_group])
+        elif not tech:
+            errors.append(f'{row}: missing tech')
+        elif tech not in known:
+            errors.append(f'{row}: unknown tech {tech!r}')
         else:
-            errors.append(
-                f'{row}: unknown tech_group {tech_group!r} (expected a tech.csv is_* column)'
-            )
+            members[group_id].add(tech)
 
     for group_id, group_techs in sorted(members.items()):
-        if not group_techs:
-            errors.append(f'group {group_id!r} has no member techs')
         if non_generators := sorted(group_techs - set(generators)):
             errors.append(f'group {group_id!r} has non-generator members {non_generators}')
     _raise_if(errors, 'rps_group')

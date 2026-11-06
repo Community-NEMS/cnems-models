@@ -347,20 +347,38 @@ def existing_by_tech(
     return by_tech
 
 
-def rll_floors(
+@dataclass(frozen=True)
+class RLLLimits:
+    """How each RLL requirement in force applies:  a capacity floor, or a retirement hold.
+
+    Parameters
+    ----------
+    floors : dict[RPSKey, float]
+        (group_id, region key, year) -> floor MW, where the group's existing share meets the
+        minimum.
+    holds : list[RPSKey]
+        (group_id, region key, year) where it does not (or there are no existing generators):  no
+        group member in the region key may retire that year.
+    """
+
+    floors: dict[RPSKey, float]
+    holds: list[RPSKey]
+
+
+def rll_limits(
     requirements: Mapping[RPSKey, RPSRequirement],
     groups: Mapping[str, Collection[str]],
     region_analyze: Iterable[str],
     generators: Collection[str],
     existing: Mapping[tuple[str, str, int, int], float],
-) -> dict[RPSKey, float]:
-    """Compute the capacity floor of each RLL requirement from the existing capacity.
+) -> RLLLimits:
+    """Decide, year by year from the existing capacity, how each RLL requirement applies.
 
-    The floor is ``min_share`` times the existing generator capacity of the requirement's
-    regions and year.  It is kept only where the group's existing share already meets
-    ``min_share``; otherwise (or with no existing generator capacity) the requirement is dropped
-    and logged at INFO, since RLL never forces builds.  A zero ``min_share`` is dropped too
-    (logged at INFO):  its floor of 0 can never bind.
+    Where the group's existing share of the existing generator capacity meets ``min_share``, the
+    group may retire down to a floor of ``min_share`` times that generator capacity.  Where it
+    does not, or there is no existing generator capacity, the requirement is a hold:  no group
+    member may retire that year.  Neither forces builds.  A zero ``min_share`` is neither (logged
+    at INFO), as it can never bind.
 
     Parameters
     ----------
@@ -377,13 +395,13 @@ def rll_floors(
 
     Returns
     -------
-    dict[RPSKey, float]
-        (group_id, region key, year) -> floor MW, for the RLL requirements kept.
+    RLLLimits
     """
     by_tech = existing_by_tech(existing, generators)
     rll = {k: r for k, r in requirements.items() if r.requirement_type is RPSRequirementType.RLL}
     members = region_members({rk for _, rk, _ in rll}, region_analyze)
     floors: dict[RPSKey, float] = {}
+    holds: list[RPSKey] = []
     for (group_id, rk, year), requirement in sorted(rll.items()):
         if requirement.min_share == 0.0:
             logger.info(
@@ -398,9 +416,10 @@ def rll_floors(
         )
         total_mw = sum(by_tech.get((r, t, year), 0.0) for r in members[rk] for t in generators)
         if total_mw <= 0.0 or group_mw < requirement.min_share * total_mw:
+            holds.append((group_id, rk, year))
             logger.info(
-                'RPS RLL (group %s, region %s, year %d) not applied:  existing share %s is below '
-                'the minimum %.3f',
+                'RPS RLL (group %s, region %s, year %d) holds retirements:  existing share %s is '
+                'below the minimum %.3f',
                 group_id,
                 rk,
                 year,
@@ -416,4 +435,4 @@ def rll_floors(
             year,
             floors[group_id, rk, year],
         )
-    return floors
+    return RLLLimits(floors, holds)

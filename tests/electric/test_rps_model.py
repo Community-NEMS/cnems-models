@@ -6,8 +6,8 @@ Written with:  Claude Opus 5.5 (Anthropic)
 Contact:  jeff@westernspark.us
 Created on:  11/5/26
 
-Tests of the RPS constraints (``rps_btm_lb``, ``rps_rll_lb``) on the mini model, solved, with the
-expected capacities worked by hand from the mini model's data.
+Tests of the RPS constraints (``rps_btm_lb``, ``rps_rll_lb``) and RLL retirement holds on the mini
+model, solved, with the expected capacities worked by hand from the mini model's data.
 """
 
 from collections.abc import Iterable
@@ -105,10 +105,32 @@ def test_rll_blocks_retirement(build_mini, mini_data: MiniModelData) -> None:
         assert _capacity(model, ['R2'], ['Gas'], year) == pytest.approx(80.0)
 
 
-def test_inert_requirements_write_no_constraint(build_mini, clean_group: MiniModelData) -> None:
-    """An RLL above the existing share and a zero-share BTM write nothing:  same solution as off.
+def test_rll_hold_then_floor(build_mini, clean_group: MiniModelData) -> None:
+    """Below its minimum an RLL holds retirements; once the existing share meets it, a floor.
 
-    R2 has no existing Solar, so its RLL is not applied; the zero BTM in R1 can never bind.
+    Retirable Gas would retire to R1's 80 MW load.  RLL 0.8 on Gas in R1:  in 2030 the existing
+    share is 100 / 150 (R1's 50 MW Solar), below 0.8, so no Gas may retire; in 2031 R1 has no
+    existing Solar, the share is 1.0, and the floor is 0.8 x 100 = 80 MW.
+    """
+    clean_group.set_retirable('Gas', 1)
+    clean_group.drop_rows('available_capacity', [('R1', 'Solar', 1, 2031)])
+    clean_group.add_rps_group('firm', techs=['Gas'])
+    clean_group.add_rps_requirement('firm', 'R1', 'RLL', 2030, 0.8)
+    model = _solve(build_mini, **RPS_ON)
+
+    assert ('R1', 'Gas', 1, 2030) not in model.capacity_retirements
+    assert ('R1', 'Gas', 1, 2031) in model.capacity_retirements
+    assert list(model.rps_rll_lb) == [('firm', 'R1', 2031)]
+    assert pyo.value(model.rps_rll_floor['firm', 'R1', 2031]) == pytest.approx(80.0)
+    assert _capacity(model, ['R1'], ['Gas'], 2030) == pytest.approx(100.0)
+    assert _capacity(model, ['R1'], ['Gas'], 2031) == pytest.approx(80.0)
+
+
+def test_inert_requirements_write_no_constraint(build_mini, clean_group: MiniModelData) -> None:
+    """An RLL hold on a group that cannot retire, and a zero-share BTM:  same solution as off.
+
+    R2 has no existing Solar, so its RLL is a hold, but Solar is not retirable; the zero BTM in R1
+    can never bind.
     """
     off = _solve(build_mini, capacity_expansion=True)
     assert not hasattr(off, 'rps_btm_lb')

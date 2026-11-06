@@ -25,7 +25,7 @@ from src.models.electricity.rps import (
     region_members,
     resolve_groups,
     resolve_requirements,
-    rll_floors,
+    rll_limits,
 )
 from tests.electric.mini_model import (
     MiniModelData,
@@ -257,31 +257,38 @@ EXISTING = {
 
 
 @pytest.mark.parametrize(
-    ('region', 'share', 'floor'),
+    ('region', 'share', 'floor', 'hold'),
     [
-        ('R1', 0.25, 37.5),  # existing share 50/150 meets 0.25:  floor 0.25 * 150
-        ('R1', 0.5, None),  # 50/150 is below 0.5:  not applied
-        ('all', 0.1, 30.0),  # 50/300 meets 0.1:  floor 0.1 * 300
-        ('all', 0.2, None),  # 50/300 is below 0.2
-        ('R2', 0.0, None),  # a zero share can never bind:  not applied
+        ('R1', 0.25, 37.5, False),  # existing share 50/150 meets 0.25:  floor 0.25 * 150
+        ('R1', 1 / 3, 50.0, False),  # exactly at the minimum:  a floor of all the group holds
+        ('R1', 0.5, None, True),  # 50/150 is below 0.5:  hold
+        ('all', 0.1, 30.0, False),  # 50/300 meets 0.1:  floor 0.1 * 300
+        ('all', 0.2, None, True),  # 50/300 is below 0.2:  hold
+        ('R2', 0.0, None, False),  # a zero share can never bind:  neither
     ],
 )
-def test_rll_floors(region: str, share: float, floor: float | None) -> None:
-    """The floor is share x existing generator MW, kept only where the existing share meets it."""
+def test_rll_limits(region: str, share: float, floor: float | None, hold: bool) -> None:
+    """A floor of share x existing generator MW where the existing share meets it, else a hold."""
     requirements = {
         ('clean', region, 2030): RPSRequirement(RLL, share, 2030),
         ('clean', region, 2031): RPSRequirement(BTM, 0.9, 2031),  # ignored:  not RLL
     }
-    floors = rll_floors(requirements, {'clean': {'Solar'}}, ['R1', 'R2'], GENERATORS, EXISTING)
-    assert floors == ({} if floor is None else {('clean', region, 2030): floor})
+    limits = rll_limits(requirements, {'clean': {'Solar'}}, ['R1', 'R2'], GENERATORS, EXISTING)
+    if floor is None:
+        assert limits.floors == {}
+    else:
+        assert limits.floors == {('clean', region, 2030): pytest.approx(floor)}
+    assert limits.holds == ([('clean', region, 2030)] if hold else [])
 
 
-def test_rll_floor_without_generators(caplog: pytest.LogCaptureFixture) -> None:
-    """With no existing generator capacity there is no share to hold:  not applied."""
+def test_rll_hold_without_generators(caplog: pytest.LogCaptureFixture) -> None:
+    """With no existing generator capacity the share is undefined:  hold."""
     requirements = {('clean', 'R1', 2031): RPSRequirement(RLL, 0.1, 2030)}
     with caplog.at_level(logging.INFO, logger='src.models.electricity.rps'):
-        assert rll_floors(requirements, {'clean': {'Solar'}}, ['R1'], GENERATORS, EXISTING) == {}
-    assert 'n/a (no generators)' in caplog.text
+        limits = rll_limits(requirements, {'clean': {'Solar'}}, ['R1'], GENERATORS, EXISTING)
+    assert limits.floors == {}
+    assert limits.holds == [('clean', 'R1', 2031)]
+    assert 'holds retirements:  existing share n/a (no generators)' in caplog.text
 
 
 def test_validate_rps_btm_sources() -> None:
@@ -311,8 +318,8 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
     """Solar existing in R1 (50 MW) and buildable everywhere; Gas 100 MW in both regions.
 
     Group ``clean`` is the VRE techs (Solar).  Requirements:  BTM 0.3 in R2 from 2031; RLL 0.25
-    in R1 from 2030 (existing share 1/3, applied); RLL 0.5 over ``all`` (existing share 0.2, not
-    applied).
+    in R1 from 2030 (existing share 1/3, a floor); RLL 0.5 over ``all`` (existing share 0.2, a
+    retirement hold).
     """
     add_solar_expansion(mini_data)
     mini_data.add_rps_group('clean', tech_groups=['is_vre'])
@@ -330,10 +337,10 @@ def test_mini_rps_sets_and_params(
 
     assert model_sets.rps_group_techs == {'clean': frozenset({'Solar'})}
     assert model_sets.rps_region_members == {'R1': ('R1',), 'R2': ('R2',), 'all': ('R1', 'R2')}
-    # the "all" RLL stays in force for reporting, but its floor does not apply
-    assert ('clean', 'all', 2030) in model_sets.rps_requirements
     assert model_sets.rps_btm_index == [('clean', 'R2', 2031)]
     assert model_sets.rps_rll_index == [('clean', 'R1', 2030), ('clean', 'R1', 2031)]
+    # the "all" RLL is below its minimum:  a hold, not a floor
+    assert model_sets.rps_rll_hold_index == [('clean', 'all', 2030), ('clean', 'all', 2031)]
 
     assert param_data.param_dicts['rps_min_share'] == {('clean', 'R2', 2031): 0.3}
     assert param_data.param_dicts['rps_rll_floor'] == {
@@ -348,6 +355,26 @@ def test_mini_rps_sets_and_params(
         ('R2', 'Solar', 1),
     ]
     validate_all(model_sets, param_data)
+
+
+def test_mini_rps_hold_removes_retirements(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rps_data: MiniModelData,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The ``all`` hold on Solar removes every Solar retirement entry in both regions and years.
+
+    Solar is in the capacity index in R1 (existing) and R2 (buildable) in 2030 and 2031:  four
+    entries.  Gas is retirable too, and outside the group, so it keeps its entries.
+    """
+    rps_data.set_retirable('Solar', 1).set_retirable('Gas', 1)
+    with caplog.at_level(logging.INFO, logger='src.models.electricity.model_sets'):
+        model_sets, _ = _build(monkeypatch, tmp_path, rps_data)
+
+    assert {(r, t) for r, t, _, _ in model_sets.retirement_index} == {('R1', 'Gas'), ('R2', 'Gas')}
+    assert len(model_sets.retirement_index) == 4
+    assert 'RPS RLL holds:  4 retirement index entries removed for 2' in caplog.text
 
 
 def test_mini_rps_off_ignores_tables(

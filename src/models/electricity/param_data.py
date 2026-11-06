@@ -36,7 +36,7 @@ from src.models.electricity.rps import (
     RPSKey,
     requirement_rows,
     resolve_requirements,
-    rll_floors,
+    rll_limits,
 )
 
 logger = logging.getLogger(__name__)
@@ -273,7 +273,7 @@ class ParamData:
             region_analyze=model_sets.region_analyze,
             model_years=model_sets.year_map.values(),
         )
-        floors = rll_floors(
+        limits = rll_limits(
             requirements,
             groups=model_sets.rps_group_techs,
             region_analyze=model_sets.region_analyze,
@@ -282,13 +282,14 @@ class ParamData:
         )
         model_sets.build_rps_sets(
             requirements,
-            rll_keys=floors,
+            rll_keys=limits.floors,
+            rll_holds=limits.holds,
             rows=requirement_rows(raw, model_sets.region_analyze),
         )
         self.param_dicts['rps_min_share'] = {
             key: requirements[key].min_share for key in model_sets.rps_btm_index
         }
-        self.param_dicts['rps_rll_floor'] = floors
+        self.param_dicts['rps_rll_floor'] = limits.floors
 
     def build_load_dataframe(self) -> DataFrame:
         """Build the load dataframe."""

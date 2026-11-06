@@ -23,7 +23,7 @@ from src.models.electricity.rps_feasibility import (
     NO_GROUP_CAPACITY,
     NO_MEMBER_BUILDABLE,
     PRIOR_BUILDS_ONLY,
-    RLL_NOT_APPLIED,
+    RLL_HOLDS_RETIREMENTS,
     RPS_FEASIBILITY_FILE,
     UNAVAILABLE,
     FeasibilityReport,
@@ -73,7 +73,7 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
     Existing generator MW:  R1 100 Gas + 50 Solar; R2 100 Gas.  Solar is buildable in both
     regions and years (2030, 2031).  Requirements:  RLL 0.25 in R1 from 2030, superseded in 2031
     by a zero BTM; BTM 0.3 in R2 from 2031; RLL 0.5 over ``all`` from 2030 (existing share
-    50 / 250, not applied).
+    50 / 250, a retirement hold).
     """
     add_solar_expansion(mini_data)
     mini_data.add_tech('Wind', flags=['is_renewable', 'is_vre', 'is_wind', 'is_generator'])
@@ -135,18 +135,18 @@ def test_filtered_region_row(
 def test_issues_and_coverage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """Only problems are listed:  the unapplied RLL and the unbuildable Wind in R2."""
+    """Only problems and holds are listed:  the RLL hold and the unbuildable Wind in R2."""
     report = _report(monkeypatch, tmp_path, rps_data)
 
     # issues:  group, region key, type, years, status
-    assert _row(report.text, 'clean', 'all', 'RLL', '2030–2031')[-1] == RLL_NOT_APPLIED
+    assert _row(report.text, 'clean', 'all', 'RLL', '2030–2031')[-1] == RLL_HOLDS_RETIREMENTS
     # coverage:  region, tech, not buildable in, status, required by
     assert _row(report.text, 'R2', 'Wind') == ['R2', 'Wind', '2031', UNAVAILABLE, 'clean@R2']
     # R2 Solar is buildable in every required year:  not listed
     assert not [
         line for line in report.text.splitlines() if line.startswith('| R2 ') and 'Solar' in line
     ]
-    assert report.issues == {NO_GROUP_CAPACITY: 0, NO_MEMBER_BUILDABLE: 0, RLL_NOT_APPLIED: 2}
+    assert report.issues == {NO_GROUP_CAPACITY: 0, NO_MEMBER_BUILDABLE: 0, RLL_HOLDS_RETIREMENTS: 2}
     assert report.coverage == {PRIOR_BUILDS_ONLY: 0, EXISTING_ONLY: 0, UNAVAILABLE: 1}
     # both problem tables carry a legend
     assert len([line for line in report.text.splitlines() if line.startswith('| status ')]) == 2

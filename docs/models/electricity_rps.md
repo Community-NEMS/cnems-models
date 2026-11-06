@@ -37,13 +37,30 @@ a share of capacity, not of generation. There are two requirement types:
 | Type | Name                    | Effect |
 |:-----|:------------------------|:-------|
 | BTM  | Build To Minima         | The group's share must be at least the minimum, counting existing capacity, retirements and new builds in that year. The model builds group capacity (or retires other generators) as needed. |
-| RLL  | Retirement Lower Limit  | The group may not retire below the minimum share of the *existing* generator capacity. It never forces builds, and it applies only where the existing share already meets the minimum; otherwise it is skipped (logged at INFO). |
+| RLL  | Retirement Lower Limit  | Limits the group's retirements, and never forces builds. Where the group's existing share meets the minimum, the group may not retire below the minimum share of the *existing* generator capacity. Where it does not, no group member may retire at all. |
 
-An RLL floor is a fixed number of MW, the minimum share times the existing generator capacity of
-that year, so retiring nothing always satisfies it. A BTM compares two decision quantities, so
-building other generators raises what the group must hold.
+An RLL is decided year by year from the existing capacity (`available_capacity`) of the
+requirement's regions:
 
-A requirement with a minimum of 0 writes no constraint, as it can never bind. It still counts
+- **Existing share at or above the minimum: a floor.** The group's capacity must stay at or above
+  the minimum share times that year's existing generator capacity. The floor is a fixed number of
+  MW, so retiring nothing always satisfies it.
+- **Existing share below the minimum, or no existing generators: a retirement hold.** No group
+  member in the region key's regions may retire that year, in any step. The hold writes no
+  constraint: those members simply have no retirement variable that year (logged at INFO, with
+  the count removed).
+
+The two meet at the threshold, where the floor equals the group's existing capacity, so the RLL
+moves smoothly between them as the existing fleet changes. A hold applies to each member, not to
+the group's net total: retiring one member and building another is not allowed. Builds are never
+restricted, and a hold does not undo retirements made in earlier years. The test sees only the
+existing capacity, so the model's own builds never turn a hold into a floor.
+
+A BTM compares two decision quantities, so building other generators raises what the group must
+hold.
+
+A requirement with a minimum of 0 writes no constraint (and an RLL no hold), as it can never
+bind. It still counts
 when deciding which requirement is in force (see below), so a zero BTM switches RPS off for its
 group and region from its first year.
 
@@ -226,13 +243,14 @@ force shows `-`, and its note says why:
 | `region not in this run` | `region_filter` leaves the region out. |
 | `minimum 0:  no constraint` | In force, but a zero minimum writes no constraint. |
 
-**Requirement issues** lists the problems by group, region key and years:
+**Requirement issues** lists the problems, and the RLL retirement holds, by group, region key and
+years:
 
 | Status | Meaning |
 |:-------|:--------|
 | `no group capacity` | A BTM no member can hold capacity for (no existing, buildable or earlier-built capacity), so it cannot be met. This also fails validation. |
 | `no member buildable` | The existing capacity falls short of a BTM, and no member is buildable in the year or earlier. Only retiring other generators can meet it. |
-| `RLL not applied` | The existing share is below an RLL's minimum (or there are no existing generators), so no floor is written. |
+| `RLL holds retirements` | The existing share is below an RLL's minimum (or there are no existing generators), so no group member in the region key may retire that year. Not a fault: it is listed so the hold is visible. |
 
 A BTM that needs builds, and has a member to build, is not an issue: forcing builds is what a BTM
 is for.
@@ -256,8 +274,8 @@ Each problem table is followed by a legend of its statuses. When there is nothin
 line replaces the table and its legend.
 
 The checks are made against the existing fleet and the build data, not a solve. In particular, a
-BTM that can only be met by retiring other generators is not checked against the RLL floors that
-may block them.
+BTM that can only be met by retiring other generators is not checked against the RLL floors and
+holds that may block them.
 
 ### Sample
 
@@ -307,23 +325,24 @@ latest RLL.
 
 Requirement issues
 
-Problems only, by group, region key and model years.
+Problems, and RLL retirement holds, by group, region key and model years.
 
-| group   | region key   | type   | years     | status          |
-|---------|--------------|--------|-----------|-----------------|
-| clean   | 8            | RLL    | 2025      | RLL not applied |
-| clean   | 9            | RLL    | 2025–2035 | RLL not applied |
+| group   | region key   | type   | years     | status                |
+|---------|--------------|--------|-----------|-----------------------|
+| clean   | 8            | RLL    | 2025      | RLL holds retirements |
+| clean   | 9            | RLL    | 2025–2035 | RLL holds retirements |
 
-| status              | meaning                                                                  |
-|---------------------|--------------------------------------------------------------------------|
-| no group capacity   | BTM:  no member has existing, buildable or earlier-built capacity in the |
-|                     | region key and year, so the requirement cannot be met.  Also a           |
-|                     | validation error.                                                        |
-| no member buildable | BTM:  the existing capacity falls short of the minimum, and no member is |
-|                     | buildable in the year or earlier.  Only retiring other generators can    |
-|                     | meet it.                                                                 |
-| RLL not applied     | RLL:  the existing share is below the minimum (or there are no existing  |
-|                     | generators), so no floor is written.  An RLL never forces builds.        |
+| status                | meaning                                                                  |
+|-----------------------|--------------------------------------------------------------------------|
+| no group capacity     | BTM:  no member has existing, buildable or earlier-built capacity in the |
+|                       | region key and year, so the requirement cannot be met.  Also a           |
+|                       | validation error.                                                        |
+| no member buildable   | BTM:  the existing capacity falls short of the minimum, and no member is |
+|                       | buildable in the year or earlier.  Only retiring other generators can    |
+|                       | meet it.                                                                 |
+| RLL holds retirements | RLL:  the existing share is below the minimum (or there are no existing  |
+|                       | generators), so no group member in the region key may retire that year.  |
+|                       | Not a fault:  an RLL never forces builds.                                |
 
 Build To Minima member coverage
 
@@ -361,8 +380,9 @@ Reading it:
 
 - **Requirements:** region 8's RLL gives way to its BTM in 2030. Its RLL from 2035 never takes
   effect, because the BTM is still in force.
-- **Requirement issues:** region 9's RLL asks for a 60% share it doesn't have, so it never applies.
-  Region 8's RLL isn't applied in 2025, its only year in force.
+- **Requirement issues:** region 9's RLL asks for a 60% share it doesn't have, so it holds
+  retirements every year: no clean member in region 9 may retire. Region 8's RLL holds in 2025,
+  its only year in force. Region 7's RLL, met by its existing share, is a floor and not listed.
 - **Coverage:** in region 8, regular hydro can be built only from 2035, so it is unavailable for
   2030. Utility solar can't be built in 2035, so any addition for that year must be built by 2030.
   Offshore wind (`13`) and end-use solar (`15_end_use`) can never be built in these regions, so

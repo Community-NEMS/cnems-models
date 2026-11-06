@@ -362,6 +362,41 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=model_sets.buildable_capacity,
             )
 
+        # if the regional portfolio standards are on (requires capacity expansion)
+        if elec_config.rps_required:
+            self.rps_group = pyo.Set(initialize=sorted(model_sets.rps_group_techs))
+            self.rps_group_techs = pyo.Set(
+                self.rps_group,
+                within=self.tech_gen,
+                initialize={g: sorted(t) for g, t in model_sets.rps_group_techs.items()},
+            )
+            # a region key is a region, or 'all' (the analyzed regions summed together)
+            self.rps_region_key = pyo.Set(initialize=sorted(model_sets.rps_region_members))
+            self.rps_btm_index = pyo.Set(
+                dimen=3,
+                within=self.rps_group * self.rps_region_key * self.year,
+                initialize=model_sets.rps_btm_index,
+            )
+            self.rps_rll_index = pyo.Set(
+                dimen=3,
+                within=self.rps_group * self.rps_region_key * self.year,
+                initialize=model_sets.rps_rll_index,
+            )
+            # the (region, tech, step) summed for a requirement's group, and for all generators
+            self.rps_group_sources = pyo.Set(
+                self.rps_btm_index | self.rps_rll_index,
+                dimen=3,
+                within=self.region_analyze * self.tech_gen_step,
+                initialize=model_sets.rps_group_sources,
+            )
+            self.rps_gen_sources = pyo.Set(
+                self.rps_region_key,
+                self.year,
+                dimen=3,
+                within=self.region_analyze * self.tech_gen_step,
+                initialize=model_sets.rps_gen_sources,
+            )
+
         # if capacity expansion and learning are on
         # this block of code demonstrates the application of the switch option,
         # but in general we found it easier to read if we continued to use if statements
@@ -658,6 +693,17 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.tech,
                 initialize=all_dicts['reserve_tech_limit'],
                 validate=reserve_tech_check,
+            )
+
+        # if the regional portfolio standards are on, ...
+        if elec_config.rps_required:
+            self.rps_min_share = pyo.Param(
+                self.rps_btm_index, initialize=all_dicts['rps_min_share'], within=pyo.UnitInterval
+            )
+            self.rps_rll_floor = pyo.Param(
+                self.rps_rll_index,
+                initialize=all_dicts['rps_rll_floor'],
+                within=pyo.NonNegativeReals,
             )
 
         #  =======================================
@@ -1457,6 +1503,71 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         for year in m.year
                         if year < y and (r, tech, step, year) in m.capacity_retirements
                     )
+                )
+
+        # if the regional portfolio standards are on
+        if elec_config.rps_required:
+
+            @self.Constraint(self.rps_btm_index)
+            def rps_btm_lb(m: PowerModel, group, rk, y):
+                """RPS Build To Minima lower bound.
+
+                Group Capacity >= Minimum Share * Generator Capacity, both summed over the
+                region key's regions and every step.
+
+                Parameters
+                ----------
+                m : PowerModel
+                    the model
+                group : str
+                    RPS group
+                rk : str
+                    region key:  a region, or 'all'
+                y : int
+                    year
+
+                Returns
+                -------
+                pyomo.core.base.constraint.IndexedConstraint
+                    RPS BTM lower bound
+                """
+                return sum(
+                    m.capacity_total[r, tech, step, y]
+                    for (r, tech, step) in m.rps_group_sources[group, rk, y]
+                ) >= m.rps_min_share[group, rk, y] * sum(
+                    m.capacity_total[r, tech, step, y]
+                    for (r, tech, step) in m.rps_gen_sources[rk, y]
+                )
+
+            @self.Constraint(self.rps_rll_index)
+            def rps_rll_lb(m: PowerModel, group, rk, y):
+                """RPS Retirement Lower Limit.
+
+                Group Capacity >= Floor (the minimum share of the existing generator capacity),
+                summed over the region key's regions and every step.
+
+                Parameters
+                ----------
+                m : PowerModel
+                    the model
+                group : str
+                    RPS group
+                rk : str
+                    region key:  a region, or 'all'
+                y : int
+                    year
+
+                Returns
+                -------
+                pyomo.core.base.constraint.IndexedConstraint
+                    RPS RLL lower bound
+                """
+                return (
+                    sum(
+                        m.capacity_total[r, tech, step, y]
+                        for (r, tech, step) in m.rps_group_sources[group, rk, y]
+                    )
+                    >= m.rps_rll_floor[group, rk, y]
                 )
 
         # if trade operation is on

@@ -1,0 +1,424 @@
+"""
+Created as part of the C-NEMS Project.
+
+Written by:  J. F. Hyink
+Written with:  Claude Opus 5.5 (Anthropic)
+Contact:  jeff@westernspark.us
+Created on:  11/5/26
+
+Regional Portfolio Standard (RPS) data processing:  pure functions (no pyomo) that turn the raw
+``rps_group`` / ``rps_requirement`` reads into checked group memberships and the requirement in
+force for each (group, region key, model year).
+
+A requirement's *region key* is a region name or ``RPS_ALL_REGIONS``, which stands for the
+analyzed regions summed together (one requirement, not one per region).  Every problem found in a
+table is collected and raised as a single ``ValueError``, so one pass reports them all.
+"""
+
+import logging
+from collections import defaultdict
+from collections.abc import Collection, Iterable, Mapping
+from dataclasses import dataclass
+
+from src.models.electricity.elec_config import RPSRequirementType
+
+logger = logging.getLogger(__name__)
+
+RPS_ALL_REGIONS = 'all'
+"""region keyword:  the requirement applies to the sum over all analyzed regions"""
+
+type RPSKey = tuple[str, str, int]
+"""(group_id, region key, model year)"""
+
+
+@dataclass(frozen=True)
+class RPSRequirement:
+    """One row of ``rps_requirement.csv``, checked and typed.
+
+    Parameters
+    ----------
+    requirement_type : RPSRequirementType
+    min_share : float
+        minimum group share of generator capacity, in [0, 1].
+    first_year : int
+        first year (inclusive) the requirement applies.
+    """
+
+    requirement_type: RPSRequirementType
+    min_share: float
+    first_year: int
+
+
+@dataclass(frozen=True)
+class RPSRequirementRow:
+    """One row of ``rps_requirement.csv`` as entered, for reporting.
+
+    Parameters
+    ----------
+    group_id : str
+    region : str
+        a region name or ``RPS_ALL_REGIONS`` (the region key).
+    requirement : RPSRequirement
+    in_run : bool
+        False for a region the region filter excludes; such a row is never in force.
+    """
+
+    group_id: str
+    region: str
+    requirement: RPSRequirement
+    in_run: bool
+
+
+def _raise_if(errors: list[str], table: str) -> None:
+    """Log each problem and raise them together, if there are any."""
+    if not errors:
+        return
+    for error in errors:
+        logger.error('%s: %s', table, error)
+    raise ValueError(f'{len(errors)} problem(s) in {table}:\n  ' + '\n  '.join(errors))
+
+
+def resolve_groups(
+    rows: Iterable[tuple[str, str]], techs: Collection[str], generators: Collection[str]
+) -> dict[str, frozenset[str]]:
+    """Resolve ``rps_group`` rows into each group's member techs.
+
+    Each row names one member; a group is the union of its rows.
+
+    Parameters
+    ----------
+    rows : Iterable[tuple[str, str]]
+        raw ``(group_id, tech)`` rows, blank cells as ``''``.
+    techs : Collection[str]
+        every tech in tech.csv.
+    generators : Collection[str]
+        the generator techs; every member must be one.
+
+    Returns
+    -------
+    dict[str, frozenset[str]]
+        group_id -> member techs.
+
+    Raises
+    ------
+    ValueError
+        listing every row with no group_id or tech, or naming an unknown tech, and every group
+        with a non-generator member.
+    """
+    known = set(techs)
+    members: defaultdict[str, set[str]] = defaultdict(set)
+    errors = []
+    for group_id, tech in rows:
+        row = f'row {(group_id, tech)}'
+        if not group_id:
+            errors.append(f'{row}: missing group_id')
+        elif not tech:
+            errors.append(f'{row}: missing tech')
+        elif tech not in known:
+            errors.append(f'{row}: unknown tech {tech!r}')
+        else:
+            members[group_id].add(tech)
+
+    for group_id, group_techs in sorted(members.items()):
+        if non_generators := sorted(group_techs - set(generators)):
+            errors.append(f'group {group_id!r} has non-generator members {non_generators}')
+    _raise_if(errors, 'rps_group')
+    return {group_id: frozenset(group_techs) for group_id, group_techs in members.items()}
+
+
+def resolve_requirements(
+    raw: Mapping[tuple[str, str, str, int], float],
+    groups: Collection[str],
+    regions: Collection[str],
+    domestic: Collection[str],
+    region_analyze: Collection[str],
+    model_years: Iterable[int],
+) -> dict[RPSKey, RPSRequirement]:
+    """Check the ``rps_requirement`` rows and find the requirement in force each model year.
+
+    For each (group, region key), a model year ``y`` sees the rows with ``first_year <= y``.  If
+    any of those are BTM, the BTM with the latest ``first_year`` applies; otherwise the latest
+    RLL does.  Every row that is in force but displaced is logged at INFO, once.  Rows for a
+    known region that the region filter excludes are skipped (logged at INFO).
+
+    Parameters
+    ----------
+    raw : Mapping[tuple[str, str, str, int], float]
+        ``(group_id, region, requirement_type, first_year) -> min_share_frac``, as read.
+    groups : Collection[str]
+        the resolved group ids.
+    regions : Collection[str]
+        every region in region.csv.
+    domestic : Collection[str]
+        the domestic regions; RPS applies only to these.
+    region_analyze : Collection[str]
+        the regions in this run.
+    model_years : Iterable[int]
+        the solved (representative) years.
+
+    Returns
+    -------
+    dict[RPSKey, RPSRequirement]
+        (group_id, region key, year) -> the requirement in force; only years with one.
+
+    Raises
+    ------
+    ValueError
+        if there are no rows, or listing every row with an unknown requirement_type, group or
+        region, an international region, a share outside [0, 1], or a duplicate (group, region,
+        type, first_year) once the type's case is folded.
+    """
+    if not raw:
+        msg = 'rps_required is set, but no RPS requirements were found'
+        logger.error(msg)
+        raise ValueError(msg)
+
+    entries: defaultdict[tuple[str, str], list[RPSRequirement]] = defaultdict(list)
+    errors = []
+    for (group_id, region, type_name, first_year), share in raw.items():
+        row = f'row {(group_id, region, type_name, first_year)}'
+        problems = []
+        requirement_type = next(
+            (t for t in RPSRequirementType if t.value == type_name.upper()), None
+        )
+        if requirement_type is None:
+            problems.append(f'unknown requirement_type {type_name!r} (expected RLL or BTM)')
+        if group_id not in groups:
+            problems.append(f'unknown group {group_id!r}')
+        if region != RPS_ALL_REGIONS and region not in regions:
+            problems.append(f'unknown region {region!r}')
+        elif region != RPS_ALL_REGIONS and region not in domestic:
+            problems.append(f'region {region!r} is not domestic')
+        if not 0.0 <= share <= 1.0:
+            problems.append(f'min_share_frac {share} is outside [0, 1]')
+        if problems or requirement_type is None:
+            errors.append(f'{row}: ' + '; '.join(problems))
+            continue
+
+        if region != RPS_ALL_REGIONS and region not in region_analyze:
+            logger.info('RPS %s: region %s is not in this run; skipped', row, region)
+            continue
+        requirement = RPSRequirement(requirement_type, share, first_year)
+        if any(
+            e.requirement_type is requirement_type and e.first_year == first_year
+            for e in entries[group_id, region]
+        ):
+            errors.append(f'{row}: duplicates another {requirement_type.value} row')
+            continue
+        entries[group_id, region].append(requirement)
+    _raise_if(errors, 'rps_requirement')
+
+    # this segment walks through the requirements to detect if any existing requirement is
+    # "displaced" by either a more recent one, or in the case that it is a RLL, any previous BTM
+    # which alwasys supersedes RLL
+    years = sorted(set(model_years))
+    res: dict[RPSKey, RPSRequirement] = {}
+    for (group_id, region), requirements in sorted(entries.items()):
+        displaced: set[RPSRequirement] = set()
+        for year in years:
+            in_force = [r for r in requirements if r.first_year <= year]
+            if not in_force:
+                continue
+            btm = [r for r in in_force if r.requirement_type is RPSRequirementType.BTM]
+            chosen = max(btm or in_force, key=lambda r: r.first_year)
+            res[group_id, region, year] = chosen
+            for r in in_force:
+                if r is not chosen and r not in displaced:
+                    displaced.add(r)
+                    logger.info(
+                        'RPS %s requirement (group %s, region %s, from %d) is superseded from '
+                        '%d by the %s requirement from %d',
+                        r.requirement_type.value,
+                        group_id,
+                        region,
+                        r.first_year,
+                        year,
+                        chosen.requirement_type.value,
+                        chosen.first_year,
+                    )
+        for r in requirements:
+            if years and r.first_year > years[-1]:
+                logger.info(
+                    'RPS %s requirement (group %s, region %s) starts in %d, after the last '
+                    'model year; no effect',
+                    r.requirement_type.value,
+                    group_id,
+                    region,
+                    r.first_year,
+                )
+    return res
+
+
+def requirement_rows(
+    raw: Mapping[tuple[str, str, str, int], float], region_analyze: Collection[str]
+) -> list[RPSRequirementRow]:
+    """Type the ``rps_requirement`` rows as entered, including those not in this run.
+
+    Call after ``resolve_requirements`` has checked ``raw``.
+
+    Parameters
+    ----------
+    raw : Mapping[tuple[str, str, str, int], float]
+        ``(group_id, region, requirement_type, first_year) -> min_share_frac``, as read.
+    region_analyze : Collection[str]
+        the regions in this run.
+
+    Returns
+    -------
+    list[RPSRequirementRow]
+        one per row, sorted by group, region, first year and type.
+    """
+    rows = [
+        RPSRequirementRow(
+            group_id,
+            region,
+            RPSRequirement(RPSRequirementType(type_name.upper()), share, first_year),
+            region == RPS_ALL_REGIONS or region in region_analyze,
+        )
+        for (group_id, region, type_name, first_year), share in raw.items()
+    ]
+    return sorted(
+        rows,
+        key=lambda r: (
+            r.group_id,
+            r.region,
+            r.requirement.first_year,
+            r.requirement.requirement_type.value,
+        ),
+    )
+
+
+def region_members(
+    region_keys: Iterable[str], region_analyze: Iterable[str]
+) -> dict[str, tuple[str, ...]]:
+    """Map each region key to the regions it sums over.
+
+    Parameters
+    ----------
+    region_keys : Iterable[str]
+        region names and/or ``RPS_ALL_REGIONS``.
+    region_analyze : Iterable[str]
+        the regions in this run (what ``RPS_ALL_REGIONS`` covers).
+
+    Returns
+    -------
+    dict[str, tuple[str, ...]]
+        region key -> its regions, sorted.
+    """
+    analyzed = tuple(sorted(region_analyze))
+    return {rk: analyzed if rk == RPS_ALL_REGIONS else (rk,) for rk in region_keys}
+
+
+def existing_by_tech(
+    existing: Mapping[tuple[str, str, int, int], float], generators: Collection[str]
+) -> defaultdict[tuple[str, str, int], float]:
+    """Sum the existing generator capacity over steps.
+
+    Parameters
+    ----------
+    existing : Mapping[tuple[str, str, int, int], float]
+        existing capacity, ``(region, tech, step, year) -> MW``.
+    generators : Collection[str]
+        the generator techs; others are left out.
+
+    Returns
+    -------
+    defaultdict[tuple[str, str, int], float]
+        (region, tech, year) -> MW, 0.0 where there is none.
+    """
+    by_tech: defaultdict[tuple[str, str, int], float] = defaultdict(float)
+    for (region, tech, _step, year), mw in existing.items():
+        if tech in generators:
+            by_tech[region, tech, year] += mw
+    return by_tech
+
+
+@dataclass(frozen=True)
+class RLLLimits:
+    """How each RLL requirement in force applies:  a capacity floor, or a retirement hold.
+
+    Parameters
+    ----------
+    floors : dict[RPSKey, float]
+        (group_id, region key, year) -> floor MW, where the group's existing share meets the
+        minimum.
+    holds : list[RPSKey]
+        (group_id, region key, year) where it does not (or there are no existing generators):  no
+        group member in the region key may retire that year.
+    """
+
+    floors: dict[RPSKey, float]
+    holds: list[RPSKey]
+
+
+def rll_limits(
+    requirements: Mapping[RPSKey, RPSRequirement],
+    groups: Mapping[str, Collection[str]],
+    region_analyze: Iterable[str],
+    generators: Collection[str],
+    existing: Mapping[tuple[str, str, int, int], float],
+) -> RLLLimits:
+    """Decide, year by year from the existing capacity, how each RLL requirement applies.
+
+    Where the group's existing share of the existing generator capacity meets ``min_share``, the
+    group may retire down to a floor of ``min_share`` times that generator capacity.  Where it
+    does not, or there is no existing generator capacity, the requirement is a hold:  no group
+    member may retire that year.  Neither forces builds.  A zero ``min_share`` is neither (logged
+    at INFO), as it can never bind.
+
+    Parameters
+    ----------
+    requirements : Mapping[RPSKey, RPSRequirement]
+        the requirements in force (see ``resolve_requirements``); non-RLL entries are ignored.
+    groups : Mapping[str, Collection[str]]
+        group_id -> member techs.
+    region_analyze : Iterable[str]
+        the regions in this run.
+    generators : Collection[str]
+        the generator techs (the share's denominator).
+    existing : Mapping[tuple[str, str, int, int], float]
+        existing capacity, ``(region, tech, step, year) -> MW``.
+
+    Returns
+    -------
+    RLLLimits
+    """
+    by_tech = existing_by_tech(existing, generators)
+    rll = {k: r for k, r in requirements.items() if r.requirement_type is RPSRequirementType.RLL}
+    members = region_members({rk for _, rk, _ in rll}, region_analyze)
+    floors: dict[RPSKey, float] = {}
+    holds: list[RPSKey] = []
+    for (group_id, rk, year), requirement in sorted(rll.items()):
+        if requirement.min_share == 0.0:
+            logger.info(
+                'RPS RLL (group %s, region %s, year %d) not applied:  the minimum is 0',
+                group_id,
+                rk,
+                year,
+            )
+            continue
+        group_mw = sum(
+            by_tech.get((r, t, year), 0.0) for r in members[rk] for t in groups[group_id]
+        )
+        total_mw = sum(by_tech.get((r, t, year), 0.0) for r in members[rk] for t in generators)
+        if total_mw <= 0.0 or group_mw < requirement.min_share * total_mw:
+            holds.append((group_id, rk, year))
+            logger.info(
+                'RPS RLL (group %s, region %s, year %d) holds retirements:  existing share %s is '
+                'below the minimum %.3f',
+                group_id,
+                rk,
+                year,
+                f'{group_mw / total_mw:.3f}' if total_mw > 0.0 else 'n/a (no generators)',
+                requirement.min_share,
+            )
+            continue
+        floors[group_id, rk, year] = requirement.min_share * total_mw
+        logger.debug(
+            'RPS RLL (group %s, region %s, year %d) floor:  %.1f MW',
+            group_id,
+            rk,
+            year,
+            floors[group_id, rk, year],
+        )
+    return RLLLimits(floors, holds)

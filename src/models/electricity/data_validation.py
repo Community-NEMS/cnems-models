@@ -144,6 +144,12 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 model_sets.tech_builds,
             )
 
+    # an RPS BTM requirement can only be met where the group has capacity it can hold or build
+    if param_data.elec_config.rps_required:
+        all_valid &= validate_rps_btm_sources(
+            param_data.param_dicts['rps_min_share'], model_sets.rps_group_sources
+        )
+
     if not all_valid:
         message = 'Data validation failed.  See log for details.'
         if strict:
@@ -482,6 +488,43 @@ def validate_build_cost_coverage(
     extra = len(costs) - expected
     if not missing and extra > 0:
         logger.debug('%s has %d entries beyond the buildable set (ignored)', element_name, extra)
+    return valid
+
+
+def validate_rps_btm_sources(
+    min_share: Mapping[tuple[str, str, int], float],
+    group_sources: Mapping[tuple[str, str, int], Sequence[tuple]],
+) -> bool:
+    """Screen each RPS BTM requirement for group capacity to meet it.
+
+    A BTM requirement with a positive share needs at least one group (region, tech, step) in the
+    capacity index (existing, buildable or carried) in its regions and year; without one it is
+    infeasible.  Whether that capacity can actually be built is left to the RPS feasibility
+    report.
+
+    Parameters
+    ----------
+    min_share : Mapping[tuple[str, str, int], float]
+        (group, region key, year) -> BTM minimum share (``param_dicts['rps_min_share']``).
+    group_sources : Mapping[tuple[str, str, int], Sequence[tuple]]
+        (group, region key, year) -> the group's capacity index entries
+        (``ModelSets.rps_group_sources``).
+
+    Returns
+    -------
+    bool
+        False if any requirement has no group capacity (each logged as an error).
+    """
+    valid = True
+    for key, share in sorted(min_share.items()):
+        if share > 0.0 and not group_sources.get(key):
+            logger.error(
+                'RPS BTM requirement %s (min share %.3f) has no existing or buildable group '
+                'capacity in its region(s) and year',
+                key,
+                share,
+            )
+            valid = False
     return valid
 
 

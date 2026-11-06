@@ -15,7 +15,7 @@ tech,step,is_buildable
 7,1,True
 8,1,True
 10_seasonal,1,False
-10_regular,1,False
+10_regular,1,True
 11,1,False
 12,1,False
 13,1,False

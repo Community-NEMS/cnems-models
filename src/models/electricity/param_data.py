@@ -14,7 +14,7 @@ held in pandas dataframes.
 
 import logging
 from collections.abc import Iterable
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import pandas as pd
 from pandas import DataFrame
@@ -27,10 +27,17 @@ from src.models.electricity.data_ingestor import (
     FilterPackage,
     load_dataframes,
     load_param_data,
+    load_policy_data,
 )
 from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
 from src.models.electricity.model_sets import CI, ModelSets
 from src.models.electricity.param_utilities import avg_by_group, time_map
+from src.models.electricity.rps import (
+    RPSKey,
+    requirement_rows,
+    resolve_requirements,
+    rll_limits,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +92,12 @@ class ParamDicts(TypedDict, total=False):
     reserve_tech_limit: dict[tuple[ReserveType, str], float]
     supply_curve_learning: dict[tuple, float]
     heat_rate: dict[tuple, float]
+
+    # RPS (rps_required only), keyed (group, region key, year)
+    rps_min_share: dict[RPSKey, float]
+    """BTM minimum share of generator capacity"""
+    rps_rll_floor: dict[RPSKey, float]
+    """RLL capacity floor (MW)"""
 
 
 class ParamData:
@@ -222,6 +235,61 @@ class ParamData:
             supply_curve_index=model_sets.capacity_index,
             reserve_ub_limits=self.param_dicts['reserve_tech_limit'],
         )
+
+        if elec_config.rps_required:
+            self._build_rps(model_sets)
+
+    def existing_capacity(self) -> dict[tuple[str, str, int, int], float]:
+        """The existing (``available_capacity``) MW as a dict.
+
+        Returns
+        -------
+        dict[tuple[str, str, int, int], float]
+            (region, tech, step, year) -> MW, keyed as in ``capacity_index``.
+        """
+        capacity = self.param_frames['available_capacity']
+        return cast(
+            dict[tuple[str, str, int, int], float],
+            {} if capacity.empty else dict(capacity.iloc[:, 0].items()),
+        )
+
+    def _build_rps(self, model_sets: ModelSets) -> None:
+        """Resolve the RPS requirements, build the RPS sets, and set the RPS params.
+
+        Needs ``capacity_index`` (from ``build_advanced_indexes``) and the aggregated
+        ``available_capacity`` frame, whose existing capacity sets each RLL floor.
+
+        Parameters
+        ----------
+        model_sets : ModelSets
+            updated in place via ``build_rps_sets``.
+        """
+        raw = load_policy_data(self.elec_config.policy_path)['rps_requirement']
+        requirements = resolve_requirements(
+            raw,
+            groups=model_sets.rps_group_techs,
+            regions=model_sets.region,
+            domestic=model_sets.region_domestic,
+            region_analyze=model_sets.region_analyze,
+            model_years=model_sets.year_map.values(),
+        )
+        limits = rll_limits(
+            requirements,
+            groups=model_sets.rps_group_techs,
+            region_analyze=model_sets.region_analyze,
+            generators=set(model_sets.tech_gen),
+            existing=self.existing_capacity(),
+        )
+        model_sets.build_rps_sets(
+            requirements,
+            rll_keys=limits.floors,
+            rll_holds=limits.holds,
+            rows=requirement_rows(raw, model_sets.region_analyze),
+        )
+        self.param_dicts['rps_min_share'] = {
+            key: requirements[key].min_share for key in model_sets.rps_btm_index
+        }
+        self.param_dicts['rps_rll_floor'] = limits.floors
 
     def build_load_dataframe(self) -> DataFrame:
         """Build the load dataframe."""

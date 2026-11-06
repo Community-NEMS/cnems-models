@@ -45,6 +45,7 @@ _ORIGINAL_PROPERTY_SOURCES = {
     'tech_build': ('tech_build.csv', ['is_buildable'], ('tech', 'step')),
     'tech_retire': ('tech_retire.csv', ['is_retirable'], ('tech', 'step')),
     'region': ('region.csv', ['region', 'is_domestic', 'is_international'], ('region',)),
+    'rps_group': ('rps_group.csv', ['group_id'], ('group_id', 'tech')),
 }
 
 
@@ -57,8 +58,8 @@ def loaded_property_sources() -> dict[str, PropertySource]:
 def test_load_property_sources_count_and_keys(
     loaded_property_sources: dict[str, PropertySource],
 ) -> None:
-    """All 4 entries load, keyed by the same names as the original dict."""
-    assert len(loaded_property_sources) == len(_ORIGINAL_PROPERTY_SOURCES) == 4
+    """All 5 entries load, keyed by the same names as the original dict."""
+    assert len(loaded_property_sources) == len(_ORIGINAL_PROPERTY_SOURCES) == 5
     assert set(loaded_property_sources.keys()) == set(_ORIGINAL_PROPERTY_SOURCES.keys())
 
 
@@ -96,6 +97,7 @@ def test_data_ingestor_property_sources_matches_loader(
         ('tech_build', ()),
         ('tech_retire', ()),
         ('region', ('label',)),
+        ('rps_group', ()),
     ],
 )
 def test_attribute_cols(
@@ -103,3 +105,9 @@ def test_attribute_cols(
 ) -> None:
     """The tech and region sources declare descriptive columns; the others have none."""
     assert loaded_property_sources[key].attribute_cols == expected
+
+
+def test_required_flags(loaded_property_sources: dict[str, PropertySource]) -> None:
+    """Only the switch-gated RPS groups table is optional."""
+    optional = {key for key, source in loaded_property_sources.items() if not source.required}
+    assert optional == {'rps_group'}

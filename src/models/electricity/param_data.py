@@ -234,6 +234,20 @@ class ParamData:
         if elec_config.rps_required:
             self._build_rps(model_sets)
 
+    def existing_capacity(self) -> dict[tuple[str, str, int, int], float]:
+        """The existing (``available_capacity``) MW as a dict.
+
+        Returns
+        -------
+        dict[tuple[str, str, int, int], float]
+            (region, tech, step, year) -> MW, keyed as in ``capacity_index``.
+        """
+        capacity = self.param_frames['available_capacity']
+        return cast(
+            dict[tuple[str, str, int, int], float],
+            {} if capacity.empty else dict(capacity.iloc[:, 0].items()),
+        )
+
     def _build_rps(self, model_sets: ModelSets) -> None:
         """Resolve the RPS requirements, build the RPS sets, and set the RPS params.
 
@@ -254,18 +268,12 @@ class ParamData:
             region_analyze=model_sets.region_analyze,
             model_years=model_sets.year_map.values(),
         )
-        capacity = self.param_frames['available_capacity']
-        # index is (region, tech, step, year), as in capacity_index
-        existing = cast(
-            dict[tuple[str, str, int, int], float],
-            {} if capacity.empty else dict(capacity.iloc[:, 0].items()),
-        )
         floors = rll_floors(
             requirements,
             groups=model_sets.rps_group_techs,
             region_analyze=model_sets.region_analyze,
             generators=set(model_sets.tech_gen),
-            existing=existing,
+            existing=self.existing_capacity(),
         )
         model_sets.build_rps_sets(requirements, rll_keys=floors)
         self.param_dicts['rps_min_share'] = {

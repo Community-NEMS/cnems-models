@@ -199,8 +199,7 @@ shipped inputs replace.
 
 ## 4. Input files, by origin
 
-The full per-file table is `input/hsm/hsm_data_pedigree.md`, and the SHA-256 of every file is in
-`input_sources.csv`.
+The full per-file table is `input/hsm/hsm_data_pedigree.md`.
 
 ### 4.1 NEMS inputs: 27 files
 

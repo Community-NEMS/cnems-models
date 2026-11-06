@@ -30,9 +30,6 @@ config names `henry_hub_path_aeo2026_1987usd.csv`). C-HSM also reads two of C-NG
 files nothing reads yet) are left out, as are 38 files new in the AEO2026 release. `src/models/hsm/INPUTS_PLAN.md` lists each one
 with its NEMS path and release, and says how to add them back if needed in future versions.
 
-`input_sources.csv`, which ships with the C-HSM release rather than in c-nems, has the SHA-256 of
-every file here.
-
 ## Which NEMS release
 
 The NEMS files C-HSM reads are a mix of the two releases:

@@ -4,9 +4,9 @@ C-HSM is a draft sample model for exercising coupling with C-NGMM.
 
 C-HSM projects US natural gas production capacity by census division, cost tier and gas class,
 Canadian natural gas production, and gas and crude oil from existing US wells, for every year from
-2023 to 2050, in response to the Henry Hub and Brent prices. It is adapted from the Hydrocarbon
-Supply Module of EIA's National Energy Modeling System (NEMS) and takes its supply regions and
-cost tiers from C-NGMM.
+2023 to 2050 (from 2024 for existing wells), in response to the Henry Hub and Brent prices. It is
+adapted from the Hydrocarbon Supply Module of EIA's National Energy Modeling System (NEMS) and
+takes its supply regions and cost tiers from C-NGMM.
 
 C-HSM is not an optimization model. Each year is computed from that year's prices and, for Canada
 and the optional well-level engine, from the wells drilled in earlier years, so the years are run

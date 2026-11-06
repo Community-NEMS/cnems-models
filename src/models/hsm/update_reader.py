@@ -74,7 +74,8 @@ def load_reference_pair(path: Path, dollar_year: int) -> tuple[dict[int, float],
     Raises
     ------
     ValueError
-        From ``load_price_path``, or if the two columns do not cover the same years.
+        From ``load_price_path``, or if the two columns do not cover the same years or a price
+        is not positive.
     """
     reference_1987 = load_price_path(path, HENRY_HUB_COLUMNS, 'Henry Hub reference')
     reference_usd = load_price_path(
@@ -82,6 +83,9 @@ def load_reference_pair(path: Path, dollar_year: int) -> tuple[dict[int, float],
     )
     if set(reference_1987) != set(reference_usd):
         raise ValueError(f'{path}: the two price columns cover different years')
+    bad = sorted(y for y in reference_usd if reference_1987[y] <= 0 or reference_usd[y] <= 0)
+    if bad:
+        raise ValueError(f'{path} has non-positive reference prices for years {bad}')
     return reference_1987, reference_usd
 
 

@@ -190,8 +190,8 @@ def test_full_engine_run(hsm_config: HSMConfig, tmp_path: Path) -> None:
     assert len(results) == 972
     assert all(math.isfinite(v) and v >= 0 for v in results.values())
 
-    anchors = load_supply_anchors(hsm_config.ng_input_path)
-    cost_tiers = load_supply_cost_tiers(hsm_config.ng_input_path)
+    anchors = load_supply_anchors(hsm_config.ng_input_path / 'parameters')
+    cost_tiers = load_supply_cost_tiers(hsm_config.ng_input_path / 'parameters')
     for year in range(2025, 2051, 5):
         engine_total = sum(v for k, v in results.items() if k[-1] == year)
         anchor_total = sum(

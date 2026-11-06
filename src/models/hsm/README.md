@@ -7,7 +7,7 @@ Apache License 2.0; see `NOTICE.md`). It projects, for every calendar year from 
 - US natural gas production capacity by census division, cost tier and gas type
   (non-associated or associated-dissolved), in response to the Henry Hub and Brent prices;
 - Canadian gas production (non-associated and associated-dissolved);
-- gas and crude oil from wells already producing in the base year.
+- gas and crude oil from wells already producing in the base year, from 2024.
 
 The US part is a reduced form by default: capacity follows the price through supply elasticities, a
 technology trend and a fitted calibration, rather than through drilling and project economics as in

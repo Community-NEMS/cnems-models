@@ -57,8 +57,7 @@ curl -fsSL -o input/hsm/off_setup.csv \
    `onshore/on_future_wells_configuration.csv`, `onshore/shale_gas_play_map.csv`) and three have no
    final newline (`ak_setup.csv`, `hist_setup.csv`, `ngp_setup.csv`). Make sure the new code does not
    depend on a trailing space in a column name.
-4. **Record them**: add rows to `input/hsm/hsm_data_pedigree.md` and to the release's
-   `input_sources.csv` with the SHA-256, the NEMS path and the tag.
+4. **Record them**: add rows to `input/hsm/hsm_data_pedigree.md` with the NEMS path and the tag.
 5. **Record what a run reads.** Run C-HSM once with every `pandas.read_csv` call logged, and update
    the "read by C-HSM" column of the pedigree.
 6. **Refit the calibration** (`us_gas_calibration.csv`, and `us_gas_calibration_engine.csv` if the

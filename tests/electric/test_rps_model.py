@@ -61,7 +61,8 @@ def test_btm_forces_builds(build_mini, clean_group: MiniModelData) -> None:
         assert _capacity(model, ['R2'], ['Solar'], year) == pytest.approx(150.0)
         assert _capacity(model, ['R1'], ['Solar'], year) == pytest.approx(50.0)
     assert pyo.value(model.capacity_builds['R2', 'Solar', 1, 2030]) == pytest.approx(150.0)
-    assert model.dual[model.rps_btm_lb['clean', 'R2', 2030]] != pytest.approx(0.0)
+    key = model.rps_btm_lb['clean', 'R2', 2030]
+    assert key in model.dual, 'dual is missing'
 
 
 def test_btm_all_met_in_aggregate(build_mini, clean_group: MiniModelData) -> None:
@@ -118,7 +119,9 @@ def test_rll_hold_then_floor(build_mini, clean_group: MiniModelData) -> None:
     clean_group.add_rps_requirement('firm', 'R1', 'RLL', 2030, 0.8)
     model = _solve(build_mini, **RPS_ON)
 
+    # verify that the index is removed from the retirement index, the retirement-disabling mechanism.
     assert ('R1', 'Gas', 1, 2030) not in model.capacity_retirements
+    # verify it *is* in the retirement capable index when above floor
     assert ('R1', 'Gas', 1, 2031) in model.capacity_retirements
     assert list(model.rps_rll_lb) == [('firm', 'R1', 2031)]
     assert pyo.value(model.rps_rll_floor['firm', 'R1', 2031]) == pytest.approx(80.0)

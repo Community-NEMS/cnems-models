@@ -27,7 +27,13 @@ from tabulate import tabulate
 from src.models.electricity.elec_config import RPSRequirementType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
-from src.models.electricity.rps import RPSKey, RPSRequirement, RPSRequirementRow, existing_by_tech
+from src.models.electricity.rps import (
+    RPSKey,
+    RPSRequirement,
+    RPSRequirementRow,
+    disjoint_share_conflicts,
+    existing_by_tech,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,7 @@ RPS_FEASIBILITY_FILE = 'rps_feasibility.txt'
 # requirement issues, by (group, region key, year)
 NO_GROUP_CAPACITY = 'no group capacity'
 NO_MEMBER_BUILDABLE = 'no member buildable'
+DISJOINT_SHARES_OVER_1 = 'disjoint shares over 1'
 RLL_HOLDS_RETIREMENTS = 'RLL holds retirements'
 ISSUE_LEGEND = {
     NO_GROUP_CAPACITY: 'BTM:  no member has existing, buildable or earlier-built capacity in the '
@@ -43,6 +50,9 @@ ISSUE_LEGEND = {
     '0 >= share x 0 when the region key has no generator capacity.',
     NO_MEMBER_BUILDABLE: 'BTM:  the existing capacity falls short of the minimum, and no member '
     'is buildable in the year or earlier.  Only retiring other generators can meet it.',
+    DISJOINT_SHARES_OVER_1: 'BTM:  BTMs on groups with no member in common, in one region key '
+    'and year, have shares summing past 1.  They hold together only with no generator capacity '
+    'in the region key.  Also a validation error.',
     RLL_HOLDS_RETIREMENTS: 'RLL:  the existing share is below the minimum (or there are no '
     'existing generators), so no group member in the region key may retire that year.  Not a '
     'fault:  an RLL never forces builds.',
@@ -249,6 +259,12 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
             status = NO_MEMBER_BUILDABLE
         if status:
             issue_years[group, rk, req.requirement_type.value, status].append(year)
+    min_share = {k: requirements[k].min_share for k in model_sets.rps_btm_index}
+    for (rk, year), (chosen, _total) in disjoint_share_conflicts(min_share, groups).items():
+        for group in chosen:
+            issue_years[group, rk, RPSRequirementType.BTM.value, DISJOINT_SHARES_OVER_1].append(
+                year
+            )
     issue_counts = Counter(dict.fromkeys(ISSUE_LEGEND, 0))
     issue_rows = []
     for (group, rk, type_name, status), ys in sorted(

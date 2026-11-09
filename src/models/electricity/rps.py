@@ -422,3 +422,60 @@ def rll_limits(
             floors[group_id, rk, year],
         )
     return RLLLimits(floors, holds)
+
+
+def _heaviest_disjoint(items: list[tuple[str, frozenset[str], float]]) -> tuple[float, list[str]]:
+    """The pairwise-disjoint subset of ``items`` with the largest share sum (exhaustive search).
+
+    Parameters
+    ----------
+    items : list[tuple[str, frozenset[str], float]]
+        (group_id, member techs, share).
+
+    Returns
+    -------
+    tuple[float, list[str]]
+        the share sum and the chosen group_ids.
+    """
+    if not items:
+        return 0.0, []
+    (group_id, techs, share), rest = items[0], items[1:]
+    skip = _heaviest_disjoint(rest)
+    weight, chosen = _heaviest_disjoint([i for i in rest if not i[1] & techs])
+    return max(skip, (weight + share, [group_id, *chosen]), key=lambda x: x[0])
+
+
+def disjoint_share_conflicts(
+    min_share: Mapping[RPSKey, float], groups: Mapping[str, Collection[str]]
+) -> dict[tuple[str, int], tuple[list[str], float]]:
+    """Find BTMs on disjoint groups whose shares, in one region key and year, sum past 1.
+
+    Groups with no member in common hold separate parts of the same generator capacity, so their
+    shares add, and past 1 they hold together only with no generator capacity in the region
+    key.  Groups that share members, and BTMs on different region keys, are not checked.
+
+    Parameters
+    ----------
+    min_share : Mapping[RPSKey, float]
+        (group, region key, year) -> BTM minimum share (``param_dicts['rps_min_share']``).
+    groups : Mapping[str, Collection[str]]
+        group_id -> member techs.
+
+    Returns
+    -------
+    dict[tuple[str, int], tuple[list[str], float]]
+        (region key, year) -> the pairwise-disjoint groups with the largest share sum, and that
+        sum, where it is above 1.
+    """
+    by_key: defaultdict[tuple[str, int], list[tuple[str, frozenset[str], float]]] = defaultdict(
+        list
+    )
+    for (group_id, rk, year), share in sorted(min_share.items()):
+        if share > 0.0:
+            by_key[rk, year].append((group_id, frozenset(groups[group_id]), share))
+    conflicts = {}
+    for key, items in sorted(by_key.items()):
+        total, chosen = _heaviest_disjoint(items)
+        if total > 1.0 + 1e-9:
+            conflicts[key] = (sorted(chosen), total)
+    return conflicts

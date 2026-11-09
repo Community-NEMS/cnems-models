@@ -27,6 +27,7 @@ from src.common.season import Season
 from src.models.electricity.elec_config import ExpansionLearningType
 from src.models.electricity.model_sets import CapacityOrigin, ModelSets
 from src.models.electricity.param_data import ParamData
+from src.models.electricity.rps import RPSKey, disjoint_share_conflicts
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +145,13 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 model_sets.tech_builds,
             )
 
-    # an RPS BTM requirement can only be met where the group has capacity it can hold or build
+    # an RPS BTM requirement needs group capacity, and BTMs on disjoint groups need room to hold
     if param_data.elec_config.rps_required:
         all_valid &= validate_rps_btm_sources(
             param_data.param_dicts['rps_min_share'], model_sets.rps_group_sources
+        )
+        all_valid &= validate_rps_disjoint_shares(
+            param_data.param_dicts['rps_min_share'], model_sets.rps_group_techs
         )
 
     if not all_valid:
@@ -527,6 +531,40 @@ def validate_rps_btm_sources(
             )
             valid = False
     return valid
+
+
+def validate_rps_disjoint_shares(
+    min_share: Mapping[RPSKey, float], groups: Mapping[str, Iterable[str]]
+) -> bool:
+    """Screen the RPS BTMs of each region key and year for disjoint groups whose shares sum past 1.
+
+    Such BTMs hold together only with no generator capacity in the region key (0 >= share x 0),
+    so the model retires every generator or is infeasible.  See ``rps.disjoint_share_conflicts``
+    for what is not checked.
+
+    Parameters
+    ----------
+    min_share : Mapping[RPSKey, float]
+        (group, region key, year) -> BTM minimum share (``param_dicts['rps_min_share']``).
+    groups : Mapping[str, Iterable[str]]
+        group_id -> member techs (``ModelSets.rps_group_techs``).
+
+    Returns
+    -------
+    bool
+        False if any region key and year has such BTMs (each logged as an error).
+    """
+    conflicts = disjoint_share_conflicts(min_share, {g: set(t) for g, t in groups.items()})
+    for (rk, year), (chosen, total) in conflicts.items():
+        logger.error(
+            'RPS BTMs on disjoint groups %s in region %s, year %d have shares summing to %.3f, '
+            'above 1',
+            chosen,
+            rk,
+            year,
+            total,
+        )
+    return not conflicts
 
 
 def validate_domestic_network(

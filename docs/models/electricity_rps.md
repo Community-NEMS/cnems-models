@@ -59,6 +59,19 @@ existing capacity, so the model's own builds never turn a hold into a floor.
 A BTM compares two decision quantities, so building other generators raises what the group must
 hold.
 
+Groups may share technologies, and a technology's capacity counts toward every group it is in
+(in the sample groups table below, `14` is in both `clean` and `onshore_wind`). BTM shares on
+groups that share members do not add: BTMs of 0.6 on {Solar} and on {Solar, Gas} are both met by
+Solar at 60%. Shares on groups with no member in common do add, since those groups hold separate
+parts of the same generator capacity. If such BTMs, in force in one region key and year, have
+shares summing past 1, they hold together only with no generator capacity in the region key (0 ≥
+share × 0). Where the generators can retire, the model retires them all and leaves the load
+unmet at the penalty price; where they cannot, the solve is infeasible. Validation rejects these
+BTMs, and the feasibility report lists them. The check covers only groups with no member in
+common, in one region key. Groups that share members can conflict too (BTMs of 0.9 on {A, B},
+{B, C} and {A, C} together need 135% of the generator capacity), as can BTMs on different region
+keys, and those show up only in the solve.
+
 A requirement with a minimum of 0 writes no constraint (and an RLL no hold), as it can never
 bind. It still counts
 when deciding which requirement is in force (see below), so a zero BTM switches RPS off for its
@@ -197,7 +210,9 @@ Then `validate_all` checks each BTM in force with a minimum above 0: some group 
 existing or buildable capacity in its regions and year. Without one, (35) is not infeasible:
 it holds as 0 ≥ share × 0 when the region key has no generator capacity, but validation rejects
 such a BTM as an input error (see
-[Data Validation](electricity.md#data-validation)). That check is all that validation can say
+[Data Validation](electricity.md#data-validation)). It also checks that BTMs on groups with
+no member in common, in one region key and year, have shares summing to 1 or less (see
+[Requirement Types](#requirement-types)). Those checks are all that validation can say
 without solving. The feasibility report goes further.
 
 ## The Feasibility Report
@@ -258,6 +273,7 @@ years:
 |:-------|:--------|
 | `no group capacity` | A BTM no member can hold capacity for (no existing, buildable or earlier-built capacity). This fails validation. It is not infeasible: (35) still holds as 0 ≥ share × 0 when the region key has no generator capacity. |
 | `no member buildable` | The existing capacity falls short of a BTM, and no member is buildable in the year or earlier. Only retiring other generators can meet it. |
+| `disjoint shares over 1` | BTMs on groups with no member in common, in one region key and year, have shares summing past 1. They hold together only with no generator capacity in the region key. Each group in the set gets a row. This also fails validation. |
 | `RLL holds retirements` | The existing share is below an RLL's minimum (or there are no existing generators), so no group member in the region key may retire that year. Not a fault: it is listed so the hold is visible. |
 
 A BTM that needs builds, and has a member to build, is not an issue: forcing builds is what a BTM
@@ -343,17 +359,20 @@ Problems, and RLL retirement holds, by group, region key and model years.
 | clean   | 8            | RLL    | 2025      | RLL holds retirements |
 | clean   | 9            | RLL    | 2025–2035 | RLL holds retirements |
 
-| status                | meaning                                                                  |
-|-----------------------|--------------------------------------------------------------------------|
-| no group capacity     | BTM:  no member has existing, buildable or earlier-built capacity in the |
-|                       | region key and year.  A validation error, not an infeasibility:  (35)    |
-|                       | holds as 0 >= share x 0 when the region key has no generator capacity.   |
-| no member buildable   | BTM:  the existing capacity falls short of the minimum, and no member is |
-|                       | buildable in the year or earlier.  Only retiring other generators can    |
-|                       | meet it.                                                                 |
-| RLL holds retirements | RLL:  the existing share is below the minimum (or there are no existing  |
-|                       | generators), so no group member in the region key may retire that year.  |
-|                       | Not a fault:  an RLL never forces builds.                                |
+| status                 | meaning                                                                  |
+|------------------------|--------------------------------------------------------------------------|
+| no group capacity      | BTM:  no member has existing, buildable or earlier-built capacity in the |
+|                        | region key and year.  A validation error, not an infeasibility:  (35)    |
+|                        | holds as 0 >= share x 0 when the region key has no generator capacity.   |
+| no member buildable    | BTM:  the existing capacity falls short of the minimum, and no member is |
+|                        | buildable in the year or earlier.  Only retiring other generators can    |
+|                        | meet it.                                                                 |
+| disjoint shares over 1 | BTM:  BTMs on groups with no member in common, in one region key and     |
+|                        | year, have shares summing past 1.  They hold together only with no       |
+|                        | generator capacity in the region key.  Also a validation error.          |
+| RLL holds retirements  | RLL:  the existing share is below the minimum (or there are no existing  |
+|                        | generators), so no group member in the region key may retire that year.  |
+|                        | Not a fault:  an RLL never forces builds.                                |
 
 Build To Minima member coverage
 

@@ -834,6 +834,12 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   technologies or regions, shares outside [0, 1], duplicate rows) stop the build before
   validation runs, all reported in one error. See
   [Regional Portfolio Standards](electricity_rps.md#checks).
+- **RPS disjoint group shares** (`validate_rps_disjoint_shares`) — when `rps_required` is on, the
+  BTMs in force on groups with no member in common, in one region key and year, must have shares
+  summing to 1 or less. Past 1, (35) holds for all of them only with no generator capacity in the
+  region key, so the model retires every generator (leaving the load unmet) or is infeasible. A
+  set past 1 is an error. Groups that share members are not checked. See
+  [Regional Portfolio Standards](electricity_rps.md#requirement-types).
 
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.

@@ -16,12 +16,17 @@ from pathlib import Path
 import pytest
 
 from src.common.exceptions import DataValidationError
-from src.models.electricity.data_validation import validate_all, validate_rps_btm_sources
+from src.models.electricity.data_validation import (
+    validate_all,
+    validate_rps_btm_sources,
+    validate_rps_disjoint_shares,
+)
 from src.models.electricity.elec_config import RPSRequirementType
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.rps import (
     RPSRequirement,
+    disjoint_share_conflicts,
     region_members,
     resolve_groups,
     resolve_requirements,
@@ -278,6 +283,42 @@ def test_validate_rps_btm_sources() -> None:
     sources = {('g', 'R1', 2030): [('R1', 'Solar', 1)], ('g', 'R2', 2030): []}
     assert validate_rps_btm_sources({('g', 'R1', 2030): 0.5, ('g', 'R2', 2030): 0.0}, sources)
     assert not validate_rps_btm_sources({('g', 'R2', 2030): 0.5}, sources)
+
+
+DISJOINT_GROUPS = {'a': {'Gas'}, 'b': {'Solar'}, 'c': {'Wind'}, 'ab': {'Gas', 'Solar'}}
+
+
+@pytest.mark.parametrize(
+    ('shares', 'expected'),
+    [
+        ({'a': 0.6, 'b': 0.6}, (['a', 'b'], 1.2)),
+        ({'a': 0.5, 'b': 0.5}, None),
+        ({'a': 0.4, 'b': 0.4, 'c': 0.4}, (['a', 'b', 'c'], 1.2)),
+        ({'a': 0.6, 'ab': 0.6}, None),
+        ({'ab': 0.7, 'c': 0.2, 'a': 0.1, 'b': 0.1}, None),
+        ({'ab': 0.5, 'c': 0.6, 'a': 0.3}, (['ab', 'c'], 1.1)),
+    ],
+    ids=['pair', 'sum-1', 'triple', 'shared-member', 'heaviest-under-1', 'heaviest-over-1'],
+)
+def test_disjoint_share_conflicts(
+    shares: dict[str, float], expected: tuple[list[str], float] | None
+) -> None:
+    """Only pairwise-disjoint groups add; the heaviest such set is reported if over 1."""
+    min_share = {(g, 'R1', 2030): s for g, s in shares.items()}
+    conflicts = disjoint_share_conflicts(min_share, DISJOINT_GROUPS)
+    if expected is None:
+        assert conflicts == {}
+    else:
+        chosen, total = conflicts['R1', 2030]
+        assert (chosen, total) == (expected[0], pytest.approx(expected[1]))
+
+
+def test_disjoint_shares_by_region_key() -> None:
+    """Shares add only within one region key and year; the validator fails on a conflict."""
+    split = {('a', 'R1', 2030): 0.6, ('b', 'all', 2030): 0.6, ('b', 'R1', 2031): 0.6}
+    assert disjoint_share_conflicts(split, DISJOINT_GROUPS) == {}
+    assert validate_rps_disjoint_shares(split, DISJOINT_GROUPS)
+    assert not validate_rps_disjoint_shares(split | {('b', 'R1', 2030): 0.6}, DISJOINT_GROUPS)
 
 
 # ---------------------------------------------------------------- on the mini model

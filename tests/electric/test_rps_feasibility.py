@@ -19,6 +19,7 @@ import pytest
 import main
 from src.common.models_modes import ModelType
 from src.models.electricity.rps_feasibility import (
+    DISJOINT_SHARES_OVER_1,
     EXISTING_ONLY,
     NO_GROUP_CAPACITY,
     NO_MEMBER_BUILDABLE,
@@ -146,7 +147,12 @@ def test_issues_and_coverage(
     assert not [
         line for line in report.text.splitlines() if line.startswith('| R2 ') and 'Solar' in line
     ]
-    assert report.issues == {NO_GROUP_CAPACITY: 0, NO_MEMBER_BUILDABLE: 0, RLL_HOLDS_RETIREMENTS: 2}
+    assert report.issues == {
+        NO_GROUP_CAPACITY: 0,
+        NO_MEMBER_BUILDABLE: 0,
+        DISJOINT_SHARES_OVER_1: 0,
+        RLL_HOLDS_RETIREMENTS: 2,
+    }
     assert report.coverage == {PRIOR_BUILDS_ONLY: 0, EXISTING_ONLY: 0, UNAVAILABLE: 1}
     # both problem tables carry a legend
     assert len([line for line in report.text.splitlines() if line.startswith('| status ')]) == 2
@@ -204,6 +210,20 @@ def test_no_group_capacity(
     assert _row(report.text, 'wind', 'R1', 'BTM', '2030–2031')[-1] == NO_GROUP_CAPACITY
     assert _row(report.text, 'R1', 'Wind')[2:] == ['2030–2031', UNAVAILABLE, 'wind@R1']
     assert report.issues[NO_GROUP_CAPACITY] == 2
+
+
+def test_disjoint_shares_over_1(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
+) -> None:
+    """BTMs on disjoint groups summing past 1 (0.3 clean + 0.8 firm in R2) list both groups."""
+    rps_data.add_rps_group('firm', techs=['Gas'])
+    rps_data.add_rps_requirement('firm', 'R2', 'BTM', 2031, 0.8)
+    report = _report(monkeypatch, tmp_path, rps_data)
+
+    # issues:  group, region key, type, years, status
+    for group in ('clean', 'firm'):
+        _row(report.text, group, 'R2', 'BTM', '2031', DISJOINT_SHARES_OVER_1)
+    assert report.issues[DISJOINT_SHARES_OVER_1] == 2
 
 
 def test_zero_existing_member_is_unavailable(

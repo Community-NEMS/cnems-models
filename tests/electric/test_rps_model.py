@@ -119,7 +119,8 @@ def test_rll_hold_then_floor(build_mini, clean_group: MiniModelData) -> None:
     clean_group.add_rps_requirement('firm', 'R1', 'RLL', 2030, 0.8)
     model = _solve(build_mini, **RPS_ON)
 
-    # verify that the index is removed from the retirement index, the retirement-disabling mechanism.
+    # verify that the index is removed from the retirement index, the
+    # retirement-disabling mechanism.
     assert ('R1', 'Gas', 1, 2030) not in model.capacity_retirements
     # verify it *is* in the retirement capable index when above floor
     assert ('R1', 'Gas', 1, 2031) in model.capacity_retirements

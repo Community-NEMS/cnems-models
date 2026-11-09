@@ -13,6 +13,7 @@ Which run-config section of a TOML each model reads, and the config class built 
 from src.common.common_config import ModelConfig
 from src.common.models_modes import ModelType
 from src.models.electricity.elec_config import ElecConfig
+from src.models.load.load_config import LoadConfig
 from src.models.magic.magic_model import MagicConfig
 from src.models.natural_gas.ng_config import NGConfig
 
@@ -22,5 +23,6 @@ CONFIG_SECTIONS: dict[ModelType, tuple[str, type[ModelConfig]]] = {
     ModelType.ELECTRICITY: ('elec_config', ElecConfig),
     ModelType.NATURAL_GAS: ('natural_gas', NGConfig),
     ModelType.MAGIC: ('magic_config', MagicConfig),
+    ModelType.LOAD: ('load_config', LoadConfig),
 }
 OPTIONAL_SECTIONS: frozenset[ModelType] = frozenset({ModelType.MAGIC})

@@ -54,3 +54,6 @@ coverage.xml
 # per-worker data files written by pytest-cov under xdist, normally consumed by
 # `coverage combine`; they survive an interrupted run and `.coverage` does not match them
 .coverage.*
+
+# NEMS AEO outputs by scenario for the load model (large; see input/load/AEO2026_outputs_by_scenario/README.txt)
+input/load/AEO2026_outputs_by_scenario/*/

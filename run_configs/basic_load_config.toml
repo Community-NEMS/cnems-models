@@ -1,0 +1,37 @@
+# config notes:
+# runs the hourly load model standalone on the SYNTHETIC demo loads (not real data), so it needs no NEMS
+# output files.  Results go to output/load/<scenario_name>/ (hourly_load_mwh.csv is the electricity model's load).
+# For a run on NEMS AEO outputs see baseline_load_config.toml.
+
+[common]
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['load']
+
+common_data_path='input/load'
+residential_data_path='input/residential'
+output_path='output'
+scenario_name = "load_demo"
+
+temporal_resolution = "default"  # unused by the load model
+
+# the load model builds one set of hourly profiles for each of the summary years
+aggregate_years=false
+aggregate_start_year = 2023
+summary_years = [2023, 2030, 2035]
+
+
+[load_config]
+
+# source of the annual loads:  exactly one of nems_outputs_dir, census_division_loads, emm_region_loads
+census_division_loads = 'tests/load/data/demo_census_loads_SYNTHETIC.csv'  # year,sector,euse,census,mwh
+
+method = 'delta'                 # basic, delta or both
+base_year = 2023                 # delta method: exactly one of base_year and base_freeze_year
+ulossadj_file = 'input/load/ulossadj_by_year.csv'  # T&D loss adjustment by year (or loss_adj = 1.0)
+renormalize = true
+validate_inputs = true
+hourly8760 = true                # write hourly_load_mwh.csv
+save_profiles_864 = false         # true: also write the 864-point profile of every region (large)
+load_dir = 'input/load'          # holds base_load_2023.csv, from which the default 2023 calendar is built

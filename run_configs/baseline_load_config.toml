@@ -1,0 +1,38 @@
+# config notes:
+# runs the hourly load model standalone on the NEMS AEO2026 restart file of the NEMS scenario that
+# input/load/scenario_map.csv gives for scenario_name (baseline -> cb2026).  Put the NEMS outputs in
+# input/load/AEO2026_outputs_by_scenario/<nems scenario>/<run>/restart.rlx first (see the README.txt there).
+# Results go to output/load/<scenario_name>/ (rerunning a scenario replaces them).
+
+[common]
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['load']
+
+common_data_path='input/load'
+residential_data_path='input/residential'
+output_path='output'
+scenario_name = "baseline"  # a name from input/load/scenario_map.csv
+
+temporal_resolution = "default"  # unused by the load model
+
+# the load model builds one set of hourly profiles for each of the summary years
+aggregate_years=false
+aggregate_start_year = 2023
+summary_years = [2025, 2030, 2035, 2040, 2045, 2050]
+
+
+[load_config]
+
+nems_outputs_dir = 'input/load/AEO2026_outputs_by_scenario'
+
+method = 'delta'                 # basic, delta or both
+base_year = 2023                 # one fixed base year for every projection year
+# base_freeze_year = 2026        # the NEMS rule: base year = min(year, 2026); use instead of base_year
+ulossadj_file = 'input/load/ulossadj_by_year.csv'
+renormalize = true
+validate_inputs = true
+hourly8760 = true
+save_profiles_864 = false        # true: also write the 864-point profile of every region (large)
+load_dir = 'input/load'

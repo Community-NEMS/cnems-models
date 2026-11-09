@@ -22,6 +22,8 @@ from src.integrator.iteration_plot import plot_objectives
 from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
+from src.models.load.load_config import LoadConfig
+from src.models.load.sequencer import LoadSequencer, load_output_folder
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
@@ -68,8 +70,14 @@ def main(config_path: Path, debug: bool = False) -> None:
             # solve in this process with no per-model scenario log, so the run log is the
             # complete record -- solver output included.  Nothing is streamed to the console
             # except by pyomo's own stdout handler, which echoes its INFO records (solver output)
-            common_config.make_scenario_dir()
-            log_file = common_config.output_folder / 'run.log'
+            if resolve_models_to_run(common_config.models_to_run) == [ModelType.LOAD]:
+                # a load-only run owns the fixed load/<scenario> folder, so no suffixed folder
+                log_folder = load_output_folder(common_config)
+                log_folder.mkdir(parents=True, exist_ok=True)
+            else:
+                common_config.make_scenario_dir()
+                log_folder = common_config.output_folder
+            log_file = log_folder / 'run.log'
             setup_control_loop_logging(log_file, level=logging.DEBUG if debug else logging.INFO)
 
             logger.info('Starting Logging')
@@ -130,6 +138,10 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
                     )
                 case ModelType.NATURAL_GAS:
                     runs.append((model_type, NGConfig(**remainder['natural_gas']), NGSequencer()))
+                case ModelType.LOAD:
+                    runs.append(
+                        (model_type, LoadConfig(**remainder['load_config']), LoadSequencer())
+                    )
                 case ModelType.MAGIC:
                     runs.append(
                         (

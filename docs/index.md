@@ -30,4 +30,5 @@ run configuration TOMLs under `run_configs/`, and post-run inspection helpers in
 
 - [Electricity](models/electricity.md) — capacity expansion and dispatch.
 - [Natural Gas](models/natural_gas.md) — C-NGMM, a multi-regional gas market model.
+- [Load](models/load.md) — hourly load profiles for the 25 EMM regions from annual end-use loads.
 - [Magic](models/magic.md) — a small model used for development testing.

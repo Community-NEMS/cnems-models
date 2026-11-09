@@ -161,6 +161,22 @@ vice versa, so the two stay in agreement.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity
   model code without explicitly asking to do so.
 
+### Load model (standalone for now)
+
+`src/models/load/` (`ModelType.LOAD`, section `[load_config]` → `LoadConfig`) is a port of the NEMS
+load-profile step: annual loads by sector/end use in, hourly load (MWh) for the 25 EMM regions out, no
+solver or objective. `LoadSequencer` calls `run.py::run`, which writes `hourly_load_mwh.csv` and audit
+files into `output/load/<scenario_name>/` (fixed, never suffixed), including
+`onsite_generation_by_year_region.csv` (annual on-site generation by sector; the README and the reference page say which
+sector loads are gross or net of it). Hydrogen (industrial end use 4) is outside the load decomposition
+and is added afterwards as an even-over-the-year profile (`hydrogen.py`); a user load file must carry its
+`euse = 4` rows. Years are the run's `summary_years`; the NEMS AEO folder is
+found from `scenario_name` via `input/load/scenario_map.csv`. It is excluded from
+`models_to_run = ['all']` (`EXPLICIT_ONLY_MODELS`), is not in the Jacobi/Gauss-Seidel runs, and the
+electricity model does not read its output yet. See `src/models/load/README.md` (use, settings, replacing a sector) and `docs/models/load.md` (formulation,
+data, checks); the algorithm
+files (`load_model.py`, `calendars.py`, ...) should not change behaviour without asking. Tests: `tests/load/`.
+
 ### Temporal/spatial resolution
 
 Representative days/hours (not full 8760h) drive the model's time dimension, configurable via

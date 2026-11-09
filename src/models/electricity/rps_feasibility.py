@@ -198,6 +198,8 @@ def _requirements_table(
     return tabulate(
         table,
         headers=['group', 'region key', 'type', 'from', 'min share', 'in force', 'note'],
+        # group and region key are identifiers:  '001' and '1' must not both print as 1.000
+        disable_numparse=[0, 1],
         tablefmt='github',
         floatfmt='.3f',
     )
@@ -313,6 +315,7 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
     group_table = tabulate(
         [[g, ', '.join(sorted(techs))] for g, techs in sorted(groups.items())],
         headers=['group', 'member techs'],
+        disable_numparse=True,
         tablefmt='github',
     )
     text = '\n\n'.join(

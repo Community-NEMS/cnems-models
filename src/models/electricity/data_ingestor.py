@@ -447,24 +447,34 @@ def load_param_data(
     return res
 
 
-def load_property_data(input_dir: Path) -> dict[str, dict[str, list[str]]]:
+def load_property_data(
+    input_dir: Path, skip: Iterable[str] = ()
+) -> dict[str, dict[str, list[str]]]:
     """Read every source in ``PROPERTY_SOURCES`` from ``input_dir``, keyed by source name.
 
     An absent ``required = false`` file loads as empty membership lists; a missing required
-    file raises ``FileNotFoundError``.
+    file raises ``FileNotFoundError``.  A skipped source also loads as empty lists, and its file
+    is not read.
 
     Parameters
     ----------
     input_dir : Path
         directory holding the property CSVs named by ``PROPERTY_SOURCES``.
+    skip : Iterable[str], optional
+        source keys not to read (e.g. ``rps_group`` when ``rps_required`` is off).
 
     Returns
     -------
     dict[str, dict[str, list[str]]]
         one entry per property source, mapping each property name to the indices that satisfy it.
     """
+    skip = set(skip)
     res: dict[str, dict[str, list]] = {}
     for k, source in PROPERTY_SOURCES.items():
+        if k in skip:
+            logger.info('Property source %s skipped; using empty data', k)
+            res[k] = {col: [] for col in source.property_cols}
+            continue
         file_path = input_dir / source.filename
         if not source.required and not file_path.exists():
             logger.info('Optional property source %s absent (%s); using empty data', k, file_path)

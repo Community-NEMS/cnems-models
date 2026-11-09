@@ -504,7 +504,7 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     """
     monkeypatch.setattr(
         'src.models.electricity.model_sets.load_property_data',
-        lambda _path: copy.deepcopy(data.properties),
+        lambda _path, **_kw: copy.deepcopy(data.properties),
     )
     monkeypatch.setattr(
         'src.models.electricity.model_sets.load_attribute_data',

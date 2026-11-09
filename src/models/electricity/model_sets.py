@@ -157,7 +157,11 @@ class ModelSets:
 
         self.elec_config = elec_config
         # load the bulk of the data from csv property files
-        set_data = load_property_data(common_config.common_data_path)  # for "is a" data
+        # for "is a" data; the RPS groups are not read unless RPS is on
+        set_data = load_property_data(
+            common_config.common_data_path,
+            skip=() if elec_config.rps_required else ('rps_group',),
+        )
         attribute_data = load_attribute_data(common_config.common_data_path)  # for "has a" data
 
         # break up the tech data into its constituents

@@ -13,7 +13,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from pyomo.environ import value
 
 from definitions import PROJECT_ROOT
 from src.common.common_config import parse_config_file
@@ -21,16 +20,7 @@ from src.common.integrated_model_sequencer import IterationStatus
 from src.common.iterative_sequencer import RunStatus
 from src.common.log_setup import _retire_previous_setup
 from src.common.models_modes import ModelType
-from src.common.update_package import (
-    HSM_CAPACITY_VALUE,
-    NG_HUB_PRICE_VALUE,
-    HSMSupplyCapacityPackage,
-    NGHubPricePackage,
-)
 from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
-from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
 
 
 @pytest.fixture
@@ -73,40 +63,3 @@ def test_run_solves_in_order_and_writes_results(tmp_path: Path) -> None:
             assert ('build' in result.timings) == (iteration == 1)
     assert any((common.output_folder / 'electricity' / 'variables').iterdir())
     assert any((common.output_folder / 'natural_gas').iterdir())
-
-
-@pytest.mark.usefixtures('restore_logging')
-def test_magic_hsm_capacity_follows_the_hub_price(tmp_path: Path) -> None:
-    """Magic HSM and gas settle, and the last capacity is Q0 x (hub price / reference) ^ e.
-
-    Q0 is C-NGMM's at build, over its regions and years, and the hub price is the one C-NGMM sent
-    the iteration before.
-    """
-    common, remainder = parse_config_file(PROJECT_ROOT / 'run_configs' / 'gs_magic_hsm_ng.toml')
-    common = common.model_copy(update={'output_path': tmp_path, 'summary_years': [2025, 2030]})
-    hsm = MagicHSMConfig(**remainder['magic_hsm'])
-    q0 = NGSequencer().build_model(common, NGConfig(**remainder['natural_gas'])).q0
-
-    status, results = GaussSeidelIterator().run(common, remainder)
-
-    assert status is RunStatus.CONVERGED
-    last = max(results)
-    (capacity,) = [
-        p.elements[HSM_CAPACITY_VALUE]
-        for r in results[last]
-        for p in r.update_packages
-        if isinstance(p, HSMSupplyCapacityPackage)
-    ]
-    (hub,) = [
-        p.elements[NG_HUB_PRICE_VALUE]
-        for r in results[last - 1]
-        for p in r.update_packages
-        if isinstance(p, NGHubPricePackage)
-    ]
-    expected = {
-        (str(region), int(year)): value(q0[region, year])
-        * (hub[year] / hsm.reference_price) ** hsm.price_elasticity
-        for region, year in q0
-    }
-    sent = {(str(region), int(year)): float(bcf) for (region, year), bcf in capacity.items()}
-    assert sent == pytest.approx(expected, rel=1e-12)

@@ -194,7 +194,9 @@ table:
   with the same group, region, type and `first_year`.
 
 Then `validate_all` checks each BTM in force with a minimum above 0: some group member must have
-existing or buildable capacity in its regions and year, or the BTM can never be met (see
+existing or buildable capacity in its regions and year. Without one, (35) is not infeasible:
+it holds as 0 ≥ share × 0 when the region key has no generator capacity, but validation rejects
+such a BTM as an input error (see
 [Data Validation](electricity.md#data-validation)). That check is all that validation can say
 without solving. The feasibility report goes further.
 
@@ -218,7 +220,7 @@ mode = "rps_feasibility"
 models_to_run = ['electricity']
 ```
 
-then run `python main.py run_configs/rps_elec_config.toml`. That sample config runs on the shipped
+then run `python main.py run_configs/rps_check_config.toml`. That sample config runs on the shipped
 data and its demonstration RPS tables, and produces the report in [Sample](#sample).
 
 The report goes to `rps_feasibility.txt` in the scenario output folder, beside `run.log`, and the
@@ -254,7 +256,7 @@ years:
 
 | Status | Meaning |
 |:-------|:--------|
-| `no group capacity` | A BTM no member can hold capacity for (no existing, buildable or earlier-built capacity), so it cannot be met. This also fails validation. |
+| `no group capacity` | A BTM no member can hold capacity for (no existing, buildable or earlier-built capacity). This fails validation. It is not infeasible: (35) still holds as 0 ≥ share × 0 when the region key has no generator capacity. |
 | `no member buildable` | The existing capacity falls short of a BTM, and no member is buildable in the year or earlier. Only retiring other generators can meet it. |
 | `RLL holds retirements` | The existing share is below an RLL's minimum (or there are no existing generators), so no group member in the region key may retire that year. Not a fault: it is listed so the hold is visible. |
 
@@ -344,8 +346,8 @@ Problems, and RLL retirement holds, by group, region key and model years.
 | status                | meaning                                                                  |
 |-----------------------|--------------------------------------------------------------------------|
 | no group capacity     | BTM:  no member has existing, buildable or earlier-built capacity in the |
-|                       | region key and year, so the requirement cannot be met.  Also a           |
-|                       | validation error.                                                        |
+|                       | region key and year.  A validation error, not an infeasibility:  (35)    |
+|                       | holds as 0 >= share x 0 when the region key has no generator capacity.   |
 | no member buildable   | BTM:  the existing capacity falls short of the minimum, and no member is |
 |                       | buildable in the year or earlier.  Only retiring other generators can    |
 |                       | meet it.                                                                 |

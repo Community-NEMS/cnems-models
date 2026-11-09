@@ -826,8 +826,11 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 
 - **RPS Build To Minima capacity** (`validate_rps_btm_sources`) — when `rps_required` is on,
   every Build To Minima requirement with a share above 0 must have some existing or buildable
-  group capacity ($\theta^{rpsg}$ not empty) in its regions and year, or (35) could never be met.
-  A requirement without one is an error. Problems in the RPS tables themselves (unknown groups,
+  group capacity ($\theta^{rpsg}$ not empty) in its regions and year, and a requirement without
+  one is an error. This is a validation rule, not a test of feasibility: with $\theta^{rpsg}$
+  empty, (35) is not infeasible but reduces to $0 \geq RPSMIN \times$ the region key's generator
+  capacity, satisfied as $0 \geq RPSMIN \times 0$ when that capacity is 0. Validation rejects a
+  requirement that only an empty region key can satisfy. Problems in the RPS tables themselves (unknown groups,
   technologies or regions, shares outside [0, 1], duplicate rows) stop the build before
   validation runs, all reported in one error. See
   [Regional Portfolio Standards](electricity_rps.md#checks).

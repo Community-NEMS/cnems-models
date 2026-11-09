@@ -39,7 +39,8 @@ NO_MEMBER_BUILDABLE = 'no member buildable'
 RLL_HOLDS_RETIREMENTS = 'RLL holds retirements'
 ISSUE_LEGEND = {
     NO_GROUP_CAPACITY: 'BTM:  no member has existing, buildable or earlier-built capacity in the '
-    'region key and year, so the requirement cannot be met.  Also a validation error.',
+    'region key and year.  A validation error, not an infeasibility:  (35) holds as '
+    '0 >= share x 0 when the region key has no generator capacity.',
     NO_MEMBER_BUILDABLE: 'BTM:  the existing capacity falls short of the minimum, and no member '
     'is buildable in the year or earlier.  Only retiring other generators can meet it.',
     RLL_HOLDS_RETIREMENTS: 'RLL:  the existing share is below the minimum (or there are no '

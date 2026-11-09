@@ -498,9 +498,10 @@ def validate_rps_btm_sources(
     """Screen each RPS BTM requirement for group capacity to meet it.
 
     A BTM requirement with a positive share needs at least one group (region, tech, step) in the
-    capacity index (existing, buildable or carried) in its regions and year; without one it is
-    infeasible.  Whether that capacity can actually be built is left to the RPS feasibility
-    report.
+    capacity index (existing, buildable or carried) in its regions and year.  This is a
+    validation rule, not a feasibility test:  without group capacity, (35) still holds as
+    0 >= share x 0 when the region key has no generator capacity.  Whether group capacity can
+    actually be built is left to the RPS feasibility report.
 
     Parameters
     ----------

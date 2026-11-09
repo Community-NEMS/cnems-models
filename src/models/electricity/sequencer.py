@@ -168,6 +168,10 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
             The validated sets and parameter data.
         """
         logger.info('Preprocessing')
+        # invalidate the old stuff
+        self._model = None
+        self._opt = None
+
         self._elec_config = model_config
         self._common_config = common_config
         model_sets = ModelSets(common_config, model_config)

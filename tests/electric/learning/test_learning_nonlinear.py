@@ -6,22 +6,85 @@ Written with:  Claude Opus 5.5 (Anthropic)
 Contact:  jeff@westernspark.us
 Created on:  10/16/26
 
-Tests for nonlinear capacity-expansion learning, built on the basic test dataset.
+Tests for nonlinear capacity-expansion learning, on the mini model
+(``tests/electric/mini_model.py``).
 
-Most evaluate the nonlinear objective at fixed build levels on an unsolved model, so they
-need no nonlinear solver.  The solved nonlinear case is pinned in ``test_basic_run.py``.
+Solar is buildable in both regions and both years (``add_solar_learning``):  initial capital cost
+$1000/MW, learning rate 0.1, and a learning baseline of 100 MW.  ``multi_learner_model`` adds a
+second buildable Solar step and a second learning tech (Nuclear) to check which builds count
+toward a tech's experience.  The tests evaluate the nonlinear objective at fixed build levels on
+an unsolved model, so they need no nonlinear solver.  The solved nonlinear case is pinned in
+``test_basic_run.py``.
 """
-
-from pathlib import Path
 
 import pytest
 from pyomo.common.numeric_types import value
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
 from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import ElectricitySequencer
+from tests.electric.mini_model import add_solar_learning
+
+INITIAL_COST = 1000.0
+RATE = 0.1
+BASELINE = 100.0
+# large against the 100 MW baseline, so the discount is far above pytest.approx's tolerance
+_BUILD_MW = 50.0
+
+
+@pytest.fixture
+def nonlinear_model(mini_data, build_mini) -> PowerModel:
+    """Unsolved mini model with Solar expansion under nonlinear learning."""
+    add_solar_learning(mini_data)
+    _, model = build_mini(capacity_expansion=True, expansion_learning_type='nonlinear')
+    return model
+
+
+SOLAR_STEP_2_COST = 1500.0
+NUCLEAR_COST = 4000.0
+
+
+@pytest.fixture
+def multi_learner_model(mini_data, build_mini) -> PowerModel:
+    """``nonlinear_model`` plus a second buildable Solar step and a second learning tech.
+
+    Solar step 2 (initial cost ``SOLAR_STEP_2_COST``) shares Solar's learning rate and baseline.
+    Nuclear (initial cost ``NUCLEAR_COST``) learns on its own curve, with the same rate and
+    baseline as Solar so that pooling it in would discount Solar by a resolvable amount.
+    """
+    add_solar_learning(mini_data)
+    mini_data.attributes['tech']['steps']['Solar'] = '1/2'
+    mini_data.set_buildable('Solar', 2)
+    mini_data.add_operating_costs('Solar', generation_cost=0.0, fom_cost=5.0, step=2)
+    mini_data.add_rows(
+        'capacity_factor_hourly',
+        {
+            (r, 'Solar', 2, hr): 0.5 if hr % 2 == 0 else 0.0
+            for r, hr in mini_data.every('region', 'hour')
+        },
+    )
+
+    mini_data.add_tech(
+        'Nuclear', flags=['is_conventional', 'is_dispatchable', 'is_generator'], buildable=[1]
+    )
+    mini_data.add_operating_costs('Nuclear', generation_cost=10.0, fom_cost=50.0)
+    mini_data.add_rows('learning_rate', {('Nuclear',): RATE})
+    mini_data.add_rows('supply_curve_learning', {('Nuclear',): BASELINE})
+
+    for tech, step, cost in (('Solar', 2, SOLAR_STEP_2_COST), ('Nuclear', 1, NUCLEAR_COST)):
+        mini_data.add_rows(
+            'capital_cost',
+            {(r, tech, step, y): cost for r, y in mini_data.every('region', 'year')},
+        )
+        mini_data.add_rows(
+            'capital_cost_initial', {(r, tech, step): cost for (r,) in mini_data.every('region')}
+        )
+
+    _, model = build_mini(capacity_expansion=True, expansion_learning_type='nonlinear')
+    return model
+
+
+def _multiplier(experience_mw: float) -> float:
+    """The learning curve written out longhand, for the mini model's Solar."""
+    return ((BASELINE + experience_mw) / BASELINE) ** -RATE
 
 
 @pytest.mark.parametrize(
@@ -33,7 +96,7 @@ from src.models.electricity.sequencer import ElectricitySequencer
     ],
     ids=['zero', 'negative', 'nan'],
 )
-def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected_message):
+def test_unusable_learning_baseline_is_rejected(mini_data, build_mini, bad_value, expected_message):
     """An unusable ``supply_curve_learning`` is caught at construction, not in the objective.
 
     The curve divides by this baseline and raises the result to a fractional power, so any of these
@@ -42,39 +105,16 @@ def test_unusable_learning_baseline_is_rejected(monkeypatch, bad_value, expected
 
     ``within=PositiveReals`` rejects all three at construction.
     """
-    from src.models.electricity import param_data as param_data_module
-
-    original_init = param_data_module.ParamData.__init__
-    poisoned = {}
-
-    def poisoned_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        baselines = self.param_dicts['supply_curve_learning']
-        key = min(baselines)
-        # keys are single element tuples, while the error names the technology itself
-        poisoned['tech'] = key[0] if isinstance(key, tuple) else key
-        baselines[key] = bad_value
-
-    monkeypatch.setattr(param_data_module.ParamData, '__init__', poisoned_init)
-
-    config_path = Path(PROJECT_ROOT, 'tests/electric/basic_elec_config.toml')
-    common_config, remainder = CommonConfig.from_toml(config_path)
-    elec_config = ElecConfig(**remainder.pop('elec_config'))
-    elec_config.capacity_expansion = True
-    elec_config.expansion_learning_type = ExpansionLearningType.NONLINEAR
+    add_solar_learning(mini_data)
+    mini_data.add_rows('supply_curve_learning', {('Solar',): bad_value})
 
     with pytest.raises(ValueError) as caught:
-        ElectricitySequencer().build_model(common_config, elec_config)
+        build_mini(capacity_expansion=True, expansion_learning_type='nonlinear')
 
     message = str(caught.value)
     assert expected_message in message
     # The offending technology has to be identifiable, which is the point of catching it here.
-    assert str(poisoned['tech']) in message
-
-
-# Builds are in MW against a supply_curve_learning baseline of ~154,000 MW.  1 GW keeps the learning
-# discount ~50x above pytest.approx's tolerance, the scale the characterization test uses.
-_BUILD_MW = 1000.0
+    assert 'Solar' in message
 
 
 def _expansion_cost_with(model: PowerModel, builds: dict[tuple, float]) -> float:
@@ -97,19 +137,15 @@ def _expansion_cost_with(model: PowerModel, builds: dict[tuple, float]) -> float
     return value(model.capacity_expansion_cost)
 
 
-def test_nonlinear_learning_objective_characterization(nonlinear_model: PowerModel) -> None:
-    """Record what the nonlinear expansion cost expression evaluates to today.
+def test_nonlinear_learning_objective(nonlinear_model: PowerModel) -> None:
+    """The expansion cost matches the curve written out by hand, and learning is subadditive.
 
-    This is a **characterization** test, not an acceptance test: it pins current behavior so that
-    refactoring the learning multiplier cannot change the formulation silently.  It does not assert
-    that these values are correct, the provenance of ``supply_curve_learning`` is unresolved, so
-    the numbers are not yet interpretable.
-
-    Evaluates the expression at fixed build levels rather than solving, so it needs no nonlinear
-    solver and runs wherever the model can be constructed.
+    With every build at ``level`` MW, the two 2030 builds pay full price and the two 2031 builds
+    are discounted by the 2 x ``level`` MW built in 2030:
+    ``2 x level x 1000 x (1 + multiplier(2 x level))``.
     """
     model = nonlinear_model
-    assert len(model.capacity_builds) == 48
+    assert len(model.capacity_builds) == 4  # R1/R2 x 2030/2031
 
     def cost_at(level: float) -> float:
         return _expansion_cost_with(model, dict.fromkeys(model.capacity_builds, level))
@@ -117,16 +153,13 @@ def test_nonlinear_learning_objective_characterization(nonlinear_model: PowerMod
     # No builds means no expansion cost, whatever the multiplier does.
     assert cost_at(0.0) == pytest.approx(0.0, abs=1e-9)
 
-    # builds are in MW; 1 and 2.5 GW keep the values captured before the move to MW units
-    at_one = cost_at(1000.0)
-    at_two_and_a_half = cost_at(2500.0)
-    assert at_one == pytest.approx(133777599845.11543)
-    assert at_two_and_a_half == pytest.approx(329888419799.9818)
+    for level in (_BUILD_MW, 2.5 * _BUILD_MW):
+        expected = 2 * level * INITIAL_COST * (1 + _multiplier(2 * level))
+        assert cost_at(level) == pytest.approx(expected)
 
     # Learning makes cost subadditive in cumulative builds: 2.5x the capacity costs less than 2.5x
-    # the money.  That is the property the nonlinear mode exists to produce, so it is asserted
-    # separately from the pinned values, which are only a snapshot.
-    assert at_two_and_a_half < 2.5 * at_one
+    # the money.  That is the property the nonlinear mode exists to produce.
+    assert cost_at(2.5 * _BUILD_MW) < 2.5 * cost_at(_BUILD_MW)
 
 
 def test_nonlinear_build_does_not_discount_itself(nonlinear_model: PowerModel) -> None:
@@ -139,33 +172,64 @@ def test_nonlinear_build_does_not_discount_itself(nonlinear_model: PowerModel) -
     model = nonlinear_model
     first_year = min(model.year)
     keys = [k for k in model.capacity_builds if k[3] == first_year]
+    assert len(keys) == 2
     cost = _expansion_cost_with(model, dict.fromkeys(keys, _BUILD_MW))
-    undiscounted = sum(_BUILD_MW * value(model.capital_cost_initial[k[:3]]) for k in keys)
-    assert cost == pytest.approx(undiscounted)
+    assert cost == pytest.approx(len(keys) * _BUILD_MW * INITIAL_COST)
 
 
 def test_nonlinear_experience_pools_across_regions(nonlinear_model: PowerModel) -> None:
     """A later build is discounted by earlier builds of the same tech in *other* regions.
 
-    Build in one region in the first year, then price a later-year build of the same technology in
-    a different region.  If the cumulative term were region-local the later build would be charged
-    the undiscounted price.  The closed form is asserted rather than an inequality, so a wrong
-    aggregation cannot pass by discounting some other amount.  Needs a build only, no solver.
+    Build in R1 in 2030, then price a 2031 build in R2.  If the cumulative term were region-local
+    the later build would be charged the undiscounted price.  The closed form is asserted rather
+    than an inequality, so a wrong aggregation cannot pass by discounting some other amount.
+    Needs a build only, no solver.
     """
     model = nonlinear_model
-    tech, step = '1', 3
-    source = ('7', tech, step, min(model.year))
-    later = ('8', tech, step, max(model.year))
-    assert {source, later} <= set(model.capacity_builds)
-    source_cost = _BUILD_MW * value(model.capital_cost_initial[source[:3]])
-    later_cost = _BUILD_MW * value(model.capital_cost_initial[later[:3]])
+    source = ('R1', 'Solar', 1, min(model.year))
+    later = ('R2', 'Solar', 1, max(model.year))
+    full_price = _BUILD_MW * INITIAL_COST
 
     # With no prior experience anywhere, the later build is charged undiscounted.
-    assert _expansion_cost_with(model, {later: _BUILD_MW}) == pytest.approx(later_cost)
+    assert _expansion_cost_with(model, {later: _BUILD_MW}) == pytest.approx(full_price)
 
     pooled = _expansion_cost_with(model, {source: _BUILD_MW, later: _BUILD_MW})
-    baseline = value(model.supply_curve_learning[tech])
-    multiplier = ((baseline + _BUILD_MW) / baseline) ** -value(model.learning_rate[tech])
     # Guard: the discount must be resolvable at approx's tolerance, or this test proves nothing.
-    assert pooled != pytest.approx(source_cost + later_cost)
-    assert pooled == pytest.approx(source_cost + later_cost * multiplier)
+    assert pooled != pytest.approx(2 * full_price)
+    assert pooled == pytest.approx(full_price + full_price * _multiplier(_BUILD_MW))
+
+
+def test_nonlinear_experience_pools_across_steps(multi_learner_model: PowerModel) -> None:
+    """A later build is discounted by earlier builds of the same tech in *other* steps.
+
+    Build Solar step 1 in R1 in 2030, then price a 2031 Solar step 2 build in R2.  If the
+    cumulative term were step-local, the later build would be charged its undiscounted price.
+    Needs a build only, no solver.
+    """
+    model = multi_learner_model
+    source = ('R1', 'Solar', 1, min(model.year))
+    later = ('R2', 'Solar', 2, max(model.year))
+    source_price = _BUILD_MW * INITIAL_COST
+    later_price = _BUILD_MW * SOLAR_STEP_2_COST
+
+    assert _expansion_cost_with(model, {later: _BUILD_MW}) == pytest.approx(later_price)
+
+    pooled = _expansion_cost_with(model, {source: _BUILD_MW, later: _BUILD_MW})
+    assert pooled != pytest.approx(source_price + later_price)
+    assert pooled == pytest.approx(source_price + later_price * _multiplier(_BUILD_MW))
+
+
+def test_nonlinear_experience_stays_within_tech(multi_learner_model: PowerModel) -> None:
+    """Earlier builds of a *different* tech do not discount a later build.
+
+    Build Nuclear in R1 in 2030, then price a 2031 Solar build in R2.  Nuclear's curve has the
+    same rate and baseline as Solar's, so pooling it into Solar's experience would discount the
+    Solar build by ``_multiplier(_BUILD_MW)``.  Both builds must be charged in full.  Needs a
+    build only, no solver.
+    """
+    model = multi_learner_model
+    other = ('R1', 'Nuclear', 1, min(model.year))
+    later = ('R2', 'Solar', 1, max(model.year))
+
+    cost = _expansion_cost_with(model, {other: _BUILD_MW, later: _BUILD_MW})
+    assert cost == pytest.approx(_BUILD_MW * (NUCLEAR_COST + INITIAL_COST))

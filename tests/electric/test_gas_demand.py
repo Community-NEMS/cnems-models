@@ -10,6 +10,8 @@ Tests for the natural gas demand the electricity model reports back to the gas m
 
 """
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from pyomo.common.numeric_types import value
@@ -27,7 +29,13 @@ from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.electricity_model import PowerModel
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.electricity.update_writer import gas_demand_by_region
-from tests.electric.mini_model import MiniModelData
+from tests.electric.mini_model import (
+    GAS_CT_HEAT_RATE,
+    MiniModelData,
+    add_gas_ct,
+    mini_configs,
+    patch_loaders,
+)
 
 # the gas-burn exchange alone, with the electricity <-> natural gas crosswalk
 DEMAND_EXCHANGE = ExchangeSpec.build(
@@ -49,31 +57,31 @@ def independent_gas_demand(model: PowerModel) -> pd.Series:
     return df.groupby(['region', 'year'])['mmbtu'].sum().sort_index()
 
 
-# heat rate of the mini model's gas-fired GasCT, and a non-unit day weight so it counts
-GAS_CT_HEAT_RATE = 10.0
-DAY_WEIGHT = 3.0
+def _two_tier_dispatch(data: MiniModelData) -> MiniModelData:
+    """GasCT alone serves day 1's 80 MW; day 2's 150 MW also needs Gas.  Day 2 stands for 3 days."""
+    add_gas_ct(data)
+    for region in data.regions:
+        data.set_load(region, {1: 80.0, 2: 80.0, 3: 150.0, 4: 150.0})
+    cw = data.cw_temporal
+    cw.loc[cw['Map_day'] == 2, 'WeightDay'] = 3.0
+    return data
 
 
 def test_gas_demand_hand_computed(mini_data: MiniModelData, build_mini) -> None:
-    """The burn is generation x day weight x heat rate, summed over the hours of a year.
+    """The burn is gas-fired generation x day weight x heat rate, summed over a year's hours.
 
-    GasCT serves the 80 MW load in each of the 4 hours (unit hour weights), and each day stands
-    for 3 days, so every (region, year) burns 80 x 4 x 3 x 10 = 9,600 MMBtu.
+    GasCT runs at 80 MW in day 1's two hours (weight 1) and at its 100 MW limit in day 2's (weight
+    3).  Gas makes up the rest of day 2 but is not gas-fired, so every (region, year) burns
+    (2 x 80 x 1 + 2 x 100 x 3) x 10 = 7,600 MMBtu.
     """
-    mini_data.add_tech(
-        'GasCT', flags=['is_conventional', 'is_dispatchable', 'is_generator', 'is_gas_fired']
-    )
-    mini_data.add_capacity('GasCT', 100.0)
-    mini_data.add_operating_costs('GasCT', generation_cost=20.0, fom_cost=10.0)
-    mini_data.add_rows('heat_rate', {('GasCT',): GAS_CT_HEAT_RATE})
-    mini_data.cw_temporal['WeightDay'] = DAY_WEIGHT
+    _two_tier_dispatch(mini_data)
     sequencer, model = build_mini()
     _, status = sequencer.solve_model()
     assert status is IterationStatus.BEST
 
     got = gas_demand_by_region(model)
 
-    expected = 80.0 * len(mini_data.hours) * DAY_WEIGHT * GAS_CT_HEAT_RATE
+    expected = (2 * 80.0 * 1.0 + 2 * 100.0 * 3.0) * GAS_CT_HEAT_RATE
     assert got.to_dict() == pytest.approx(
         dict.fromkeys(mini_data.every('region', 'year'), expected)
     )
@@ -91,11 +99,17 @@ def test_gas_demand_without_gas_fired_techs(build_mini, caplog: pytest.LogCaptur
     assert 'No generation rows for gas-fired techs' in caplog.text
 
 
-def test_gas_demand_matches_independent_sum(
-    solved_model: tuple[CommonConfig, ElecConfig, PowerModel],
-) -> None:
-    """The polled MMBtu agrees with a pandas recomputation from the same solved variables."""
-    common_config, elec_config, model = solved_model
+def test_gas_demand_matches_independent_sum(mini_data: MiniModelData, build_mini) -> None:
+    """The polled MMBtu agrees with a pandas recomputation from the same solved variables.
+
+    R2 has no GasCT, so it burns no gas and is reported as 0.0.
+    """
+    _two_tier_dispatch(mini_data)
+    mini_data.drop_rows('available_capacity', [('R2', 'GasCT', 1, y) for y in mini_data.years])
+    mini_data.add_capacity('Gas', 200.0, regions=['R2'])
+    sequencer, model = build_mini()
+    _, status = sequencer.solve_model()
+    assert status is IterationStatus.BEST
 
     # poll the model for demands
     got = gas_demand_by_region(model)
@@ -106,13 +120,21 @@ def test_gas_demand_matches_independent_sum(
     assert got.name == NG_ELEC_DEMAND_VALUE
     # every region the model carries, in every year, with zero where it burns no gas
     grid = pd.MultiIndex.from_product(
-        [sorted(elec_config.region_filter), sorted(common_config.summary_years)],
-        names=NG_ELEC_DEMAND_INDEX,
+        [mini_data.regions, mini_data.years], names=NG_ELEC_DEMAND_INDEX
     )
     assert got.index.equals(grid)
-    expected.index = expected.index.set_levels(expected.index.levels[0].astype(str), level=0)
     assert got.to_numpy() == pytest.approx(expected.reindex(grid, fill_value=0.0).to_numpy())
-    assert (got >= 0).all()
+    assert (got.xs('R2', level='region') == 0.0).all()
+    assert (got.xs('R1', level='region') > 0.0).all()
+
+
+@pytest.fixture
+def mini_config_pair(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
+) -> tuple[CommonConfig, ElecConfig]:
+    """Configs for a ``full_run`` on the mini model, with the loaders patched to read it."""
+    patch_loaders(monkeypatch, mini_data)
+    return mini_configs(tmp_path, mini_data.years)
 
 
 class TestOutboundDemandPackage:
@@ -153,19 +175,26 @@ class TestOutboundDemandPackage:
         with pytest.raises(ValueError, match='not closed'):
             ElectricitySequencer(DEMAND_EXCHANGE).full_run(common_config, elec_config)
 
-    def test_standalone_sends_nothing(self, config_set: tuple[CommonConfig, ElecConfig]) -> None:
+    def test_standalone_sends_nothing(
+        self, mini_data: MiniModelData, mini_config_pair: tuple[CommonConfig, ElecConfig]
+    ) -> None:
         """Without exchanges, as in a standalone run, the writer builds no package."""
-        common_config, elec_config = config_set
+        add_gas_ct(mini_data)
+        common_config, elec_config = mini_config_pair
         result = ElectricitySequencer().full_run(common_config, elec_config)
 
         assert result.status is IterationStatus.BEST
         assert result.update_packages == []
 
     def test_no_package_on_solve_error(
-        self, config_set: tuple[CommonConfig, ElecConfig], monkeypatch: pytest.MonkeyPatch
+        self,
+        mini_data: MiniModelData,
+        mini_config_pair: tuple[CommonConfig, ElecConfig],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A failed solve has no generation values to read, so nothing is sent."""
-        common_config, elec_config = config_set
+        add_gas_ct(mini_data)
+        common_config, elec_config = mini_config_pair
         monkeypatch.setattr(
             ElectricitySequencer,
             'solve_model',

@@ -9,25 +9,30 @@ Tests for the natural gas price update applied to generation_cost.
 
 """
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
-from src.common.common_config import CommonConfig
 from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
 from src.models.electricity.constants import (
     INITIAL_NG_PRICE,
     PRICE_COST_PROPORTION,
 )
-from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.model_sets import ModelSets
 from src.models.electricity.param_data import ParamData
 from src.models.electricity.update_reader import ElecUpdateReader
+from tests.electric.mini_model import MiniModelData, add_gas_ct, mini_configs, patch_loaders
 
 
 @pytest.fixture
-def param_data(config_set: tuple[CommonConfig, ElecConfig]) -> ParamData:
-    """Loaded (un-updated) parameter data for the basic test config."""
-    common_config, elec_config = config_set
+def param_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
+) -> ParamData:
+    """Loaded (un-updated) mini model parameter data, with gas-fired GasCT alongside Gas."""
+    add_gas_ct(mini_data)
+    patch_loaders(monkeypatch, mini_data)
+    common_config, elec_config = mini_configs(tmp_path, mini_data.years)
     return ParamData(common_config, elec_config, ModelSets(common_config, elec_config))
 
 
@@ -67,6 +72,7 @@ def test_ng_price_package_scales_linked_techs(
     after = param_data.param_frames['generation_cost']
     linked = after.index.get_level_values('tech').isin(param_data.model_sets.tech_gas_fired)
     assert linked.any(), 'test data holds no gas-linked tech rows'
+    assert not linked.all(), 'test data holds no unlinked tech rows'
     pd.testing.assert_frame_equal(after[~linked], before[~linked])
     pd.testing.assert_frame_equal(after[linked], before[linked] * expected_factor)
 

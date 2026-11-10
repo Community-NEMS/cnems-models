@@ -1,6 +1,7 @@
 # Magic HSM
 
-Magic HSM is a test model for the coupling with C-NGMM, in place of a hydrocarbon supply
+Magic HSM is a development & test model for the coupling with C-NGMM, in place of a 
+fully-developed hydrocarbon supply
 model. It sends C-NGMM a gas production capacity for each gas region and summary year, and the
 capacity follows the hub price C-NGMM sends back. Like [Magic](magic.md), it runs only when
 `models_to_run` names it (`magic_hsm`).

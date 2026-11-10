@@ -209,7 +209,7 @@ class MagicHSMSequencer(IntegratedModelSequencer[MagicHSMModel, MagicHSMConfig, 
         self._model = MagicHSMModel(
             data, model_config.price_elasticity, model_config.reference_price
         )
-        return self._model
+        return self.model
 
     def update_model(self, update_packages: Sequence[UpdatePackage], **kwargs) -> MagicHSMModel:
         """Apply inbound packages to the held data; :meth:`solve_model` recomputes the capacity.
@@ -240,8 +240,9 @@ class MagicHSMSequencer(IntegratedModelSequencer[MagicHSMModel, MagicHSMConfig, 
         tuple[ModelType, IterationStatus]
             :attr:`ModelType.MAGIC_HSM` and :attr:`IterationStatus.BEST`.
         """
-        self._last_status = self.model.solve()
-        return ModelType.MAGIC_HSM, self._last_status
+        status = self.model.solve()
+        self._last_status = status
+        return ModelType.MAGIC_HSM, status
 
     def full_postprocess(self, **kwargs) -> None:
         """No-op; Magic HSM writes no result files."""

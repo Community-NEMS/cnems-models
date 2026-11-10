@@ -66,6 +66,8 @@ class MagicHSMUpdateReader(UpdatePackageReader[MagicHSMData]):
         )
 
     # pyrefly cannot type either form of singledispatchmethod.register against typeshed
+    # TODO:  As we work toward more direct model updates, refactor the readers such that
+    #        this "type" hack below is not necessary.
     @apply_package.register  # type: ignore[no-matching-overload]
     def _(self, update_package: NGHubPricePackage, data: MagicHSMData) -> None:
         """Set the hub price from C-NGMM's.

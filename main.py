@@ -23,6 +23,7 @@ from src.integrator.jacobi.jacobi_iterator import JacobiIterator
 from src.models.electricity.elec_config import ElecConfig
 from src.models.electricity.sequencer import ElectricitySequencer
 from src.models.magic.magic_model import MagicConfig, MagicSequencer
+from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
 from src.models.natural_gas.ng_config import NGConfig
 from src.models.natural_gas.sequencer import NGSequencer
 
@@ -103,8 +104,8 @@ def main(config_path: Path, debug: bool = False) -> None:
 def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
     """Build, solve, and postprocess each model in ``models_to_run``, one after another.
 
-    ``ModelType.ALL`` expands to every production model; the dev/test MAGIC model runs only when
-    named explicitly.  Every model's config is built before any model runs, so a missing or
+    ``ModelType.ALL`` expands to every production model; the test models (``NAMED_ONLY``)
+    run only when named.  Every model's config is built before any model runs, so a missing or
     invalid config section fails the whole run up front, with each problem logged.
 
     Parameters
@@ -137,6 +138,10 @@ def _run_standalone(common_config: CommonConfig, remainder: dict) -> None:
                             MagicConfig(**remainder.get('magic_config', {})),
                             MagicSequencer(),
                         )
+                    )
+                case ModelType.MAGIC_HSM:
+                    runs.append(
+                        (model_type, MagicHSMConfig(**remainder['magic_hsm']), MagicHSMSequencer())
                     )
                 case _:
                     logger.error('No standalone run available for %s', model_type)

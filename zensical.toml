@@ -23,6 +23,7 @@ nav = [
     { "Electricity" = "models/electricity.md" },
     { "Natural Gas" = "models/natural_gas.md" },
     { "Magic" = "models/magic.md" },
+    { "Magic HSM" = "models/magic_hsm.md" },
   ] },
 ]
 

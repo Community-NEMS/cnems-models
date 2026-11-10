@@ -5,17 +5,17 @@ Written by:  Sauleh Siddiqui
 Contact:  sauleh@american.edu
 Created on:  10/2/26
 
-Gauss-Seidel iteration between the electricity and natural gas models.
+Gauss-Seidel iteration over the electricity and natural gas models, and the Magic HSM test model.
 
-Both models are built once and held in the control process.  Each iteration solves electricity on
-the latest gas prices, then gas on that iteration's electricity burn, applying each model's
-inbound packages to its built instance with ``update_model`` rather than rebuilding it.  Package
-routing (``route_updates``) and the stopping test are shared with the Jacobi iterator, and the
-rest of the bookkeeping is shared with it through ``src/integrator/bookeeping_utilities.py``.
+The selected models are built once and held in the control process.  Each iteration runs Magic
+HSM and electricity on the latest gas prices, then gas on that iteration's capacity and burn,
+applying each model's inbound packages to its held instance with ``update_model``.  Package
+routing (``route_updates``), the stopping test and the rest of the bookkeeping
+(``src/integrator/bookeeping_utilities.py``) are shared with the Jacobi iterator.
 """
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -32,9 +32,14 @@ from src.common.iterative_sequencer import IterativeSequencer, RunStatus
 from src.common.log_setup import _scenario_log, setup_control_loop_logging
 from src.common.models_modes import ModelType, resolve_models_to_run
 from src.common.update_package import (
+    HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_VALUE,
+    NG_HUB_PRICE_VALUE,
     NG_PRICE_VALUE,
+    ExchangeSpec,
+    HSMSupplyCapacityPackage,
     NGElectricalDemandPackage,
+    NGHubPricePackage,
     NGPricePackage,
     UpdatePackage,
     route_updates,
@@ -45,17 +50,35 @@ from src.integrator.bookeeping_utilities import (
     log_progress,
     show_iteration,
 )
-from src.integrator.config_sections import CONFIG_SECTIONS
+from src.integrator.config_sections import CONFIG_SECTIONS, check_model_configs
 from src.integrator.convergence import ConvergenceTracker
 from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
 from src.integrator.iteration_monitor import IterationMonitor
 from src.models.electricity.sequencer import ElectricitySequencer
+from src.models.magic_hsm.magic_hsm_model import MagicHSMSequencer
 from src.models.natural_gas.sequencer import NGSequencer
 
 logger = logging.getLogger(__name__)
 
-# the order the models solve in each iteration:  gas sees the burn electricity just produced
-GS_ORDER: tuple[ModelType, ...] = (ModelType.ELECTRICITY, ModelType.NATURAL_GAS)
+# the solve order in each iteration, over the models a run selects:  gas sees that iteration's
+# capacity and burn
+GS_ORDER: tuple[ModelType, ...] = (
+    ModelType.MAGIC_HSM,
+    ModelType.ELECTRICITY,
+    ModelType.NATURAL_GAS,
+)
+# the model sets the iterator runs
+GS_RUNS: tuple[frozenset[ModelType], ...] = (
+    frozenset({ModelType.ELECTRICITY, ModelType.NATURAL_GAS}),
+    frozenset({ModelType.MAGIC_HSM, ModelType.NATURAL_GAS}),
+    frozenset({ModelType.MAGIC_HSM, ModelType.ELECTRICITY, ModelType.NATURAL_GAS}),
+)
+# each model's sequencer, built from the run's exchanges
+SEQUENCERS: dict[ModelType, Callable[[ExchangeSpec], IntegratedModelSequencer[Any, Any, Any]]] = {
+    ModelType.MAGIC_HSM: MagicHSMSequencer,
+    ModelType.ELECTRICITY: ElectricitySequencer,
+    ModelType.NATURAL_GAS: NGSequencer,
+}
 
 
 def exchange_summary(packages: Iterable[UpdatePackage]) -> dict[str, dict[int, float]]:
@@ -71,9 +94,10 @@ def exchange_summary(packages: Iterable[UpdatePackage]) -> dict[str, dict[int, f
     Returns
     -------
     dict
-        ``burn_tbtu``, the electricity burn summed over gas regions in TBtu, and ``mean_price``,
-        the gas price averaged over electricity regions without weights, each keyed by year.  A
-        package type that was not sent is absent.
+        ``burn_tbtu``, the electricity burn summed over gas regions in TBtu; ``mean_price``, the
+        gas price averaged over electricity regions without weights; ``capacity_bcf``, Magic
+        HSM's capacity summed over gas regions; and ``hub_price``, the Henry Hub region's gas price;
+        each keyed by year.  A package type that was not sent is absent.
     """
     summary: dict[str, dict[int, float]] = {}
     for package in packages:
@@ -86,6 +110,16 @@ def exchange_summary(packages: Iterable[UpdatePackage]) -> dict[str, dict[int, f
             price = package.elements[NG_PRICE_VALUE].groupby(level='year').mean()
             summary['mean_price'] = dict(
                 zip(map(int, price.index.to_list()), price.to_list(), strict=True)
+            )
+        elif isinstance(package, HSMSupplyCapacityPackage):
+            capacity = package.elements[HSM_CAPACITY_VALUE].groupby(level='year').sum()
+            summary['capacity_bcf'] = dict(
+                zip(map(int, capacity.index.to_list()), capacity.to_list(), strict=True)
+            )
+        elif isinstance(package, NGHubPricePackage):
+            hub = package.elements[NG_HUB_PRICE_VALUE]
+            summary['hub_price'] = dict(
+                zip(map(int, hub.index.to_list()), hub.to_list(), strict=True)
             )
     return summary
 
@@ -110,13 +144,21 @@ def format_exchange(summary: dict[str, dict[int, float]]) -> str:
     if 'mean_price' in summary:
         price = summary['mean_price']
         parts.append(
-            'mean gas price ' + ', '.join(f'{v:.3f} $/MMBtu ({y})' for y, v in price.items())
+            'mean gas price ' + ', '.join(f'{v:.3f} USD/MMBtu ({y})' for y, v in price.items())
         )
+    if 'capacity_bcf' in summary:
+        capacity = summary['capacity_bcf']
+        parts.append(
+            'Magic HSM capacity ' + ', '.join(f'{v:,.0f} Bcf ({y})' for y, v in capacity.items())
+        )
+    if 'hub_price' in summary:
+        hub = summary['hub_price']
+        parts.append('hub price ' + ', '.join(f'{v:.3f} USD/MMBtu ({y})' for y, v in hub.items()))
     return 'Exchanged:  ' + ('; '.join(parts) if parts else 'nothing')
 
 
 class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
-    """Gauss-Seidel iteration over the electricity and natural gas models.
+    """Gauss-Seidel iteration over one of the model sets in ``GS_RUNS``.
 
     Settings come from ``gs_config.toml`` beside this module.  The stopping rule is the Jacobi
     iterator's, so the two can be compared at the same tolerance.
@@ -140,60 +182,67 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
     def _process_configs(
         self, common_config: CommonConfig, remainder: dict[str, Any]
     ) -> dict[ModelType, ModelConfig]:
-        """Build the electricity and natural gas configs.
+        """Build the config of each selected model, in ``GS_ORDER``.
 
         Parameters
         ----------
         common_config : CommonConfig
-            Common run configuration; its ``models_to_run`` must select exactly electricity and
-            natural gas (``['all']`` does).
+            Common run configuration; its ``models_to_run`` must select one of ``GS_RUNS``
+            (``['all']`` selects electricity and natural gas; ``['all', 'magic_hsm']`` adds
+            Magic HSM).
         remainder : dict
-            The config file's other sections:  ``elec_config`` and ``natural_gas``.
+            The config file's other sections:  one per selected model (``magic_hsm``,
+            ``elec_config``, ``natural_gas``).
 
         Returns
         -------
         dict of ModelType to ModelConfig
-            One config per model.
+            One config per selected model, in ``GS_ORDER``.
 
         Raises
         ------
         ValueError
-            If the selected models are not exactly electricity and natural gas, or a section is
-            missing.
+            If the selected models are not one of ``GS_RUNS``, a section is missing, or the
+            configs cannot run together (``check_model_configs``).
         """
-        selected = set(resolve_models_to_run(common_config.models_to_run))
-        if selected != set(GS_ORDER):
+        selected = frozenset(resolve_models_to_run(common_config.models_to_run))
+        if selected not in GS_RUNS:
             raise ValueError(
-                f'The Gauss-Seidel iterator runs exactly {[m.value for m in GS_ORDER]}; '
+                'The Gauss-Seidel iterator runs one of '
+                f'{[sorted(m.value for m in run) for run in GS_RUNS]}; '
                 f'models_to_run selects {sorted(m.value for m in selected)}'
             )
         configs: dict[ModelType, ModelConfig] = {}
         for model in GS_ORDER:
+            if model not in selected:
+                continue
             section, config_cls = CONFIG_SECTIONS[model]
             if section not in remainder:
                 raise ValueError(f'{model.value!r} needs a [{section}] section in the config')
             configs[model] = config_cls(**remainder[section])
+        check_model_configs(configs)
         return configs
 
     def run(
         self, common_config: CommonConfig, remainder: dict[str, Any], **kwargs
     ) -> tuple[RunStatus, dict[int, list[IterationResult]]]:
-        """Build both models once, then iterate until converged or iteration-capped.
+        """Build the selected models once, then iterate until converged or iteration-capped.
 
-        Each iteration solves electricity on the gas packages last accepted, then gas on the
-        electricity packages just accepted, updating the held models in place.  A model whose
-        status is outside ``ALLOW_OUTBOUND_UPDATES`` keeps its last accepted packages, and the
-        run stops as the Jacobi iterator's does (:class:`ConvergenceTracker`).  The exchanges and
-        region crosswalks are built once, before the models (see :meth:`ExchangeSpec.build`); the
-        writers and readers check the crosswalked data against each model's regions.  At the end,
-        result files are written for each model whose last solve did not fail.
+        Each iteration runs the models in ``GS_ORDER``, each on the packages last accepted from
+        the others, so a later model sees what an earlier one sent in the same iteration.  A
+        model whose status is outside ``ALLOW_OUTBOUND_UPDATES`` keeps its last accepted
+        packages, and the run stops as the Jacobi iterator's does (:class:`ConvergenceTracker`).
+        The exchanges and region crosswalks are built once, before the models (see
+        :meth:`ExchangeSpec.build`); the writers and readers check the crosswalked data against
+        each model's regions.  At the end, result files are written for each model whose last
+        solve did not fail.
 
         Parameters
         ----------
         common_config : CommonConfig
             Common run configuration; its scenario output folder is claimed here.
         remainder : dict
-            The config file's other sections:  ``elec_config`` and ``natural_gas``.
+            The config file's other sections:  one per selected model.
         **kwargs
             Unused; accepted to match :meth:`IterativeSequencer.run`.
 
@@ -209,14 +258,14 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         logger.info('Starting %s run for scenario "%s"', self.label, common_config.scenario_name)
         configs = self._process_configs(common_config, remainder)
 
-        exchange = self._build_exchange(GS_ORDER)
+        order = tuple(configs)
+        exchange = self._build_exchange(order)
         sequencers: dict[ModelType, IntegratedModelSequencer[Any, Any, Any]] = {
-            ModelType.ELECTRICITY: ElectricitySequencer(exchange),
-            ModelType.NATURAL_GAS: NGSequencer(exchange),
+            model: SEQUENCERS[model](exchange) for model in order
         }
-        logs = {m: common_config.output_folder / f'{m.value}.log' for m in GS_ORDER}
+        logs = {m: common_config.output_folder / f'{m.value}.log' for m in order}
         build_seconds: dict[ModelType, float] = {}
-        for model in GS_ORDER:
+        for model in order:
             start = perf_counter()
             self._in_model_log(
                 model,
@@ -229,7 +278,7 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
             build_seconds[model] = perf_counter() - start
 
         tracker = ConvergenceTracker(self.config.epsilon, self.config.convergence_iterations)
-        monitor = IterationMonitor(GS_ORDER, delta_mode=self.config.monitor_delta_mode)
+        monitor = IterationMonitor(order, delta_mode=self.config.monitor_delta_mode)
         console = Console()
         accepted: dict[ModelType, list[UpdatePackage]] = {}
         all_results: dict[int, list[IterationResult]] = {}
@@ -237,10 +286,10 @@ class GaussSeidelIterator(IterativeSequencer[GaussSeidelConfig]):
         converged = False
         while not converged and iteration <= self.config.iteration_limit:
             results: list[IterationResult] = []
-            for model in GS_ORDER:
+            for model in order:
                 # TODO:  check the packages produced against exchange.expected, once it is decided
                 #        how a missing or unexpected exchange feeds routing and the run status
-                inbound = route_updates(accepted, GS_ORDER)[model]
+                inbound = route_updates(accepted, order)[model]
                 start = perf_counter()
                 self._in_model_log(
                     model, logs[model], 'update', sequencers[model].update_model, inbound

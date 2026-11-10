@@ -23,7 +23,9 @@ monitor_delta_mode = "absolute"
 # left out with a warning.
 exchanges = [
     "ElectricityPriceScaler",
+    "HSMSupplyCapacityPackage",
     "NGDemandScaler",
     "NGElectricalDemandPackage",
+    "NGHubPricePackage",
     "NGPricePackage",
 ]

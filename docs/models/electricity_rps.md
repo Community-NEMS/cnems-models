@@ -61,7 +61,7 @@ The `requirement_type` column is kept for future types, but only one is implemen
 
 Any other type is
 rejected. An Alternative Compliance Payment (a priced shortfall instead of a hard limit) is also
-stubbed out in the model for possible future implementation, but not yet implemented, 
+stubbed out in the model for possible future implementation, but not yet implemented,
 so a requirement that cannot be met makes the solve infeasible.
 
 ### Overlapping groups

@@ -1,0 +1,6 @@
+group_id,region,requirement_type,first_year,min_share_frac,notes
+clean,7,BTM,2025,0.1,demonstration (docs/models/electricity_rps.md)
+clean,8,BTM,2025,0.2,demonstration:  superseded by the BTM from 2030
+clean,8,BTM,2030,0.3,demonstration
+clean,9,BTM,2030,0.6,demonstration:  well above the existing clean generation
+clean,all,BTM,2030,0.2,demonstration

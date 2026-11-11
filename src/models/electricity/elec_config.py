@@ -51,6 +51,19 @@ class LoadScaleMode(Enum):
     ANNUAL = 'annual'
 
 
+@unique
+class RPSRequirementType(Enum):
+    """How a Regional Portfolio Standard requirement is enforced.
+
+    BTM (Build To Minima) holds the group's in-region annual generation at or above the minimum
+    share of the region's annual load (retail sales), building or redispatching as needed.  Only
+    BTM is supported for now; other types are stubbed below.
+    """
+
+    BTM = 'BTM'
+    # RLL = 'RLL'  # stub:  Retirement Lower Limit, not yet supported
+
+
 class ElecConfig(ModelConfig):
     """Settings from the ``[elec_config]`` TOML section, controlling the electricity model."""
 
@@ -63,6 +76,15 @@ class ElecConfig(ModelConfig):
     spinning_reserve_required: bool
     ramping_required: bool
     load_scale_mode: LoadScaleMode
+    rps_required: bool = False
+
+    # TODO:  Clean this up when we refactor the path to scenario data.
+    #        We should be referencing the top-level data folder with
+    #        input_path and expect /policy within
+    @property
+    def policy_path(self) -> Path:
+        """The ``policy`` folder, a sibling of the ``input_path`` (``parameters``) folder."""
+        return self.input_path.parent / 'policy'
 
     @model_validator(mode='after')
     def check_paths(self):
@@ -88,6 +110,10 @@ class ElecConfig(ModelConfig):
             raise ValueError(
                 'expansion_learning_type (other than disabled) requires capacity_expansion'
             )
+
+        # the RPS requirements table lives in policy_path
+        if self.rps_required and not self.policy_path.is_dir():
+            raise ValueError(f'rps_required requires a policy folder at {self.policy_path}')
         return self
 
     @classmethod

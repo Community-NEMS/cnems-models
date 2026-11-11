@@ -362,6 +362,35 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 initialize=model_sets.buildable_capacity,
             )
 
+        # if the regional portfolio standards are on...
+        if elec_config.rps_required:
+            self.rps_group = pyo.Set(initialize=sorted(model_sets.rps_group_techs))
+            self.rps_group_techs = pyo.Set(
+                self.rps_group,
+                within=self.tech_gen,
+                initialize={g: sorted(t) for g, t in model_sets.rps_group_techs.items()},
+            )
+            # a region key is a region, or 'all' (the analyzed regions summed together)
+            self.rps_region_key = pyo.Set(initialize=sorted(model_sets.rps_region_members))
+            self.rps_btm_index = pyo.Set(
+                dimen=3,
+                within=self.rps_group * self.rps_region_key * self.year,
+                initialize=model_sets.rps_btm_index,
+            )
+            # the group's generator (region, tech, step) summed for each requirement
+            self.rps_group_sources = pyo.Set(
+                self.rps_btm_index,
+                dimen=3,
+                within=self.region_analyze * self.tech_gen_step,
+                initialize=model_sets.rps_group_sources,
+            )
+            # the regions whose load each region key sums
+            self.rps_region_members = pyo.Set(
+                self.rps_region_key,
+                within=self.region_analyze,
+                initialize={rk: list(rs) for rk, rs in model_sets.rps_region_members.items()},
+            )
+
         # if capacity expansion and learning are on
         # this block of code demonstrates the application of the switch option,
         # but in general we found it easier to read if we continued to use if statements
@@ -658,6 +687,12 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 self.tech,
                 initialize=all_dicts['reserve_tech_limit'],
                 validate=reserve_tech_check,
+            )
+
+        # if the regional portfolio standards are on, ...
+        if elec_config.rps_required:
+            self.rps_min_share = pyo.Param(
+                self.rps_btm_index, initialize=all_dicts['rps_min_share'], within=pyo.UnitInterval
             )
 
         #  =======================================
@@ -974,7 +1009,11 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
         # Property: ShadowPrice
         @self.Constraint(self.region_analyze, self.year, self.hour)
         def demand_balance(m: PowerModel, r, y, hr):
-            """Demand balance constraint where Load <= Generation.
+            """Demand balance constraint where Load == Generation.
+
+            An equality, so surplus output must be curtailed (generated below its upper bound),
+            exported or stored rather than dumped; dumped energy would otherwise count toward an
+            RPS generation requirement.
 
             Parameters
             ----------
@@ -992,7 +1031,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             pyomo.core.base.constraint.IndexedConstraint
                 Demand balance constraint
             """
-            return m.elec_load[r, y, hr] <= sum(
+            return m.elec_load[r, y, hr] == sum(
                 m.generation_total[r, tech, step, y, hr]
                 for (tech, step) in m.generation_demand_balance[r, y, hr]
             ) + sum(
@@ -1458,6 +1497,45 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                         if year < y and (r, tech, step, year) in m.capacity_retirements
                     )
                 )
+
+        # if the regional portfolio standards are on
+        if elec_config.rps_required:
+
+            @self.Constraint(self.rps_btm_index)
+            def rps_btm_lb(m: PowerModel, group, rk, y):
+                """RPS Build To Minima lower bound.
+
+                Group Generation >= Minimum Share * Load, both annual (day-weighted) sums over
+                the region key's regions; generation over every step of the group's members.
+
+                Parameters
+                ----------
+                m : PowerModel
+                    the model
+                group : str
+                    RPS group
+                rk : str
+                    region key:  a region, or 'all'
+                y : int
+                    year
+
+                Returns
+                -------
+                pyomo.core.base.constraint.IndexedConstraint
+                    RPS BTM lower bound
+                """
+                group_generation = sum(
+                    m.weight_day[m.map_hour_day[hr]] * m.generation_total[r, tech, step, y, hr]
+                    for (r, tech, step) in m.rps_group_sources[group, rk, y]
+                    for hr in m.hour
+                )
+                required = m.rps_min_share[group, rk, y] * sum(
+                    m.weight_day[m.map_hour_day[hr]] * m.elec_load[r, y, hr]
+                    for r in m.rps_region_members[rk]
+                    for hr in m.hour
+                )
+                # TODO:  an Alternative Compliance Payment would add a priced shortfall here
+                return group_generation >= required
 
         # if trade operation is on
         if elec_config.regional_exchange:  # and len(self.TranLineLimitInt_index) != 0:

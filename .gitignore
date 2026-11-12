@@ -54,3 +54,4 @@ coverage.xml
 # per-worker data files written by pytest-cov under xdist, normally consumed by
 # `coverage combine`; they survive an interrupted run and `.coverage` does not match them
 .coverage.*
+/.mcp.json

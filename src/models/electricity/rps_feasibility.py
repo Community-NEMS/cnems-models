@@ -7,15 +7,18 @@ Contact:  jeff@westernspark.us
 Created on:  11/5/26
 
 Regional Portfolio Standard (RPS) feasibility report:  a pre-solve look, from the loaded sets and
-parameter data, at the RPS requirements and whether the group can generate enough to meet them.
+parameter data, at the RPS requirements and whether the group's annual generation potential
+covers them.  It is a screen on annual energy, not a check of compliance.
 
 After the groups come four tables.  *Requirements* lists every ``rps_requirement.csv`` row with
 the model years it is in force.  *Requirement issues* lists the structural problems by group,
 region key and years.  *Energy gaps* compares, for each BTM in force, the required annual
 generation (share x annual load) with the most the existing group fleet could generate, and says
-for each shortfall whether builds can close it.  *Build To Minima member coverage* lists each BTM
-group member (region, tech) only for the required years it is not buildable in.  Each problem
-table is followed by a legend of its statuses, or replaced by a line saying there are none.
+for each shortfall whether builds could close it on annual energy.  No deficit does not confirm
+compliance:  hourly balance and other constraints may still prevent it.  *Build To Minima member
+coverage* lists each BTM group member (region, tech) only for the required years it is not
+buildable in.  Each problem table is followed by a legend of its statuses, or replaced by a line
+saying there are none.
 
 Annual energy is the day-weighted sum over the representative hours, as in the model.  Nothing
 is reported per hour.
@@ -63,7 +66,9 @@ UNMEETABLE = 'unmeetable'
 GAP_LEGEND = {
     NEEDS_BUILDS: 'The existing group fleet cannot generate the requirement, but a member is '
     'buildable in the year.  Closing build:  the MW of the highest-yield buildable '
-    '(region, tech) that would cover the gap alone.',
+    '(region, tech) whose annual potential would cover the gap alone.  An annual-energy '
+    'estimate, not a guarantee of compliance:  hourly balance and other constraints may need '
+    'more.',
     NEEDS_EARLY_BUILDS: 'As above, but no member is buildable in the year itself:  the closing '
     'build must be made in an earlier year.',
     UNMEETABLE: 'The existing group fleet cannot generate the requirement, and no member with '
@@ -396,7 +401,11 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
             + _legend(GAP_LEGEND)
         )
     else:
-        gaps_text = 'The existing group fleet can generate every requirement in force.'
+        gaps_text = _wrap(
+            'No annual generation-potential deficit:  the most the existing group fleet could '
+            'generate in a year covers every requirement in force.  This does not confirm '
+            'compliance:  hourly balance and other constraints may still prevent it.'
+        )
 
     # ---------------------------------------------------------------- BTM member coverage
     required_by: defaultdict[tuple[str, str], defaultdict[int, set[str]]] = defaultdict(
@@ -470,8 +479,9 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
             + _wrap(
                 "Each BTM in force whose requirement (min share x the region key's annual "
                 'load) is more than the existing group fleet could generate (existing MW x its '
-                'annual yield at full capacity factor).  Requirements the existing fleet can '
-                'meet are not listed.'
+                'annual yield at full capacity factor).  Requirements with no annual deficit '
+                'are not listed; that does not confirm compliance, since hourly balance and '
+                'other constraints may still bind.'
             )
             + '\n\n'
             + gaps_text,

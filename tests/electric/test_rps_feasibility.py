@@ -282,7 +282,7 @@ def test_clean_report(
     report = _report(monkeypatch, tmp_path, mini_data)
 
     assert 'No requirement issues found.' in report.text
-    assert 'The existing group fleet can generate every requirement in force.' in report.text
+    assert 'No annual generation-potential deficit:' in report.text
     assert 'Every BTM group member is buildable in every year it is required.' in report.text
     assert not [line for line in report.text.splitlines() if line.startswith('| status ')]
     assert sum(report.issues.values()) == sum(report.gaps.values()) == 0

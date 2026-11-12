@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 RPS_ALL_REGIONS = 'all'
 """region keyword:  the requirement applies to the sum over all analyzed regions"""
 
+DISJOINT_SEARCH_WARN_COUNT = 12
+"""BTMs per (region key, year) above which the exhaustive disjoint-share search warns of slowness"""
+
 type RPSKey = tuple[str, str, int]
 """(group_id, region key, model year)"""
 
@@ -363,7 +366,8 @@ def disjoint_share_conflicts(
     Groups with no member in common hold separate parts of the region key's generation, so their
     shares add, and past 1 they hold together only if the region key generates more than its load
     (exporting the rest).  Groups that share members, and BTMs on different region keys, are not
-    checked.
+    checked.  The search is exhaustive (worst case 2**n in the BTM count n), so a warning is logged
+    for any (region key, year) with more than ``DISJOINT_SEARCH_WARN_COUNT`` BTMs.
 
     Parameters
     ----------
@@ -386,6 +390,16 @@ def disjoint_share_conflicts(
             by_key[rk, year].append((group_id, frozenset(groups[group_id]), share))
     conflicts = {}
     for key, items in sorted(by_key.items()):
+        if len(items) > DISJOINT_SEARCH_WARN_COUNT:
+            logger.warning(
+                'RPS region %s, year %d has %d BTMs in force (more than %d):  the disjoint-share '
+                'check searches their combinations exhaustively and may be slow; investigate the '
+                'BTM inputs',
+                key[0],
+                key[1],
+                len(items),
+                DISJOINT_SEARCH_WARN_COUNT,
+            )
         total, chosen = _heaviest_disjoint(items)
         if total > 1.0 + 1e-9:
             conflicts[key] = (sorted(chosen), total)

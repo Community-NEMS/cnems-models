@@ -38,9 +38,12 @@ this will be the "roll up" year
 ### Requirements:
 - Accurate computation of the myopic timeline given some analysis years
 - Solve status tracking
-- Retain "build/retire" quantities for prior iterations in case reversion needed.  Maybe just keep building
-it along the way, then it is usable to the learning mechanism
+- Retain "build/retire" quantities for prior iterations in case reversion needed.
+- accurately track cumulative learning for learning cost reduction purposes
 - Reversion (rearward window expansion) to accommodate failed solves.
+  - Reversion should back up the Base Year and Status Year while leaving others
+  unchanged
+  - forward movement after reversion should step to the previous Step Year
 - Visualizer
 
 ```text
@@ -64,4 +67,25 @@ MI[2]                           |–––––––––––––––�
 MI[3]                                                           |–––––––––––––––x
 
 MI[4]                                                                           |
+```
+
+A second example with larger step size and reversion.  Failed solve indicated by "F", step year by "+"
+```text
+
+Data Years:  2030 - 2040 [inclusive]
+Summary Years:  2030, 2031, 2032, 2033, 2035, 2036, 2038
+Aggregation:  False
+
+Example for view depth=3, step size=3
+
+periods:        30      31      32      33      34      35      36      37      38      39      40         
+
+MI[0]           |–––––––x–––––––x       +
+                BY              LY      SY (step year)
+                                       
+MI[1]                                   |–––––––––––––––x–––––––F               +
+
+MI[2] (reversion)               |–––––––x–––––––––––––––x–––––––x               +
+
+MI[3]                                                                           |
 ```

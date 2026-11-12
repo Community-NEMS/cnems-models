@@ -13,7 +13,7 @@ Collection of sets used by model.
 
 import logging
 from collections import defaultdict, namedtuple
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping
 from enum import Enum, unique
 from itertools import chain
 
@@ -24,7 +24,14 @@ from src.common.common_config import CommonConfig
 from src.common.season import Season
 from src.integrator.utilities import create_temporal_mapping
 from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
-from src.models.electricity.elec_config import ElecConfig, ReserveType
+from src.models.electricity.elec_config import ElecConfig, ReserveType, RPSRequirementType
+from src.models.electricity.rps import (
+    RPSKey,
+    RPSRequirement,
+    RPSRequirementRow,
+    region_members,
+    resolve_groups,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +123,19 @@ class ModelSets:
     ramp_most_hours_balance_index: list[tuple]
     reserves_procurement_index: list[tuple]
     retirement_index: list[tuple]
+    rps_btm_index: list[RPSKey]
+    """(group, region key, year) with a BTM requirement in force and a share above 0 (RPS only)"""
+    rps_group_sources: dict[RPSKey, list[tuple[str, str, int]]]
+    """(group, region key, year) -> the group's generator (region, tech, step) in
+    ``capacity_index``"""
+    rps_group_techs: dict[str, frozenset[str]]
+    """RPS group -> member techs (RPS only)"""
+    rps_region_members: dict[str, tuple[str, ...]]
+    """RPS region key -> the regions it sums over"""
+    rps_requirements: dict[RPSKey, RPSRequirement]
+    """(group, region key, year) -> the requirement in force, zero shares included"""
+    rps_requirement_rows: list[RPSRequirementRow]
+    """every rps_requirement.csv row as entered, in force or not (RPS only, for reporting)"""
     season: list[Season]
     """The model's seasons, in natural (``Season.sort_order``) order"""
     seasonal_hydro_index: list[tuple]
@@ -132,7 +152,10 @@ class ModelSets:
 
         self.elec_config = elec_config
         # load the bulk of the data from csv property files
-        set_data = load_property_data(common_config.common_data_path)  # for "is a" data
+        set_data = load_property_data(
+            common_config.common_data_path,
+            skip=() if elec_config.rps_required else ('rps_group',),
+        )
         attribute_data = load_attribute_data(common_config.common_data_path)  # for "has a" data
 
         # break up the tech data into its constituents
@@ -167,6 +190,24 @@ class ModelSets:
 
         self.tech_retires = set_data['tech_retire']['is_retirable']
         self.tech_builds = set_data['tech_build']['is_buildable']
+
+        # RPS groups (the requirements need the capacity index, see build_rps_sets)
+        self.rps_group_techs = (
+            resolve_groups(
+                # pyrefly: ignore[bad-argument-type]  - load_property_data's list[str] is loose:
+                # a multi-column index (here group_id, tech) is read as a tuple
+                set_data['rps_group']['group_id'],
+                self.tech,
+                self.tech_gen,
+            )
+            if elec_config.rps_required
+            else {}
+        )
+        self.rps_requirements = {}
+        self.rps_requirement_rows = []
+        self.rps_region_members = {}
+        self.rps_btm_index = []
+        self.rps_group_sources = {}
 
         # descriptive (non-membership) tech columns: the valid supply curve steps plus the
         # reporting label/abbreviation/color that used to live only in analysis_tools
@@ -442,6 +483,62 @@ class ModelSets:
             logger.warning('generation_vre_index is empty')
 
         self.capacity_index = capacity_index
+
+    def build_rps_sets(
+        self,
+        requirements: Mapping[RPSKey, RPSRequirement],
+        rows: Iterable[RPSRequirementRow] = (),
+    ) -> None:
+        """Build the RPS index sets from the requirements in force.
+
+        Must follow :meth:`build_advanced_indexes`, as the group's generation sources are drawn
+        from ``capacity_index`` (each generator (region, tech, step) there has a
+        ``generation_total`` for every hour).  A BTM with a zero share gets no index entry
+        (logged at INFO), as it can never bind; it still supersedes earlier rows.
+
+        Parameters
+        ----------
+        requirements : Mapping[RPSKey, RPSRequirement]
+            (group, region key, year) -> the requirement in force (``rps.resolve_requirements``).
+        rows : Iterable[RPSRequirementRow], optional
+            the requirement rows as entered (``rps.requirement_rows``), kept for reporting.
+        """
+        self.rps_requirements = dict(requirements)
+        self.rps_requirement_rows = list(rows)
+        self.rps_region_members = region_members(
+            {rk for _, rk, _ in requirements}, self.region_analyze
+        )
+        btm = sorted(
+            k for k, r in requirements.items() if r.requirement_type is RPSRequirementType.BTM
+        )
+        self.rps_btm_index = [k for k in btm if requirements[k].min_share > 0.0]
+        for group, rk, year in sorted(set(btm) - set(self.rps_btm_index)):
+            logger.info(
+                'RPS BTM (group %s, region %s, year %d) not applied:  the minimum is 0',
+                group,
+                rk,
+                year,
+            )
+
+        region_of = {r: rk for rk, regions in self.rps_region_members.items() for r in regions}
+        by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
+        for idx in self.capacity_index:
+            if idx.region in region_of and idx.tech in self.tech_gen:
+                by_region_year[idx.region, idx.year].append(idx)
+
+        self.rps_group_sources = {}
+        for key in self.rps_btm_index:
+            group, rk, year = key
+            members = self.rps_group_techs[group]
+            self.rps_group_sources[key] = [
+                (idx.region, idx.tech, idx.step)
+                for r in self.rps_region_members[rk]
+                for idx in by_region_year[r, year]
+                if idx.tech in members
+            ]
+        logger.info(
+            'RPS sets:  %d BTM (group, region key, year) requirements', len(self.rps_btm_index)
+        )
 
     def capacity_origins(self) -> dict[CapacityOrigin, list[CI]]:
         """The labelled pieces of ``capacity_index``, whose union it is.

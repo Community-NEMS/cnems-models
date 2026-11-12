@@ -42,7 +42,7 @@ through the model configuration.
 | $\Theta_{it^{max}}$    | generation_vre_ub_index                       | Sparse Set | Intermittent technology generation upper bound set           |
 | $\Theta_{ht^{max}}$    | generation_hydro_ub_index                     | Sparse Set | Hydroelectric generation upper bound set                     |
 | $\Theta_{hs}$          | seasonal_hydro_index                       | Sparse Set | Hydroelectric generation seasonal upper bound set            |
-| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set                                       |
+| $\Theta_{ret}$         | capacity_retirements_index                    | Sparse Set | Retirable capacity set: the $\Theta_{SC}$ entries whose (tech, step) is retirable |
 | $\Theta_{new}$         | capacity_build_index                   | Sparse Set | Buildable capacity set: the `capital_cost` keys whose (tech, step) is in tech_buildable, in region_analyze |
 | $\Theta_{cc}$          | capital_cost.index_set()                      | Sparse Set | Set of capacity costs                                        |
 | $\Theta_{cc0}$         | capital_cost_initial.keys()              | Sparse Set | Set of initial year's capacity costs                         |
@@ -57,6 +57,9 @@ through the model configuration.
 | $\Theta_{traL^{int}}$  | trade_international_generation_ub.index_set() | Sparse set | International supply limit set: (international region, supply step, year, hour) |
 | $\Theta_{traLL}$       | tran_limit.keys()                             | Sparse set | Domestic interregional trade limit set                       |
 | $\Theta_{traLL^{int}}$ | trade_international_capacity_ub.index_set()   | Sparse set | International interregional trade line limit set             |
+| $G$                    | rps_group                                     | Set        | RPS technology groups (`rps_group.csv`)                      |
+| $K$                    | rps_region_key                                | Set        | RPS region keys: a region in $R$, or `all` for the sum over $R$ |
+| $\Theta_{btm}$         | rps_btm_index                                 | Sparse set | RPS Build To Minima requirements in force: (group, region key, year) with a share above 0 |
 
 ### Supply Steps
 
@@ -96,6 +99,9 @@ remaining indices.
 | $\theta^{rms}_{r,y}$       | capacity_sources_seasonal_factor | Sparse subset | Hydro (technology, step) pairs in $\Theta_{SC}$, counted in the reserve margin at their seasonal factor, indexed by r,y |
 | $\theta^{rmc}_{r,y}$       | capacity_sources_constant_factor | Sparse subset | All other (technology, step) pairs in $\Theta_{SC}$, storage included, counted in the reserve margin at a factor of 1, indexed by r,y |
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
+| $T_g$                      | rps_group_techs           | Subset        | The member technologies of RPS group $g$, all in $T^{gen}$                          |
+| $\theta^{rpsg}_{g,k,y}$    | rps_group_sources         | Sparse subset | (region, technology, step) in $\Theta_{SC}$ with the region in key $k$ and the technology in $T_g$, indexed by g,k,y |
+| $R_k$                      | rps_region_members        | Subset        | The regions of RPS region key $k$: the region itself, or all of $R$ for `all`       |
 
 ### Parameters
 
@@ -142,6 +148,7 @@ in reserve times $HW_h$, not energy delivered. Capacities and line limits are in
 | $CAPC0_{r,t,s}$                   | capital_cost_initial     | $\mathbb{R}^+_0$ | Initial cost to build capacity, scaled by the learning multiplier in the learning modes      | USD/MW                     |
 | $LR_t$                            | learning_rate            | $\mathbb{R}^+_0$ | Learning curve exponent                                                                      | unitless                   |
 | $SCL_t$                           | supply_curve_learning    | $\mathbb{R}^+$   | Baseline capacity the learning curve is measured from. Must be strictly positive, since the curve divides by it and needs the base of the fractional power to stay positive | MW                         |
+| $RPSMIN_{g,k,y}$                  | rps_min_share            | $[0, 1]$         | Minimum share of the region key's annual load that group $g$ must generate under a Build To Minima requirement | fraction                   |
 
 ### Variables
 
@@ -308,8 +315,9 @@ $$
 #### Balance Constraints
 
 Balance constraints exist for generation as well as energy storage. In each region and time segment, generation, plus
-storage discharge net of charging, plus unmet load, plus net imports when `regional_exchange` is true, must equal or
-exceed load (9). Imports arrive less the transmission loss $LL$. International regions only supply domestic regions,
+storage discharge net of charging, plus unmet load, plus net imports when `regional_exchange` is true, must equal
+load (9). It is an equality, so output above load must be curtailed (generated below its upper bound), exported or
+stored; it cannot be generated and thrown away. That matters for the RPS (35), which counts generation. Imports arrive less the transmission loss $LL$. International regions only supply domestic regions,
 so the balance has no export term for them.
 
 For energy storage technologies, the balance constraints ensure that the storage level in the current time segment is
@@ -320,7 +328,7 @@ Demand balance constraint:
 
 $$
 \begin{aligned}
-LOAD_{r,y,h} \leq &\sum_{{t,s} \in \theta^{GDB}_{r,y,h}}{\mathbf{GEN}_{r,t,s,y,h}} \\
+LOAD_{r,y,h} = &\sum_{{t,s} \in \theta^{GDB}_{r,y,h}}{\mathbf{GEN}_{r,t,s,y,h}} \\
 &+ \sum_{{t,s} \in \theta^{SDB}_{r,y,h}}{ (\mathbf{STOR^{out}}_{r,t,s,y,h} - \mathbf{STOR^{in}}_{r,t,s,y,h})} \\
 &+ \mathbf{UNLOAD}_{r,y,h} \\
 & (+ \sum_{r1 \in \theta^{TDB}_{r,y,h}}{\left (\mathbf{TRA}_{r,r1,y,h} \times (1 - LL) - \mathbf{TRA}_{r1,r,y,h}\right)} \quad \text{if regional exchange is on}) \\
@@ -704,6 +712,33 @@ $$
 
 Storage reserves use discharge headroom (17) but are not limited by the state of charge.
 
+#### Regional Portfolio Standards
+
+A Regional Portfolio Standard (RPS) requires a group of generator technologies to generate at least a minimum share of
+the annual load (retail sales) in a region, or in all the analyzed regions together (the region key `all`). The
+constraints exist only when `rps_required` is true. Only the group's generation inside the region key counts: imports
+earn no credit, and there is no REC trading between regions. Each (group, region key, year) has at most one
+requirement in force: of the requirements started by year $y$, the one with the latest first year. Requirements for
+different region keys are independent, so a region can be held both on its own and as part of `all`. Only the Build
+To Minima type is implemented.
+
+A Build To Minima requirement holds the group's annual generation at $RPSMIN$ times the annual load or above, by
+building (with `capacity_expansion` on) or by shifting each hour's generation toward the group:
+
+$$
+\begin{aligned}
+\sum_{(r,t,s) \in \theta^{rpsg}_{g,k,y}} \sum_{h \in H}{WD_h \times \mathbf{GEN}_{r,t,s,y,h}} \geq &RPSMIN_{g,k,y} \times \sum_{r \in R_k} \sum_{h \in H}{WD_h \times LOAD_{r,y,h}} \\
+&\forall {g,k,y} \in \Theta_{btm} \\
+&\quad \text{if RPS is on}
+\end{aligned} \tag{35}
+$$
+
+Both sides are annual energy for one year, so the year weight $WY_y$ cancels and year aggregation needs no special
+treatment. The load is the full $LOAD$, so unmet load does not reduce the requirement. Because the demand balance (9)
+is an equality, surplus group output cannot be dumped to meet (35). A requirement with a minimum of 0 writes no
+constraint, since it can never bind. The input tables, the supersession rules with a worked example, and the
+feasibility report are in [Regional Portfolio Standards](electricity_rps.md).
+
 ## Data Validation
 
 The raw input data is checked before the pyomo model is built. `ElectricitySequencer.build_model`
@@ -773,6 +808,21 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
   [Making a Technology Buildable](#making-a-technology-buildable) for the full set of inputs a
   buildable technology needs.
 
+- **RPS Build To Minima sources** (`validate_rps_btm_sources`) — when `rps_required` is on,
+  every Build To Minima requirement with a share above 0 must have some existing or buildable
+  group capacity ($\theta^{rpsg}$ not empty) in its regions and year, and a requirement without
+  one is an error: with $\theta^{rpsg}$ empty, (35) asks for generation from nothing, which is
+  infeasible wherever the region key has load. Problems in the RPS tables themselves (unknown
+  groups, technologies or regions, unsupported requirement types, shares outside [0, 1],
+  duplicate rows) stop the build before validation runs, all reported in one error. See
+  [Regional Portfolio Standards](electricity_rps.md#checks).
+- **RPS disjoint group shares** (`validate_rps_disjoint_shares`) — when `rps_required` is on, the
+  BTMs in force on groups with no member in common, in one region key and year, should have
+  shares summing to 1 or less. Past 1, the region key must generate more than its load from
+  those groups and export or store the rest. That can solve, so it is a warning, not an error.
+  Groups that share members are not checked. See
+  [Regional Portfolio Standards](electricity_rps.md#requirement-types).
+
 The hourly-coverage and transmission-network checks are only run when `regional_exchange` is
 enabled, since the transmission tables are otherwise unused.
 
@@ -806,6 +856,14 @@ and year:
   the model build. `hydro_capacity_factor.csv` carries only region and season, and `ParamData`
   applies each row to every hydro (tech, step), so in practice this means a row for every season
   in each region where hydro can be built.
+
+### Portfolio Standards
+
+With `rps_required` on, groups of generator technologies must generate a minimum share of the
+annual load in a region or across all regions, by Build To Minima requirements read from
+`rps_group.csv` and `policy/rps_requirement.csv`.
+See [Regional Portfolio Standards](electricity_rps.md) for the tables, the rules for overlapping
+requirements, and the `rps_feasibility` pre-solve report.
 
 ### Year Aggregation
 

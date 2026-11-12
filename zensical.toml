@@ -20,7 +20,10 @@ nav = [
     { "Gauss-Seidel Review Notes" = "run_modes/gauss_seidel_review.md" },
   ] },
   { "Models" = [
-    { "Electricity" = "models/electricity.md" },
+    { "Electricity" = [
+      { "Model" = "models/electricity.md" },
+      { "Portfolio Standards" = "models/electricity_rps.md" },
+    ] },
     { "Natural Gas" = "models/natural_gas.md" },
     { "Magic" = "models/magic.md" },
     { "Magic HSM" = "models/magic_hsm.md" },

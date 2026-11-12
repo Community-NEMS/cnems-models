@@ -14,7 +14,7 @@ All current code uses the pydantic config system: `src/common/common_config.py` 
 model-specific configuration such as `src/models/electricity/elec_config.py` (`ElecConfig`), loaded from
 a TOML with `[common]` and `[elec_config]` sections via `CommonConfig.from_toml(path)` (or
 `parse_config_file(path)`), which returns `(common_config, remainder_dict)`. Enums (`RunMode`,
-`ModelType`, `ExpansionLearningType`, `LoadScaleMode`, `ReserveType`) are used to control
+`ModelType`, `ExpansionLearningType`, `LoadScaleMode`, `ReserveType`, `RPSRequirementType`) are used to control
 modes/configuration options. See `run_configs/*.toml` and `tests/electric/basic_elec_config.toml` for
 working examples.
 
@@ -69,7 +69,9 @@ python main.py
    (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
    `full_postprocess` / `iteration_postprocess`). `solve_model` returns a
    `(ModelType, IterationStatus)` tuple. Tests build models by calling
-   `ElectricitySequencer().build_model(common_config, elec_config)` directly.
+   `ElectricitySequencer().build_model(common_config, elec_config)` directly. Its data steps
+   (sets, params, update packages, `validate_all`) are `load_data(...) -> (ModelSets, ParamData)`,
+   which `build_model` calls and `RunMode.RPS_FEASIBILITY` runs alone (no build or solve).
 5. `sequencer.py::run_elec_model(common_config, elec_config, solve=True)` is a thin wrapper over the
    sequencer: build → (optionally) solve → postprocess, returning the `PowerModel`.
 
@@ -130,8 +132,10 @@ vice versa, so the two stay in agreement.
 ### Electricity model structure
 
 - `elec_config.py` — pydantic `ElecConfig` (`region_filter`, switches for `regional_exchange` /
-  `capacity_expansion` / `reserve_margin_required` / `spinning_reserve_required` / `ramping_required`,
-  `expansion_learning_type`, `load_scale_mode`) plus supporting enums.
+  `capacity_expansion` / `reserve_margin_required` / `spinning_reserve_required` / `ramping_required` /
+  `rps_required`, `expansion_learning_type`, `load_scale_mode`) plus supporting enums.
+- `rps.py` (RPS group/requirement resolution, pure functions) and `rps_feasibility.py` (the
+  pre-solve RPS report); user docs in `docs/models/electricity_rps.md`.
 - `model_sets.py` — `ModelSets`: regional, temporal, and technology-based sets, including many sparse
   index sets (e.g. `generation_total_index`, `capacity_builds_index`, `trade_interregional_index`) built
   by crossing raw data against switches. `src/models/electricity/README.md` is the full
@@ -141,8 +145,9 @@ vice versa, so the two stay in agreement.
 - `update_reader.py` / `update_writer.py` — `ElecUpdateReader` (applies inbound packages to
   `ParamData.param_frames`) and `ElecUpdateWriter` (sends the solved gas burn to the NG model as an
   `NGElectricalDemandPackage`; `gas_demand_by_region` lives here).
-- Input CSVs are declared, not hard-coded: `param_sources.toml` / `property_sources.toml` are parsed by
-  `param_source_loader.py` / `property_source_loader.py` into the `PARAM_SOURCES` / `PROPERTY_SOURCES`
+- Input CSVs are declared, not hard-coded: `param_sources.toml` / `property_sources.toml` /
+  `policy_sources.toml` are parsed by `param_source_loader.py` / `property_source_loader.py` /
+  `policy_source_loader.py` into the `PARAM_SOURCES` / `PROPERTY_SOURCES` / `POLICY_SOURCES`
   dicts in `data_ingestor.py`. To add an input file, add a TOML entry (`key`, `filename`, `index_cols`,
   `value_col`, `required`) rather than editing loader code. `index_cols` ordering matters — it drives
   MultiIndex construction and downstream column-order expectations.
@@ -155,7 +160,10 @@ vice versa, so the two stay in agreement.
 - `analysis_tools/` (top-level package) — `model_diagnostics.py`, `transmission_network.py`, `viewer.py`.
 - Input data lives under `input/electricity/`: `properties/` (region/tech set-membership CSVs,
   `CommonConfig.common_data_path`), `parameters/` (regionally/technology-indexed CSVs for costs,
-  transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (currently empty).
+  transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (policy tables such as `rps_requirement.csv`,
+  `ElecConfig.policy_path`). The shipped `policy/rps_requirement.csv` and
+  `properties/rps_group.csv` are the RPS demonstration run by `run_configs/rps_check_config.toml`;
+  they are read only when `rps_required` is on.
   `datapackage.json` sits at the top of `input/electricity/`. `input/electricity_light/` mirrors
   this layout.
 - Do not alter the formulation of the math model (constraints and objective functions) in electricity

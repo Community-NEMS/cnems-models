@@ -226,7 +226,7 @@ models_to_run = ['electricity']
 ```
 
 then run `python main.py run_configs/rps_check_config.toml`. That sample config runs on the shipped
-data and its demonstration RPS tables, and produces the report in [Sample](#sample).
+data and its demonstration RPS tables; [Sample](#sample) shows a report like the one it produces.
 
 The report goes to `rps_feasibility.txt` in the scenario output folder, beside `run.log`, and the
 log gets a one-line summary. Validation runs non-strict in this mode, whatever
@@ -301,13 +301,17 @@ line replaces the table and its legend.
 
 ### Sample
 
-The report from `../../run_configs/rps_check_config.toml`: the shipped data with
+!!! note "Example only"
+
+    This report was generated from a modified copy of the shipped data, for example purposes
+    only. Running the sample config on the shipped data does not reproduce it exactly.
+
+The report from `../../run_configs/rps_check_config.toml`, with
 `region_filter = ['7', '8', '9']` and model years 2025, 2030 and 2035. Its group is the `clean`
 group of the [Input Tables](#input-tables) example, and its requirements are the shipped
-`policy/rps_requirement.csv` (notes left out here). For variety, the shipped build data makes
-`10_regular` (regular hydro) buildable from 2035 on in these regions, and stops `15_utility`
-(utility solar) in region 8 being buildable from 2035 on. Those rows are marked as placeholders
-in their `notes`.
+`policy/rps_requirement.csv` (notes left out here). For variety, the modified build data made
+`10_regular` (regular hydro) buildable from 2035 on in these regions, and stopped `15_utility`
+(utility solar) in region 8 being buildable from 2035 on.
 
 ```text
 group_id,region,requirement_type,first_year,min_share_frac
@@ -423,6 +427,6 @@ Reading it:
   Seasonal hydro, offshore wind (`13`) and end-use solar (`15_end_use`) can never be built in these
   regions. Onshore wind (`14`) is buildable throughout, so it is not listed.
 
-Solving the same data (`../../run_configs/rps_run_config.toml`) bears this out: region 8's
-requirement binds at exactly 20% in 2025 and 30% from 2030, and the others are met with room to
-spare.
+Solving the same modified data (with `../../run_configs/rps_run_config.toml`) bore this out:
+region 8's requirement binds at exactly 20% in 2025 and 30% from 2030, and the others are met with
+room to spare.

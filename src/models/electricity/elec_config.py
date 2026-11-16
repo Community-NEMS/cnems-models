@@ -56,7 +56,7 @@ class RPSRequirementType(Enum):
     """How a Regional Portfolio Standard requirement is enforced.
 
     BTM (Build To Minima) holds the group's in-region annual generation at or above the minimum
-    share of the region's annual load (retail sales), building or redispatching as needed.  Only
+    share of the region's annual load, building or redispatching as needed.  Only
     BTM is supported for now; other types are stubbed below.
     """
 

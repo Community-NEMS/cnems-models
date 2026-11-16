@@ -1,9 +1,10 @@
 # Regional Portfolio Standards
 
 A Regional Portfolio Standard (RPS) requires a group of technologies, typically renewables, to
-generate a minimum share of the electricity used in a region. As in most real-world programs, the
-share is of the region's annual load (its retail sales), and the requirement is met by the group's
-annual generation. The electricity model represents RPS as requirements on technology groups, each
+generate a minimum share of the electricity used in a region. The share is of the region's annual
+load, and the requirement is met by the group's annual generation. The model's load includes grid
+losses (about 5%), so the load is a little larger than the retail sales that most state targets
+use. The electricity model represents RPS as requirements on technology groups, each
 set for a region (or all the analyzed regions together) from a first year onward. The constraint is
 equation (35) in [the model formulation](electricity.md#regional-portfolio-standards).
 

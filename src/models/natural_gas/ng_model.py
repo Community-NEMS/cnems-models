@@ -715,9 +715,9 @@ class NGModel(ConcreteModel, IntegratedModel):
         # inflow up to the tariff curve's last breakpoint, LNG and pipeline imports; storage nets to
         # zero over the year and adds none) makes the whole model infeasible, as does a region
         # subset that is a net importer once its supplying neighbours are dropped. It is created for
-        # every run. With `slack_demand` it makes the same pair the electricity model has: a demand
-        # balance that allows a free surplus, and `unmet_load` at a penalty. Its presence also lets
-        # HiGHS solve cut-demand cases it otherwise reports as `unknown` or `unbounded` on long
+        # every run. It is the counterpart of the electricity model's `unmet_load`; the electricity
+        # demand balance is an equality and has no counterpart to `slack_demand`. Its presence also
+        # lets HiGHS solve cut-demand cases it otherwise reports as `unknown` or `unbounded` on long
         # horizons, although it is zero in those cases; why is not known.
         self.unserved = Var(self.region_analyze, self.year, within=NonNegativeReals, initialize=0.0)
 

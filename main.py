@@ -223,7 +223,7 @@ def _run_rps_feasibility(common_config: CommonConfig, remainder: dict) -> Path:
     )
     report = rps_feasibility_report(model_sets, param_data)
     path = common_config.output_folder / RPS_FEASIBILITY_FILE
-    path.write_text(report.text)
+    path.write_text(report.text, encoding='utf-8')
     logger.info('RPS feasibility report written to %s:  %s', path, report.summary())
     return path
 

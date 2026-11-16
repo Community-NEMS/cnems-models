@@ -715,7 +715,7 @@ Storage reserves use discharge headroom (17) but are not limited by the state of
 #### Regional Portfolio Standards
 
 A Regional Portfolio Standard (RPS) requires a group of generator technologies to generate at least a minimum share of
-the annual load (retail sales) in a region, or in all the analyzed regions together (the region key `all`). The
+the annual load in a region, or in all the analyzed regions together (the region key `all`). The
 constraints exist only when `rps_required` is true. Only the group's generation inside the region key counts: imports
 earn no credit, and there is no REC trading between regions. Each (group, region key, year) has at most one
 requirement in force: of the requirements started by year $y$, the one with the latest first year. Requirements for

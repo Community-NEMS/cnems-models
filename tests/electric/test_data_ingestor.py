@@ -1,8 +1,10 @@
 """Test `data_ingestor`` module."""
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from upath import UPath
 
 from src.models.electricity import data_ingestor
@@ -157,3 +159,25 @@ def test_load_dataframes_w_datapackage_filters_tables(tmpdir) -> None:
 
     assert 'test1' in result
     assert 'test2' not in result
+
+
+@pytest.mark.parametrize(
+    'region_filter',
+    [None, {'west'}],
+    ids=['unfiltered', 'dupe_in_filtered_region'],
+)
+def test_read_parameter_csv_rejects_duplicate_index(tmp_path: Path, region_filter) -> None:
+    """A repeated index is an error, even in rows the filter would drop."""
+    path = tmp_path / 'p.csv'
+    path.write_text('region,year,value\nwest,2030,1.0\neast,2030,2.0\neast,2030,3.0\n')
+    filters = data_ingestor.FilterPackage(region_filter=region_filter)
+    with pytest.raises(ValueError, match=r"Duplicate index \('east', 2030\) on line 4"):
+        data_ingestor.read_parameter_csv(path, ['region', 'year'], 'value', filters)
+
+
+def test_read_property_csv_rejects_duplicate_index(tmp_path: Path) -> None:
+    """A repeated index row in a property file is an error."""
+    path = tmp_path / 'tech.csv'
+    path.write_text('tech,is_vre\nSolar,True\nGas,False\nSolar,False\n')
+    with pytest.raises(ValueError, match=r"Duplicate index \('Solar',\) on line 4"):
+        data_ingestor.read_property_csv(path, ['tech', 'is_vre'], ['tech'])

@@ -37,6 +37,9 @@ class PropertySource(BaseModel):
     attribute_cols : tuple[str, ...]
         Columns carried through as raw per-index values rather than pivoted into
         truthy-membership sets (see ``read_attribute_csv``).  Empty for sources with none.
+    required : bool
+        Whether the file must be present (True), or is used only under a specific ElecConfig
+        switch and may be absent (False).
     """
 
     key: str
@@ -44,6 +47,7 @@ class PropertySource(BaseModel):
     property_cols: tuple[str, ...]
     index_cols: tuple[str, ...]
     attribute_cols: tuple[str, ...] = ()
+    required: bool = True
 
 
 class _PropertySourceFile(BaseModel):

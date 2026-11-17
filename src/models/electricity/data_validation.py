@@ -27,6 +27,7 @@ from src.common.season import Season
 from src.models.electricity.elec_config import ExpansionLearningType
 from src.models.electricity.model_sets import CapacityOrigin, ModelSets
 from src.models.electricity.param_data import ParamData
+from src.models.electricity.rps import RPSKey, disjoint_share_conflicts
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,16 @@ def validate_all(model_sets: ModelSets, param_data: ParamData, strict: bool = Tr
                 model_sets.region_analyze,
                 model_sets.tech_builds,
             )
+
+    # an RPS BTM requirement needs group generation sources; disjoint
+    # groups with shares that sum over 1.0 are flagged
+    if param_data.elec_config.rps_required:
+        all_valid &= validate_rps_btm_sources(
+            param_data.param_dicts['rps_min_share'], model_sets.rps_group_sources
+        )
+        all_valid &= validate_rps_disjoint_shares(
+            param_data.param_dicts['rps_min_share'], model_sets.rps_group_techs
+        )
 
     if not all_valid:
         message = 'Data validation failed.  See log for details.'
@@ -483,6 +494,78 @@ def validate_build_cost_coverage(
     if not missing and extra > 0:
         logger.debug('%s has %d entries beyond the buildable set (ignored)', element_name, extra)
     return valid
+
+
+def validate_rps_btm_sources(
+    min_share: Mapping[tuple[str, str, int], float],
+    group_sources: Mapping[tuple[str, str, int], Sequence[tuple]],
+) -> bool:
+    """Screen each RPS BTM requirement for group generation sources to meet it.
+
+    A BTM requirement with a positive share needs at least one group (region, tech, step) in the
+    capacity index (existing, buildable or carried) in its regions and year.  Without one, (35)
+    asks for share x load of generation from nothing, which is infeasible wherever the region key
+    has load.  Whether the group can generate enough is left to the RPS feasibility report.
+
+    Parameters
+    ----------
+    min_share : Mapping[tuple[str, str, int], float]
+        (group, region key, year) -> BTM minimum share (``param_dicts['rps_min_share']``).
+    group_sources : Mapping[tuple[str, str, int], Sequence[tuple]]
+        (group, region key, year) -> the group's capacity index entries
+        (``ModelSets.rps_group_sources``).
+
+    Returns
+    -------
+    bool
+        False if any requirement has no group capacity (each logged as an error).
+    """
+    valid = True
+    for key, share in sorted(min_share.items()):
+        if share > 0.0 and not group_sources.get(key):
+            logger.error(
+                'RPS BTM requirement %s (min share %.3f) has no existing or buildable group '
+                'generation source in its region(s) and year',
+                key,
+                share,
+            )
+            valid = False
+    return valid
+
+
+def validate_rps_disjoint_shares(
+    min_share: Mapping[RPSKey, float], groups: Mapping[str, Iterable[str]]
+) -> bool:
+    """Warn of RPS BTMs on disjoint groups whose shares, in one region key and year, sum past 1.
+
+    Such BTMs ask the region key to generate more than its load from those groups, which only
+    exports (or storage losses) can absorb.  That can solve, but is almost surely an input error,
+    so it is logged as a warning and does not fail validation.  See
+    ``rps.disjoint_share_conflicts`` for what is not checked.
+
+    Parameters
+    ----------
+    min_share : Mapping[RPSKey, float]
+        (group, region key, year) -> BTM minimum share (``param_dicts['rps_min_share']``).
+    groups : Mapping[str, Iterable[str]]
+        group_id -> member techs (``ModelSets.rps_group_techs``).
+
+    Returns
+    -------
+    bool
+        Always True.
+    """
+    conflicts = disjoint_share_conflicts(min_share, {g: set(t) for g, t in groups.items()})
+    for (rk, year), (chosen, total) in conflicts.items():
+        logger.warning(
+            'RPS BTMs on disjoint groups %s in region %s, year %d have shares summing to %.3f, '
+            'above 1:  the region key must generate more than its load from these groups',
+            chosen,
+            rk,
+            year,
+            total,
+        )
+    return True
 
 
 def validate_domestic_network(

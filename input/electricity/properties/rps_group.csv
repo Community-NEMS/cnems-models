@@ -1,0 +1,7 @@
+group_id,tech,notes
+clean,10_regular,Regular Hydro
+clean,10_seasonal,Seasonal Hydro
+clean,13,Offshore Wind
+clean,14,Onshore Wind
+clean,15_end_use,End-Use Solar
+clean,15_utility,Utility Solar

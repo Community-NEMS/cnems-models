@@ -274,9 +274,9 @@ so no price falls below zero. It is used only when demand drops below what a reg
 supplying, its committed production floor and its fixed pipeline imports, and wherever it takes gas the
 price is zero, within solver tolerance. The use is more numerical rather than economical. A region-year with
 unserved demand has its price at Π, within solver tolerance: that is the dual as solved, not a value
-imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. The two are the same pair the
-electricity model has in its demand balance, an inequality that allows free surplus, and
-`unmet_load`.
+imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. `unserved` is the
+counterpart of the electricity model's `unmet_load`. The electricity demand balance has no counterpart to
+`slack_demand`: it is an equality, and surplus is avoided by generating below capacity.
 
 A result with unserved demand is a shortfall, not a cleared market. `NGSequencer.solve_model` still
 returns `USABLE` for it, logs a warning naming every region-year short by more than 0.01 Bcf, and

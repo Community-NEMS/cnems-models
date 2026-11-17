@@ -31,6 +31,7 @@ class RunMode(Enum):
     STANDALONE = 'standalone'
     INTEGRATED_JACOBI = 'integrated jacobi'
     INTEGRATED_GS = 'integrated gs'
+    RPS_FEASIBILITY = 'rps_feasibility'  # electricity:  load the data and report, no solve
 
 
 # the test models, which ``ModelType.ALL`` leaves out unless they are named

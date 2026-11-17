@@ -226,10 +226,11 @@ member in common, in one region key and year, have shares summing past 1 (see
 
 A BTM can ask for more generation than the inputs let the group produce. Whether a group member
 is buildable in a region and year depends on several inputs (see
-[Making a Technology Buildable](electricity.md#making-a-technology-buildable)), and a requirement
-that cannot be met shows up only as an infeasible solve. The `rps_feasibility` run mode checks the
-requirements before any solve: it loads and validates the electricity data, writes a report, and
-stops. No model is built or solved.
+[Making a Technology Buildable](electricity.md#making-a-technology-buildable)), and a member left
+unbuildable by mistake shows up only as an infeasible solve. The `rps_feasibility` run mode checks
+the requirements before any solve: it loads and validates the electricity data, writes a report,
+and stops. No model is built or solved. The report shows the data problems and infeasibilities
+that can be seen before a solve; it does not suggest fixes.
 
 ### Running it
 
@@ -276,29 +277,33 @@ force shows `-`, and its note says why:
 | Status | Meaning |
 |:-------|:--------|
 | `no group capacity` | No member has existing, buildable or earlier-built capacity in the region key and year, so the group cannot generate. Infeasible wherever the region key has load. Also a validation error. |
-| `disjoint shares over 1` | BTMs on groups with no member in common, in one region key and year, have shares summing past 1. Each group in the set gets a row. Also a validation warning. |
+| `disjoint shares over 1` | BTMs on groups with no member in common, in one region key and year, have shares summing past 1, so together they are not satisfiable within the region key's own load and may rely on exports or storage. Each group in the set gets a row. Also a validation warning; likely a data error. |
 
 **Energy gaps** compares, for each BTM in force, the requirement (minimum share × the region key's
-annual load) with the most the *existing* group fleet could generate: each member's existing MW
-times its annual yield at full output. The yield is the day- and hour-weighted sum of its
-capacity factor over the representative hours: the hourly capacity factor for VRE, the seasonal
-capacity factor for hydro, and 1 for other generators. For seasonal hydro this ignores the
-seasonal discharge budget, so it is an upper bound. One row per (group, region key, year) where
-the requirement exceeds that maximum, with the gap in MWh:
+annual load) with the most the *existing* group fleet can generate **within the region key's own
+load**. A member's output in each representative hour is its existing MW at full output: the
+hourly capacity factor for VRE, the seasonal capacity factor for hydro (ignoring the seasonal
+discharge budget, so an upper bound), and 1 for other generators. In each hour, the group's
+output counts only up to that hour's load. The screen assumes no help from storage or exports: a
+requirement should be met within the key's own load, and one that relies on storage or exports
+is worth a look. One row per (group, region key, year) where the requirement exceeds that
+maximum, with the gap in MWh:
 
 | Status | Meaning |
 |:-------|:--------|
-| `needs builds` | A member is buildable in the year. The *closing build* is the MW of the highest-yield buildable (region, tech) whose annual potential would cover the gap on its own: an annual-energy estimate, not a guarantee of compliance. |
-| `needs early builds` | No member is buildable in the year itself, but one is earlier. Capacity built earlier stays in service, so the closing build must be made in an earlier year. |
-| `unmeetable` | No member with any yield is buildable in the year or earlier, so the solve will be infeasible. Every shortfall is `unmeetable` with `capacity_expansion` off. |
+| `needs builds` | The existing fleet cannot meet the requirement within the key's own load, but a member is buildable in the year: the requirement relies on new builds. |
+| `needs early builds` | As above, but no member is buildable in the year itself, only earlier: the requirement relies on builds made in an earlier year, which stay in service. |
+| `exceeds own load` | Not satisfiable within the key's own load: even unlimited builds of the buildable members cannot generate enough in the hours the load can take it. It may rely on storage or exports, and may be infeasible. |
+| `unmeetable` | The existing fleet cannot generate the requirement even ignoring the load, and no member with any yield is buildable in the year or earlier. The solve will be infeasible. |
+
+With `capacity_expansion` off, every shortfall is `exceeds own load` or `unmeetable`.
 
 A requirement that needs builds, with a member to build, is not a fault: forcing builds is what a
-BTM is for. The row says how much. The comparison is a screen, not a solve. The existing fleet's
-maximum assumes every member runs flat out in every hour, and surplus above the load in an hour
-can only count if it is exported or stored. A requirement with no gap can still bind, and one that
-needs builds can need more than the closing build. When no requirement has a gap, the report says
-there is no annual generation-potential deficit, not that the requirements will be met: hourly
-balance and other constraints may still prevent compliance.
+BTM is for. The comparison is a screen, not a solve. It assumes every member runs flat out up to
+the load, so a requirement with no gap can still bind, and one listed as `exceeds own load` may
+still be met by storing or exporting the surplus. When no requirement has a gap, the report says
+there are no energy gaps, not that the requirements will be met: hourly balance and other
+constraints may still prevent compliance.
 
 **Build To Minima member coverage** lists each group member, by (region, tech), in the required
 years it is not buildable in:
@@ -375,28 +380,30 @@ No requirement issues found.
 Energy gaps
 
 Each BTM in force whose requirement (min share x the region key's annual load) is more than the
-existing group fleet could generate (existing MW x its annual yield at full capacity factor).
-Requirements with no annual deficit are not listed; that does not confirm compliance, since hourly
-balance and other constraints may still bind.
+existing group fleet can generate within the region key's own load:  at full capacity factor, but in
+each hour no more than that hour's load.  No help from storage or exports is assumed, so a listed
+requirement may still be met with them.  Requirements not listed may still bind:  hourly balance and
+other constraints are not checked.
 
-| group   | region key   |   year |   required MWh |   existing max MWh |    gap MWh | status       | closing build       |
-|---------|--------------|--------|----------------|--------------------|------------|--------------|---------------------|
-| clean   | 8            |   2025 |     14,398,090 |          2,834,186 | 11,563,904 | needs builds | 2,791 MW at (8, 14) |
-| clean   | 8            |   2030 |     22,589,307 |          5,018,852 | 17,570,455 | needs builds | 4,240 MW at (8, 14) |
-| clean   | 8            |   2035 |     23,581,480 |          6,011,882 | 17,569,598 | needs builds | 4,240 MW at (8, 14) |
+| group   | region key   |   year |   required MWh |   existing max MWh |    gap MWh | status       |
+|---------|--------------|--------|----------------|--------------------|------------|--------------|
+| clean   | 8            |   2025 |     14,398,090 |          2,834,186 | 11,563,904 | needs builds |
+| clean   | 8            |   2030 |     22,589,307 |          5,018,852 | 17,570,455 | needs builds |
+| clean   | 8            |   2035 |     23,581,480 |          6,011,882 | 17,569,598 | needs builds |
 
-| status             | meaning                                                                 |
-|--------------------|-------------------------------------------------------------------------|
-| needs builds       | The existing group fleet cannot generate the requirement, but a member  |
-|                    | is buildable in the year.  Closing build:  the MW of the highest-yield  |
-|                    | buildable (region, tech) whose annual potential would cover the gap     |
-|                    | alone.  An annual-energy estimate, not a guarantee of compliance:       |
-|                    | hourly balance and other constraints may need more.                     |
-| needs early builds | As above, but no member is buildable in the year itself:  the closing   |
-|                    | build must be made in an earlier year.                                  |
-| unmeetable         | The existing group fleet cannot generate the requirement, and no member |
-|                    | with any yield is buildable in the year or earlier.  The solve will be  |
-|                    | infeasible.                                                             |
+| status             | meaning                                                                  |
+|--------------------|--------------------------------------------------------------------------|
+| needs builds       | The existing group fleet cannot meet the requirement within the region   |
+|                    | key's own load, but a member is buildable in the year:  the requirement  |
+|                    | relies on new builds.                                                    |
+| needs early builds | As above, but no member is buildable in the year itself:  the            |
+|                    | requirement relies on builds made in an earlier year.                    |
+| exceeds own load   | Not satisfiable within the region key's own load:  even unlimited builds |
+|                    | of the buildable members cannot generate enough in the hours the load    |
+|                    | can take it.  It may rely on storage or exports, and may be infeasible.  |
+| unmeetable         | The existing group fleet cannot generate the requirement even ignoring   |
+|                    | the load, and no member with any yield is buildable in the year or       |
+|                    | earlier.  The solve will be infeasible.                                  |
 
 Build To Minima member coverage
 
@@ -433,11 +440,10 @@ BTMs that need the member in those years.
 Reading it:
 
 - **Requirements:** region 8's 20% from 2025 gives way to 30% in 2030.
-- **Energy gaps:** only region 8 is short. Its existing clean fleet could generate at most about
-  2.8 TWh in 2025 against a 14.4 TWh requirement, and onshore wind (`14`), its highest-yield
-  buildable member, would need about 2.8 GW to close the gap alone (4.2 GW from 2030). Regions 7
-  and 9, and the three regions together, can meet their requirements from the existing fleet, so
-  they are not listed. Region 9's 60% is within its existing clean fleet's maximum.
+- **Energy gaps:** only region 8 is short. Within its own load, its existing clean fleet can
+  generate at most about 2.8 TWh in 2025 against a 14.4 TWh requirement. Members are buildable,
+  so the requirement relies on new builds. Regions 7 and 9, and the three regions together, can
+  meet their requirements from the existing fleet within their own load, so they are not listed.
 - **Coverage:** regular hydro can be built only from 2035, so before then it holds only its
   existing capacity in regions 7 and 9, and is unavailable in region 8, which has none. Utility
   solar can't be built in region 8 in 2035, so any addition for that year must be built by 2030.

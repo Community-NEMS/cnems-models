@@ -7,24 +7,26 @@ Contact:  jeff@westernspark.us
 Created on:  11/5/26
 
 Regional Portfolio Standard (RPS) feasibility report:  a pre-solve look, from the loaded sets and
-parameter data, at the RPS requirements and whether the group's annual generation potential
-covers them.  It is a screen on annual energy, not a check of compliance.
+parameter data, at the RPS requirements, to show data problems and infeasibilities that can be
+seen before any solve.  It reports problems; it does not suggest fixes, and it is not a check of
+compliance.
 
 After the groups come four tables.  *Requirements* lists every ``rps_requirement.csv`` row with
 the model years it is in force.  *Requirement issues* lists the structural problems by group,
 region key and years.  *Energy gaps* compares, for each BTM in force, the required annual
-generation (share x annual load) with the most the existing group fleet could generate, and says
-for each shortfall whether builds could close it on annual energy.  No deficit does not confirm
-compliance:  hourly balance and other constraints may still prevent it.  *Build To Minima member
-coverage* lists each BTM group member (region, tech) only for the required years it is not
-buildable in.  Each problem table is followed by a legend of its statuses, or replaced by a line
-saying there are none.
+generation (share x annual load) with the most the existing group fleet can generate within the
+region key's own load:  in each hour, no more than that hour's load.  It assumes no help from
+storage or exports, so a requirement it lists may still be met with them, and one it does not
+list may still bind.  *Build To Minima member coverage* lists each BTM group member (region,
+tech) only for the required years it is not buildable in.  Each problem table is followed by a
+legend of its statuses, or replaced by a line saying there are none.
 
 Annual energy is the day-weighted sum over the representative hours, as in the model.  Nothing
 is reported per hour.
 """
 
 import logging
+import math
 import textwrap
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -55,24 +57,27 @@ ISSUE_LEGEND = {
     'key and year, so the group cannot generate at all.  Infeasible wherever the region key has '
     'load.  A validation error.',
     DISJOINT_SHARES_OVER_1: 'BTMs on groups with no member in common, in one region key and '
-    'year, have shares summing past 1:  the region key must generate more than its load from '
-    'these groups and export or store the rest.  A validation warning; almost surely bad data.',
+    'year, have shares summing past 1, so together they are not satisfiable within the region '
+    "key's own load:  meeting them would rely on exports or storage.  A validation warning; "
+    'likely a data error.',
 }
 
 # energy gaps, by (group, region key, year)
 NEEDS_BUILDS = 'needs builds'
 NEEDS_EARLY_BUILDS = 'needs early builds'
+EXCEEDS_OWN_LOAD = 'exceeds own load'
 UNMEETABLE = 'unmeetable'
 GAP_LEGEND = {
-    NEEDS_BUILDS: 'The existing group fleet cannot generate the requirement, but a member is '
-    'buildable in the year.  Closing build:  the MW of the highest-yield buildable '
-    '(region, tech) whose annual potential would cover the gap alone.  An annual-energy '
-    'estimate, not a guarantee of compliance:  hourly balance and other constraints may need '
-    'more.',
-    NEEDS_EARLY_BUILDS: 'As above, but no member is buildable in the year itself:  the closing '
-    'build must be made in an earlier year.',
-    UNMEETABLE: 'The existing group fleet cannot generate the requirement, and no member with '
-    'any yield is buildable in the year or earlier.  The solve will be infeasible.',
+    NEEDS_BUILDS: "The existing group fleet cannot meet the requirement within the region key's "
+    'own load, but a member is buildable in the year:  the requirement relies on new builds.',
+    NEEDS_EARLY_BUILDS: 'As above, but no member is buildable in the year itself:  the requirement '
+    'relies on builds made in an earlier year.',
+    EXCEEDS_OWN_LOAD: "Not satisfiable within the region key's own load:  even unlimited builds of "
+    'the buildable members cannot generate enough in the hours the load can take it.  It may '
+    'rely on storage or exports, and may be infeasible.',
+    UNMEETABLE: 'The existing group fleet cannot generate the requirement even ignoring the '
+    'load, and no member with any yield is buildable in the year or earlier.  The solve will be '
+    'infeasible.',
 }
 
 # BTM member coverage, by (region, tech, year)
@@ -247,49 +252,59 @@ def _frame_dict(frame: pd.DataFrame) -> dict:
     return {} if frame.empty else dict(frame.iloc[:, 0].items())
 
 
-class _Energy:
-    """Annual (day-weighted) energy from the param data:  load, and each source's yield per MW.
+Hourly = dict[int, float]
+"""hour -> energy (MWh) in that representative hour, before the day weight"""
 
-    A source's yield is the most one MW of it can generate in a year, from its generation upper
-    bound:  the hourly capacity factor for VRE, the seasonal capacity factor for hydro (ignoring
-    the seasonal discharge budget, so an upper bound), and 1 for the other generators.
+
+class _Energy:
+    """Energy from the param data:  load, and each source's output per MW.
+
+    A source's output per MW in an hour comes from its generation upper bound:  the hourly
+    capacity factor for VRE, the seasonal capacity factor for hydro (ignoring the seasonal
+    discharge budget, so an upper bound), and 1 for the other generators, times the hour weight.
+    Its yield is that output summed over the year with the day weights.
     """
 
     def __init__(self, model_sets: ModelSets, param_data: ParamData) -> None:
         frames = param_data.param_frames
         weight_day = _frame_dict(frames['weight_day'])
         day_of = _frame_dict(frames['map_hour_day'])
-        weight_hour = _frame_dict(frames['weight_hour'])
+        self._wh = _frame_dict(frames['weight_hour'])
         self._season_of = _frame_dict(frames['map_hour_season'])
         self._wd = {hr: weight_day[day_of[hr]] for hr in model_sets.hour}
-        self._wdh = {hr: self._wd[hr] * weight_hour[hr] for hr in model_sets.hour}
         self._load = _frame_dict(frames['elec_load'])
         self._cf_hourly = _frame_dict(frames['capacity_factor_hourly'])
         self._cf_seasonal = _frame_dict(frames['capacity_factor_seasonal'])
         self._vre = set(model_sets.tech_vre)
         self._hydro = set(model_sets.tech_hydro)
-        self._yield: dict[tuple[str, str, int], float] = {}
+        self._output: dict[tuple[str, str, int], Hourly] = {}
 
-    def load(self, regions: Iterable[str], year: int) -> float:
-        """Annual load (MWh) summed over ``regions``."""
-        return sum(
-            wd * self._load.get((r, year, hr), 0.0) for r in regions for hr, wd in self._wd.items()
-        )
+    def hourly_load(self, regions: Iterable[str], year: int) -> Hourly:
+        """Load (MWh) in each hour, summed over ``regions``."""
+        return {hr: sum(self._load.get((r, year, hr), 0.0) for r in regions) for hr in self._wd}
 
-    def yield_per_mw(self, region: str, tech: str, step: int) -> float:
-        """The most one MW of (region, tech, step) can generate in a year (MWh)."""
+    def annual(self, energy: Hourly) -> float:
+        """Annual (day-weighted) sum of ``energy`` (MWh)."""
+        return sum(self._wd[hr] * e for hr, e in energy.items())
+
+    def within_load(self, output: Hourly, load: Hourly) -> float:
+        """Annual energy of ``output`` the load can take:  in each hour, at most the load (MWh)."""
+        return sum(wd * min(output.get(hr, 0.0), load[hr]) for hr, wd in self._wd.items())
+
+    def output_per_mw(self, region: str, tech: str, step: int) -> Hourly:
+        """The most one MW of (region, tech, step) can generate in each hour (MWh)."""
         key = (region, tech, step)
-        if key not in self._yield:
+        if key not in self._output:
             if tech in self._vre:
-                cf = {hr: self._cf_hourly.get((*key, hr), 0.0) for hr in self._wdh}
+                cf = {hr: self._cf_hourly.get((*key, hr), 0.0) for hr in self._wh}
             elif tech in self._hydro:
                 cf = {
-                    hr: self._cf_seasonal.get((*key, self._season_of[hr]), 0.0) for hr in self._wdh
+                    hr: self._cf_seasonal.get((*key, self._season_of[hr]), 0.0) for hr in self._wh
                 }
             else:
-                cf = dict.fromkeys(self._wdh, 1.0)
-            self._yield[key] = sum(w * cf[hr] for hr, w in self._wdh.items())
-        return self._yield[key]
+                cf = dict.fromkeys(self._wh, 1.0)
+            self._output[key] = {hr: cf[hr] * self._wh[hr] for hr in self._wd}
+        return self._output[key]
 
 
 def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> FeasibilityReport:
@@ -352,31 +367,47 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
     for key in model_sets.rps_btm_index:
         group, rk, year = key
         regions, techs = set(members[rk]), groups[group]
-        required = requirements[key].min_share * energy.load(regions, year)
-        existing_max = sum(
-            mw * energy.yield_per_mw(r, t, s)
-            for (r, t, s, y), mw in existing_rtsy.items()
-            if y == year and r in regions and t in techs
-        )
+        load = energy.hourly_load(regions, year)
+        required = requirements[key].min_share * energy.annual(load)
+        existing_output: defaultdict[int, float] = defaultdict(float)
+        for (r, t, s, y), mw in existing_rtsy.items():
+            if y == year and r in regions and t in techs:
+                for hr, e in energy.output_per_mw(r, t, s).items():
+                    existing_output[hr] += mw * e
+        existing_max = energy.within_load(existing_output, load)
         gap = required - existing_max
-        if gap <= 1e-6 * max(required, 1.0):
+        tolerance = 1e-6 * max(required, 1.0)
+        if gap <= tolerance:
             continue
         candidates = [
-            (energy.yield_per_mw(i.region, i.tech, i.step), i)
+            i
             for i in build.entries
-            if i.year <= year and i.region in regions and i.tech in techs
+            if i.year <= year
+            and i.region in regions
+            and i.tech in techs
+            and any(e > 0.0 for e in energy.output_per_mw(i.region, i.tech, i.step).values())
         ]
-        candidates = [c for c in candidates if c[0] > 0.0]
-        in_year = [c for c in candidates if c[1].year == year]
-        closing = ''
-        if in_year or candidates:
-            status = NEEDS_BUILDS if in_year else NEEDS_EARLY_BUILDS
-            best_yield, best = max(in_year or candidates, key=lambda c: c[0])
-            closing = f'{gap / best_yield:,.0f} MW at ({best.region}, {best.tech})'
-        else:
+        # with unlimited builds, the group meets the load in every hour a candidate generates
+        most = energy.within_load(
+            {
+                hr: math.inf
+                if any(energy.output_per_mw(i.region, i.tech, i.step)[hr] > 0.0 for i in candidates)
+                else e
+                for hr, e in ((hr, existing_output[hr]) for hr in load)
+            },
+            load,
+        )
+        generable = math.inf if candidates else energy.annual(existing_output)
+        if most < required - tolerance and generable >= required - tolerance:
+            status = EXCEEDS_OWN_LOAD
+        elif not candidates:
             status = UNMEETABLE
+        elif any(i.year == year for i in candidates):
+            status = NEEDS_BUILDS
+        else:
+            status = NEEDS_EARLY_BUILDS
         gap_counts[status] += 1
-        gap_rows.append([group, rk, year, required, existing_max, gap, status, closing])
+        gap_rows.append([group, rk, year, required, existing_max, gap, status])
     if not model_sets.rps_btm_index:
         gaps_text = '(no Build To Minima requirements in force)'
     elif gap_rows:
@@ -391,7 +422,6 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
                     'existing max MWh',
                     'gap MWh',
                     'status',
-                    'closing build',
                 ],
                 disable_numparse=[0, 1],
                 tablefmt='github',
@@ -402,9 +432,9 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
         )
     else:
         gaps_text = _wrap(
-            'No annual generation-potential deficit:  the most the existing group fleet could '
-            'generate in a year covers every requirement in force.  This does not confirm '
-            'compliance:  hourly balance and other constraints may still prevent it.'
+            'No energy gaps:  the existing group fleet can meet every requirement in force within '
+            "the region key's own load.  This does not confirm compliance:  hourly balance and "
+            'other constraints may still prevent it.'
         )
 
     # ---------------------------------------------------------------- BTM member coverage
@@ -478,10 +508,11 @@ def rps_feasibility_report(model_sets: ModelSets, param_data: ParamData) -> Feas
             'Energy gaps\n\n'
             + _wrap(
                 "Each BTM in force whose requirement (min share x the region key's annual "
-                'load) is more than the existing group fleet could generate (existing MW x its '
-                'annual yield at full capacity factor).  Requirements with no annual deficit '
-                'are not listed; that does not confirm compliance, since hourly balance and '
-                'other constraints may still bind.'
+                'load) is more than the existing group fleet can generate within the region '
+                "key's own load:  at full capacity factor, but in each hour no more than that "
+                "hour's load.  No help from storage or exports is assumed, so a listed "
+                'requirement may still be met with them.  Requirements not listed may still '
+                'bind:  hourly balance and other constraints are not checked.'
             )
             + '\n\n'
             + gaps_text,

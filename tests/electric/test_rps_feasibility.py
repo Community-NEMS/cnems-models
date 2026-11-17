@@ -19,6 +19,7 @@ import main
 from src.common.models_modes import ModelType
 from src.models.electricity.rps_feasibility import (
     DISJOINT_SHARES_OVER_1,
+    EXCEEDS_OWN_LOAD,
     EXISTING_ONLY,
     NEEDS_BUILDS,
     NEEDS_EARLY_BUILDS,
@@ -33,6 +34,7 @@ from src.models.electricity.rps_feasibility import (
 from src.models.electricity.sequencer import ElectricitySequencer
 from tests.electric.mini_model import (
     MiniModelData,
+    add_battery,
     add_solar_expansion,
     mini_configs,
     patch_loaders,
@@ -88,14 +90,14 @@ def rps_data(mini_data: MiniModelData) -> MiniModelData:
 def _gap(text: str, group: str, rk: str, year: int) -> list[str]:
     """The energy gap row of (group, region key, year), after its leading cells.
 
-    Required, existing max, gap, status, closing build; ``StopIteration`` if there is none.
+    Required, existing max, gap, status; ``StopIteration`` if there is none.
     """
     return next(
         cells[3:]
         for line in text.splitlines()
         if line.startswith('|')
         and (cells := [c.strip() for c in line.strip('|').split('|')])[:3] == [group, rk, str(year)]
-        and len(cells) == 8
+        and len(cells) == 7
     )
 
 
@@ -147,27 +149,27 @@ def test_filtered_region_row(
 def test_energy_gaps_and_coverage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """Only shortfalls are listed, with the build that closes them, and the unbuildable Wind.
+    """Only shortfalls are listed, with their status, and the unbuildable Wind.
 
-    R1's 32 MWh is met by its 50 MW Solar:  not listed.  R2 needs 120 MWh from nothing; ``all``
-    needs 72 MWh against 50.  Solar is buildable everywhere, so both need builds.
+    The objective of this test is to show that *Energy gaps* lists only requirements the existing
+    fleet cannot meet within the region key's own load, and that *coverage* lists only members not
+    buildable in a required year.  R1's 32 MWh is met by its 50 MW Solar:  not listed.  R2 needs
+    120 MWh from nothing; ``all`` needs 72 MWh against 50.  Solar is buildable everywhere, so both
+    need builds.  Wind has no capacity and is never buildable:  unavailable.
     """
     report = _report(monkeypatch, tmp_path, rps_data)
 
-    assert _gap(report.text, 'clean', 'R2', 2031) == [
-        '120',
-        '0',
-        '120',
-        NEEDS_BUILDS,
-        '120 MW at (R2, Solar)',
-    ]
+    assert _gap(report.text, 'clean', 'R2', 2031) == ['120', '0', '120', NEEDS_BUILDS]
     for year in rps_data.years:
-        required, existing, gap, status, closing = _gap(report.text, 'clean', 'all', year)
-        assert (required, existing, gap, status) == ('72', '50', '22', NEEDS_BUILDS)
-        assert closing.startswith('22 MW at (') and closing.endswith(', Solar)')
+        assert _gap(report.text, 'clean', 'all', year) == ['72', '50', '22', NEEDS_BUILDS]
     with pytest.raises(StopIteration):
         _gap(report.text, 'clean', 'R1', 2030)
-    assert report.gaps == {NEEDS_BUILDS: 3, NEEDS_EARLY_BUILDS: 0, UNMEETABLE: 0}
+    assert report.gaps == {
+        NEEDS_BUILDS: 3,
+        NEEDS_EARLY_BUILDS: 0,
+        EXCEEDS_OWN_LOAD: 0,
+        UNMEETABLE: 0,
+    }
 
     # coverage:  region, tech, not buildable in, status, required by
     assert _row(report.text, 'R1', 'Wind') == [
@@ -203,7 +205,7 @@ def test_unmeetable(
     report = _report(monkeypatch, tmp_path, rps_data)
 
     for year in rps_data.years:
-        assert _gap(report.text, 'solar', 'R1', year) == ['160', '50', '110', UNMEETABLE, '']
+        assert _gap(report.text, 'solar', 'R1', year) == ['160', '50', '110', UNMEETABLE]
     assert _row(report.text, 'R1', 'Solar') == [
         'R1',
         'Solar',
@@ -214,17 +216,41 @@ def test_unmeetable(
     assert report.gaps[UNMEETABLE] == 2
 
 
+def test_exceeds_own_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
+) -> None:
+    """A requirement R1's own load can't take is flagged, even with a battery present.
+
+    The objective of this test is to show that the report flags the infeasible case of
+    ``test_unmeetable_btm_is_infeasible`` as ``exceeds own load``, and that it assumes no help from
+    storage.  R1's 200 MW Solar makes 100 MW in each day hour, but R1's 80 MW load takes only 80:
+    at most 160 of the 0.55 x 320 = 176 MWh required fit within R1's own load, however much Solar
+    is built.  R1's 100 MW Battery could carry the surplus to the night, but the screen ignores it.
+    """
+    add_solar_expansion(mini_data)
+    mini_data.add_capacity('Solar', 200.0, regions=['R1'])
+    add_battery(mini_data, 100.0)
+    mini_data.add_rps_group('solar', techs=['Solar'])
+    mini_data.add_rps_requirement('solar', 'R1', 'BTM', 2030, 0.55)
+    report = _report(monkeypatch, tmp_path, mini_data)
+
+    for year in mini_data.years:
+        assert _gap(report.text, 'solar', 'R1', year) == ['176', '160', '16', EXCEEDS_OWN_LOAD]
+
+
 def test_needs_early_builds(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """A member buildable only before a required year can close the gap by building earlier."""
+    """A member buildable only before a required year means the builds must come earlier.
+
+    The objective of this test is to show that a gap whose only buildable member is buildable in an
+    earlier year, not the required one, is reported ``needs early builds``, and the member
+    ``prior builds only``.
+    """
     rps_data.drop_rows('capital_cost', [('R2', 'Solar', 1, 2031)])
     report = _report(monkeypatch, tmp_path, rps_data)
 
-    assert _gap(report.text, 'clean', 'R2', 2031)[3:] == [
-        NEEDS_EARLY_BUILDS,
-        '120 MW at (R2, Solar)',
-    ]
+    assert _gap(report.text, 'clean', 'R2', 2031)[3] == NEEDS_EARLY_BUILDS
     assert _row(report.text, 'R2', 'Solar') == [
         'R2',
         'Solar',
@@ -248,20 +274,29 @@ def test_without_expansion_nothing_is_buildable(
 def test_no_group_capacity(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """A BTM no member can generate for fails validation, but is still reported (non-strict)."""
+    """A BTM no member can generate for fails validation, but is still reported (non-strict).
+
+    The objective of this test is to show that a group with no capacity in the region key appears
+    under *Requirement issues* as ``no group capacity``, and its gap as ``unmeetable``.
+    """
     rps_data.add_rps_group('wind', techs=['Wind'])
     rps_data.add_rps_requirement('wind', 'R1', 'BTM', 2030, 0.1)
     report = _report(monkeypatch, tmp_path, rps_data)
 
     assert _row(report.text, 'wind', 'R1', '2030–2031')[-1] == NO_GROUP_CAPACITY
-    assert _gap(report.text, 'wind', 'R1', 2030) == ['32', '0', '32', UNMEETABLE, '']
+    assert _gap(report.text, 'wind', 'R1', 2030) == ['32', '0', '32', UNMEETABLE]
     assert report.issues[NO_GROUP_CAPACITY] == 2
 
 
 def test_disjoint_shares_over_1(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rps_data: MiniModelData
 ) -> None:
-    """BTMs on disjoint groups summing past 1 (0.3 clean + 0.8 firm in R2) list both groups."""
+    """BTMs on disjoint groups summing past 1 (0.3 clean + 0.8 firm in R2) list both groups.
+
+    The objective of this test is to show that requirements on groups with no member in common,
+    whose shares sum past 1 in one region key and year, give each group a ``disjoint shares over 1``
+    row under *Requirement issues*.
+    """
     rps_data.add_rps_group('firm', techs=['Gas'])
     rps_data.add_rps_requirement('firm', 'R2', 'BTM', 2031, 0.8)
     report = _report(monkeypatch, tmp_path, rps_data)
@@ -275,14 +310,18 @@ def test_disjoint_shares_over_1(
 def test_clean_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mini_data: MiniModelData
 ) -> None:
-    """With nothing to flag, each problem table is replaced by a line saying so."""
+    """With nothing to flag, each problem table is replaced by a line saying so.
+
+    The objective of this test is to show that a report with no issues, gaps or unbuildable members
+    prints a one-line message in place of each problem table and its legend.
+    """
     add_solar_expansion(mini_data)
     mini_data.add_rps_group('solar', techs=['Solar'])
     mini_data.add_rps_requirement('solar', 'R1', 'BTM', 2030, 0.1)
     report = _report(monkeypatch, tmp_path, mini_data)
 
     assert 'No requirement issues found.' in report.text
-    assert 'No annual generation-potential deficit:' in report.text
+    assert 'No energy gaps:' in report.text
     assert 'Every BTM group member is buildable in every year it is required.' in report.text
     assert not [line for line in report.text.splitlines() if line.startswith('| status ')]
     assert sum(report.issues.values()) == sum(report.gaps.values()) == 0

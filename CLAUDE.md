@@ -197,7 +197,8 @@ declared with no data. Its `patch_loaders` monkeypatches the raw loaders, so the
 `ParamData` / `validate_all` / sequencer run on it. To use it, take the `mini_data` fixture and
 augment it with the `MiniModelData` helpers (`add_tech`, `add_capacity`, `add_operating_costs`,
 `add_rows`, `drop_rows`, `set_buildable`, `set_load`, `every`), or with the shared augmentations in
-`mini_model.py` (`add_solar_expansion`, `add_solar_learning`, and `add_gas_ct` for a gas-fired tech).
+`mini_model.py` (`add_solar_expansion`, `add_solar_learning`, `add_gas_ct` for a gas-fired tech,
+`add_battery` for storage, and `add_lines` for R1 <-> R2 transmission).
 For non-unit time weights, edit `mini_data.cw_temporal['WeightDay']` and/or `['WeightHour']`
 before building. Then call the `build_mini(**elec_switches)` factory fixture to get
 `(sequencer, model)`; for year aggregation, also pass `summary_years` and `aggregate_start_year`

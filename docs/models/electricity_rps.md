@@ -36,9 +36,9 @@ With `rps_required` off, the RPS tables are not read and the model is unchanged.
 
 For a group, region key and year, the requirement is
 
-> group generation ≥ minimum share × load
+> group generation − losses ≥ minimum share × load
 
-with both sides annual energy (MWh): the representative hours summed with their day weights, as
+with every term annual energy (MWh): the representative hours summed with their day weights, as
 in the objective function.
 
 - **Generation** is the `generation_total` of the group's members, over every step, in the region
@@ -49,6 +49,22 @@ in the objective function.
   has to be curtailed (generated below its capacity factor), exported or stored. It cannot be
   generated, thrown away, and still counted. Exported group generation does count for the
   exporting region, since it is generated there.
+- **Losses are debited.** Surplus could still be lost by charging and discharging storage in the
+  same time segment, or by sending power both ways on a line or around a loop of regions, and the
+  lost energy would count. So the region key's storage losses, (1 − efficiency) × charging, and
+  the transmission loss on every domestic flow into its regions or out of them to a region
+  outside the key are subtracted from the group's generation, and those cycles earn nothing. The
+  debit covers every such loss, whatever generation it came from, so a group's credit for solar
+  stored for the night is net of the storage loss. That is stricter than real programs, which earn
+  a REC for each MWh at the generator, but it keeps solved storage and trade free of cycling done
+  only to earn credit.
+- **What the debit misses.** For `all` the debit is exact. For a smaller key, energy exported to
+  regions outside the key could still be lost there, in their storage or around a loop through two
+  or more of them, on links the key never touches, and still count for the key. In practice that
+  rarely pays. A region that imports energy normally uses it to serve its own load and runs its own
+  generators less. That costs nothing and earns the key the same credit. Losing the energy instead
+  makes sense only when the imports exceed the load those regions can serve, and a loop also pays
+  the trade cost on every leg.
 - **Year weights cancel.** Both sides are for one year, so year aggregation leaves the share
   unchanged.
 

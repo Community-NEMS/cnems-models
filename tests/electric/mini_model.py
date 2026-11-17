@@ -491,6 +491,64 @@ def add_gas_ct(data: MiniModelData) -> MiniModelData:
     return data.add_rows('heat_rate', {('GasCT',): GAS_CT_HEAT_RATE})
 
 
+def add_battery(
+    data: MiniModelData, mw: float, duration: float = 4.0, efficiency: float = 0.85
+) -> MiniModelData:
+    """Add Battery:  existing storage of ``mw`` in both regions and years.
+
+    Its throughput costs $0.0001/MWh (as the shipped storage does) with $2/MW-yr FOM.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the mini data, edited in place.
+    mw : float
+        power capacity.
+    duration : float
+        hours of storage at full power.
+    efficiency : float
+        round-trip efficiency, applied on charging.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    data.add_tech('Battery', flags=['is_storage'])
+    data.add_capacity('Battery', mw)
+    data.add_operating_costs('Battery', generation_cost=0.0001, fom_cost=2.0)
+    data.add_rows('storage_efficiency', {('Battery',): efficiency})
+    return data.add_rows('storage_duration', {('Battery',): duration})
+
+
+def add_lines(data: MiniModelData, mw: float, cost: float = 1.0) -> MiniModelData:
+    """Add R1 <-> R2 transmission:  ``mw`` each way in every year and season, at ``cost`` $/MWh.
+
+    Needs ``regional_exchange`` on to take effect.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the mini data, edited in place.
+    mw : float
+        line limit, each direction.
+    cost : float
+        ``tran_cost``, each direction.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    for dest, source in (('R1', 'R2'), ('R2', 'R1')):
+        data.add_rows('tran_cost', {(dest, source, y): cost for (y,) in data.every('year')})
+        data.add_rows(
+            'tran_limit',
+            {(dest, source, y, str(s)): mw for y, s in data.every('year', 'season')},
+        )
+    return data
+
+
 def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     """Point the electricity loaders at ``data`` instead of the filesystem.
 

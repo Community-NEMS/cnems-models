@@ -128,6 +128,9 @@ class ModelSets:
     rps_group_sources: dict[RPSKey, list[tuple[str, str, int]]]
     """(group, region key, year) -> the group's generator (region, tech, step) in
     ``capacity_index``"""
+    rps_storage_sources: dict[RPSKey, list[tuple[str, str, int]]]
+    """(group, region key, year) -> the storage (region, tech, step) in ``capacity_index`` in the
+    region key, whose losses are debited from the group's credit"""
     rps_group_techs: dict[str, frozenset[str]]
     """RPS group -> member techs (RPS only)"""
     rps_region_members: dict[str, tuple[str, ...]]
@@ -208,6 +211,7 @@ class ModelSets:
         self.rps_region_members = {}
         self.rps_btm_index = []
         self.rps_group_sources = {}
+        self.rps_storage_sources = {}
 
         # descriptive (non-membership) tech columns: the valid supply curve steps plus the
         # reporting label/abbreviation/color that used to live only in analysis_tools
@@ -491,10 +495,11 @@ class ModelSets:
     ) -> None:
         """Build the RPS index sets from the requirements in force.
 
-        Must follow :meth:`build_advanced_indexes`, as the group's generation sources are drawn
-        from ``capacity_index`` (each generator (region, tech, step) there has a
-        ``generation_total`` for every hour).  A BTM with a zero share gets no index entry
-        (logged at INFO), as it can never bind; it still supersedes earlier rows.
+        Must follow :meth:`build_advanced_indexes`, as the group's generation sources and the
+        region key's storage are drawn from ``capacity_index`` (each generator (region, tech,
+        step) there has a ``generation_total``, and each storage one a ``storage_inflow``, for
+        every hour).  A BTM with a zero share gets no index entry (logged at INFO), as it can
+        never bind; it still supersedes earlier rows.
 
         Parameters
         ----------
@@ -522,11 +527,17 @@ class ModelSets:
 
         region_of = {r: rk for rk, regions in self.rps_region_members.items() for r in regions}
         by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
+        storage_by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
         for idx in self.capacity_index:
-            if idx.region in region_of and idx.tech in self.tech_gen:
+            if idx.region not in region_of:
+                continue
+            if idx.tech in self.tech_gen:
                 by_region_year[idx.region, idx.year].append(idx)
+            elif idx.tech in self.tech_stor:
+                storage_by_region_year[idx.region, idx.year].append(idx)
 
         self.rps_group_sources = {}
+        self.rps_storage_sources = {}
         for key in self.rps_btm_index:
             group, rk, year = key
             members = self.rps_group_techs[group]
@@ -535,6 +546,11 @@ class ModelSets:
                 for r in self.rps_region_members[rk]
                 for idx in by_region_year[r, year]
                 if idx.tech in members
+            ]
+            self.rps_storage_sources[key] = [
+                (idx.region, idx.tech, idx.step)
+                for r in self.rps_region_members[rk]
+                for idx in storage_by_region_year[r, year]
             ]
         logger.info(
             'RPS sets:  %d BTM (group, region key, year) requirements', len(self.rps_btm_index)

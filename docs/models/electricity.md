@@ -101,6 +101,7 @@ remaining indices.
 | $\theta^{HSH}_{seas}$      | hour_season_index         | Sparse subset | Set for hours indexed by season                                                     |
 | $T_g$                      | rps_group_techs           | Subset        | The member technologies of RPS group $g$, all in $T^{gen}$                          |
 | $\theta^{rpsg}_{g,k,y}$    | rps_group_sources         | Sparse subset | (region, technology, step) in $\Theta_{SC}$ with the region in key $k$ and the technology in $T_g$, indexed by g,k,y |
+| $\theta^{rpss}_{g,k,y}$    | rps_storage_sources       | Sparse subset | Storage (region, technology, step) in $\Theta_{SC}$ with the region in key $k$, indexed by g,k,y |
 | $R_k$                      | rps_region_members        | Subset        | The regions of RPS region key $k$: the region itself, or all of $R$ for `all`       |
 
 ### Parameters
@@ -317,7 +318,9 @@ $$
 Balance constraints exist for generation as well as energy storage. In each region and time segment, generation, plus
 storage discharge net of charging, plus unmet load, plus net imports when `regional_exchange` is true, must equal
 load (9). It is an equality, so output above load must be curtailed (generated below its upper bound), exported or
-stored; it cannot be generated and thrown away. That matters for the RPS (35), which counts generation. Imports arrive less the transmission loss $LL$. International regions only supply domestic regions,
+stored; it cannot be generated and thrown away. That matters for the RPS (35), which counts generation. Surplus can
+still be lost by cycling storage or trading back and forth, so (35) debits storage and transmission losses. Imports
+arrive less the transmission loss $LL$. International regions only supply domestic regions,
 so the balance has no export term for them.
 
 For energy storage technologies, the balance constraints ensure that the storage level in the current time segment is
@@ -722,12 +725,16 @@ requirement in force: of the requirements started by year $y$, the one with the 
 different region keys are independent, so a region can be held both on its own and as part of `all`. Only the Build
 To Minima type is implemented.
 
-A Build To Minima requirement holds the group's annual generation at $RPSMIN$ times the annual load or above, by
-building (with `capacity_expansion` on) or by shifting each hour's generation toward the group:
+A Build To Minima requirement holds the group's annual generation, less the region key's storage and transmission
+losses, at $RPSMIN$ times the annual load or above, by building (with `capacity_expansion` on) or by shifting each
+hour's generation toward the group:
 
 $$
 \begin{aligned}
-\sum_{(r,t,s) \in \theta^{rpsg}_{g,k,y}} \sum_{h \in H}{WD_h \times \mathbf{GEN}_{r,t,s,y,h}} \geq &RPSMIN_{g,k,y} \times \sum_{r \in R_k} \sum_{h \in H}{WD_h \times LOAD_{r,y,h}} \\
+&\sum_{(r,t,s) \in \theta^{rpsg}_{g,k,y}} \sum_{h \in H}{WD_h \times \mathbf{GEN}_{r,t,s,y,h}} \\
+&- \sum_{(r,t,s) \in \theta^{rpss}_{g,k,y}} \sum_{h \in H}{WD_h \times (1 - EFF_t) \times \mathbf{STOR^{in}}_{r,t,s,y,h}} \\
+&(- \sum_{r \in R_k} \sum_{h \in H}{WD_h \times LL \times \left( \sum_{r1 \in \theta^{TDB}_{r,y,h}}{\mathbf{TRA}_{r,r1,y,h}} + \sum_{r1 \notin R_k \,:\, r \in \theta^{TDB}_{r1,y,h}}{\mathbf{TRA}_{r1,r,y,h}} \right)} \quad \text{if regional exchange is on}) \\
+&\geq RPSMIN_{g,k,y} \times \sum_{r \in R_k} \sum_{h \in H}{WD_h \times LOAD_{r,y,h}} \\
 &\forall {g,k,y} \in \Theta_{btm} \\
 &\quad \text{if RPS is on}
 \end{aligned} \tag{35}
@@ -735,8 +742,18 @@ $$
 
 Both sides are annual energy for one year, so the year weight $WY_y$ cancels and year aggregation needs no special
 treatment. The load is the full $LOAD$, so unmet load does not reduce the requirement. Because the demand balance (9)
-is an equality, surplus group output cannot be dumped to meet (35). A requirement with a minimum of 0 writes no
-constraint, since it can never bind. The input tables, the supersession rules with a worked example, and the
+is an equality, surplus group output cannot be dumped to meet (35). It could still be lost by charging and discharging
+storage in the same time segment, or by sending power both ways on a line or around a loop of regions, and the lost
+energy would count. (35) therefore debits the region key's storage losses and the transmission loss on every domestic
+flow into the key's regions or out of them to a region outside the key, each flow once, so those cycles earn nothing.
+The debit covers all such losses, whatever generation they came from, so it is stricter than real programs, which
+credit generation at the generator's meter. For `all` it covers every domestic flow, and the debit is exact. For a
+smaller key, two routes stay open, both through regions outside the key: a loop that passes through two or more of
+them loses energy on links the key never touches, and exported energy can be lost in their storage. Either way the
+lost energy still counts for the key, but this rarely pays. A region that imports energy normally uses it to serve its
+own load and runs its own generators less, which costs nothing and earns the key the same credit. Losing the energy
+instead makes sense only when the imports exceed the load those regions can serve, and a loop also pays the trade
+cost on every leg. A requirement with a minimum of 0 writes no constraint, since it can never bind. The input tables, the supersession rules with a worked example, and the
 feasibility report are in [Regional Portfolio Standards](electricity_rps.md).
 
 ## Data Validation

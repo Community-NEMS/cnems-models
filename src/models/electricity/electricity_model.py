@@ -384,6 +384,13 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                 within=self.region_analyze * self.tech_gen_step,
                 initialize=model_sets.rps_group_sources,
             )
+            # the region key's storage (region, tech, step), whose losses are debited
+            self.rps_storage_sources = pyo.Set(
+                self.rps_btm_index,
+                dimen=3,
+                within=self.region_analyze * self.tech_stor_step,
+                initialize=model_sets.rps_storage_sources,
+            )
             # the regions whose load each region key sums
             self.rps_region_members = pyo.Set(
                 self.rps_region_key,
@@ -572,6 +579,9 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     mutable=mute,
                 )
 
+        # (source region, year, hour) -> domestic destinations, for the RPS export-loss debit
+        regional_dests: defaultdict[tuple[str, int, int], list[str]] = defaultdict(list)
+
         # if trade operation is on
         if elec_config.regional_exchange:
             self.tran_cost = pyo.Param(
@@ -622,6 +632,7 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             partners = defaultdict(list)
             for destination_region, source_region, year, hour in all_frames['tran_limit'].index:
                 partners[destination_region, year, hour].append(source_region)
+                regional_dests[source_region, year, hour].append(destination_region)
             self.regional_sources = pyo.Set(
                 self.region_analyze,
                 self.year,
@@ -1013,7 +1024,8 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
 
             An equality, so surplus output must be curtailed (generated below its upper bound),
             exported or stored rather than dumped; dumped energy would otherwise count toward an
-            RPS generation requirement.
+            RPS generation requirement.  Surplus can still be lost by cycling storage or trading
+            back and forth, so ``rps_btm_lb`` debits those losses.
 
             Parameters
             ----------
@@ -1505,8 +1517,15 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
             def rps_btm_lb(m: PowerModel, group, rk, y):
                 """RPS Build To Minima lower bound.
 
-                Group Generation >= Minimum Share * Load, both annual (day-weighted) sums over
-                the region key's regions; generation over every step of the group's members.
+                Group Generation - Losses >= Minimum Share * Load, all annual (day-weighted) sums
+                over the region key's regions; generation over every step of the group's members.
+                Losses are the region key's storage losses, (1 - efficiency) * inflow, and, with
+                ``regional_exchange`` on, the transmission loss on every domestic flow into or out
+                of the key's regions (each flow once).  Debiting them means energy lost by cycling
+                storage or trading back and forth earns no credit; legitimate losses are debited
+                too, whatever generation they came from.  A loop that leaves the key and passes
+                through two or more outside regions still loses energy on links the key never
+                touches; that is not debited.
 
                 Parameters
                 ----------
@@ -1529,13 +1548,42 @@ class PowerModel(pyo.ConcreteModel, IntegratedModel):
                     for (r, tech, step) in m.rps_group_sources[group, rk, y]
                     for hr in m.hour
                 )
+                storage_losses = sum(
+                    m.weight_day[m.map_hour_day[hr]]
+                    * (1 - m.storage_efficiency[tech])
+                    * m.storage_inflow[r, tech, step, y, hr]
+                    for (r, tech, step) in m.rps_storage_sources[group, rk, y]
+                    for hr in m.hour
+                )
+                trade_losses = 0
+                if elec_config.regional_exchange:
+                    members = set(m.rps_region_members[rk])
+                    # flows into the key, from inside or out, then flows leaving it
+                    flows = [
+                        (r, r1, hr)
+                        for r in members
+                        for hr in m.hour
+                        for r1 in m.regional_sources[r, y, hr]
+                    ] + [
+                        (dest, r, hr)
+                        for r in members
+                        for hr in m.hour
+                        for dest in regional_dests[r, y, hr]
+                        if dest not in members
+                    ]
+                    trade_losses = sum(
+                        m.weight_day[m.map_hour_day[hr]]
+                        * TRANSMISSION_LOSS_FACTOR
+                        * m.trade_interregional[dest, source, y, hr]
+                        for dest, source, hr in flows
+                    )
                 required = m.rps_min_share[group, rk, y] * sum(
                     m.weight_day[m.map_hour_day[hr]] * m.elec_load[r, y, hr]
                     for r in m.rps_region_members[rk]
                     for hr in m.hour
                 )
                 # TODO:  an Alternative Compliance Payment would add a priced shortfall here
-                return group_generation >= required
+                return group_generation - storage_losses - trade_losses >= required
 
         # if trade operation is on
         if elec_config.regional_exchange:  # and len(self.TranLineLimitInt_index) != 0:

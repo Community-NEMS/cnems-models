@@ -18,10 +18,9 @@ import pandas as pd
 import pytest
 from pyomo.environ import value
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_INDEX,
@@ -29,11 +28,12 @@ from src.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
 )
-from src.models.electricity.constants import INITIAL_NG_PRICE
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.constants import INITIAL_NG_PRICE
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.models.natural_gas.ng_config import NGConfig
+from cnems_models.models.natural_gas.sequencer import NGSequencer
 
 
 def _price_package(region_years: list[tuple[str, int]], price: float) -> NGPricePackage:

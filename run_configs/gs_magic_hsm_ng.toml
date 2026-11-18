@@ -32,6 +32,6 @@ ng_input_path = 'input/natural_gas'
 # capacity = Q0 x (hub price / reference_price) ^ price_elasticity, elasticity in [0, 1]
 price_elasticity = 0.5
 # near C-NGMM's standalone hub price, USD/MMBtu of reference_dollar_year, which must be
-# PRICE_DOLLAR_YEAR in src/models/natural_gas/constants.py
+# PRICE_DOLLAR_YEAR in src/cnems_models/models/natural_gas/constants.py
 reference_price = 3.0
 reference_dollar_year = 2025

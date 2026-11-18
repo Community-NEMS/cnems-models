@@ -6,13 +6,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.integrator.utilities import create_temporal_mapping
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.model_sets import ModelSets, _parse_steps
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.utilities import annual_count
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.integrator.utilities import create_temporal_mapping
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.model_sets import ModelSets, _parse_steps
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.utilities import annual_count
 
 logger = getLogger(__name__)
 

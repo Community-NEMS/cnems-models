@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from upath import UPath
 
-from src.models.electricity import data_ingestor
+from cnems_models.models.electricity import data_ingestor
 
 
 def _mock_datapackage() -> dict:

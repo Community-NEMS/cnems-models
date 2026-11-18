@@ -15,9 +15,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.common.integrated_model_sequencer import IterationResult, IterationStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.integrated_model_sequencer import IterationResult, IterationStatus
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
@@ -25,7 +25,7 @@ from src.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
 )
-from src.integrator.iteration_monitor import (
+from cnems_models.integrator.iteration_monitor import (
     BROKEN_LIFELINE,
     DEFAULT_STYLE_PATH,
     LIFELINE,
@@ -203,7 +203,7 @@ class TestStyles:
 
     def test_missing_file_warns_and_uses_defaults(self, tmp_path: Path, caplog) -> None:
         """No file is not an error; the built-in colours apply."""
-        with caplog.at_level('WARNING', logger='src.integrator.iteration_monitor'):
+        with caplog.at_level('WARNING', logger='cnems_models.integrator.iteration_monitor'):
             style = load_style(tmp_path / 'absent.toml')
         assert style.get('connector', 'lifeline')
         assert any('not found' in r.getMessage() for r in caplog.records)

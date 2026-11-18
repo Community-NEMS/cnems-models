@@ -1,4 +1,4 @@
-"""Tests for the shared capacity-learning curve in ``src/models/electricity/learning.py``.
+"""Tests for the shared capacity-learning curve in ``models/electricity/learning.py``.
 
 The curve takes two kinds of input.  Offline use, such as generating a cost curve, passes floats and
 wants a number back.  The nonlinear objective passes Pyomo expressions and needs an expression back.
@@ -10,7 +10,7 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.core.expr.visitor import identify_variables
 
-from src.models.electricity.learning import learning_cost, learning_multiplier
+from cnems_models.models.electricity.learning import learning_cost, learning_multiplier
 
 Q0 = 100.0
 RATE = 0.1

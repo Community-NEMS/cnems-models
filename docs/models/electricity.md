@@ -242,7 +242,7 @@ discounts its own cost. The cumulative term pools that technology's builds acros
 regions and steps, written above as $r'$ and $s'$, so experience is shared rather than regional.
 When `region_filter` limits the run, only the selected regions count.
 
-The curve is computed by `learning_multiplier` in `src/models/electricity/learning.py`. Both
+The curve is computed by `learning_multiplier` in `src/cnems_models/models/electricity/learning.py`. Both
 modes use it with the same experience, cumulative builds in strictly prior years: the nonlinear
 objective directly, and the linear iteration through `cost_learning_func` in the same file, which
 also holds the linear mode's other helpers. The linear mode's first solve comes before any
@@ -760,7 +760,7 @@ feasibility report are in [Regional Portfolio Standards](electricity_rps.md).
 
 The raw input data is checked before the pyomo model is built. `ElectricitySequencer.build_model`
 constructs the `ModelSets` and `ParamData`, applies any inbound update packages, and then calls
-`validate_all(model_sets, param_data, strict=...)` from `src/models/electricity/data_validation.py`,
+`validate_all(model_sets, param_data, strict=...)` from `src/cnems_models/models/electricity/data_validation.py`,
 with `strict` taken from `strict_validation`. Validation therefore sees the parameter tables as the
 model will use them: after region and year filtering, year and hour averaging, and the season-to-hour
 expansion of the transmission tables, but before the data is handed to the model. Coverage gaps and
@@ -779,7 +779,7 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 (`CommonConfig.strict_validation`, default `true`) controls what happens when validation fails:
 
 - `strict_validation = true` — a failed validation raises `DataValidationError`
-  (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
+  (`src/cnems_models/common/exceptions.py`) after all the checks have run, so the build stops and the details
   are in the log. A warning that fails its check stops the build too. This is the normal setting.
 - `strict_validation = false` — failures are logged and the run continues with the data as read.
   Useful when working with known-incomplete input data, at the risk of a downstream failure or a

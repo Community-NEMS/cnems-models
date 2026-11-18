@@ -1,0 +1,497 @@
+"""
+Created as part of the C-NEMS Project.
+
+Written by:  J. F. Hyink
+Contact:  jeff@westernspark.us
+Created on:  6/24/26
+
+Class to hold parameter data and more advanced/indexing set constructs
+
+Some param data is held in simple dictionary objects.  Others that need manipulation are
+held in pandas dataframes.
+
+"""
+
+import logging
+from collections.abc import Iterable
+from typing import TypedDict, cast
+
+import pandas as pd
+from pandas import DataFrame
+
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.season import Season
+from cnems_models.common.utilities import scale_load, scale_load_with_enduses
+from cnems_models.models.electricity.data_ingestor import (
+    TIME_BASED_DFS,
+    FilterPackage,
+    load_dataframes,
+    load_param_data,
+    load_policy_data,
+)
+from cnems_models.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
+from cnems_models.models.electricity.model_sets import CI, ModelSets
+from cnems_models.models.electricity.param_utilities import avg_by_group, time_map
+from cnems_models.models.electricity.rps import (
+    RPSKey,
+    requirement_rows,
+    resolve_requirements,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ParamFrames(TypedDict, total=False):
+    """Keys of ``ParamData.param_frames``.  All are populated by ``ParamData.__init__``.
+
+    ``total=False`` only because the dict is filled incrementally during construction.
+    """
+
+    # temporal maps / weights
+    weight_year: DataFrame
+    weight_season: DataFrame
+    weight_day: DataFrame
+    weight_hour: DataFrame
+    map_hour_day: DataFrame
+    map_hour_season: DataFrame
+    map_day_season: DataFrame
+
+    # constructed
+    elec_load: DataFrame
+
+    # loaded (TIME_BASED_DFS); empty DataFrame if no data survives filtering
+    capital_cost: DataFrame
+    capacity_factor_hourly: DataFrame
+    capacity_factor_seasonal: DataFrame
+    available_capacity: DataFrame
+    generation_cost: DataFrame
+    tran_cost: DataFrame
+    tran_cost_intl: DataFrame
+    tran_limit: DataFrame  # expanded season -> hour
+    tran_limit_cap_intl: DataFrame  # expanded season -> hour
+    supply_limit_intl: DataFrame  # expanded season -> hour
+
+
+class ParamDicts(TypedDict, total=False):
+    """Keys of ``ParamData.param_dicts``: every ``PARAM_SOURCES`` key not in ``TIME_BASED_DFS``.
+
+    Values are keyed by the source's ``index_cols`` tuple (1-tuples for single-column indexes).
+    """
+
+    storage_efficiency: dict[tuple, float]
+    capital_cost_initial: dict[tuple, float]
+    fom_cost: dict[tuple, float]
+    storage_duration: dict[tuple, float]
+    learning_rate: dict[tuple, float]
+    ramp_down_cost: dict[tuple, float]
+    ramp_rate: dict[tuple, float]
+    ramp_up_cost: dict[tuple, float]
+    reserve_cost: dict[tuple[ReserveType, str], float]
+    planning_reserve_margin: dict[tuple, float]
+    reserve_tech_limit: dict[tuple[ReserveType, str], float]
+    supply_curve_learning: dict[tuple, float]
+    heat_rate: dict[tuple, float]
+
+    # RPS (rps_required only), keyed (group, region key, year)
+    rps_min_share: dict[RPSKey, float]
+    """BTM minimum share of the region key's annual load"""
+
+
+class ParamData:
+    """Reads and shapes the electricity model's parameter data from the raw input files.
+
+    Simple parameters are held as plain dicts; parameters that still need manipulation are held as
+    DataFrames.
+    """
+
+    # loaded frames and dicts
+    param_frames: ParamFrames
+    param_dicts: ParamDicts
+
+    def __init__(self, common_config: CommonConfig, elec_config: ElecConfig, model_sets: ModelSets):
+        self.param_frames = ParamFrames()
+        self.param_dicts = ParamDicts()
+
+        # capture config items
+        self.elec_config = elec_config
+        self.common_config = common_config
+        self.model_sets = model_sets
+
+        # load all of the param data using a filter.  The year filter takes every year in the
+        # year map so that aggregation (if on) averages over all the years each summary year covers
+        param_filter = FilterPackage(
+            region_filter=elec_config.region_filter, year_filter=list(model_sets.year_map)
+        )
+        param_data = load_param_data(input_dir=elec_config.input_path, param_filter=param_filter)
+        logger.info('Read in %d parameter elements', len(param_data))
+
+        # make the time-based dataframes
+        # TODO:  refactor this?
+        self.build_temporal_maps()
+
+        # make the Load dataframe
+        load_df = self.build_load_dataframe()
+        aggregated_load_df = self.aggregate_time(load_df, 'elec_load')
+        self.param_frames['elec_load'] = self.apply_hourly_weights(
+            self.param_frames['weight_hour'], aggregated_load_df
+        )
+
+        # Pluck out the time-based DF conversions and load them
+        all_frames = load_dataframes(param_data=param_data, names_to_convert=TIME_BASED_DFS)
+        season_lut = {str(season): season for season in model_sets.season}
+        for name, df in all_frames.items():
+            param_data.pop(name)  # remove from param_data so we don't try to load it again below
+            # swap the season-name references for the model's Season objects
+            if 'season' in df.columns:
+                df = ParamData._convert_seasons(df, season_lut, name)
+            # aggregate the time in the dataframe
+            df = self.aggregate_time(df, name)
+            if name == 'capacity_factor_seasonal':
+                # catch the hydro capacity factor and augment it
+                # with the hydro techs (others later?)
+                hydro_tech_steps = filter(
+                    lambda x: x[0] in model_sets.tech_hydro, model_sets.tech_steps.items()
+                )
+                df = ParamData._pair_tech_with_seasonal_cap_factor(hydro_tech_steps, df)
+            # set the index properly
+            df = df.set_index(list(df.columns[:-1]))
+
+            # pyrefly: ignore[unsupported-operation]  - keys are TIME_BASED_DFS, all in ParamFrames
+            self.param_frames[name] = df
+
+        # expand season columns to the appropriate rep-hours for the season where season is used
+        # we can skip this if no international connections:
+        # TODO:  Investigate why this is done.  It seems unnecessary bloat to expand with
+        #        duplicate information.  Why not just index with [season]?
+        if len(self.param_frames['tran_limit_cap_intl']) > 0:
+            tlci_cols = ['region', 'region_intl', 'year', 'hour', 'tran_limit_cap_intl_mw']
+            tlgi_cols = ['region_intl', 'step', 'year', 'hour', 'supply_limit_intl_mw']
+            self.param_frames['tran_limit_cap_intl'] = self.create_hourly_params(
+                self.param_frames['map_hour_season'],
+                self.param_frames['tran_limit_cap_intl'],
+                tlci_cols,
+                name='tran_limit_cap_intl',
+            )
+            self.param_frames['supply_limit_intl'] = self.create_hourly_params(
+                self.param_frames['map_hour_season'],
+                self.param_frames['supply_limit_intl'],
+                tlgi_cols,
+                name='supply_limit_intl',
+            )
+        # do the same for interregional
+        # we can skip this if there are no interregional connections
+        if len(self.param_frames['tran_limit']) > 0:
+            tli_cols = ['region_dest', 'region_source', 'year', 'hour', 'tran_limit_mw']
+            self.param_frames['tran_limit'] = self.create_hourly_params(
+                self.param_frames['map_hour_season'],
+                self.param_frames['tran_limit'],
+                tli_cols,
+                name='tran_limit',
+            )
+            logger.info(
+                'Converted seasonal interregional travel param to hourly of size: %d',
+                len(self.param_frames['tran_limit']),
+            )
+
+        # use the available capacity and buildable capacity (cap cost)
+        # to populate other sets in ModelSets
+        supply_curve_index_vals = {CI(*t) for t in self.param_frames['available_capacity'].index}
+        cap_cost_index_vals = {CI(*t) for t in self.param_frames['capital_cost'].index}
+        model_sets.build_advanced_indexes(
+            available_capacity_index=supply_curve_index_vals,
+            cap_cost_index=cap_cost_index_vals,  # <-- informs buildable tech
+        )
+
+        # populate the trade indices based on gathered parameter data
+        model_sets.build_international_trade_index(
+            intl_capacity=self.param_frames['tran_limit_cap_intl'],
+            intl_gen_limit=self.param_frames['supply_limit_intl'],
+        )
+
+        # Load the remainder directly into dictionary objects
+        for name in param_data:
+            data = param_data.get(name, {})
+            if not data:
+                logger.warning(
+                    'No data found for %s in the parameter data.  Using empty dict', name
+                )
+            # pyrefly: ignore[unsupported-operation]  - remaining PARAM_SOURCES keys, in ParamDicts
+            self.param_dicts[name] = data
+
+        # Convert the reserve-type-indexed entries to Enum values for validation
+        self.param_dicts['reserve_tech_limit'] = ParamData._convert_reserve_types(
+            self.param_dicts['reserve_tech_limit']
+        )
+        self.param_dicts['reserve_cost'] = ParamData._convert_reserve_types(
+            self.param_dicts['reserve_cost']
+        )
+
+        # build the reserves set from the full capacity index (existing + buildable), using the
+        # UB as a filter in construction
+        model_sets.build_reserves_index(
+            supply_curve_index=model_sets.capacity_index,
+            reserve_ub_limits=self.param_dicts['reserve_tech_limit'],
+        )
+
+        if elec_config.rps_required:
+            self._build_rps(model_sets)
+
+    def existing_capacity(self) -> dict[tuple[str, str, int, int], float]:
+        """The existing (``available_capacity``) MW as a dict.
+
+        Returns
+        -------
+        dict[tuple[str, str, int, int], float]
+            (region, tech, step, year) -> MW, keyed as in ``capacity_index``.
+        """
+        capacity = self.param_frames['available_capacity']
+        # the 'cast' prevents pandas column type confusion
+        return cast(
+            dict[tuple[str, str, int, int], float],
+            {} if capacity.empty else dict(capacity.iloc[:, 0].items()),
+        )
+
+    def _build_rps(self, model_sets: ModelSets) -> None:
+        """Resolve the RPS requirements, build the RPS sets, and set the RPS params.
+
+        Needs ``capacity_index`` (from ``build_advanced_indexes``).
+
+        Parameters
+        ----------
+        model_sets : ModelSets
+            updated in place via ``build_rps_sets``.
+        """
+        raw = load_policy_data(self.elec_config.policy_path)['rps_requirement']
+        requirements = resolve_requirements(
+            raw,
+            groups=model_sets.rps_group_techs,
+            regions=model_sets.region,
+            domestic=model_sets.region_domestic,
+            region_analyze=model_sets.region_analyze,
+            model_years=model_sets.year_map.values(),
+        )
+        model_sets.build_rps_sets(
+            requirements, rows=requirement_rows(raw, model_sets.region_analyze)
+        )
+        self.param_dicts['rps_min_share'] = {
+            key: requirements[key].min_share for key in model_sets.rps_btm_index
+        }
+
+    def build_load_dataframe(self) -> DataFrame:
+        """Build the load dataframe."""
+        # TODO:  Research the functions called here and perhaps move them here as well
+        # TODO:  Move the source data out of the "residential" folder to "common"??
+        # TODO:  Verify that the Load is defined in all region x year x hour.
+        #        Model assumes full set
+        # TODO:  refactor this so it returns a DF for testing purposes
+
+        res_dir = self.common_config.residential_data_path
+
+        match self.elec_config.load_scale_mode:
+            case LoadScaleMode.ANNUAL:
+                # build it and filter by region
+                df = scale_load(res_dir).reset_index(drop=True)
+                df = self.filter_dataframe(df, 'region', self.model_sets.region_analyze)
+            case LoadScaleMode.END_USE:
+                # build routine uses filtered regions...
+                df = scale_load_with_enduses(
+                    res_dir,
+                    regions=self.model_sets.region_analyze,
+                ).reset_index(drop=True)
+            case _:
+                raise NotImplementedError(
+                    f'load_scale_mode {self.elec_config.load_scale_mode} not implemented'
+                )
+
+        logger.info('Read/built in %d load elements', len(df))
+        return df
+
+    def build_temporal_maps(self):
+        """Build the time-based dataframes."""
+        self.param_frames['map_day_season'] = time_map(
+            self.model_sets.cw_temporal, {'Map_day': 'day', 'Map_s': 'season'}
+        ).set_index('day')
+        self.param_frames['map_hour_day'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_day': 'day'}
+        ).set_index('hour')
+        self.param_frames['map_hour_season'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'Map_s': 'season'}
+        ).set_index('hour')
+
+        self.param_frames['weight_year'] = pd.DataFrame.from_dict(
+            data=self.model_sets.year_agg_weights, orient='index', columns=['weight_year']
+        ).rename_axis('year')
+        self.param_frames['weight_hour'] = time_map(
+            self.model_sets.cw_temporal, {'Map_hour': 'hour', 'WeightHour': 'weight_hour'}
+        ).set_index('hour')
+
+        self.param_frames['weight_day'] = time_map(
+            self.model_sets.cw_temporal, {'Map_day': 'day', 'WeightDay': 'weight_day'}
+        ).set_index('day')
+
+        # weights per season
+        self.param_frames['weight_season'] = self.model_sets.cw_temporal[
+            ['Map_s', 'Map_hour', 'WeightDay', 'WeightHour']
+        ].drop_duplicates()
+        self.param_frames['weight_season'].loc[:, 'weight_season'] = (
+            self.param_frames['weight_season']['WeightDay']
+            * self.param_frames['weight_season']['WeightHour']
+        )
+        self.param_frames['weight_season'] = (
+            self.param_frames['weight_season']
+            .drop(columns=['WeightDay', 'WeightHour', 'Map_hour'])
+            .groupby(['Map_s'])
+            .agg('sum')
+            .reset_index()
+            .rename(columns={'Map_s': 'season'})
+        ).set_index('season')
+
+    def aggregate_time(self, df: DataFrame, name: str) -> DataFrame:
+        """Aggregate a time-based dataframe at yearly and hourly levels.
+
+        Parameters
+        ----------
+        df : DataFrame
+            time-based data with ``year`` and/or ``hour`` columns
+        name : str
+            name of the data, passed to ``avg_by_group`` for its gap error
+
+        Returns
+        -------
+        DataFrame
+            data averaged onto the representative years/hours
+
+        Raises
+        ------
+        ValueError
+            If ``df`` has a gap within any year or hour block (see ``avg_by_group``).
+        """
+        # average values in years/hours used
+
+        if 'year' in df.columns:
+            df = avg_by_group(df, 'year', self.model_sets.year_map_df, name)
+        if 'hour' in df.columns:
+            df = avg_by_group(df, 'hour', self.model_sets.cw_temporal[['hour', 'Map_hour']], name)
+        return df
+
+    def apply_hourly_weights(self, hour_weight: DataFrame, target: DataFrame) -> DataFrame:
+        """Apply the hourly weights to the data in the target dataframe by matching hour weights."""
+        # Update load to be the total demand in each time segment rather than the average
+        df = pd.merge(target, hour_weight, how='left', on=['hour'])
+        df['Load'] = df['Load'] * df['weight_hour']
+        df = df.drop(columns=['weight_hour'])
+        df = df.set_index(list(df.columns[:-1]))
+        return df
+
+    @staticmethod
+    def filter_dataframe(target: DataFrame, column: str, values: list[str]) -> DataFrame:
+        """Filter a dataframe by a column and a list of values."""
+        return target[target[column].isin(values)]
+
+    @staticmethod
+    def create_hourly_params(
+        hour_season_map: DataFrame,
+        target: DataFrame,
+        new_col_sequence: list[str] | None,
+        set_index: bool = True,
+        name: str = '',
+    ) -> DataFrame:
+        """Expands params that are indexed by season to be indexed by hour."""
+        orig_size = len(target)
+        target = target.reset_index()
+        map_no_index = hour_season_map.reset_index()
+        df = pd.merge(target, map_no_index, on=['season'], how='left').drop(columns=['season'])
+        if new_col_sequence:
+            # filter/sort by provided column list
+            df = df[new_col_sequence]
+        new_size = len(df)
+        logger.info(
+            'Expanded df %s from %d to %d with seasonal -> hour conversion',
+            name,
+            orig_size,
+            new_size,
+        )
+        if set_index:
+            return df.set_index(list(df.columns[:-1]))
+        return df
+
+    @staticmethod
+    def _convert_seasons(df: DataFrame, season_lut: dict[str, Season], name: str) -> DataFrame:
+        """Replace the season names in ``df['season']`` with the matching ``Season`` objects.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Parameter data with a ``season`` column of season names.
+        season_lut : dict[str, Season]
+            ``{season.name: season}`` for the model's seasons (``ModelSets.season``).
+        name : str
+            Name of the data, for the error message.
+
+        Returns
+        -------
+        DataFrame
+            ``df`` with its ``season`` column holding ``Season`` objects.
+
+        Raises
+        ------
+        ValueError
+            If ``df`` names a season that is not in ``season_lut``.
+        """
+        season_names = df['season'].astype(str)
+        unknown = set(season_names) - season_lut.keys()
+        if unknown:
+            msg = f'{name} references seasons not in the model season set: {sorted(unknown)}'
+            logger.error(msg)
+            raise ValueError(msg)
+        df['season'] = season_names.map(season_lut)
+        return df
+
+    @staticmethod
+    def _convert_reserve_types(target: dict) -> dict[tuple[ReserveType, str], float]:
+        """Convert the reserve type strings keying ``target`` to ``ReserveType`` members.
+
+        The ``ReserveType`` enum is the authoritative list of reserve products, so every
+        ``reserve_type`` value in the data must name one of its members.
+
+        Parameters
+        ----------
+        target : dict
+            ``{(reserve_type, tech): value}`` as read from the csv.
+
+        Returns
+        -------
+        dict[tuple[ReserveType, str], float]
+            The same entries keyed by ``(ReserveType, tech)``.
+
+        Raises
+        ------
+        ValueError
+            If a ``reserve_type`` is not a ``ReserveType`` value.
+        """
+        res = {}
+        for (reserve_type, tech), value in target.items():
+            try:
+                res[ReserveType(reserve_type), tech] = float(value)
+            except ValueError:
+                logger.error('Invalid reserve type %s for tech %s', reserve_type, tech)
+                raise
+        return res
+
+    @staticmethod
+    def _pair_tech_with_seasonal_cap_factor(
+        tech_steps: Iterable[tuple[str, list]], df: DataFrame
+    ) -> DataFrame:
+        """Augment this dataframe with tech x step combos.
+
+        Dev Note:  This is likely temporary as the 'seasonal capacity factor' table this
+        is used to augment does NOT reference tech explicitly now.  It is only applied to
+        hydro.
+
+        Perhaps in future, if other techs are added, we can force the data to cover this
+        """
+        tech_step_records = [(t[0], s) for t in tech_steps for s in t[1]]
+        tech_step_df = pd.DataFrame(tech_step_records, columns=['tech', 'step'])
+        df = df.merge(tech_step_df, how='cross')
+        df = df[['region', 'tech', 'step', 'season', 'hydro_capacity_factor_frac']]
+        return df

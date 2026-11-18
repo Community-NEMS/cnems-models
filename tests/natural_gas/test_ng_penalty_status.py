@@ -18,9 +18,9 @@ from typing import cast
 
 import pytest
 
-from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
-from src.models.natural_gas.ng_model import NGModel
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems_models.models.natural_gas.constants import UNSERVED_PENALTY_TOL
+from cnems_models.models.natural_gas.ng_model import NGModel
+from cnems_models.models.natural_gas.sequencer import NGSequencer
 
 
 def mock_model(unserved: dict[tuple, float | None]) -> NGModel:
@@ -53,7 +53,7 @@ def test_in_penalty_logs_each_short_region_year(caplog: pytest.LogCaptureFixture
         ('new_england', 2025): 176.3,
         ('mountain', 2025): UNSERVED_PENALTY_TOL / 2,
     }
-    with caplog.at_level('WARNING', logger='src.models.natural_gas.sequencer'):
+    with caplog.at_level('WARNING', logger='cnems_models.models.natural_gas.sequencer'):
         assert NGSequencer._in_penalty(mock_model(unserved))
     assert '298.2 Bcf of demand unserved in 2 region-year(s)' in caplog.text
     assert 'solve status PENALTY: new_england 2025 176.3 Bcf, pacific 2050 121.9 Bcf' in caplog.text
@@ -62,6 +62,6 @@ def test_in_penalty_logs_each_short_region_year(caplog: pytest.LogCaptureFixture
 
 def test_no_penalty_logs_nothing(caplog: pytest.LogCaptureFixture) -> None:
     """A fully served solve logs no shortfall."""
-    with caplog.at_level('WARNING', logger='src.models.natural_gas.sequencer'):
+    with caplog.at_level('WARNING', logger='cnems_models.models.natural_gas.sequencer'):
         assert not NGSequencer._in_penalty(mock_model({('pacific', 2050): 0.0}))
     assert caplog.text == ''

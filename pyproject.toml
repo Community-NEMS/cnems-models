@@ -1,6 +1,7 @@
-#[build-system]
-#build-backend = "hatchling.build"
-#requires = ["hatch-vcs>=0.5", "hatchling>=1.31"]
+[build-system]
+build-backend = "hatchling.build"
+# a floor, not a lock:  1.27 adds PEP 639 license metadata
+requires = ["hatchling>=1.27"]
 
 [project]
 # Not published to PyPI or conda-forge -- installed locally via pixi only -- so this
@@ -9,7 +10,7 @@
 name = "cnems_models"
 description = "Models for Community NEMS project."
 readme = { file = "README.md", content-type = "text/markdown" }
-authors = [{ name = "CNEMS team", email = "tbd" }]
+authors = [{ name = "CNEMS team" }]
 requires-python = ">=3.14,<3.15"
 version = "0.1"
 #dynamic = ["version"]
@@ -19,6 +20,11 @@ version = "0.1"
 # packages, under [tool.pixi.dependencies] rather than here too.
 dependencies = []
 
+[project.scripts]
+cnems = "cnems_models.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cnems_models"]
 
 [tool.ruff]
 line-length = 100
@@ -82,20 +88,23 @@ project-includes = ["src"]
 # The pyomo formulation attaches Sets/Params/Vars to the model at runtime, so pyrefly sees them
 # as the base `Component` class and reports ~68 spurious errors (calling a Set, indexing a Param,
 # iterating a Var).  None are actionable without annotating pyomo itself, so skip the file.
-# `src/integrator` files are not yet migrated and should be excluded for now.
+# `src/cnems_models/integrator` files are not yet migrated and should be excluded for now.
 project-excludes = [
-  "src/models/electricity/electricity_model.py",
-  "src/models/natural_gas/ng_model.py",
-  "src/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
+  "src/cnems_models/models/electricity/electricity_model.py",
+  "src/cnems_models/models/natural_gas/ng_model.py",
+  "src/cnems_models/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
   # both of the main "model" files have typing issues related to pyomo that predate this work
-  "src/integrator/gaussseidel.py",  # not in upgrade scope yet
-  "src/integrator/unified.py",  # not in upgrade scope yet
+  "src/cnems_models/integrator/gaussseidel.py",  # not in upgrade scope yet
+  "src/cnems_models/integrator/unified.py",  # not in upgrade scope yet
+  # same pyomo access pattern as the model files (Objective.expr, Param arithmetic)
+  "src/cnems_models/tools/analysis/model_diagnostics.py",
+  # the Dash apps were never type-checked outside src/; not in upgrade scope yet
+  "src/cnems_models/tools/interfaces/viewer/app.py",
+  "src/cnems_models/tools/interfaces/runner/app.py",  # unmaintained
 ]
-# The project has no [build-system] and is run from the repo root, so `definitions` and the
-# `src.*` package prefix resolve via CWD at runtime. Pyrefly's default search-path heuristic
-# infers roots from the checked files (i.e. `src/`), so without this it can resolve neither and
-# reports ~60 spurious missing-import errors. Paths are relative to this config file.
-search-path = ["."]
+# `src` resolves the `cnems_models` package without relying on the editable install (the
+# pre-commit hook has only pyrefly itself).  Paths are relative to this config file.
+search-path = ["src"]
 python-version = "3.14"
 # Resolve imports against whichever `python` is first on PATH, which inside `pixi run` is
 # the pixi env. Without this pyrefly falls back to an arbitrary interpreter found on the
@@ -146,14 +155,13 @@ channels = ["conda-forge"] #, "bioconda"]
 platforms = ["linux-aarch64", "osx-arm64", "linux-64", "osx-64", "win-64"]
 
 [tool.pixi.pypi-dependencies]
-# Install this package itself in editable mode. No extras yet -- optional-dependency
-# groups get added here as later PRs bring over the systems that need them (tests,
-# lint, type checking, docs).
-# TODO:  come back to this relationship...
-#"cnems_inputs" = { path = ".", editable = true }
+# Install this package itself in editable mode, so `cnems_models` imports from src/ and the
+# `cnems` console script is on PATH inside the pixi env.
+cnems_models = { path = ".", editable = true }
 
 
 [tool.pixi.dependencies]
+python = "3.14.*"
 # 6.10 is the floor for a QP-capable HiGHS interface.  The natural gas model is a convex
 # quadratic program: SolverFactory('highs') (new-generation, >=6.10) builds a Hessian and
 # handles it, while 'appsi_highs' calls generate_standard_repn(quadratic=False) and raises
@@ -199,27 +207,26 @@ test-erase = { cmd = "coverage erase", description = "Wipe previously recorded c
 #  "test-unit",
 #  "test-integration",
 #], description = "Run all tests and report combined coverage, failing if it's below the configured threshold." }
-test-runner = {cmd="pytest --cov=src --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
+test-runner = {cmd="pytest --cov=cnems_models --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
-ng = { cmd = "python -m src.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
+ng = { cmd = "python -m cnems_models.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 
 # The integrated control loop:  the models in run_configs/jacobi_small.toml solve in parallel,
 # exchanging update packages each iteration, with the iteration monitor on the console.
-# TODO:  This is for development work only; the task runs main.py's integrated (Jacobi) mode
-jacobi = { cmd = "python main.py run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
+# TODO:  This is for development work only; the task runs the CLI's integrated (Jacobi) mode
+jacobi = { cmd = "python -m cnems_models run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
 
 # The experimental Gauss-Seidel loop on run_configs/gs_compare.toml (every region, 2025 and
 # 2030), and a side-by-side comparison of it with the Jacobi loop on the same config.
-gs = { cmd = "python main.py run_configs/gs_compare.toml", description = "Run the integrated Gauss-Seidel loop using run_configs/gs_compare.toml." }
-gs-compare = { cmd = "python -m analysis_tools.compare_iterators run_configs/gs_compare.toml", description = "Run Jacobi and Gauss-Seidel on run_configs/gs_compare.toml and write a comparison table." }
+gs = { cmd = "python -m cnems_models run_configs/gs_compare.toml", description = "Run the integrated Gauss-Seidel loop using run_configs/gs_compare.toml." }
+gs-compare = { cmd = "python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml", description = "Run Jacobi and Gauss-Seidel on run_configs/gs_compare.toml and write a comparison table." }
 
-# Browse model outputs at http://127.0.0.1:8050/.  PYTHONPATH must be set, and must be
-# absolute: viewer.py chdir's into output/ at import time, and Dash's debug reloader then
-# respawns the process with that as its cwd, so neither the repo root (for `definitions`)
-# nor a relative PYTHONPATH survives into the reloaded child.
-viewer = { cmd = "PYTHONPATH=$PIXI_PROJECT_ROOT python -m analysis_tools.viewer", description = "Serve the Dash output viewer." }
+# Browse model outputs at http://127.0.0.1:8050/.
+viewer = { cmd = "python -m cnems_models.tools.interfaces.viewer", description = "Serve the Dash output viewer." }
+# The unmaintained Model Runner config editor at http://localhost:8080/.
+runner = { cmd = "python -m cnems_models.tools.interfaces.runner", description = "Serve the Dash Model Runner (unmaintained)." }
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
 # No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`

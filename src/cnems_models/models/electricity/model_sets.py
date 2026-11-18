@@ -1,0 +1,660 @@
+"""
+Created as part of the C-NEMS Project.
+
+Written by:  J. F. Hyink
+Contact:  jeff@westernspark.us
+Created on:  6/23/26
+
+Collection of sets used by model.
+- Direct reads of "property" files
+- Generated temporal sets
+- crossed sets from basic data and parameter elements
+"""
+
+import logging
+from collections import defaultdict, namedtuple
+from collections.abc import Collection, Iterable, Mapping
+from enum import Enum, unique
+from itertools import chain
+
+import pandas as pd
+from pandas import DataFrame
+
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.season import Season
+from cnems_models.integrator.utilities import create_temporal_mapping
+from cnems_models.models.electricity.data_ingestor import (
+    load_attribute_data,
+    load_property_data,
+)
+from cnems_models.models.electricity.elec_config import (
+    ElecConfig,
+    ReserveType,
+    RPSRequirementType,
+)
+from cnems_models.models.electricity.rps import (
+    RPSKey,
+    RPSRequirement,
+    RPSRequirementRow,
+    region_members,
+    resolve_groups,
+)
+
+logger = logging.getLogger(__name__)
+
+CI = namedtuple('CI', ['region', 'tech', 'step', 'year'])
+"""a fixed index type for capacity index entries"""
+
+
+@unique
+class CapacityOrigin(Enum):
+    """Why a (region, tech, step, year) is in ``ModelSets.capacity_index``.
+
+    The value is a readable phrase for log and error messages.  A key may carry more than one
+    origin (e.g. existing capacity that is also buildable).
+    """
+
+    EXISTING = 'existing capacity'
+    BUILDABLE = 'buildable capacity'
+    CARRIED = 'capacity carried forward from an earlier build year'
+
+
+def _parse_steps(raw: str, tech: str) -> list[int]:
+    """Parse a slash-separated supply curve step list into sorted unique ints.
+
+    Tolerates surrounding whitespace, empty segments and stray leading/trailing slashes, so
+    ``'/1/ 2//3 '`` and ``'1/2/3'`` are equivalent.  An empty (or all-empty) cell means the tech
+    declares no steps and yields an empty list.
+
+    Parameters
+    ----------
+    raw : str
+        the raw ``steps`` cell from tech.csv, e.g. ``'1/2/3'``.
+    tech : str
+        the owning tech, used only to identify the offender in the error message.
+
+    Returns
+    -------
+    list[int]
+        the declared steps, deduplicated and ascending.
+
+    Raises
+    ------
+    ValueError
+        if any non-empty segment is not an integer.
+    """
+    steps = set()
+    for token in raw.split('/'):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            steps.add(int(token))
+        except ValueError as err:
+            logger.error('Unable to convert step %s of tech %s to int', token, tech)
+            raise ValueError(f'Unable to convert step {token!r} of tech {tech!r} to int') from err
+    return sorted(steps)
+
+
+class ModelSets:
+    """Generates an initial batch of sets that are used to solve electricity model.
+
+    Sets include:
+
+    - Scenario descriptor and model switches
+    - Regional sets
+    - Temporal sets
+    - Technology type sets
+    - Supply curve step sets
+    - Other.
+    """
+
+    buildable_capacity: list[CI]
+    """capital-cost keys screened to buildable techs and analyzed regions (expansion only)"""
+    capacity_index: list[CI]
+    """The MASTER capacity index:  existing | buildable | carried"""
+    carried_capacity: list[CI]
+    """years after a location's first build year in which it is not buildable (expansion only)"""
+    existing_capacity: list[CI]
+    """keys of the ``available_capacity`` supply curve"""
+    generation_demand_index: defaultdict
+    generation_dispatchable_ub_index: list[tuple]
+    generation_hydro_ub_index: list[tuple]
+    generation_index: list[tuple]
+    generation_ramp_index: list[tuple]
+    generation_vre_index: list[tuple]
+    hydro_seasonal_step_index: defaultdict
+    """(region, tech, year) -> the supply curve steps of each seasonal-hydro tech"""
+    international_trade_index: list[tuple]
+    ramp_first_hour_balance_index: list[tuple]
+    ramp_most_hours_balance_index: list[tuple]
+    reserves_procurement_index: list[tuple]
+    retirement_index: list[tuple]
+    rps_btm_index: list[RPSKey]
+    """(group, region key, year) with a BTM requirement in force and a share above 0 (RPS only)"""
+    rps_group_sources: dict[RPSKey, list[tuple[str, str, int]]]
+    """(group, region key, year) -> the group's generator (region, tech, step) in
+    ``capacity_index``"""
+    rps_storage_sources: dict[RPSKey, list[tuple[str, str, int]]]
+    """(group, region key, year) -> the storage (region, tech, step) in ``capacity_index`` in the
+    region key, whose losses are debited from the group's credit"""
+    rps_group_techs: dict[str, frozenset[str]]
+    """RPS group -> member techs (RPS only)"""
+    rps_region_members: dict[str, tuple[str, ...]]
+    """RPS region key -> the regions it sums over"""
+    rps_requirements: dict[RPSKey, RPSRequirement]
+    """(group, region key, year) -> the requirement in force, zero shares included"""
+    rps_requirement_rows: list[RPSRequirementRow]
+    """every rps_requirement.csv row as entered, in force or not (RPS only, for reporting)"""
+    season: list[Season]
+    """The model's seasons, in natural (``Season.sort_order``) order"""
+    seasonal_hydro_index: list[tuple]
+    storage_demand_index: defaultdict
+    storage_first_hour_balance_index: list[tuple]
+    storage_index: list[tuple]
+    storage_most_hours_balance_index: list[tuple]
+    steps: list[int]
+    """All step values used in data"""
+    tech_steps: dict[str, list[int]]
+    """tech -> the supply curve steps declared valid for it in tech.csv"""
+
+    def __init__(self, common_config: CommonConfig, elec_config: ElecConfig):
+
+        self.elec_config = elec_config
+        # load the bulk of the data from csv property files
+        set_data = load_property_data(
+            common_config.common_data_path,
+            skip=() if elec_config.rps_required else ('rps_group',),
+        )
+        attribute_data = load_attribute_data(common_config.common_data_path)  # for "has a" data
+
+        # break up the tech data into its constituents
+        td = set_data['tech']
+        self.tech = td['tech']
+        self.tech_conv = td['is_conventional']
+        self.tech_re = td['is_renewable']
+        self.tech_wind = td['is_wind']
+        self.tech_solar = td['is_solar']
+        # is_solar is the union of the two subsets below.  Unlike the hydro subsets, no index set
+        # filters on these -- utility-scale and end-use solar face the same constraints and differ
+        # only in their data (existing capacity, fixed O&M, and whether they can be built).  They
+        # are carried so the distinction is addressable in the formulation and in reporting rather
+        # than living implicitly in a supply curve step number.
+        self.tech_solar_utility = td['is_solar_utility']
+        self.tech_solar_end_use = td['is_solar_end_use']
+        self.tech_h2 = td['is_hydrogen']
+        # gas-fired techs burn natural gas: their gas burn is reported to the gas model (at their
+        # heat_rate) and their generation_cost moves with the gas price received from it
+        self.tech_gas_fired = td['is_gas_fired']
+        self.tech_disp = td['is_dispatchable']
+        self.tech_gen = td['is_generator']
+        self.tech_stor = td['is_storage']
+        self.tech_vre = td['is_vre']
+        self.tech_hydro = td['is_hydro']
+        # is_hydro is the union; the two subsets below decide which hydro bound applies.  Seasonal
+        # hydro is limited by a per-season energy budget (seasonal_hydro_discharge_ub), regular
+        # hydro by an hourly capacity factor (generation_hydro_ub).  These replace what used to
+        # be a hard-coded supply-curve step number.
+        self.tech_hydro_seasonal = td['is_hydro_seasonal']
+        self.tech_hydro_regular = td['is_hydro_regular']
+
+        self.tech_retires = set_data['tech_retire']['is_retirable']
+        self.tech_builds = set_data['tech_build']['is_buildable']
+
+        # RPS groups (the requirements need the capacity index, see build_rps_sets)
+        self.rps_group_techs = (
+            resolve_groups(
+                # pyrefly: ignore[bad-argument-type]  - load_property_data's list[str] is loose:
+                # a multi-column index (here group_id, tech) is read as a tuple
+                set_data['rps_group']['group_id'],
+                self.tech,
+                self.tech_gen,
+            )
+            if elec_config.rps_required
+            else {}
+        )
+        self.rps_requirements = {}
+        self.rps_requirement_rows = []
+        self.rps_region_members = {}
+        self.rps_btm_index = []
+        self.rps_group_sources = {}
+        self.rps_storage_sources = {}
+
+        # descriptive (non-membership) tech columns: the valid supply curve steps plus the
+        # reporting label/abbreviation/color that used to live only in analysis_tools
+        ta = attribute_data['tech']
+        self.tech_steps = {tech: _parse_steps(raw, tech) for tech, raw in ta['steps'].items()}
+        self.steps = list(chain.from_iterable(self.tech_steps.values()))
+        self.tech_label: dict[str, str] = ta['label']
+        self.tech_abbreviation: dict[str, str] = ta['abbreviation']
+        self.tech_color: dict[str, str] = ta['color']
+
+        # break up the region data into its constituents
+        rd = set_data['region']
+        self.region = rd['region']
+        self.region_domestic = rd['is_domestic']
+        self.region_analyze = (
+            self.elec_config.region_filter
+            if self.elec_config.region_filter
+            else self.region_domestic
+        )
+        self.region_international = rd['is_international']
+
+        # # Load Setting
+        # self.load_scalar = common_config.scale_load
+
+        # Temporal Sets
+        self.cw_temporal: pd.DataFrame = create_temporal_mapping(
+            common_config.temporal_resolution
+        )  # TODO:  review this creator
+
+        # Temporal Sets - Years
+        # if aggregation is commanded make a year map and weighting map, else create a trivial map
+        if common_config.aggregate_years:
+            self.year_map = ModelSets._create_year_map(
+                agg_years=common_config.summary_years,
+                # pyrefly: ignore[bad-argument-type]  - CommonConfig validates that
+                # aggregate_start_year is set whenever aggregate_years is True
+                start_year=common_config.aggregate_start_year,
+            )
+            self.year_agg_weights = ModelSets._create_year_agg_weights(self.year_map)
+        else:
+            # the "year_map" is just a trivial mapping of the selected years onto themselves
+            self.year_map = {y: y for y in common_config.summary_years}
+            self.year_agg_weights = dict.fromkeys(common_config.summary_years, 1)
+
+        # the year-map is used as a df in some spots, so add it here
+        self.year_map_df = pd.DataFrame(self.year_map.items(), columns=['year', 'Map_year'])
+
+        # Temporal Sets - Days and Seasons
+
+        self.season = sorted(self.cw_temporal['Map_s'].unique())
+        self.num_days = self.cw_temporal['Map_day'].max()
+        self.day = range(1, self.num_days + 1)
+
+        # Temporal Sets - Hours
+        # number of time periods in a day
+        self.num_hr_day = int(
+            self.cw_temporal['Map_hour'].max() / self.cw_temporal['Map_day'].max()
+        )
+        if self.num_hr_day < 2:
+            raise ValueError('The number of representative hours in a day must be greater than 1')
+
+        # Number of time periods the model solves for: days x number of periods per day
+        self.hour = range(1, self.num_days * self.num_hr_day + 1)
+        # First time period of the day and all time periods that are not the first hour.
+        self.hour_first = range(1, self.num_days * self.num_hr_day + 1, self.num_hr_day)
+        # sorted() because set difference does not iterate in ascending order for every
+        # (total hours, hours-per-day) pair -- e.g. 8 hours at 2/day yields [8, 2, 4, 6]
+        self.hour_most = sorted(set(self.hour) - set(self.hour_first))
+
+    def build_reserves_index(
+        self,
+        supply_curve_index: Iterable[CI],
+        reserve_ub_limits: dict[tuple[ReserveType, str], float],
+    ):
+        """Build reserve index and use the upper bound limit param to enforce sparsity."""
+        self.reserves_procurement_index = sorted(
+            (idx.region, reserve_type, idx.tech, idx.step, idx.year, hour)
+            for reserve_type in ReserveType
+            for idx in supply_curve_index
+            for hour in self.hour
+            if reserve_ub_limits.get((reserve_type, idx.tech), 0.0) > 0.0
+        )
+        """sparse set of viable [r, ReserveType, tech, step, year, hour] where ub > 0.0"""
+        if not self.reserves_procurement_index:
+            logger.warning('reserves_procurement_index is empty')
+
+    def build_advanced_indexes(
+        self, available_capacity_index: Iterable[CI], cap_cost_index: Iterable[CI]
+    ):
+        """Use the available capacity and capital costs to build other index sets.
+
+        Built by crossing techs with hours and capacity tech, step combos.  With expansion on,
+        the capacity index is the existing capacity plus each buildable location in every model
+        year from its first capital-cost year; builds are restricted to the capital-cost keys.
+        The three pieces are kept as ``existing_capacity``, ``buildable_capacity`` and
+        ``carried_capacity`` (see :meth:`capacity_origins`).
+        """
+        existing_capacity_index = set(available_capacity_index)
+        if not existing_capacity_index:
+            logger.warning('existing capacity index is empty')
+        if self.elec_config.capacity_expansion:
+            # we must augment the total capacity index by what is buildable, which may be a
+            # superset of what is already built
+            buildable_capacity = {
+                idx
+                for idx in cap_cost_index
+                if (idx.tech, idx.step) in self.tech_builds and idx.region in self.region_analyze
+            }
+            newly_buildable = buildable_capacity - existing_capacity_index
+            logger.info('Buildable capacity index size: %d', len(buildable_capacity))
+            logger.info(
+                'Total Capacity index expanded beyond existing by: %d newly buildable techs',
+                len(newly_buildable),
+            )
+            # a build persists, so each buildable location is indexed in every model year from
+            # its first build year onward, whether or not it is buildable in that year
+            model_years = sorted(set(self.year_map.values()))
+            first_build: dict[tuple, int] = {}
+            for idx in buildable_capacity:
+                key = (idx.region, idx.tech, idx.step)
+                first_build[key] = min(first_build.get(key, idx.year), idx.year)
+            carried_capacity = {
+                CI(r, t, s, y)
+                for (r, t, s), first_year in first_build.items()
+                for y in model_years
+                if y >= first_year
+            } - buildable_capacity
+            logger.info(
+                'Capacity index carries builds forward into: %d non-buildable '
+                'region-tech-year combos',
+                len(carried_capacity),
+            )
+            self.buildable_capacity = sorted(buildable_capacity)
+            self.carried_capacity = sorted(carried_capacity)
+            capacity_index = sorted(existing_capacity_index | buildable_capacity | carried_capacity)
+
+        else:
+            self.buildable_capacity = []
+            self.carried_capacity = []
+            capacity_index = sorted(existing_capacity_index)
+        self.existing_capacity = sorted(existing_capacity_index)
+
+        logger.info('Built Capacity Index of size: %d', len(capacity_index))
+
+        # TODO:  A nice improvement here would be to avail retirements to ALL years, not
+        #        restrict it to the capacity index.
+        self.retirement_index = [
+            (idx.region, idx.tech, idx.step, idx.year)
+            for idx in capacity_index
+            if (idx.tech, idx.step) in self.tech_retires
+        ]
+        if not self.retirement_index:
+            logger.warning('retirement_index is empty')
+
+        self.generation_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr)
+            for idx in capacity_index
+            if idx.tech in self.tech_gen
+            for hr in self.hour
+        ]
+        if not self.generation_index:
+            logger.warning('generation_index is empty')
+
+        self.storage_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr)
+            for idx in capacity_index
+            if idx.tech in self.tech_stor
+            for hr in self.hour
+        ]
+        if not self.storage_index:
+            logger.warning('storage_index is empty')
+
+        # build the companion indexed set bases while we have by-name access to the fields...
+
+        self.generation_demand_index = defaultdict(list)
+        for hr in self.hour:
+            for idx in capacity_index:
+                if idx.tech in self.tech_gen:
+                    self.generation_demand_index[idx.region, idx.year, hr].append(
+                        (idx.tech, idx.step)
+                    )
+        if not self.generation_demand_index:
+            logger.warning('generation_demand_index is empty')
+
+        self.storage_demand_index = defaultdict(list)
+        for hr in self.hour:
+            for idx in capacity_index:
+                if idx.tech in self.tech_stor:
+                    self.storage_demand_index[idx.region, idx.year, hr].append((idx.tech, idx.step))
+        if not self.storage_demand_index:
+            logger.warning('storage_demand_index is empty')
+
+        # build the unique hour sets for ramping/storage first + other 23 hours
+        self.ramp_most_hours_balance_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr_most)
+            for idx in capacity_index
+            if idx.tech in self.tech_conv
+            for hr_most in self.hour_most
+        ]
+        if not self.ramp_most_hours_balance_index:
+            logger.warning('ramp_most_hours_balance_index is empty')
+        self.ramp_first_hour_balance_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr_first)
+            for idx in capacity_index
+            if idx.tech in self.tech_conv
+            for hr_first in self.hour_first
+        ]
+        if not self.ramp_first_hour_balance_index:
+            logger.warning('ramp_first_hour_balance_index is empty')
+        self.storage_most_hours_balance_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr_most)
+            for idx in capacity_index
+            if idx.tech in self.tech_stor
+            for hr_most in self.hour_most
+        ]
+        if not self.storage_most_hours_balance_index:
+            logger.warning('storage_most_hours_balance_index is empty')
+        self.storage_first_hour_balance_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr_first)
+            for idx in capacity_index
+            if idx.tech in self.tech_stor
+            for hr_first in self.hour_first
+        ]
+        if not self.storage_first_hour_balance_index:
+            logger.warning('storage_first_hour_balance_index is empty')
+        self.generation_hydro_ub_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hr)
+            for idx in capacity_index
+            if idx.tech in self.tech_hydro_regular
+            for hr in self.hour
+        ]
+        if not self.generation_hydro_ub_index:
+            logger.warning('generation_hydro_ub_index is empty')
+        # note: step is deliberately absent -- the seasonal energy budget applies to the tech's
+        # whole supply curve, so seasonal_hydro_discharge_ub sums over hydro_seasonal_step_index
+        # instead.
+        self.seasonal_hydro_index = [
+            (idx.region, idx.tech, idx.year, season)
+            for idx in capacity_index
+            if idx.tech in self.tech_hydro_seasonal
+            for season in self.season
+        ]
+        if not self.seasonal_hydro_index:
+            logger.warning('seasonal_hydro_index is empty')
+        self.hydro_seasonal_step_index = defaultdict(list)
+        for idx in capacity_index:
+            if idx.tech in self.tech_hydro_seasonal:
+                self.hydro_seasonal_step_index[idx.region, idx.tech, idx.year].append(idx.step)
+
+        self.generation_ramp_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hour)
+            for idx in capacity_index
+            if idx.tech in self.tech_conv
+            for hour in self.hour
+        ]
+        if not self.generation_ramp_index:
+            logger.warning('generation_ramp_index is empty')
+        self.generation_dispatchable_ub_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hour)
+            for idx in capacity_index
+            if idx.tech in self.tech_disp
+            for hour in self.hour
+        ]
+        if not self.generation_dispatchable_ub_index:
+            logger.warning('generation_dispatchable_ub_index is empty')
+        self.generation_vre_index = [
+            (idx.region, idx.tech, idx.step, idx.year, hour)
+            for idx in capacity_index
+            if idx.tech in self.tech_vre
+            for hour in self.hour
+        ]
+        if not self.generation_vre_index:
+            logger.warning('generation_vre_index is empty')
+
+        self.capacity_index = capacity_index
+
+    def build_rps_sets(
+        self,
+        requirements: Mapping[RPSKey, RPSRequirement],
+        rows: Iterable[RPSRequirementRow] = (),
+    ) -> None:
+        """Build the RPS index sets from the requirements in force.
+
+        Must follow :meth:`build_advanced_indexes`, as the group's generation sources and the
+        region key's storage are drawn from ``capacity_index`` (each generator (region, tech,
+        step) there has a ``generation_total``, and each storage one a ``storage_inflow``, for
+        every hour).  A BTM with a zero share gets no index entry (logged at INFO), as it can
+        never bind; it still supersedes earlier rows.
+
+        Parameters
+        ----------
+        requirements : Mapping[RPSKey, RPSRequirement]
+            (group, region key, year) -> the requirement in force (``rps.resolve_requirements``).
+        rows : Iterable[RPSRequirementRow], optional
+            the requirement rows as entered (``rps.requirement_rows``), kept for reporting.
+        """
+        self.rps_requirements = dict(requirements)
+        self.rps_requirement_rows = list(rows)
+        self.rps_region_members = region_members(
+            {rk for _, rk, _ in requirements}, self.region_analyze
+        )
+        btm = sorted(
+            k for k, r in requirements.items() if r.requirement_type is RPSRequirementType.BTM
+        )
+        self.rps_btm_index = [k for k in btm if requirements[k].min_share > 0.0]
+        for group, rk, year in sorted(set(btm) - set(self.rps_btm_index)):
+            logger.info(
+                'RPS BTM (group %s, region %s, year %d) not applied:  the minimum is 0',
+                group,
+                rk,
+                year,
+            )
+
+        region_of = {r: rk for rk, regions in self.rps_region_members.items() for r in regions}
+        by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
+        storage_by_region_year: defaultdict[tuple[str, int], list[CI]] = defaultdict(list)
+        for idx in self.capacity_index:
+            if idx.region not in region_of:
+                continue
+            if idx.tech in self.tech_gen:
+                by_region_year[idx.region, idx.year].append(idx)
+            elif idx.tech in self.tech_stor:
+                storage_by_region_year[idx.region, idx.year].append(idx)
+
+        self.rps_group_sources = {}
+        self.rps_storage_sources = {}
+        for key in self.rps_btm_index:
+            group, rk, year = key
+            members = self.rps_group_techs[group]
+            self.rps_group_sources[key] = [
+                (idx.region, idx.tech, idx.step)
+                for r in self.rps_region_members[rk]
+                for idx in by_region_year[r, year]
+                if idx.tech in members
+            ]
+            self.rps_storage_sources[key] = [
+                (idx.region, idx.tech, idx.step)
+                for r in self.rps_region_members[rk]
+                for idx in storage_by_region_year[r, year]
+            ]
+        logger.info(
+            'RPS sets:  %d BTM (group, region key, year) requirements', len(self.rps_btm_index)
+        )
+
+    def capacity_origins(self) -> dict[CapacityOrigin, list[CI]]:
+        """The labelled pieces of ``capacity_index``, whose union it is.
+
+        Returns
+        -------
+        dict[CapacityOrigin, list[CI]]
+            Each origin's keys.  The pieces may overlap (existing vs. buildable/carried), but
+            buildable and carried never do.  Buildable and carried are empty without expansion.
+        """
+        return {
+            CapacityOrigin.EXISTING: self.existing_capacity,
+            CapacityOrigin.BUILDABLE: self.buildable_capacity,
+            CapacityOrigin.CARRIED: self.carried_capacity,
+        }
+
+    def build_international_trade_index(
+        self, intl_capacity: DataFrame, intl_gen_limit: DataFrame
+    ) -> list[tuple]:
+        """Create the valid international trading index.
+
+        Relies on the capacity and the step from generation limits.  Either frame being empty (no
+        international connections) yields an empty index.
+        """
+        if intl_capacity.empty or intl_gen_limit.empty:
+            self.international_trade_index = []
+            return []
+        df = (
+            pd.merge(
+                intl_capacity.reset_index(),
+                intl_gen_limit.reset_index(),
+                on=['region_intl', 'year', 'hour'],
+                how='inner',
+            )
+            .drop(columns=['supply_limit_intl_mw'])
+            .set_index(['region', 'region_intl', 'step', 'year', 'hour'])
+        )
+        res = list(df.index)
+        self.international_trade_index = res
+        return res
+
+    @staticmethod
+    def _create_year_map(agg_years: Collection[int], start_year: int) -> dict:
+        """Map each year from ``start_year`` onward to the summary year that represents it.
+
+        ``CommonConfig`` validates both conditions below; they are re-checked here because a
+        config mutated after construction bypasses that validation.
+
+        Parameters
+        ----------
+        agg_years : Collection[int]
+            the summary years to aggregate onto
+        start_year : int
+            first year to aggregate
+
+        Returns
+        -------
+        dict
+            year -> representative (summary) year
+
+        Raises
+        ------
+        ValueError
+            If ``agg_years`` is empty or ``start_year`` is later than its earliest year (which
+            would leave that summary year unmapped).
+        """
+        if not agg_years:
+            logger.error('No years provided for aggregation.')
+            raise ValueError('No years provided for aggregation.')
+        if start_year > min(agg_years):
+            logger.error(
+                'Aggregation start year %d is later than the first summary year.', start_year
+            )
+            raise ValueError(
+                f'Aggregation start year {start_year} must precede or equal the first summary '
+                f'year {min(agg_years)}'
+            )
+        agg_years = sorted(agg_years)  # ensure years are sorted:  cheap insurance!
+        res = {}
+        idx = 0
+        current_year = start_year
+        while idx < len(agg_years):
+            if current_year <= agg_years[idx]:
+                res[current_year] = agg_years[idx]
+                current_year += 1
+            else:
+                idx += 1
+        return res
+
+    @staticmethod
+    def _create_year_agg_weights(year_map: dict[int, int]) -> dict[int, int]:
+        """Creates a dictionary of year aggregation weights."""
+        weights = {}
+        for agg_year in year_map.values():
+            weights[agg_year] = weights.get(agg_year, 0) + 1
+        return weights

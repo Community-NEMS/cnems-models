@@ -1,0 +1,139 @@
+# Electricity Model
+
+## Introduction
+
+**The electricity model is formulated as a least-cost optimization problem to meet electricity demand with generation
+from multiple technology options**. It includes both electricity dispatch and the option for capacity expansion. Users
+can also specify various power sector operations they would like to represent, for example, capabilities for
+representing capacity reserves, operating reserves, and ramping constraints, as well as others that will be described in
+more detail below.
+
+**The model has both temporal and spatial flexibility**, which can be specified by the user depending on the purpose of
+a study. The temporal flexibility includes the ability to specify both the years and the time segments within a year,
+with the finest granularity available being 8760 hours annually. The 8760 hours within a year can be aggregated up by
+hours within a day as well as days within a season. If a user is running the model for more than one year, the user can
+choose how non-modeled intervals between years are aggregated. In terms of spatial flexibility, users can specify which
+regions they want to run and if regions have the capability to trade with one another.
+
+**The model uses linear optimization by default, but if running the model with capacity expansion, a user has the option
+of representing cost reductions using a nonlinear technology learning function**. The nonlinear mode puts the function
+in the objective, which makes the problem a nonlinear program. The linear mode instead solves a sequence of linear
+programs, repricing capacity from the previous solve's builds until the two agree. The two are different formulations
+and can choose different builds. With learning disabled, a fixed yearly decline in capital costs stands in for learning.
+Users can also specify which technology options are allowed to expand or retire.
+
+After completing a run, the module will return datasets in the output directory for the variables, parameters, sets, and
+constraints. These datasets will be stored in the output directory at the top level. The viewer within the output
+directory includes options for reviewing electricity model variable results. If running the model in standalone mode,
+the model will also produce a graphic showing the distribution of electricity prices within the output directory.
+
+## Prepare Data
+
+The data needed for the electricity model is stored within the input directory in the capacity expansion model e.g.,
+cem_input subdirectory. The inputs include regionally indexed and technology indexed input assumptions data for items
+like transmission and technology costs and operations. In addition, there is supply curve price and quantity data that
+provides the fuel cost assumptions for each power technology.
+
+The data is prepared by `model_sets.py` and `param_data.py`, with the raw CSV reads handled by `data_ingestor.py` (a few
+helpers remain in `preprocessor.py`).
+`ModelSets` creates the sets for the model from the configuration data. Sets are organized into regional sets, temporal
+sets, and technology-based sets. Next
+`ParamData` reads in all of the input data within the `parameters` directory and processes it into the format needed for
+the PowerModel based on the spatial and temporal settings specified. Both are passed to the PowerModel for further
+processing.
+
+Features are toggled and crosswalks (cw) selected through the run configuration TOML files
+in [run_configs](/run_configs). Each file has a `[common]` section parsed into `CommonConfig` and an `[elec_config]`
+section parsed into
+`ElecConfig`.
+
+### Feature Settings
+
+The `[elec_config]` section contains the main settings through which features for the electricity module can be toggled:
+
+| Setting                   | Description                   | Values                                                                                                                |                                                                                           Notes                                                                                           |
+|:--------------------------|:------------------------------|:----------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| regional_exchange         | Interregional trade           | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
+| capacity_expansion        | Capacity expansion/retirement | **false** = Off <br> **true** = On                                                                                    |  Note the file tech_build.csv also contains settings of which technologies are available to expand. tech_retire.csv contains which technologies have the option to economically retire.   |
+| reserve_margin_required   | Reserve margin requirement    | **false** = Off <br> **true** = On                                                                                    |                                                    Requires capacity_expansion; the combination is rejected by ElecConfig validation.                                                     |
+| ramping_required          | Maximum ramping constraint    | **false** = Off <br> **true** = On                                                                                    |                                                                                                                                                                                           |
+| spinning_reserve_required | Operating reserve requirement | **false** = Off <br> **true** = On                                                                                    |                                            Enables all three reserve products in ReserveType (spinning, regulation, flex), not just spinning.                                             |
+| expansion_learning_type   | Technology cost learning      | **disabled** = Exogenous learning <br> **linear** = Iterative linear learning <br> **nonlinear** = Nonlinear learning | The method of which technology costs decrease as more capacity is built. Any value other than disabled requires capacity_expansion; the combination is rejected by ElecConfig validation. |
+
+The `[common]` section holds settings that are not specific to the electricity module:
+
+| Setting             | Description         | Values                                                                                                                 |                                                 Notes                                                 |
+|:--------------------|:--------------------|:-----------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------:|
+| aggregate_years     | Aggregate years     | **false** = Only runs the selected years <br> **true** = Aggregates all unselected years into subsequent selected year |        Aggregates based on the years listed in summary_years.  Requires aggregate_start_year.         |
+| temporal_resolution | Temporal resolution | **default**, **d6h12**, **d4h24**, or a custom crosswalk name                                                          | Selects the representative day/hour mapping.  See [the integrator README](/src/cnems_models/integrator/old_README.md). |
+| summary_years       | Years to run        | list of years, e.g. `[2025, 2030]`                                                                                     |                                The years the model solves and reports.                                |
+
+### Technology Settings
+
+The model contains 17 technologies (tech) in its initial layout. Users could change the technology assignments and add
+more technology types or remove technology types, but any changes to the code would require updates to the corresponding
+input data. Hydroelectric generation and solar are each split into two technologies, so their identifiers carry a
+suffix rather than a bare number. The technologies represented are:
+
+| tech        | Technology                                       | label              | abbreviation |
+|:------------|:-------------------------------------------------|:-------------------|:-------------|
+| 1           | Coal Steam                                       | Coal Steam         | COALST       |
+| 2           | Oil Steam                                        | Oil Steam          | OILSTM       |
+| 3           | Natural Gas Single-Cycle Combustion Turbine      | Gas Turbine        | GASTUR       |
+| 4           | Natural Gas Combined-Cycle                       | Gas Combined Cycle | GASCCY       |
+| 5           | Hydrogen Turbine                                 | Hydrogen Turbine   | H2TURB       |
+| 6           | Nuclear                                          | Nuclear            | NUCLER       |
+| 7           | Biomass                                          | Biomass            | BIOMAS       |
+| 8           | Geothermal                                       | Geothermal         | GEOTHM       |
+| 9           | Municipal-Solid-Waste                            | Municipal Waste    | MSWAST       |
+| 10_seasonal | Hydroelectric Generation, seasonally budgeted    | Seasonal Hydro     | HYDSEA       |
+| 10_regular  | Hydroelectric Generation, hourly capacity factor | Regular Hydro      | HYDREG       |
+| 11          | Pumped Hydroelectric Storage                     | Pumped Hydro       | PMPHYD       |
+| 12          | Battery Energy Storage                           | Battery Storage    | BATTRY       |
+| 13          | Wind, Offshore                                   | Offshore Wind      | WINDOF       |
+| 14          | Wind, Onshore                                    | Onshore Wind       | WINDON       |
+| 15_utility  | Solar, utility-scale                             | Utility Solar      | SOLRUT       |
+| 15_end_use  | Solar, end-use                                   | End-Use Solar      | SOLREU       |
+
+The seasonal/regular hydro split selects which hydro bound applies (`is_hydro_seasonal` vs
+`is_hydro_regular`); the utility/end-use solar split (`is_solar_utility` vs `is_solar_end_use`) differs only in data,
+not in constraints. Both replaced supply curve step numbers that used to carry the distinction implicitly.
+
+Each technology also carries descriptive columns in tech.csv:
+
+| Data column  | Description                                                                          |
+|:-------------|:-------------------------------------------------------------------------------------|
+| steps        | The supply curve steps valid for the technology, slash-separated, e.g. **1/2/3**.  Parsed into `ModelSets.tech_steps` as a list of ints; an empty cell means the technology has no supply curve entries |
+| label        | Display name for reporting and charts                                                 |
+| abbreviation | Six-character upper-case code for the technology, e.g. **SOLRUT**                     |
+| color        | Hex color used when plotting the technology, e.g. **#FFD700**                         |
+
+The technologies (tech) are also combined into group based on the applicability of different constraints. These groups
+are defined in tech.csv within the input/electricity directory as **True**/**False** flags and include:
+
+* is_conventional: conventional
+* is_renewable: renewable energy
+* is_hydro: hydroelectric (split into is_hydro_seasonal and is_hydro_regular)
+* is_storage: storage
+* is_vre: variable renewable energy
+* is_wind: wind
+* is_solar: solar (split into is_solar_utility and is_solar_end_use)
+* is_hydrogen: hydrogen
+* is_dispatchable: dispatchable
+* is_generator: generating
+* is_gas_fired: burns natural gas.  Each gas-fired technology needs a heat rate in heat_rate.csv (and only those may
+  have one); the heat rate converts its generation into the gas burn reported to the natural gas model
+
+When capacity_expansion is turned on, a user can select which technologies they want to have expansion and retirement
+capabilities. Turning these switches on allows for builds and/or retirements of a given technology and supply curve
+step. These files are located in the input/electricity directory and are declared in property_sources.toml.
+
+| Data column | Description                                                                                   | Values                                                       |                                 Notes                                 |
+|:------------|:---------------------------------------------------------------------------------------------:|:-------------------------------------------------------------|:---------------------------------------------------------------------:|
+| is_buildable | Contains switches for technologies and supply curve steps where capacity is allowed to build  | **False** = Not Allowed to Build <br> **True** = Allowed to Build |  Switches contained in tech_build.csv (property key tech_build)       |
+| is_retirable | Contains switches for technologies and supply curve steps where capacity is allowed to retire | **False** = Not Allowed to Retire <br> **True** = Allowed to Retire | Switches contained in tech_retire.csv (property key tech_retire)      |
+
+## Formulation
+
+The sets, parameters, variables, objective and constraints are documented in
+[docs/models/electricity.md](../../../../docs/models/electricity.md).

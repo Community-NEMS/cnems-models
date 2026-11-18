@@ -14,14 +14,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
-from src.models.electricity.constants import (
+from cnems_models.common.update_package import NG_PRICE_INDEX, NG_PRICE_VALUE, NGPricePackage
+from cnems_models.models.electricity.constants import (
     INITIAL_NG_PRICE,
     PRICE_COST_PROPORTION,
 )
-from src.models.electricity.model_sets import ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.update_reader import ElecUpdateReader
+from cnems_models.models.electricity.model_sets import ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.update_reader import ElecUpdateReader
 from tests.electric.mini_model import MiniModelData, add_gas_ct, mini_configs, patch_loaders
 
 

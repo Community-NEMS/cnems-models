@@ -4,14 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-This repo is a large-scale energy model comprising sub-models under `src/models`, each intended to run
+This repo is a large-scale energy model comprising sub-models under `src/cnems_models/models`, each intended to run
 stand-alone or in an integrated construct. Only the electricity model is currently in the repo and
-tested; the integration elements in `src/integrator` are in-work and partly unmaintained.
+tested; the integration elements in `src/cnems_models/integrator` are in-work and partly unmaintained.
+
+### Package layout
+
+The code is the installable `cnems_models` package in a src layout (`src/cnems_models/`), installed
+editable by pixi (`[tool.pixi.pypi-dependencies]`). The modelling code is `cnems_models.common`,
+`cnems_models.integrator`, and `cnems_models.models`; `cnems_models.main` is the CLI (`cnems`
+console script / `python -m cnems_models`) and `cnems_models.definitions.PROJECT_ROOT` is the repo
+root, against which `input/`, `run_configs/`, and `output/` resolve. Always import with the full
+`cnems_models.` prefix (e.g. `from cnems_models.models.electricity.sequencer import ...`).
+`cnems_models.tools` holds what builds on the model: `tools.analysis` (post-run helpers) and
+`tools.interfaces` (Dash apps: `viewer`, and the unmaintained `runner`). The modelling code never
+imports `tools`. Reference data the code always needs (temporal mappings, region crosswalks) ships
+in `integrator/data/`; scenario data stays in `input/`.
 
 ### Configuration
 
-All current code uses the pydantic config system: `src/common/common_config.py` (`CommonConfig`) plus a
-model-specific configuration such as `src/models/electricity/elec_config.py` (`ElecConfig`), loaded from
+All current code uses the pydantic config system: `src/cnems_models/common/common_config.py` (`CommonConfig`) plus a
+model-specific configuration such as `src/cnems_models/models/electricity/elec_config.py` (`ElecConfig`), loaded from
 a TOML with `[common]` and `[elec_config]` sections via `CommonConfig.from_toml(path)` (or
 `parse_config_file(path)`), which returns `(common_config, remainder_dict)`. Enums (`RunMode`,
 `ModelType`, `ExpansionLearningType`, `LoadScaleMode`, `ReserveType`, `RPSRequirementType`) are used to control
@@ -37,9 +50,9 @@ pixi shell
 pytest tests/electric/test_basic_run.py -q
 pytest tests/electric/learning/test_learning_linear.py::test_linear_learning -q
 
-# Run the model standalone (new config path; __main__ runs the run_configs/*.toml scenarios)
+# Run the model standalone (no config: cli() runs the default run_configs/*.toml scenarios)
 pixi shell
-python main.py
+cnems [config_path]                # or: python -m cnems_models [config_path]
 ```
 
 - ruff config lives in `pyproject.toml`: line-length 100, single quotes.
@@ -57,16 +70,16 @@ python main.py
 1. `CommonConfig.from_toml(path)` parses the `[common]` section into a `CommonConfig`, returning
    `(common_config, remainder_dict)`. The remaining sections are parsed separately, e.g.
    `ElecConfig(**remainder.pop('elec_config'))`.
-2. `src/models/electricity/model_sets.py::ModelSets(common_config, elec_config)` builds the model's sets
+2. `src/cnems_models/models/electricity/model_sets.py::ModelSets(common_config, elec_config)` builds the model's sets
    (regions, techs, temporal sets, sparse index sets) from `common_config`/`elec_config` and raw property
    files loaded via `data_ingestor.py`.
-3. `src/models/electricity/param_data.py::ParamData(common_config, elec_config, model_sets)` reads and
+3. `src/cnems_models/models/electricity/param_data.py::ParamData(common_config, elec_config, model_sets)` reads and
    shapes the parameter data (supply curves, capacity factors, costs, transmission limits, etc.). Simple
    params are kept as plain dicts; params still needing manipulation are kept as DataFrames. Some helpers
    still live in `param_utilities.py` (`add_season_index`, `avg_by_group`, `time_map`). Inbound update
    packages are then applied to it in place by `ElecUpdateReader` (see *Update packages* below).
 4. `sequencer.py::ElectricitySequencer` implements the `IntegratedModelSequencer` ABC
-   (`src/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
+   (`src/cnems_models/common/integrated_model_sequencer.py`: `build_model` / `update_model` / `solve_model` /
    `full_postprocess` / `iteration_postprocess`). `solve_model` returns a
    `(ModelType, IterationStatus)` tuple. Tests build models by calling
    `ElectricitySequencer().build_model(common_config, elec_config)` directly. Its data steps
@@ -77,9 +90,9 @@ python main.py
 
 ### Update packages (inter-model data exchange)
 
-`src/common/update_package/` holds the frozen, picklable `UpdatePackage` dataclasses
+`src/cnems_models/common/update_package/` holds the frozen, picklable `UpdatePackage` dataclasses
 (`update_package.py`, all re-exported from the package `__init__`, so import from
-`src.common.update_package`) and two ABCs that every model implements in its own
+`cnems_models.common.update_package`) and two ABCs that every model implements in its own
 `update_reader.py` / `update_writer.py`:
 
 - `UpdatePackageReader[DataT]` (`reader.py`) — `read(packages, data)` applies inbound packages in
@@ -138,7 +151,7 @@ vice versa, so the two stay in agreement.
   pre-solve RPS report); user docs in `docs/models/electricity_rps.md`.
 - `model_sets.py` — `ModelSets`: regional, temporal, and technology-based sets, including many sparse
   index sets (e.g. `generation_total_index`, `capacity_builds_index`, `trade_interregional_index`) built
-  by crossing raw data against switches. `src/models/electricity/README.md` is the full
+  by crossing raw data against switches. `src/cnems_models/models/electricity/README.md` is the full
   sets/params/variables/constraints reference (includes the LaTeX formulation of the objective and
   constraints) — read it before modifying model formulation, not just the code.
 - `param_data.py` — `ParamData`: loads/shapes parameters. `data_ingestor.py` does the raw CSV reads.
@@ -157,7 +170,8 @@ vice versa, so the two stay in agreement.
 - `sequencer.py` — build/solve orchestration described above, plus the linear-learning iteration loop.
 - `postprocessor.py` (variable extraction / CSV export), `validators.py` (pyomo domain checks),
   `param_utilities.py` (param reshaping helpers), `utilities.py` (`annual_count` only).
-- `analysis_tools/` (top-level package) — `model_diagnostics.py`, `transmission_network.py`, `viewer.py`.
+- `cnems_models.tools.analysis` — `model_diagnostics.py`, `transmission_network.py`, `compare_iterators.py`;
+  `cnems_models.tools.interfaces.viewer` — the Dash output viewer (`pixi run viewer`).
 - Input data lives under `input/electricity/`: `properties/` (region/tech set-membership CSVs,
   `CommonConfig.common_data_path`), `parameters/` (regionally/technology-indexed CSVs for costs,
   transmission, supply curves, etc., `ElecConfig.input_path`), and `policy/` (policy tables such as `rps_requirement.csv`,
@@ -173,7 +187,7 @@ vice versa, so the two stay in agreement.
 
 Representative days/hours (not full 8760h) drive the model's time dimension, configurable via
 `temporal_resolution` in `CommonConfig` (`"default"`, `"d6h12"`, `"d4h24"`, or custom crosswalks — see
-`src/integrator/old_README.md` for the temporal mapping crosswalk format). Regions are filtered via
+`src/cnems_models/integrator/old_README.md` for the temporal mapping crosswalk format). Regions are filtered via
 `ElecConfig.region_filter`. Year aggregation (`aggregate_years`/`aggregate_start_year` in `CommonConfig`)
 lets a run represent multiple actual years with one solved representative year, weighted accordingly.
 
@@ -207,7 +221,7 @@ before building. Then call the `build_mini(**elec_switches)` factory fixture to 
 `test_update_packages.py`).
 `tests/electric/test_mini_model.py` has worked examples, including adding storage.
 
-`analysis_tools/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,
+`src/cnems_models/tools/analysis/model_diagnostics.py` has helpers (`gather_set_data`, `gather_var_data`,
 `gather_param_data`, `gather_constraint_data`, `breakdown_obj_elements`, `capacity_inspector`,
 `load_inspector`) for inspecting a solved/unsolved `PowerModel` instance — reach for these instead of
 writing new inspection code when debugging a test.
@@ -224,11 +238,11 @@ tests belong under `tests/electric/learning/`.
 - `old_docs/` — a deliberately preserved reference archive (the BlueSky prototype PDF and its
   images) left over from the deleted Sphinx tree. Not maintained and not slated for update;
   don't cite it as current, and don't propose deleting it.
-- `src/integrator/{unified,gaussseidel}.py` — do not build on these and do not fix breakage in them.
-  They import the deleted `src.common.config_setup` and no longer import at all.
-  (`src/integrator/utilities.py` is *not* legacy — `select_solver` and `create_temporal_mapping`
+- `src/cnems_models/integrator/{unified,gaussseidel}.py` — do not build on these and do not fix breakage in them.
+  They import the deleted `cnems_models.common.config_setup` and no longer import at all.
+  (`src/cnems_models/integrator/utilities.py` is *not* legacy — `select_solver` and `create_temporal_mapping`
   are live dependencies of the electricity path.)
-- **Dash GUI stack**: `app.py`, `run_dash_app.bat`, `src/common/config_gui.py` — unmaintained;
+- **Model Runner GUI**: `src/cnems_models/tools/interfaces/runner/` (`app.py`, `config_gui.py`) — unmaintained;
   don't build on them.
 
 ## Creating and editing rules

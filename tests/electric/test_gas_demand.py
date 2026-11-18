@@ -16,19 +16,19 @@ import pandas as pd
 import pytest
 from pyomo.common.numeric_types import value
 
-from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.integrated_model_sequencer import IterationStatus
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     ExchangeSpec,
     NGElectricalDemandPackage,
 )
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.electricity.update_writer import gas_demand_by_region
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.models.electricity.update_writer import gas_demand_by_region
 from tests.electric.mini_model import (
     GAS_CT_HEAT_RATE,
     MiniModelData,
@@ -91,7 +91,7 @@ def test_gas_demand_without_gas_fired_techs(build_mini, caplog: pytest.LogCaptur
     """With no gas-fired tech, every (region, year) is sent as 0.0, with a warning."""
     _, model = build_mini()
 
-    with caplog.at_level('WARNING', logger='src.models.electricity.update_writer'):
+    with caplog.at_level('WARNING', logger='cnems_models.models.electricity.update_writer'):
         got = gas_demand_by_region(model)
 
     assert len(got) == 4

@@ -15,16 +15,16 @@ from pathlib import Path
 
 import pytest
 
-from src.common.exceptions import DataValidationError
-from src.models.electricity.data_validation import (
+from cnems_models.common.exceptions import DataValidationError
+from cnems_models.models.electricity.data_validation import (
     validate_all,
     validate_rps_btm_sources,
     validate_rps_disjoint_shares,
 )
-from src.models.electricity.elec_config import RPSRequirementType
-from src.models.electricity.model_sets import ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.rps import (
+from cnems_models.models.electricity.elec_config import RPSRequirementType
+from cnems_models.models.electricity.model_sets import ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.rps import (
     RPSRequirement,
     disjoint_share_conflicts,
     region_members,
@@ -117,7 +117,7 @@ def test_requirement_in_force(rows: dict, expected: dict) -> None:
 def test_superseded_logged(caplog: pytest.LogCaptureFixture) -> None:
     """A displaced requirement is logged at INFO."""
     raw = {('clean', 'R1', 'BTM', 2030): 0.2, ('clean', 'R1', 'btm', 2031): 0.3}
-    with caplog.at_level(logging.INFO, logger='src.models.electricity.rps'):
+    with caplog.at_level(logging.INFO, logger='cnems_models.models.electricity.rps'):
         _resolve(raw)
     assert (
         'BTM requirement (group clean, region R1, from 2030) is superseded from 2031 by the BTM '
@@ -153,7 +153,7 @@ def test_requirement_without_effect_logged(
     caplog: pytest.LogCaptureFixture, row: tuple, message: str
 ) -> None:
     """A filtered-out region or a too-late first year yields nothing, logged at INFO."""
-    with caplog.at_level(logging.INFO, logger='src.models.electricity.rps'):
+    with caplog.at_level(logging.INFO, logger='cnems_models.models.electricity.rps'):
         assert _resolve({row: 0.2}) == {}
     assert message in caplog.text
 
@@ -237,7 +237,7 @@ def test_disjoint_shares_by_region_key(caplog: pytest.LogCaptureFixture) -> None
     """Shares add only within one region key and year; a conflict warns but stays valid."""
     split = {('a', 'R1', 2030): 0.6, ('b', 'all', 2030): 0.6, ('b', 'R1', 2031): 0.6}
     assert disjoint_share_conflicts(split, DISJOINT_GROUPS) == {}
-    with caplog.at_level(logging.WARNING, logger='src.models.electricity.data_validation'):
+    with caplog.at_level(logging.WARNING, logger='cnems_models.models.electricity.data_validation'):
         assert validate_rps_disjoint_shares(split, DISJOINT_GROUPS)
         assert not caplog.records
         assert validate_rps_disjoint_shares(split | {('b', 'R1', 2030): 0.6}, DISJOINT_GROUPS)

@@ -5,16 +5,21 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for src.models.electricity.property_source_loader and its resulting PROPERTY_SOURCES dict
+Tests for cnems_models.models.electricity.property_source_loader and its resulting
+PROPERTY_SOURCES dict
 """
+
+from pathlib import Path
 
 import pytest
 
-from definitions import PROJECT_ROOT
-from src.models.electricity import data_ingestor
-from src.models.electricity.property_source_loader import PropertySource, load_property_sources
+from cnems_models.models.electricity import data_ingestor
+from cnems_models.models.electricity.property_source_loader import (
+    PropertySource,
+    load_property_sources,
+)
 
-PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
+PROPERTY_SOURCES_TOML = Path(data_ingestor.__file__).with_name('property_sources.toml')
 
 # Expected reference, per the C-EMM data-needs sheet: each file is named for its key and the
 # membership flags read as ``is_*``.  The hydro and solar sub-flags and ``is_gas_fired`` are not on

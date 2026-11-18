@@ -9,8 +9,7 @@ Update packages passed between models, plus the reader/writer ABCs that apply an
 
 The package definitions live in ``update_package.py``; they are re-exported here so callers import
 from ``cnems_models.common.update_package`` directly, as are ``route_updates`` from
-``routing.py`` and
-``ExchangeSpec`` from ``exchange.py``.
+``routing.py`` and ``ExchangeSpec`` from ``exchange.py``.
 """
 
 from cnems_models.common.update_package.exchange import ExchangeSpec

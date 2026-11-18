@@ -2,11 +2,9 @@
 
 Legacy section (deprecated): the original postprocessor relied on ``instance.cols_dict``, a
 column-naming lookup only ever populated by the deprecated ``cnems_models.common.model.Model``
-base class.
-``PowerModel`` no longer subclasses ``Model``, so these functions are kept only for the legacy
-hydrogen-integrated callers (``cnems_models.integrator.unified``,
-``cnems_models.integrator.gaussseidel``) and should
-not be used for new work.
+base class. ``PowerModel`` no longer subclasses ``Model``, so these functions are kept only for the
+legacy hydrogen-integrated callers (``cnems_models.integrator.unified``,
+``cnems_models.integrator.gaussseidel``) and should not be used for new work.
 
 New section: ``extract_all_variables``/``export_variables_to_csv`` derive one DataFrame per
 ``pyo.Var`` directly from the model's own pyomo index-set structure (via ``Set.subsets()``), with no

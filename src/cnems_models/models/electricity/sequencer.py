@@ -62,9 +62,9 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
 
     Ports the functionality formerly held by ``runner.py`` into the
     :class:`~cnems_models.common.integrated_model_sequencer.IntegratedModelSequencer`
-    interface, specialized
-    to the ``(PowerModel, ElecConfig)`` pair. The built model plus the configs it was built from are
-    retained on the instance so the solve/postprocess steps can run without re-threading arguments.
+    interface, specialized to the ``(PowerModel, ElecConfig)`` pair. The built model plus the
+    configs it was built from are retained on the instance so the solve/postprocess steps can run
+    without re-threading arguments.
     """
 
     def __init__(self, exchange: ExchangeSpec | None = None):

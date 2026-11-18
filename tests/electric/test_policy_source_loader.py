@@ -7,8 +7,7 @@ Contact:  jeff@westernspark.us
 Created on:  11/5/26
 
 Tests for cnems_models.models.electricity.policy_source_loader, run on scratch TOML files
-rather than the
-shipped policy_sources.toml.
+rather than the shipped policy_sources.toml.
 """
 
 from pathlib import Path

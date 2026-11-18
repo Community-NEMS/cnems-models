@@ -251,8 +251,7 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
         Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
         QP rewrite needs a convex-QP-capable solver, which rules out the ``select_solver()`` default
         in src/cnems_models/integrator/utilities.py that the electricity path uses; this method
-        probes for one
-        instead.
+        probes for one instead.
 
         Parameters
         ----------

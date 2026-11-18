@@ -141,8 +141,7 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
         """Build the config of each model selected by ``common_config.models_to_run``.
 
         The model configs live with the models, outside ``cnems_models.common``, which is why
-        this is left
-        to the implementation.
+        this is left to the implementation.
 
         Parameters
         ----------

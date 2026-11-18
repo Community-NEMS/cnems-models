@@ -5,30 +5,34 @@ the 9 natural gas regions (US Census divisions).
 
 ## Files
 
+The model reads two crosswalks:
+
 | File | Rows sum to 1.0 over | Purpose |
 |---|---|---|
-| `workproduct/elec_to_ng_region_map_weighted.csv` | each `ng_region` | The 1:1 map plus a `weight` column: each electricity region's share of its assigned gas region's population. Drop-in superset of `../../natural_gas/parameters/elec_to_ng_region_map.csv` — same rows, same order. |
 | `elec_to_ng_crosswalk.csv` | each `elec_region` | Fractional elec → gas. Splits an electricity region across every census division it actually touches. |
 | `ng_to_elec_crosswalk.csv` | each `ng_region` | Fractional gas → elec. Splits a census division across every electricity region that actually touches it. |
-| `workproduct/elec_region_state_coverage.csv` | each `state` | Provenance: the state-level allocation everything above is derived from. |
 
-`workproduct/build_region_weights.py` regenerates all four from scratch. It is only preserved as
-historical record and for possible later modification. It is not on the normal execution path.
-Run it from anywhere;
-it resolves paths relative to itself, reading `../../../natural_gas/elec_to_ng_region_map.csv`,
-writing the two crosswalks the model reads into this directory and the weighted map and
-coverage file, which are intermediate products, into `workproduct/`.
+### Workproduct files (reference only)
+
+The two intermediate files below, and the `build_region_weights.py` script that regenerates all
+four files from scratch, are workproduct retained for reference. They are not maintained, are not
+used in a model run, and do not ship with the package.
+
+| File | Rows sum to 1.0 over | Purpose |
+|---|---|---|
+| `elec_to_ng_region_map_weighted.csv` | each `ng_region` | The 1:1 map plus a `weight` column: each electricity region's share of its assigned gas region's population. Drop-in superset of the natural gas model's `elec_to_ng_region_map.csv` input — same rows, same order. |
+| `elec_region_state_coverage.csv` | each `state` | Provenance: the state-level allocation every weight is derived from. |
 
 All four CSVs are plain header-plus-data with **no comment lines** — they parse with a bare
 `pd.read_csv(...)`, no `comment='#'` needed. Their provenance lives here instead: every
-`weight` and `state_pop_share` in this directory is derived from 2020 Census state
-populations allocated across electricity regions, by the method below.
+`weight` and `state_pop_share` in them is derived from 2020 Census state populations
+allocated across electricity regions, by the method below.
 
 ### Columns
 
 | Column | Meaning |
 |---|---|
-| `elec_region` | EMM region ID, 1–25, matching `../../natural_gas/parameters/elec_to_ng_region_map.csv`. The ID is the join key; `elec_region_name` is descriptive only. |
+| `elec_region` | EMM region ID, 1–25, matching the natural gas model's `elec_to_ng_region_map.csv`. The ID is the join key; `elec_region_name` is descriptive only. |
 | `ng_region` | Census division name (`new_england`, `middle_atlantic`, …). |
 | `weight` | Fraction of population, on the basis given by the "Rows sum to 1.0 over" column above. Always 4 decimals. |
 | `state_pop_share` | *(coverage file)* Share of that state's 2020 Census population assigned to that electricity region. Sums to 1.0 across regions for each of the 48 contiguous states + DC. |
@@ -44,9 +48,9 @@ round-tripping a quantity through both conserves totals.
 
 ## Extensive vs. intensive values in code
 
-`src/cnems_models/integrator/region_crosswalk.py` reads these files. Its registry keys each file by the
-ordered `(source, destination)` pair of `ModelType` it *allocates* for, i.e. the file whose
-rows sum to 1.0 per **source** region:
+The `cnems_models.integrator.region_crosswalk` module reads the two crosswalks. Its registry keys
+each file by the ordered `(source, destination)` pair of `ModelType` it *allocates* for, i.e. the
+file whose rows sum to 1.0 per **source** region:
 
 | Registry key | File |
 |---|---|
@@ -96,8 +100,8 @@ not a price of anything.
 If `B` instead straddled `G` (60%) and a second gas region `H` (40%) priced at 5.00 $/MMBtu,
 its `elec_to_ng` row would be `B -> G 0.6, B -> H 0.4` and the intensive result becomes
 `B = 0.6 x 3.00 + 0.4 x 5.00 = 3.80 $/MMBtu`. With `H` absent from the run, the average
-renormalises to `B = 3.00` and the partial-coverage warning fires. The unit tests in
-`tests/integrator/test_region_crosswalk.py` pin both behaviours on the real files.
+renormalises to `B = 3.00` and the partial-coverage warning fires. The crosswalk unit tests
+(`test_region_crosswalk.py`) pin both behaviours on the real files.
 
 ## Method
 

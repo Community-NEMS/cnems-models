@@ -26,7 +26,7 @@ pixi run test # coupling tests
 Or call the sequencer directly inside the environment:
 
 ```bash
-pixi run python -m src.models.natural_gas.sequencer
+pixi run python -m cnems_models.models.natural_gas.sequencer
 ```
 
 `ng_model.py` builds the model but has no `__main__` block, so it cannot be run with `-m`, and
@@ -86,4 +86,4 @@ interface that accepts a quadratic objective.
 
 The notation, objective, constraints, supply curve, price formation, data files, regional
 subsetting and the coupling interface are documented in
-[docs/models/natural_gas.md](../../../docs/models/natural_gas.md).
+[docs/models/natural_gas.md](../../../../docs/models/natural_gas.md).

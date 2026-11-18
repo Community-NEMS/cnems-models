@@ -81,7 +81,7 @@ Set `site_url` and `repo_url`/`edit_uri` once the hosting target is decided —
 
 ## Math is not optional here
 
-`src/models/electricity/README.md` is the formulation reference and is full of
+`src/cnems_models/models/electricity/README.md` is the formulation reference and is full of
 LaTeX. Any docs site that absorbs it needs arithmatex + MathJax wired up exactly
 as shown in `configuration.md` — otherwise every formula renders as literal text.
 
@@ -97,11 +97,11 @@ Candidate inputs when building out the site — read before writing anything new
 - `README.md` — upstream Project BlueSky text; **largely stale** (still describes
   the hydrogen/residential modules and run modes this fork removed). Don't copy
   it forward wholesale.
-- `src/models/electricity/README.md` — the real sets/params/variables/constraints
+- `src/cnems_models/models/electricity/README.md` — the real sets/params/variables/constraints
   reference, including the LaTeX objective and constraints. The highest-value
   page to port.
-- `src/integrator/old_README.md` — temporal mapping crosswalk format.
-- `src/common/README.md`, `analysis_tools/README.md` — smaller module notes.
+- `src/cnems_models/integrator/old_README.md` — temporal mapping crosswalk format.
+- `src/cnems_models/common/README.md`, `src/cnems_models/tools/interfaces/viewer/README.md` — smaller module notes.
 - `CONTRIBUTING.md`, `CLAUDE.md` — workflow and architecture facts.
 - `old_docs/` — Sphinx-era, explicitly stale. Ignore unless asked.
 

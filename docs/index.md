@@ -9,15 +9,18 @@ pydantic configuration layer and run sequencer interface.
 ## Getting Started
 
 The environment is managed with [pixi](https://pixi.sh); `pixi install` builds it from the
-pinned lock file, after which `pixi shell` followed by `python main.py` runs the scenarios
+pinned lock file, after which `pixi shell` followed by `python -m cnems_models` runs the scenarios
 declared in `run_configs/`.
 
 ## Project Structure
 
-Model code lives under `src/models`, with shared configuration and sequencing machinery in
-`src/common` and cross-model coupling in `src/integrator`. Input CSVs sit under `input/`,
-run configuration TOMLs under `run_configs/`, and post-run inspection helpers in
-`analysis_tools/`.
+Model code is the `cnems_models` package under `src/` (a src layout, installed editable by
+pixi). It holds the sectoral models (`models`), shared configuration and sequencing machinery
+(`common`), and cross-model coupling (`integrator`); `cnems_models.main` is the command-line entry
+point behind `python -m cnems_models` and the `cnems` command. Input CSVs sit under `input/`, run
+configuration TOMLs under `run_configs/`, and `cnems_models.tools` holds what builds on the models:
+`tools.analysis` (post-run inspection helpers) and `tools.interfaces` (the Dash output viewer and
+the unmaintained Model Runner).
 
 ## Run Modes
 

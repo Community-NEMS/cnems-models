@@ -44,7 +44,7 @@ round-tripping a quantity through both conserves totals.
 
 ## Extensive vs. intensive values in code
 
-`src/integrator/region_crosswalk.py` reads these files. Its registry keys each file by the
+`src/cnems_models/integrator/region_crosswalk.py` reads these files. Its registry keys each file by the
 ordered `(source, destination)` pair of `ModelType` it *allocates* for, i.e. the file whose
 rows sum to 1.0 per **source** region:
 

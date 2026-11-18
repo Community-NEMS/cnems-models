@@ -65,8 +65,13 @@ class CommonConfig(BaseModel):
 
     @model_validator(mode='after')
     def check_paths(self):
-        """Resolve the output/residential paths against PROJECT_ROOT and check they are usable."""
+        """Resolve the common-data/output/residential paths against PROJECT_ROOT.
+
+        The output and residential paths are also checked for usability; ``common_data_path`` is
+        not, since some models (e.g. natural gas) carry a placeholder that does not exist.
+        """
         # TODO:  remove the assumption here that the path is relative to project root
+        self.common_data_path = PROJECT_ROOT / self.common_data_path
         self.output_path = PROJECT_ROOT / self.output_path
         # the output root is not tracked in git, so create it on demand (fresh clones/CI)
         try:

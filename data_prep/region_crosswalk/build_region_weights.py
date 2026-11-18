@@ -10,6 +10,8 @@ are exact unions of states, so both directional weightings fall out of that matr
 from collections import defaultdict
 from pathlib import Path
 
+from cnems_models.integrator.region_crosswalk import XWALK_DIR
+
 # 2020 Census resident population, thousands.
 POP = {
     'AL': 5024,
@@ -158,8 +160,8 @@ def round_to_one(pairs, nd=4):
 # crosswalks the model reads are written into the package's integrator data, next to the README
 WORK = Path(__file__).resolve().parent
 ROOT = WORK.parents[1]
-OUT = ROOT / 'src' / 'cnems_models' / 'integrator' / 'data' / 'region_crosswalk'
-SRC = ROOT / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
+OUT = XWALK_DIR
+SRC = ROOT / 'input' / 'natural_gas' / 'parameters' / 'elec_to_ng_region_map.csv'
 ROWS = []
 for line in SRC.read_text().splitlines()[1:]:
     rid, name, ng = line.split(',')

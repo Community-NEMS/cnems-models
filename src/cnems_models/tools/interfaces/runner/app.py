@@ -10,17 +10,16 @@ import logging
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 # Import packages
 import dash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, dcc, html
 
-from cnems_models.common.models_modes import RunMode
-from cnems_models.main import main
-
 # Import python modules
+from cnems_models.common.models_modes import RunMode
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.main import main
 from cnems_models.tools.interfaces.runner.config_gui import (
     CONFIG_JSON_PATH,
     ConfigValidationError,
@@ -41,7 +40,8 @@ app = dash.Dash(
 )
 app.title = 'Model Runner'
 
-docs_dir = Path('docs/build/html').resolve()
+# the Zensical site that `pixi run docs` builds
+docs_dir = PROJECT_ROOT / 'site'
 
 # use the current python interpreter to run the html docs in the background
 with open(os.devnull, 'w') as devnull:

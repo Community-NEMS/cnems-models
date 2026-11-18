@@ -16,7 +16,7 @@ from functools import singledispatchmethod
 
 from pyomo.environ import value
 
-from src.common.update_package import (
+from cnems_models.common.update_package import (
     HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_VALUE,
     HSMSupplyCapacityPackage,
@@ -26,8 +26,8 @@ from src.common.update_package import (
     UpdatePackageReader,
     check_region_year_keys,
 )
-from src.models.natural_gas.data import NGData
-from src.models.natural_gas.ng_model import NGModel
+from cnems_models.models.natural_gas.data import NGData
+from cnems_models.models.natural_gas.ng_model import NGModel
 
 logger = logging.getLogger(__name__)
 

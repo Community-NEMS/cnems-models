@@ -13,13 +13,13 @@ across model configs.
 
 from collections.abc import Mapping
 
-from src.common.common_config import ModelConfig
-from src.common.models_modes import ModelType
-from src.models.electricity.elec_config import ElecConfig
-from src.models.magic.magic_model import MagicConfig
-from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig
-from src.models.natural_gas.constants import PRICE_DOLLAR_YEAR
-from src.models.natural_gas.ng_config import NGConfig
+from cnems_models.common.common_config import ModelConfig
+from cnems_models.common.models_modes import ModelType
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.magic.magic_model import MagicConfig
+from cnems_models.models.magic_hsm.magic_hsm_model import MagicHSMConfig
+from cnems_models.models.natural_gas.constants import PRICE_DOLLAR_YEAR
+from cnems_models.models.natural_gas.ng_config import NGConfig
 
 # each model's config section in the run config, and the config class it builds.  MAGIC may run
 # without a section; the others need theirs

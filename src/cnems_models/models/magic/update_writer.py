@@ -12,8 +12,8 @@ import math
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     ElectricityPriceScaler,
     NGDemandScaler,
     UpdatePackage,
@@ -22,7 +22,7 @@ from src.common.update_package import (
 
 if TYPE_CHECKING:
     # magic_model imports this module for its sequencer, so the model is named by string below
-    from src.models.magic.magic_model import MagicModel
+    from cnems_models.models.magic.magic_model import MagicModel
 
 
 class MagicUpdateWriter(UpdatePackageWriter['MagicModel']):

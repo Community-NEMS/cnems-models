@@ -22,14 +22,13 @@ from pyomo.environ import ConcreteModel, SolverFactory
 from pyomo.opt import OptSolver
 
 # Import python modules
-from definitions import PROJECT_ROOT
-from src.common.season import Season
+from cnems_models.common.season import Season
 
 if typing.TYPE_CHECKING:
-    from src.models.electricity.electricity_model import PowerModel
+    from cnems_models.models.electricity.electricity_model import PowerModel
 
     # pyrefly: ignore[missing-import]  - hydrogen module removed from this fork
-    from src.models.hydrogen.model.h2_model import H2Model
+    from cnems_models.models.hydrogen.model.h2_model import H2Model
 
 # Establish logger
 logger = getLogger(__name__)
@@ -345,7 +344,7 @@ def poll_year_avg_elec_price(price_list: list[tuple[EI, float]]) -> dict[HI, flo
     return res
 
 
-TEMPORAL_MAPPINGS_ROOT = Path(PROJECT_ROOT, 'input/integrator/temporal_data/temporal_mappings')
+TEMPORAL_MAPPINGS_ROOT = Path(__file__).with_name('data') / 'temporal_mappings'
 """Parent of the self-contained per-resolution folders (``default``, ``d6h12``, ...)."""
 
 

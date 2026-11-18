@@ -10,7 +10,7 @@ Update package reader for the magic model -- a shell, as no package is routed to
 
 from functools import singledispatchmethod
 
-from src.common.update_package import UpdatePackage, UpdatePackageReader
+from cnems_models.common.update_package import UpdatePackage, UpdatePackageReader
 
 
 class MagicUpdateReader(UpdatePackageReader[None]):

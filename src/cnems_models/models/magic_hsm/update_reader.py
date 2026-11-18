@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from functools import singledispatchmethod
 
-from src.common.update_package import (
+from cnems_models.common.update_package import (
     NG_HUB_PRICE_VALUE,
     NGHubPricePackage,
     UpdatePackage,

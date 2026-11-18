@@ -1,4 +1,4 @@
-/* Dark theme for the C-NEMS electricity results viewer (analysis_tools/viewer.py).
+/* Dark theme for the C-NEMS electricity results viewer (src/cnems_models/tools/interfaces/viewer/app.py).
    Dash auto-serves everything in this assets/ folder.  Component chrome (dropdowns, tabs)
    is themed by overriding Dash 4's --Dash-* design tokens; the page layout is below. */
 

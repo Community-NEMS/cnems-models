@@ -12,13 +12,16 @@ import logging
 from collections.abc import Sequence
 from time import sleep
 
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model import IntegratedModel
-from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import ExchangeSpec, UpdatePackage
-from src.models.magic.update_reader import MagicUpdateReader
-from src.models.magic.update_writer import MagicUpdateWriter
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.integrated_model_sequencer import (
+    IntegratedModelSequencer,
+    IterationStatus,
+)
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import ExchangeSpec, UpdatePackage
+from cnems_models.models.magic.update_reader import MagicUpdateReader
+from cnems_models.models.magic.update_writer import MagicUpdateWriter
 
 logger = logging.getLogger(__name__)
 

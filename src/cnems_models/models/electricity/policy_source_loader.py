@@ -19,7 +19,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from src.models.electricity.param_source_loader import ParamSource
+from cnems_models.models.electricity.param_source_loader import ParamSource
 
 logger = getLogger(__name__)
 

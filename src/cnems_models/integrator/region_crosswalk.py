@@ -9,7 +9,7 @@ Created on:  9/17/26
 Generic regional crosswalks between models.
 
 The weights bridging one model's regions to another's are CSV files under
-``input/integrator/population_weighted_region_xwalk`` (see the README there for provenance),
+``integrator/data/region_crosswalk`` (see the README there for provenance),
 registered here by the unordered pair of ``ModelType`` they connect.  Each pair registers two files,
 one normalised over each model's regions.
 
@@ -36,12 +36,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from definitions import PROJECT_ROOT
-from src.common.models_modes import ModelType
+from cnems_models.common.models_modes import ModelType
 
 logger = logging.getLogger(__name__)
 
-XWALK_DIR = PROJECT_ROOT / 'input' / 'integrator' / 'population_weighted_region_xwalk'
+XWALK_DIR = Path(__file__).with_name('data') / 'region_crosswalk'
 
 # the region-id column each model uses in the crosswalk files
 REGION_COLUMN: dict[ModelType, str] = {

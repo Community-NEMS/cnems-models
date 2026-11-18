@@ -13,18 +13,18 @@ from typing import Annotated
 
 from pydantic import Field, PositiveInt
 
-from src.common.iterative_sequencer import IterativeSequencerConfig
-from src.integrator.iteration_monitor import DeltaMode
+from cnems_models.common.iterative_sequencer import IterativeSequencerConfig
+from cnems_models.integrator.iteration_monitor import DeltaMode
 
 # the iterator's own settings file, read by default
 DEFAULT_GS_CONFIG_PATH = Path(__file__).with_name('gs_config.toml')
 
 
 class GaussSeidelConfig(IterativeSequencerConfig):
-    """Settings for :class:`~src.integrator.gauss_seidel.gs_iterator.GaussSeidelIterator`.
+    """Settings for :class:`~.gs_iterator.GaussSeidelIterator`.
 
     No field has a default:  the TOML is the single source of the values.  The stopping fields
-    mean the same as :class:`~src.integrator.jacobi.jacobi_config.JacobiConfig`'s.
+    mean the same as :class:`~cnems_models.integrator.jacobi.jacobi_config.JacobiConfig`'s.
 
     Attributes
     ----------

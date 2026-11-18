@@ -35,9 +35,9 @@ from dataclasses import dataclass
 import pandas as pd
 from tabulate import tabulate
 
-from src.models.electricity.model_sets import CI, ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.rps import (
+from cnems_models.models.electricity.model_sets import CI, ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.rps import (
     RPSKey,
     RPSRequirement,
     RPSRequirementRow,

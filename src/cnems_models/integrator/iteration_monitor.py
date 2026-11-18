@@ -46,13 +46,13 @@ from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
 
-from src.common.integrated_model_sequencer import (
+from cnems_models.common.integrated_model_sequencer import (
     ALLOW_OUTBOUND_UPDATES,
     ALLOW_TERMINATION,
     IterationResult,
 )
-from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import UpdatePackage
 
 logger = logging.getLogger(__name__)
 

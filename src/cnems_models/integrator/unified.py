@@ -23,11 +23,11 @@ from logging import getLogger
 
 import pyomo.environ as pyo
 
-import src.models.electricity.postprocessor as post_elec
+import cnems_models.models.electricity.postprocessor as post_elec
 
 # Import python modules
-from src.common.config_setup import Config_settings
-from src.integrator.utilities import (
+from cnems_models.common.config_setup import Config_settings
+from cnems_models.integrator.utilities import (
     EI,
     HI,
     convert_elec_price_to_lut,
@@ -41,7 +41,7 @@ from src.integrator.utilities import (
     simple_solve_no_opt,
     update_h2_prices,
 )
-from src.models.electricity.sequencer import (
+from cnems_models.models.electricity.sequencer import (
     init_old_cap,
     run_elec_model,
     set_new_cap,
@@ -49,10 +49,10 @@ from src.models.electricity.sequencer import (
 )
 
 # pyrefly: ignore[missing-import]  - hydrogen module removed from this fork
-from src.models.hydrogen.model import actions
+from cnems_models.models.hydrogen.model import actions
 
 # pyrefly: ignore[missing-import]  - residential module removed from this fork
-from src.models.residential.scripts.residential import residentialModule
+from cnems_models.models.residential.scripts.residential import residentialModule
 
 # Establish logger
 logger = getLogger(__name__)

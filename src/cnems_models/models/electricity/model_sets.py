@@ -20,12 +20,19 @@ from itertools import chain
 import pandas as pd
 from pandas import DataFrame
 
-from src.common.common_config import CommonConfig
-from src.common.season import Season
-from src.integrator.utilities import create_temporal_mapping
-from src.models.electricity.data_ingestor import load_attribute_data, load_property_data
-from src.models.electricity.elec_config import ElecConfig, ReserveType, RPSRequirementType
-from src.models.electricity.rps import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.season import Season
+from cnems_models.integrator.utilities import create_temporal_mapping
+from cnems_models.models.electricity.data_ingestor import (
+    load_attribute_data,
+    load_property_data,
+)
+from cnems_models.models.electricity.elec_config import (
+    ElecConfig,
+    ReserveType,
+    RPSRequirementType,
+)
+from cnems_models.models.electricity.rps import (
     RPSKey,
     RPSRequirement,
     RPSRequirementRow,

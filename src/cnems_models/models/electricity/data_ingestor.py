@@ -23,17 +23,23 @@ from pandas import DataFrame
 from pandera.io.pandas_io import from_frictionless_schema
 from upath import UPath
 
-from definitions import PROJECT_ROOT
-from src.models.electricity.param_source_loader import ParamSource, load_param_sources
-from src.models.electricity.policy_source_loader import PolicySource, load_policy_sources
-from src.models.electricity.property_source_loader import PropertySource, load_property_sources
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.param_source_loader import ParamSource, load_param_sources
+from cnems_models.models.electricity.policy_source_loader import (
+    PolicySource,
+    load_policy_sources,
+)
+from cnems_models.models.electricity.property_source_loader import (
+    PropertySource,
+    load_property_sources,
+)
 
 logger = logging.getLogger(__name__)
 
 # Schema metadata (filename, index columns, value column, required) for each parameter source,
 # read from param_sources.toml -- see param_source_loader.py for the ParamSource model.
 PARAM_SOURCES: dict[str, ParamSource] = load_param_sources(
-    PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
+    Path(__file__).with_name('param_sources.toml')
 )
 
 # param sources to convert to DF's for further processing.  "Load" handled separately
@@ -53,13 +59,13 @@ TIME_BASED_DFS = (
 # Schema metadata (filename, property columns, index columns) for each property source, read
 # from property_sources.toml -- see property_source_loader.py for the PropertySource model.
 PROPERTY_SOURCES: dict[str, PropertySource] = load_property_sources(
-    PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
+    Path(__file__).with_name('property_sources.toml')
 )
 
 # Schema metadata (filename, index columns, value column, required) for each policy source,
 # read from policy_sources.toml -- see policy_source_loader.py for the PolicySource model.
 POLICY_SOURCES: dict[str, PolicySource] = load_policy_sources(
-    PROJECT_ROOT / 'src/models/electricity/policy_sources.toml'
+    Path(__file__).with_name('policy_sources.toml')
 )
 
 # columns we always want to convert to integer to enable arithmetic on them...

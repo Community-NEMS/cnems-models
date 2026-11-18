@@ -21,10 +21,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import IterationResult
-from src.common.models_modes import ModelType
-from src.common.update_package import ExchangeSpec
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model_sequencer import IterationResult
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import ExchangeSpec
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,8 @@ class IterativeSequencer[ConfigT: IterativeSequencerConfig](ABC):
     ) -> dict[ModelType, ModelConfig]:
         """Build the config of each model selected by ``common_config.models_to_run``.
 
-        The model configs live with the models, outside ``src.common``, which is why this is left
+        The model configs live with the models, outside ``cnems_models.common``, which is why
+        this is left
         to the implementation.
 
         Parameters

@@ -1,4 +1,4 @@
-# Settings for the Jacobi iterator (src/integrator/jacobi/jacobi_iterator.py), validated by
+# Settings for the Jacobi iterator (src/cnems_models/integrator/jacobi/jacobi_iterator.py), validated by
 # JacobiConfig in jacobi_config.py.  Every key is required.
 
 # the most iterations to run
@@ -19,7 +19,7 @@ worker_processes = 6
 monitor_delta_mode = "absolute"
 
 # the update packages the models exchange, by package class name (see PACKAGE_TYPES in
-# src/common/update_package/update_package.py).  A package whose sender or receiver is not run is
+# src/cnems_models/common/update_package/update_package.py).  A package whose sender or receiver is not run is
 # left out with a warning.
 exchanges = [
     "ElectricityPriceScaler",

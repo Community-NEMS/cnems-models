@@ -7,7 +7,7 @@ Created on:  7/20/26
 
 Tests for linear capacity-expansion learning.
 
-The helper functions in ``src.models.electricity.learning`` (called by
+The helper functions in ``cnems_models.models.electricity.learning`` (called by
 ``ElectricitySequencer.solve_model`` between solves) are tested on a small hand-built pyomo model
 that carries only the components they touch.  The iteration itself is tested with full solves on
 the single-region micro dataset in ``linear_micro_data/``.
@@ -20,16 +20,16 @@ import pytest
 from pyomo.common.numeric_types import value
 from tabulate import tabulate
 
-from src.common.integrated_model_sequencer import IterationStatus
-from src.models.electricity.data_ingestor import PARAM_SOURCES
-from src.models.electricity.learning import (
+from cnems_models.common.integrated_model_sequencer import IterationStatus
+from cnems_models.models.electricity.data_ingestor import PARAM_SOURCES
+from cnems_models.models.electricity.learning import (
     calculate_cap_growth,
     calculate_tolerance,
     cost_learning_func,
     init_old_cap,
     update_expansion_cost,
 )
-from src.models.electricity.sequencer import _LEARNING_TOLERANCE, ElectricitySequencer
+from cnems_models.models.electricity.sequencer import _LEARNING_TOLERANCE, ElectricitySequencer
 from tests.electric.mini_model import add_solar_learning
 
 # "verbose" mode prints the per-iteration capital_cost updates from test_linear_learning
@@ -226,8 +226,8 @@ def test_linear_learning(learning_config_set, caplog: pytest.LogCaptureFixture):
     # loggers are raised.
     capture_level = logging.DEBUG if verbose else logging.INFO
     with (
-        caplog.at_level(capture_level, logger='src.models.electricity.sequencer'),
-        caplog.at_level(capture_level, logger='src.models.electricity.learning'),
+        caplog.at_level(capture_level, logger='cnems_models.models.electricity.sequencer'),
+        caplog.at_level(capture_level, logger='cnems_models.models.electricity.learning'),
     ):
         _, status = sequencer.solve_model()
     assert status is IterationStatus.BEST, f'solve failed with status {status}'

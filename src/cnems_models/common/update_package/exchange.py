@@ -19,9 +19,9 @@ import logging
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from src.common.models_modes import ModelType
-from src.common.update_package.update_package import PACKAGE_TYPES, UpdatePackage
-from src.integrator.region_crosswalk import CrosswalkSet
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package.update_package import PACKAGE_TYPES, UpdatePackage
+from cnems_models.integrator.region_crosswalk import CrosswalkSet
 
 logger = logging.getLogger(__name__)
 

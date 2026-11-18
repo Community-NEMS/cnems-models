@@ -23,7 +23,7 @@ from uuid import UUID, uuid4
 import numpy as np
 import pandas as pd
 
-from src.common.models_modes import ModelType
+from cnems_models.common.models_modes import ModelType
 
 # Every concrete package type by class name:  the names the iterative configs' ``exchanges`` use.
 # Each class below adds itself with @register_package; a new package type must do the same.

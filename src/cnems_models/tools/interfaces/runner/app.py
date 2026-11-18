@@ -17,9 +17,11 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, dcc, html
 
+from cnems_models.common.models_modes import RunMode
+from cnems_models.main import main
+
 # Import python modules
-from main import main
-from src.common.config_gui import (
+from cnems_models.tools.interfaces.runner.config_gui import (
     CONFIG_JSON_PATH,
     ConfigValidationError,
     build_config_form,
@@ -27,7 +29,6 @@ from src.common.config_gui import (
     parse_form_values,
     save_configs,
 )
-from src.common.models_modes import RunMode
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ app = dash.Dash(
     __name__,
     prevent_initial_callbacks=True,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
-    assets_folder='app_images/',
+    assets_folder='assets',
 )
 app.title = 'Model Runner'
 
@@ -216,8 +217,13 @@ def run_mode(n_clicks, selected_mode):
         return error_msg, 0
 
 
-if __name__ == '__main__':
+def run() -> None:
+    """Serve the Model Runner at http://localhost:8080/, stopping the docs server on exit."""
     try:
         app.run(debug=True, host='localhost', port=8080)
     finally:
         http_server_process.terminate()
+
+
+if __name__ == '__main__':
+    run()

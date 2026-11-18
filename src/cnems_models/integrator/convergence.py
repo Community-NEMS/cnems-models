@@ -12,12 +12,12 @@ Convergence test for the Jacobi iterator:  relative objective change per model, 
 import math
 from collections.abc import Iterable
 
-from src.common.integrated_model_sequencer import (
+from cnems_models.common.integrated_model_sequencer import (
     ALLOW_OUTBOUND_UPDATES,
     ALLOW_TERMINATION,
     IterationResult,
 )
-from src.common.models_modes import ModelType
+from cnems_models.common.models_modes import ModelType
 
 
 def relative_change(previous: float, current: float) -> float:

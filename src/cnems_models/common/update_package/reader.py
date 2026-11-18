@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.common.update_package.update_package import UpdatePackage
+from cnems_models.common.update_package.update_package import UpdatePackage
 
 logger = logging.getLogger(__name__)
 

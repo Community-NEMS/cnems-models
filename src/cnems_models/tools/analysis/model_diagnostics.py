@@ -13,7 +13,7 @@ from pyomo.core import Constraint, Param, Var
 from pyomo.core.base.set import Set
 from pyomo.repn import generate_standard_repn
 
-from src.models.electricity.electricity_model import PowerModel
+from cnems_models.models.electricity.electricity_model import PowerModel
 
 
 def gather_set_data(em: PowerModel):

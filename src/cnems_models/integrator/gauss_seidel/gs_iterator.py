@@ -11,7 +11,7 @@ The selected models are built once and held in the control process.  Each iterat
 HSM and electricity on the latest gas prices, then gas on that iteration's capacity and burn,
 applying each model's inbound packages to its held instance with ``update_model``.  Package
 routing (``route_updates``), the stopping test and the rest of the bookkeeping
-(``src/integrator/bookeeping_utilities.py``) are shared with the Jacobi iterator.
+(``src/cnems_models/integrator/bookeeping_utilities.py``) are shared with the Jacobi iterator.
 """
 
 import logging
@@ -22,16 +22,16 @@ from typing import Any
 
 from rich.console import Console
 
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import (
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model_sequencer import (
     IntegratedModelSequencer,
     IterationResult,
     IterationStatus,
 )
-from src.common.iterative_sequencer import IterativeSequencer, RunStatus
-from src.common.log_setup import _scenario_log, setup_control_loop_logging
-from src.common.models_modes import ModelType, resolve_models_to_run
-from src.common.update_package import (
+from cnems_models.common.iterative_sequencer import IterativeSequencer, RunStatus
+from cnems_models.common.log_setup import _scenario_log, setup_control_loop_logging
+from cnems_models.common.models_modes import ModelType, resolve_models_to_run
+from cnems_models.common.update_package import (
     HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_VALUE,
     NG_HUB_PRICE_VALUE,
@@ -44,19 +44,22 @@ from src.common.update_package import (
     UpdatePackage,
     route_updates,
 )
-from src.integrator.bookeeping_utilities import (
+from cnems_models.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,
     show_iteration,
 )
-from src.integrator.config_sections import CONFIG_SECTIONS, check_model_configs
-from src.integrator.convergence import ConvergenceTracker
-from src.integrator.gauss_seidel.gs_config import DEFAULT_GS_CONFIG_PATH, GaussSeidelConfig
-from src.integrator.iteration_monitor import IterationMonitor
-from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.magic_hsm.magic_hsm_model import MagicHSMSequencer
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems_models.integrator.config_sections import CONFIG_SECTIONS, check_model_configs
+from cnems_models.integrator.convergence import ConvergenceTracker
+from cnems_models.integrator.gauss_seidel.gs_config import (
+    DEFAULT_GS_CONFIG_PATH,
+    GaussSeidelConfig,
+)
+from cnems_models.integrator.iteration_monitor import IterationMonitor
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.models.magic_hsm.magic_hsm_model import MagicHSMSequencer
+from cnems_models.models.natural_gas.sequencer import NGSequencer
 
 logger = logging.getLogger(__name__)
 

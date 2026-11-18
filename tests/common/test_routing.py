@@ -14,8 +14,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage, route_updates
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import UpdatePackage, route_updates
 
 ELEC = ModelType.ELECTRICITY
 NG = ModelType.NATURAL_GAS

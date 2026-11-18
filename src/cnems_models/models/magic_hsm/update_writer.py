@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     HSM_CAPACITY_INDEX,
     HSM_CAPACITY_VALUE,
     HSMSupplyCapacityPackage,
@@ -26,7 +26,7 @@ from src.common.update_package import (
 
 if TYPE_CHECKING:
     # magic_hsm_model imports this module for its sequencer, so the model is named by string below
-    from src.models.magic_hsm.magic_hsm_model import MagicHSMModel
+    from cnems_models.models.magic_hsm.magic_hsm_model import MagicHSMModel
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-# Settings for the Gauss-Seidel iterator (src/integrator/gauss_seidel/gs_iterator.py), validated
+# Settings for the Gauss-Seidel iterator (src/cnems_models/integrator/gauss_seidel/gs_iterator.py), validated
 # by GaussSeidelConfig in gs_config.py.  Every key is required.  The stopping keys mean the same
 # as in the Jacobi iterator's jacobi_config.toml, so the two stop by the same rule.
 
@@ -16,7 +16,7 @@ convergence_iterations = 2
 monitor_delta_mode = "absolute"
 
 # the update packages the models exchange, by package class name (see PACKAGE_TYPES in
-# src/common/update_package/update_package.py).  A package whose sender or receiver is not run is
+# src/cnems_models/common/update_package/update_package.py).  A package whose sender or receiver is not run is
 # left out with a warning.
 exchanges = [
     "HSMSupplyCapacityPackage",

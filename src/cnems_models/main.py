@@ -10,23 +10,29 @@ from warnings import deprecated
 from pydantic import ValidationError
 
 # Import python modules
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, ModelConfig, parse_config_file
-from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.iterative_sequencer import RunStatus
-from src.common.log_setup import setup_control_loop_logging
-from src.common.models_modes import ModelType, RunMode, resolve_models_to_run
-from src.common.utilities import get_args
-from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
-from src.integrator.iteration_plot import plot_objectives
-from src.integrator.jacobi.jacobi_iterator import JacobiIterator
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.rps_feasibility import RPS_FEASIBILITY_FILE, rps_feasibility_report
-from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.magic.magic_model import MagicConfig, MagicSequencer
-from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems_models.common.common_config import CommonConfig, ModelConfig, parse_config_file
+from cnems_models.common.integrated_model_sequencer import (
+    IntegratedModelSequencer,
+    IterationStatus,
+)
+from cnems_models.common.iterative_sequencer import RunStatus
+from cnems_models.common.log_setup import setup_control_loop_logging
+from cnems_models.common.models_modes import ModelType, RunMode, resolve_models_to_run
+from cnems_models.common.utilities import get_args
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
+from cnems_models.integrator.iteration_plot import plot_objectives
+from cnems_models.integrator.jacobi.jacobi_iterator import JacobiIterator
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.rps_feasibility import (
+    RPS_FEASIBILITY_FILE,
+    rps_feasibility_report,
+)
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.models.magic.magic_model import MagicConfig, MagicSequencer
+from cnems_models.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
+from cnems_models.models.natural_gas.ng_config import NGConfig
+from cnems_models.models.natural_gas.sequencer import NGSequencer
 
 logger = logging.getLogger(__name__)
 
@@ -228,17 +234,25 @@ def _run_rps_feasibility(common_config: CommonConfig, remainder: dict) -> Path:
     return path
 
 
-if __name__ == '__main__':
+def cli() -> None:
+    """Command-line entry point (``cnems`` / ``python -m cnems_models``).
+
+    Runs the config given on the command line, or with none given, the default electricity
+    configs under ``run_configs/``.
+    """
     args = get_args()
     if args.config_path:
         main(config_path=args.config_path, debug=args.debug)
     else:
         # no config given:  run a default and default + exchange model to enable viewing of
         # results, plus the reduced string-named input set (input/electricity_light) with exchange
-        # and a natural gas standalone run
         for name in (
             'basic_elec_config',
             'exchange_elec_config',
             'reduced_elec_config',
         ):
             main(config_path=PROJECT_ROOT / 'run_configs' / f'{name}.toml', debug=args.debug)
+
+
+if __name__ == '__main__':
+    cli()

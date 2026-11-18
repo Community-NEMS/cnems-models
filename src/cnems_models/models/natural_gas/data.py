@@ -13,8 +13,8 @@ from typing import TypedDict
 
 import pandas as pd
 
-from src.common.common_config import CommonConfig
-from src.models.natural_gas.ng_config import NGConfig
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
 

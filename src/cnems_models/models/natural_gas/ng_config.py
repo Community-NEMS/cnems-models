@@ -12,8 +12,8 @@ from pathlib import Path
 
 from pydantic import ValidationError, model_validator
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import ModelConfig
+from cnems_models.common.common_config import ModelConfig
+from cnems_models.definitions import PROJECT_ROOT
 
 logger = getLogger(__name__)
 

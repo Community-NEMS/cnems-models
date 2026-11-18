@@ -24,9 +24,9 @@ from dash import dcc, html
 from dash.development.base_component import Component
 from pydantic import ValidationError
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, parse_config_file
-from src.models.electricity.elec_config import ElecConfig
+from cnems_models.common.common_config import CommonConfig, parse_config_file
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.elec_config import ElecConfig
 
 logger = logging.getLogger(__name__)
 

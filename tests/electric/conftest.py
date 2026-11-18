@@ -15,11 +15,11 @@ from typing import Any
 
 import pytest
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
 from tests.electric.mini_model import MiniModelData, mini_configs, patch_loaders
 
 

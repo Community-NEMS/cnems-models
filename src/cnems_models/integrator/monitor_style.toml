@@ -1,4 +1,4 @@
-# Colour scheme for the iteration monitor (src/integrator/iteration_monitor.py).
+# Colour scheme for the iteration monitor (src/cnems_models/integrator/iteration_monitor.py).
 #
 # Every value is a rich style string:  a colour name ("cyan", "grey50", "bright_yellow"),
 # optionally with modifiers ("bold cyan", "italic grey70").  Standard names are listed at

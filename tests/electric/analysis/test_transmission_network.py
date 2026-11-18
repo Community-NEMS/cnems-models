@@ -1,9 +1,9 @@
-"""Tests for ``analysis_tools.transmission_network``."""
+"""Tests for ``cnems_models.tools.analysis.transmission_network``."""
 
 import networkx as nx
 import pytest
 
-from analysis_tools.transmission_network import (
+from cnems_models.tools.analysis.transmission_network import (
     build_transmission_network,
     node_degrees,
     plot_network,

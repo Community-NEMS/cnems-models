@@ -24,8 +24,8 @@ from collections.abc import Collection, Sequence
 from itertools import pairwise
 from typing import cast
 
-from src.common.exceptions import DataValidationError
-from src.models.natural_gas.data import NGData
+from cnems_models.common.exceptions import DataValidationError
+from cnems_models.models.natural_gas.data import NGData
 
 logger = logging.getLogger(__name__)
 

@@ -14,15 +14,15 @@ from typing import Annotated
 
 from pydantic import Field, PositiveInt
 
-from src.common.iterative_sequencer import IterativeSequencerConfig
-from src.integrator.iteration_monitor import DeltaMode
+from cnems_models.common.iterative_sequencer import IterativeSequencerConfig
+from cnems_models.integrator.iteration_monitor import DeltaMode
 
 # the iterator's own settings file, read by default
 DEFAULT_JACOBI_CONFIG_PATH = Path(__file__).with_name('jacobi_config.toml')
 
 
 class JacobiConfig(IterativeSequencerConfig):
-    """Settings for :class:`~src.integrator.jacobi.jacobi_iterator.JacobiIterator`.
+    """Settings for :class:`~cnems_models.integrator.jacobi.jacobi_iterator.JacobiIterator`.
 
     No field has a default:  the TOML is the single source of the values.
 

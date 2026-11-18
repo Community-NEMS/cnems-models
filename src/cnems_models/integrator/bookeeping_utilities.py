@@ -19,16 +19,16 @@ from collections.abc import Sequence
 
 from rich.console import Console
 
-from src.common.integrated_model_sequencer import (
+from cnems_models.common.integrated_model_sequencer import (
     ALLOW_OUTBOUND_UPDATES,
     ALLOW_TERMINATION,
     IterationResult,
 )
-from src.common.iterative_sequencer import RunStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage
-from src.integrator.convergence import ConvergenceTracker
-from src.integrator.iteration_monitor import IterationMonitor
+from cnems_models.common.iterative_sequencer import RunStatus
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import UpdatePackage
+from cnems_models.integrator.convergence import ConvergenceTracker
+from cnems_models.integrator.iteration_monitor import IterationMonitor
 
 logger = logging.getLogger(__name__)
 

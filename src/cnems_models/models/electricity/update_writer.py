@@ -16,16 +16,16 @@ from logging import getLogger
 import pandas as pd
 from pyomo.common.numeric_types import value
 
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NGElectricalDemandPackage,
     UpdatePackage,
     UpdatePackageWriter,
 )
-from src.integrator.region_crosswalk import QuantityKind
-from src.models.electricity.electricity_model import PowerModel
+from cnems_models.integrator.region_crosswalk import QuantityKind
+from cnems_models.models.electricity.electricity_model import PowerModel
 
 logger = getLogger(__name__)
 

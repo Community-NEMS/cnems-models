@@ -1,9 +1,11 @@
 """Postprocessor for the electricity model.
 
 Legacy section (deprecated): the original postprocessor relied on ``instance.cols_dict``, a
-column-naming lookup only ever populated by the deprecated ``src.common.model.Model`` base class.
+column-naming lookup only ever populated by the deprecated ``cnems_models.common.model.Model``
+base class.
 ``PowerModel`` no longer subclasses ``Model``, so these functions are kept only for the legacy
-hydrogen-integrated callers (``src.integrator.unified``, ``src.integrator.gaussseidel``) and should
+hydrogen-integrated callers (``cnems_models.integrator.unified``,
+``cnems_models.integrator.gaussseidel``) and should
 not be used for new work.
 
 New section: ``extract_all_variables``/``export_variables_to_csv`` derive one DataFrame per
@@ -21,8 +23,8 @@ import pandas as pd
 import pyomo.environ as pyo
 from pyomo.core.base.indexed_component import IndexedComponent
 
-from definitions import PROJECT_ROOT
-from src.models.electricity.data_ingestor import (
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.data_ingestor import (
     PROPERTY_SOURCES,
     load_attribute_data,
     load_property_data,

@@ -8,7 +8,7 @@
 # 'standalone' runs each selected module independently
 # 'unified-combo' iteratively solves a unified combination of modules
 # 'gs-combo' solves a combination of modules using Gauss-Seidel method
-# The default mode is only used when --mode argument is not passed by the user when running main.py
+# The default mode is only used when --mode argument is not passed by the user when running the CLI
 default_mode = "gs-combo"
 
 # Modules to run

@@ -18,32 +18,35 @@ from typing import Any
 
 from rich.console import Console
 
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model_sequencer import IterationResult
-from src.common.iterative_sequencer import IterativeSequencer, RunStatus
-from src.common.log_setup import _scenario_log, setup_control_loop_logging
-from src.common.models_modes import ModelType, resolve_models_to_run
-from src.common.update_package import ExchangeSpec, UpdatePackage, route_updates
-from src.integrator.bookeeping_utilities import (
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model_sequencer import IterationResult
+from cnems_models.common.iterative_sequencer import IterativeSequencer, RunStatus
+from cnems_models.common.log_setup import _scenario_log, setup_control_loop_logging
+from cnems_models.common.models_modes import ModelType, resolve_models_to_run
+from cnems_models.common.update_package import ExchangeSpec, UpdatePackage, route_updates
+from cnems_models.integrator.bookeeping_utilities import (
     accept_packages,
     final_status,
     log_progress,
     show_iteration,
 )
-from src.integrator.config_sections import (
+from cnems_models.integrator.config_sections import (
     CONFIG_SECTIONS,
     OPTIONAL_SECTIONS,
     check_model_configs,
 )
-from src.integrator.convergence import ConvergenceTracker
-from src.integrator.iteration_monitor import IterationMonitor
-from src.integrator.jacobi.jacobi_config import DEFAULT_JACOBI_CONFIG_PATH, JacobiConfig
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.sequencer import ElectricitySequencer
-from src.models.magic.magic_model import MagicConfig, MagicSequencer
-from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems_models.integrator.convergence import ConvergenceTracker
+from cnems_models.integrator.iteration_monitor import IterationMonitor
+from cnems_models.integrator.jacobi.jacobi_config import (
+    DEFAULT_JACOBI_CONFIG_PATH,
+    JacobiConfig,
+)
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems_models.models.magic.magic_model import MagicConfig, MagicSequencer
+from cnems_models.models.magic_hsm.magic_hsm_model import MagicHSMConfig, MagicHSMSequencer
+from cnems_models.models.natural_gas.ng_config import NGConfig
+from cnems_models.models.natural_gas.sequencer import NGSequencer
 
 logger = logging.getLogger(__name__)
 

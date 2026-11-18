@@ -14,10 +14,10 @@ from typing import Any, ClassVar
 
 import pytest
 
-import main
-from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
-from src.common.models_modes import ModelType
+from cnems_models import main
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.integrated_model_sequencer import IterationStatus
+from cnems_models.common.models_modes import ModelType
 
 CONFIG_PATH = Path(__file__).parent / 'electric' / 'basic_elec_config.toml'
 

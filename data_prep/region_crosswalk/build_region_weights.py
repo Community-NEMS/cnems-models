@@ -154,11 +154,12 @@ def round_to_one(pairs, nd=4):
     return [(pairs[i][0], floors[i] / scale) for i in range(len(pairs))]
 
 
-# this script and its intermediate products live in workproduct/; the two crosswalks the
-# model reads are written one level up, next to the README
+# this script and its intermediate products live in data_prep/region_crosswalk/; the two
+# crosswalks the model reads are written into the package's integrator data, next to the README
 WORK = Path(__file__).resolve().parent
-OUT = WORK.parent
-SRC = OUT.parent.parent / 'natural_gas' / 'elec_to_ng_region_map.csv'
+ROOT = WORK.parents[1]
+OUT = ROOT / 'src' / 'cnems_models' / 'integrator' / 'data' / 'region_crosswalk'
+SRC = ROOT / 'input' / 'natural_gas' / 'elec_to_ng_region_map.csv'
 ROWS = []
 for line in SRC.read_text().splitlines()[1:]:
     rid, name, ng = line.split(',')

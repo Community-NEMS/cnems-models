@@ -33,7 +33,7 @@ on this), but the economic structure matches NGMM:
 What is *not* implemented (Tier 2/3 items not in scope of this rewrite):
   * State-level hubs (NGMM uses 50 + 3 Texas hubs; this model keeps the
     9 census-division grouping because the electricity coupling's region
-    crosswalk, src/integrator/region_crosswalk.py, is built on it).
+    crosswalk, src/cnems_models/integrator/region_crosswalk.py, is built on it).
   * Monthly time resolution (NGMM solves each month independently).
   * STEO benchmarking and the separate capacity-expansion QP run.
   * NA/AD supply-type separation (the model keeps a single supply curve per
@@ -78,17 +78,17 @@ from pyomo.environ import (
     value,
 )
 
-from src.common.common_config import CommonConfig
-from src.common.integrated_model import IntegratedModel
-from src.common.validators import region_check
-from src.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY
-from src.models.natural_gas.data import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.validators import region_check
+from cnems_models.models.natural_gas.constants import UNSERVED_DEMAND_PENALTY
+from cnems_models.models.natural_gas.data import (
     NGData,
     interp_by_year,
     supply_pbase,
     supply_qbase,
 )
-from src.models.natural_gas.ng_config import NGConfig
+from cnems_models.models.natural_gas.ng_config import NGConfig
 
 logger = logging.getLogger(__name__)
 

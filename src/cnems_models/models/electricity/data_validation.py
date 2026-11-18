@@ -22,12 +22,12 @@ from typing import Literal
 
 from pandas import DataFrame
 
-from src.common.exceptions import DataValidationError
-from src.common.season import Season
-from src.models.electricity.elec_config import ExpansionLearningType
-from src.models.electricity.model_sets import CapacityOrigin, ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.rps import RPSKey, disjoint_share_conflicts
+from cnems_models.common.exceptions import DataValidationError
+from cnems_models.common.season import Season
+from cnems_models.models.electricity.elec_config import ExpansionLearningType
+from cnems_models.models.electricity.model_sets import CapacityOrigin, ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.rps import RPSKey, disjoint_share_conflicts
 
 logger = logging.getLogger(__name__)
 

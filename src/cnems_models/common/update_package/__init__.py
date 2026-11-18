@@ -8,14 +8,18 @@ Created on:  9/21/26
 Update packages passed between models, plus the reader/writer ABCs that apply and create them.
 
 The package definitions live in ``update_package.py``; they are re-exported here so callers import
-from ``src.common.update_package`` directly, as are ``route_updates`` from ``routing.py`` and
+from ``cnems_models.common.update_package`` directly, as are ``route_updates`` from
+``routing.py`` and
 ``ExchangeSpec`` from ``exchange.py``.
 """
 
-from src.common.update_package.exchange import ExchangeSpec
-from src.common.update_package.reader import UpdatePackageReader, check_region_year_keys
-from src.common.update_package.routing import route_updates
-from src.common.update_package.update_package import (
+from cnems_models.common.update_package.exchange import ExchangeSpec
+from cnems_models.common.update_package.reader import (
+    UpdatePackageReader,
+    check_region_year_keys,
+)
+from cnems_models.common.update_package.routing import route_updates
+from cnems_models.common.update_package.update_package import (
     HSM_CAPACITY_INDEX,
     HSM_CAPACITY_VALUE,
     NG_ELEC_DEMAND_INDEX,
@@ -34,7 +38,7 @@ from src.common.update_package.update_package import (
     NGPricePackage,
     UpdatePackage,
 )
-from src.common.update_package.writer import UpdatePackageWriter
+from cnems_models.common.update_package.writer import UpdatePackageWriter
 
 __all__ = [
     'HSM_CAPACITY_INDEX',

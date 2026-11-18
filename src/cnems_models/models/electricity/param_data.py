@@ -19,20 +19,20 @@ from typing import TypedDict, cast
 import pandas as pd
 from pandas import DataFrame
 
-from src.common.common_config import CommonConfig
-from src.common.season import Season
-from src.common.utilities import scale_load, scale_load_with_enduses
-from src.models.electricity.data_ingestor import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.season import Season
+from cnems_models.common.utilities import scale_load, scale_load_with_enduses
+from cnems_models.models.electricity.data_ingestor import (
     TIME_BASED_DFS,
     FilterPackage,
     load_dataframes,
     load_param_data,
     load_policy_data,
 )
-from src.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
-from src.models.electricity.model_sets import CI, ModelSets
-from src.models.electricity.param_utilities import avg_by_group, time_map
-from src.models.electricity.rps import (
+from cnems_models.models.electricity.elec_config import ElecConfig, LoadScaleMode, ReserveType
+from cnems_models.models.electricity.model_sets import CI, ModelSets
+from cnems_models.models.electricity.param_utilities import avg_by_group, time_map
+from cnems_models.models.electricity.rps import (
     RPSKey,
     requirement_rows,
     resolve_requirements,

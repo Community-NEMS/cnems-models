@@ -14,20 +14,23 @@ from typing import Any
 from pyomo.common.numeric_types import value
 from pyomo.opt import SolverFactory, check_optimal_termination
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, parse_config_file
-from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.log_setup import setup_control_loop_logging
-from src.common.models_modes import ModelType
-from src.common.update_package import ExchangeSpec, UpdatePackage
-from src.models.natural_gas.constants import UNSERVED_PENALTY_TOL
-from src.models.natural_gas.data import NGData, load_all
-from src.models.natural_gas.data_validation import validate_all
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import NGModel
-from src.models.natural_gas.postprocessor import report
-from src.models.natural_gas.update_reader import NGModelUpdateReader, NGUpdateReader
-from src.models.natural_gas.update_writer import NGUpdateWriter
+from cnems_models.common.common_config import CommonConfig, parse_config_file
+from cnems_models.common.integrated_model_sequencer import (
+    IntegratedModelSequencer,
+    IterationStatus,
+)
+from cnems_models.common.log_setup import setup_control_loop_logging
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import ExchangeSpec, UpdatePackage
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.natural_gas.constants import UNSERVED_PENALTY_TOL
+from cnems_models.models.natural_gas.data import NGData, load_all
+from cnems_models.models.natural_gas.data_validation import validate_all
+from cnems_models.models.natural_gas.ng_config import NGConfig
+from cnems_models.models.natural_gas.ng_model import NGModel
+from cnems_models.models.natural_gas.postprocessor import report
+from cnems_models.models.natural_gas.update_reader import NGModelUpdateReader, NGUpdateReader
+from cnems_models.models.natural_gas.update_writer import NGUpdateWriter
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +250,8 @@ class NGSequencer(IntegratedModelSequencer[NGModel, NGConfig, NGData]):
 
         Solves ``self.model``, so ``build_model()`` must have been called first.  The NGMM-aligned
         QP rewrite needs a convex-QP-capable solver, which rules out the ``select_solver()`` default
-        in src/integrator/utilities.py that the electricity path uses; this method probes for one
+        in src/cnems_models/integrator/utilities.py that the electricity path uses; this method
+        probes for one
         instead.
 
         Parameters

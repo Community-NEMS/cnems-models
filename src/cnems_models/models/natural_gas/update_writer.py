@@ -14,8 +14,8 @@ from collections.abc import Callable, Mapping
 
 import pandas as pd
 
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
     NG_HUB_PRICE_INDEX,
     NG_HUB_PRICE_VALUE,
     NG_PRICE_INDEX,
@@ -25,9 +25,9 @@ from src.common.update_package import (
     UpdatePackage,
     UpdatePackageWriter,
 )
-from src.integrator.region_crosswalk import QuantityKind
-from src.models.natural_gas.constants import HUB_REGION, PRICE_DOLLAR_YEAR
-from src.models.natural_gas.ng_model import NGModel
+from cnems_models.integrator.region_crosswalk import QuantityKind
+from cnems_models.models.natural_gas.constants import HUB_REGION, PRICE_DOLLAR_YEAR
+from cnems_models.models.natural_gas.ng_model import NGModel
 
 logger = logging.getLogger(__name__)
 

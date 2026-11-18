@@ -5,23 +5,24 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/15/26
 
-Tests for src.common.config_gui: the pydantic-model-driven form builder and JSON save/load logic
-backing app.py's config editor. Only pure functions are tested here -- app.py itself is not
-imported, since importing it spawns a docs HTTP server subprocess as a module-level side effect.
+Tests for cnems_models.tools.interfaces.runner.config_gui: the pydantic-model-driven form builder
+and JSON save/load logic backing app.py's config editor. Only pure functions are tested here --
+app.py itself is not imported, since importing it spawns a docs HTTP server subprocess as a
+module-level side effect.
 """
 
 import pytest
 from pydantic import ValidationError
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, parse_config_file
-from src.common.config_gui import (
+from cnems_models.common.common_config import CommonConfig, parse_config_file
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems_models.tools.interfaces.runner.config_gui import (
     ConfigValidationError,
     build_config_form,
     parse_form_values,
     save_configs,
 )
-from src.models.electricity.elec_config import ElecConfig
 
 BASIC_CONFIG_TOML = PROJECT_ROOT / 'tests/electric/basic_elec_config.toml'
 

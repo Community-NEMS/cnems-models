@@ -19,26 +19,35 @@ from pyomo.common.timing import TicTocTimer
 from pyomo.opt import check_optimal_termination
 from pyomo.util.infeasible import log_infeasible_constraints
 
-from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import ExchangeSpec, UpdatePackage
-from src.integrator.utilities import select_solver
-from src.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
-from src.models.electricity.data_validation import validate_all
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.learning import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.integrated_model_sequencer import (
+    IntegratedModelSequencer,
+    IterationStatus,
+)
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import ExchangeSpec, UpdatePackage
+from cnems_models.integrator.utilities import select_solver
+from cnems_models.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
+from cnems_models.models.electricity.data_validation import validate_all
+from cnems_models.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems_models.models.electricity.learning import (
     calculate_cap_growth,
     calculate_tolerance,
     init_old_cap,
     update_expansion_cost,
 )
-from src.models.electricity.model_sets import ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.postprocessor import export_variables_to_csv, transfer_tech_data
-from src.models.electricity.update_reader import ElecModelUpdateReader, ElecUpdateReader
-from src.models.electricity.update_writer import ElecUpdateWriter
+from cnems_models.models.electricity.model_sets import ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.postprocessor import (
+    export_variables_to_csv,
+    transfer_tech_data,
+)
+from cnems_models.models.electricity.update_reader import (
+    ElecModelUpdateReader,
+    ElecUpdateReader,
+)
+from cnems_models.models.electricity.update_writer import ElecUpdateWriter
 
 logger = getLogger(__name__)
 
@@ -52,7 +61,8 @@ class ElectricitySequencer(IntegratedModelSequencer[PowerModel, ElecConfig, Para
     """Build/solve orchestration for the electricity :class:`PowerModel`.
 
     Ports the functionality formerly held by ``runner.py`` into the
-    :class:`~src.common.integrated_model_sequencer.IntegratedModelSequencer` interface, specialized
+    :class:`~cnems_models.common.integrated_model_sequencer.IntegratedModelSequencer`
+    interface, specialized
     to the ``(PowerModel, ElecConfig)`` pair. The built model plus the configs it was built from are
     retained on the instance so the solve/postprocess steps can run without re-threading arguments.
     """

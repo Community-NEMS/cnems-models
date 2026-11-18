@@ -15,7 +15,7 @@ from functools import singledispatchmethod
 import pandas as pd
 from pyomo.environ import value
 
-from src.common.update_package import (
+from cnems_models.common.update_package import (
     NG_PRICE_INDEX,
     NG_PRICE_VALUE,
     ElectricityPriceScaler,
@@ -24,14 +24,14 @@ from src.common.update_package import (
     UpdatePackageReader,
     check_region_year_keys,
 )
-from src.models.electricity.constants import (
+from cnems_models.models.electricity.constants import (
     INITIAL_NG_PRICE,
     PRICE_COST_PROPORTION,
     SUPPLY_PRICE_CHANGE_WARN_FRACTION,
 )
-from src.models.electricity.data_ingestor import PARAM_SOURCES
-from src.models.electricity.electricity_model import PowerModel
-from src.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.data_ingestor import PARAM_SOURCES
+from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems_models.models.electricity.param_data import ParamData
 
 logger = logging.getLogger(__name__)
 

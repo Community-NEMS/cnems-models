@@ -21,7 +21,7 @@ from collections import defaultdict
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 
-from src.models.electricity.elec_config import RPSRequirementType
+from cnems_models.models.electricity.elec_config import RPSRequirementType
 
 logger = logging.getLogger(__name__)
 

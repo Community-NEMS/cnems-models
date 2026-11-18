@@ -11,9 +11,9 @@ Abstract writer that creates a model's outbound update packages.
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection, Mapping
 
-from src.common.integrated_model import IntegratedModel
-from src.common.update_package.update_package import UpdatePackage
-from src.integrator.region_crosswalk import CrosswalkSet
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.update_package.update_package import UpdatePackage
+from cnems_models.integrator.region_crosswalk import CrosswalkSet
 
 
 class UpdatePackageWriter[ModelT: IntegratedModel](ABC):
@@ -26,7 +26,8 @@ class UpdatePackageWriter[ModelT: IntegratedModel](ABC):
     Type Parameters
     ---------------
     ModelT
-        The :class:`~src.common.integrated_model.IntegratedModel` the packages are read from.
+        The :class:`~cnems_models.common.integrated_model.IntegratedModel` the packages are
+        read from.
     """
 
     def __init__(

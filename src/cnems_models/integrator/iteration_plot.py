@@ -14,8 +14,11 @@ from collections.abc import Mapping, Sequence
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
-from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
-from src.common.models_modes import ModelType
+from cnems_models.common.integrated_model_sequencer import (
+    ALLOW_OUTBOUND_UPDATES,
+    IterationResult,
+)
+from cnems_models.common.models_modes import ModelType
 
 # how far (as a fraction of the axes width) each extra right-hand y-axis sits past the last
 _SPINE_OFFSET = 0.12

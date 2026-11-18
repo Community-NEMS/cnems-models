@@ -9,10 +9,10 @@ from logging import getLogger
 
 import pyomo.environ as pyo
 
-from src.common.common_config import CommonConfig
-from src.common.integrated_model import IntegratedModel
-from src.common.validators import region_check
-from src.models.electricity.constants import (
+from cnems_models.common.common_config import CommonConfig
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.validators import region_check
+from cnems_models.models.electricity.constants import (
     REGULATION_RESERVE_PROPORTION,
     SOLAR_FLEX_RESERVE_PROPORTION,
     SOLAR_REGULATION_RESERVE_PROPORTION,
@@ -23,11 +23,15 @@ from src.models.electricity.constants import (
     WIND_FLEX_RESERVE_PROPORTION,
     WIND_REGULATION_RESERVE_PROPORTION,
 )
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType, ReserveType
-from src.models.electricity.learning import learning_cost
-from src.models.electricity.model_sets import ModelSets
-from src.models.electricity.param_data import ParamData
-from src.models.electricity.validators import (
+from cnems_models.models.electricity.elec_config import (
+    ElecConfig,
+    ExpansionLearningType,
+    ReserveType,
+)
+from cnems_models.models.electricity.learning import learning_cost
+from cnems_models.models.electricity.model_sets import ModelSets
+from cnems_models.models.electricity.param_data import ParamData
+from cnems_models.models.electricity.validators import (
     reserve_procurement_check,
     reserve_tech_check,
     tech_hydro_seasonal_check,

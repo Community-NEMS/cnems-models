@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 from pyomo.common.numeric_types import value
 
 if TYPE_CHECKING:
-    from src.models.electricity.electricity_model import PowerModel
+    from cnems_models.models.electricity.electricity_model import PowerModel
 
 logger = getLogger(__name__)
 

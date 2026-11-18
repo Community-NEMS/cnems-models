@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from pyomo.environ import value
 
-from src.models.natural_gas.ng_model import partners_by_region
+from cnems_models.models.natural_gas.ng_model import partners_by_region
 
 if TYPE_CHECKING:
-    from src.models.natural_gas.ng_model import NGModel
+    from cnems_models.models.natural_gas.ng_model import NGModel
 
 logger = logging.getLogger(__name__)
 

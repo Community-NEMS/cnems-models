@@ -13,7 +13,7 @@ logger = getLogger(__name__)
 
 
 def get_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse the command-line arguments for ``main.py``.
+    """Parse the command-line arguments for the ``cnems`` CLI (``cnems_models.main.cli``).
 
     Parameters
     ----------

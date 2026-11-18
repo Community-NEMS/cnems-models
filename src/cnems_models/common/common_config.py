@@ -15,8 +15,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator, model_validator
 
-from definitions import PROJECT_ROOT
-from src.common.models_modes import ModelType, RunMode
+from cnems_models.common.models_modes import ModelType, RunMode
+from cnems_models.definitions import PROJECT_ROOT
 
 logger = getLogger(__name__)
 

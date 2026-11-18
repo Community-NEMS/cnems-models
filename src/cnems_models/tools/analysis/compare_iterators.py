@@ -15,10 +15,10 @@ holding the two runs' folders, ``jacobi/`` and ``gauss_seidel/``, beside ``compa
 
 Usage, from the repository root inside ``pixi shell``::
 
-    python -m analysis_tools.compare_iterators run_configs/gs_compare.toml
-    python -m analysis_tools.compare_iterators run_configs/gs_compare.toml --epsilon 1e-4 --limit 20
-    python -m analysis_tools.compare_iterators run_configs/gs_compare.toml --only gs
-    python -m analysis_tools.compare_iterators --from-json output/<folder>/comparison.json
+    python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml
+    python -m cnems_models.tools.analysis.compare_iterators <config> --epsilon 1e-4 --limit 20
+    python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml --only gs
+    python -m cnems_models.tools.analysis.compare_iterators --from-json output/<run>/comparison.json
 """
 
 import argparse
@@ -34,13 +34,19 @@ from typing import Any
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
-from src.common.common_config import parse_config_file
-from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES, IterationResult
-from src.common.iterative_sequencer import IterativeSequencer
-from src.common.models_modes import ModelType
-from src.integrator.convergence import relative_change
-from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator, exchange_summary
-from src.integrator.jacobi.jacobi_iterator import JacobiIterator
+from cnems_models.common.common_config import parse_config_file
+from cnems_models.common.integrated_model_sequencer import (
+    ALLOW_OUTBOUND_UPDATES,
+    IterationResult,
+)
+from cnems_models.common.iterative_sequencer import IterativeSequencer
+from cnems_models.common.models_modes import ModelType
+from cnems_models.integrator.convergence import relative_change
+from cnems_models.integrator.gauss_seidel.gs_iterator import (
+    GaussSeidelIterator,
+    exchange_summary,
+)
+from cnems_models.integrator.jacobi.jacobi_iterator import JacobiIterator
 
 logger = logging.getLogger(__name__)
 

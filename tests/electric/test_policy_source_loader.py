@@ -6,7 +6,8 @@ Written with:  Claude Opus 5.5 (Anthropic)
 Contact:  jeff@westernspark.us
 Created on:  11/5/26
 
-Tests for src.models.electricity.policy_source_loader, run on scratch TOML files rather than the
+Tests for cnems_models.models.electricity.policy_source_loader, run on scratch TOML files
+rather than the
 shipped policy_sources.toml.
 """
 
@@ -15,7 +16,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.models.electricity.policy_source_loader import PolicySource, load_policy_sources
+from cnems_models.models.electricity.policy_source_loader import (
+    PolicySource,
+    load_policy_sources,
+)
 
 ENTRY = """
 [[policy_source]]

@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 
 from pyomo.core import ConcreteModel
 
-from src.models.electricity.elec_config import ReserveType
+from cnems_models.models.electricity.elec_config import ReserveType
 
 if TYPE_CHECKING:
-    from src.models.electricity.electricity_model import PowerModel
+    from cnems_models.models.electricity.electricity_model import PowerModel
 
 logger = logging.getLogger(__name__)
 

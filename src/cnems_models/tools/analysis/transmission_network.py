@@ -16,7 +16,7 @@ import networkx as nx
 import pandas as pd
 import plotly.graph_objects as go
 
-from definitions import PROJECT_ROOT
+from cnems_models.definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,7 @@ def build_transmission_network(csv_path: Path = DEFAULT_TRAN_LIMIT_CSV) -> nx.Gr
     edge_limits = df.groupby(['region_a', 'region_b'])['tran_limit_mw'].mean()
 
     graph = nx.Graph()
+    # pyrefly: ignore[not-iterable]  - MultiIndex keys are (region_a, region_b) tuples
     for (region_a, region_b), tran_limit in edge_limits.items():
         graph.add_edge(region_a, region_b, tran_limit=tran_limit)
     return graph

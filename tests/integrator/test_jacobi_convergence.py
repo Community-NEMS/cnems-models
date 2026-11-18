@@ -15,16 +15,16 @@ import math
 import pytest
 from pydantic import ValidationError
 
-from src.common.integrated_model_sequencer import (
+from cnems_models.common.integrated_model_sequencer import (
     ALLOW_OUTBOUND_UPDATES,
     ALLOW_TERMINATION,
     IterationResult,
     IterationStatus,
 )
-from src.common.models_modes import ModelType
-from src.integrator.convergence import ConvergenceTracker, relative_change
-from src.integrator.iteration_monitor import DeltaMode
-from src.integrator.jacobi.jacobi_config import JacobiConfig
+from cnems_models.common.models_modes import ModelType
+from cnems_models.integrator.convergence import ConvergenceTracker, relative_change
+from cnems_models.integrator.iteration_monitor import DeltaMode
+from cnems_models.integrator.jacobi.jacobi_config import JacobiConfig
 
 ELEC, NG, MAGIC = ModelType.ELECTRICITY, ModelType.NATURAL_GAS, ModelType.MAGIC
 
@@ -189,7 +189,7 @@ def test_config_rejects_epsilon_outside_ratio_range(epsilon: float) -> None:
 
 def test_shipped_config_loads() -> None:
     """The jacobi_config.toml beside the iterator validates."""
-    from src.integrator.jacobi.jacobi_iterator import JacobiIterator
+    from cnems_models.integrator.jacobi.jacobi_iterator import JacobiIterator
 
     config = JacobiIterator().config
     assert 0 < config.epsilon <= 1

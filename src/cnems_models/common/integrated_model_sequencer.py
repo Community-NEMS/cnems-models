@@ -16,10 +16,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from time import perf_counter
 
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model import IntegratedModel
-from src.common.models_modes import ModelType
-from src.common.update_package import UpdatePackage, UpdatePackageReader, UpdatePackageWriter
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import (
+    UpdatePackage,
+    UpdatePackageReader,
+    UpdatePackageWriter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +132,8 @@ class IntegratedModelSequencer[ModelT: IntegratedModel, ConfigT: ModelConfig, Da
     Type Parameters
     ---------------
     ModelT
-        The concrete :class:`~src.common.integrated_model.IntegratedModel` this sequencer builds.
+        The concrete :class:`~cnems_models.common.integrated_model.IntegratedModel` this
+        sequencer builds.
     ConfigT
         The model-specific pydantic config that :meth:`build_model` consumes.
     DataT

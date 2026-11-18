@@ -17,15 +17,18 @@ from typing import Annotated
 
 from pydantic import ConfigDict, Field, model_validator
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig, ModelConfig
-from src.common.integrated_model import IntegratedModel
-from src.common.integrated_model_sequencer import IntegratedModelSequencer, IterationStatus
-from src.common.models_modes import ModelType
-from src.common.update_package import ExchangeSpec, UpdatePackage
-from src.models.magic_hsm.update_reader import MagicHSMData, MagicHSMUpdateReader
-from src.models.magic_hsm.update_writer import MagicHSMUpdateWriter
-from src.models.natural_gas.data import (
+from cnems_models.common.common_config import CommonConfig, ModelConfig
+from cnems_models.common.integrated_model import IntegratedModel
+from cnems_models.common.integrated_model_sequencer import (
+    IntegratedModelSequencer,
+    IterationStatus,
+)
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package import ExchangeSpec, UpdatePackage
+from cnems_models.definitions import PROJECT_ROOT
+from cnems_models.models.magic_hsm.update_reader import MagicHSMData, MagicHSMUpdateReader
+from cnems_models.models.magic_hsm.update_writer import MagicHSMUpdateWriter
+from cnems_models.models.natural_gas.data import (
     load_region_data,
     load_supply_anchors,
     load_supply_cost_tiers,

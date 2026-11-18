@@ -12,8 +12,8 @@ Routing of update packages from the models that sent them to the models that rec
 import logging
 from collections.abc import Mapping, Sequence
 
-from src.common.models_modes import ModelType
-from src.common.update_package.update_package import UpdatePackage
+from cnems_models.common.models_modes import ModelType
+from cnems_models.common.update_package.update_package import UpdatePackage
 
 logger = logging.getLogger(__name__)
 

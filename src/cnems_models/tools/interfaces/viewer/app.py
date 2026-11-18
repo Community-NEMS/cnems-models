@@ -11,14 +11,14 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from dash import Dash, Input, Output, State, dcc, html
 
-from definitions import PROJECT_ROOT
+from cnems_models.definitions import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
 dir_output = PROJECT_ROOT / 'output'
 
 # header background image, embedded as a data URI so it renders without Dash asset serving
-_header_bg_svg = PROJECT_ROOT / 'app_images' / 'energy_tech_background_pattern.svg'
+_header_bg_svg = Path(__file__).with_name('assets') / 'energy_tech_background_pattern.svg'
 _header_bg_data_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
     _header_bg_svg.read_bytes()
 ).decode('ascii')
@@ -1433,5 +1433,10 @@ def update_tradecan_area_figure(region, trdyear, run):
     return finish_figure(fig_tradecan, pretty('trade_international'))
 
 
-# when running, ctrl+click on the http://127.0.0.1:8050/ which opens a broswer
-app.run(debug=True)
+def run() -> None:
+    """Serve the viewer at http://127.0.0.1:8050/ (Dash debug mode, with its reloader)."""
+    app.run(debug=True)
+
+
+if __name__ == '__main__':
+    run()

@@ -3,10 +3,9 @@ build-backend = "hatchling.build"
 # a floor, not a lock:  1.27 adds PEP 639 license metadata
 requires = ["hatchling>=1.27"]
 
+# TODO:  On a roadmap to make this package deployable on PyPI and conda-forge.  Still to do:
+#        license, runtime deps here, uncapped requires-python, and no repo paths via PROJECT_ROOT.
 [project]
-# Not published to PyPI or conda-forge -- installed locally via pixi only -- so this
-# doesn't need the "catalystcoop." namespace prefix that public packages use to avoid
-# collisions on the index.
 name = "cnems_models"
 description = "Models for Community NEMS project."
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -15,9 +14,8 @@ requires-python = ">=3.14,<3.15"
 version = "0.1"
 #dynamic = ["version"]
 #license = { file = "LICENSE" }
-# Intentionally empty: this package is never installed outside of the pixi
-# environment defined below, so runtime dependencies are tracked once, as conda
-# packages, under [tool.pixi.dependencies] rather than here too.
+# Empty for now: runtime dependencies are tracked once, as conda packages, under
+# [tool.pixi.dependencies] until the package is published (see the roadmap above).
 dependencies = []
 
 [project.scripts]
@@ -25,6 +23,11 @@ cnems = "cnems_models.main:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cnems_models"]
+
+[tool.hatch.build.targets.sdist]
+# Source plus tests (for downstream recipe checks); pyproject, README, and LICENSE are
+# always added.  Keeps scenario data, notes, and tool caches out of the archive.
+only-include = ["src", "tests"]
 
 [tool.ruff]
 line-length = 100

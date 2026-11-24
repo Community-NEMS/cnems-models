@@ -41,7 +41,7 @@ print(sorted(n for n in pyomo.opt.SolverFactory if 'high' in n))   # ['appsi_hig
 
 A module that does `import pyomo.opt as pyo` and then `pyo.SolverFactory('highs')` works only by
 accident of some other import having pulled in `pyomo.environ` first. Import `SolverFactory` from
-`pyomo.environ` and the dependency is explicit. `src/integrator/utilities.py` does this.
+`pyomo.environ` and the dependency is explicit. `src/cnems/integrator/utilities.py` does this.
 
 ## The pattern: check, then load
 
@@ -146,14 +146,14 @@ A stale flag here does not error — it silently solves the wrong model.
 
 ## How this repo is wired
 
-- `src/integrator/utilities.py::select_solver` returns `SolverFactory('highs')`, or `ipopt` when
+- `src/cnems/integrator/utilities.py::select_solver` returns `SolverFactory('highs')`, or `ipopt` when
   `nonlinear=True`. Its return type is `OptSolver | LegacySolverWrapper`: the current interface
   is **not** an `OptSolver` subclass, so annotating it as one is wrong.
 - Callers that iterate should keep the returned object — see persistence above.
 - `NGSequencer.solve_model` probes `appsi_gurobi, gurobi_direct, gurobi, highs` and stops at the
   first available, so a Gurobi-free environment lands on `highs`.
 - Every solve site uses the check-then-load pattern: `simple_solve` / `simple_solve_no_opt` in
-  `src/integrator/utilities.py`, `ElectricitySequencer.solve_model` (both the learning loop and
+  `src/cnems/integrator/utilities.py`, `ElectricitySequencer.solve_model` (both the learning loop and
   the single-solve branch), and `NGSequencer.solve_model`.
 
 ## probe

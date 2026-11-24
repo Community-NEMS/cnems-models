@@ -15,7 +15,7 @@ import logging
 import pytest
 from pydantic import ValidationError
 
-from src.common.common_config import CommonConfig
+from cnems.common.common_config import CommonConfig
 
 BASE_SCENARIO = 'mock_scenario'
 
@@ -107,7 +107,7 @@ def test_existing_scenario_dir_is_enumerated(config_kwargs, caplog, capsys, take
         (output_path / name / 'electricity' / 'stale.csv').touch()
 
     config = CommonConfig(**config_kwargs)
-    with caplog.at_level(logging.DEBUG, logger='src.common.common_config'):
+    with caplog.at_level(logging.DEBUG, logger='cnems.common.common_config'):
         config.make_scenario_dir()
 
     assert config.scenario_name == BASE_SCENARIO

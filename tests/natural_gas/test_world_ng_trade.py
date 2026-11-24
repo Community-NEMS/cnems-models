@@ -22,14 +22,14 @@ from pathlib import Path
 import pytest
 from pyomo.common.numeric_types import value
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import IterationStatus
-from src.models.natural_gas.data import interp_by_year, load_all, load_pipeline_trade
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import TI, NGModel
-from src.models.natural_gas.postprocessor import _extract_balance
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems.common.common_config import CommonConfig
+from cnems.common.integrated_model_sequencer import IterationStatus
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.natural_gas.data import interp_by_year, load_all, load_pipeline_trade
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.ng_model import TI, NGModel
+from cnems.models.natural_gas.postprocessor import _extract_balance
+from cnems.models.natural_gas.sequencer import NGSequencer
 
 CONFIG_PATH = Path(PROJECT_ROOT, 'tests/natural_gas/world_ng_trade_config.toml')
 SOLVER = 'highs'
@@ -137,7 +137,7 @@ def test_unknown_partner_dropped_with_warning(
     data['pipe_trade_import'][typo] = {2025: 0.0}
     data['pipe_trade_export'][typo] = {2025: 1900.0}
 
-    with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.ng_model'):
+    with caplog.at_level(logging.WARNING, logger='cnems.models.natural_gas.ng_model'):
         model = NGModel(model_data=data, common_config=common_config, ng_config=ng_config)
 
     assert typo not in set(model.pipe_trade_pairs)

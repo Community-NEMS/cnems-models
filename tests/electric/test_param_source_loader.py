@@ -5,14 +5,16 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for src.models.electricity.param_source_loader and its resulting PARAM_SOURCES dict
+Tests for cnems.models.electricity.param_source_loader and its resulting PARAM_SOURCES
+dict
 """
 
-from definitions import PROJECT_ROOT
-from src.models.electricity import data_ingestor
-from src.models.electricity.param_source_loader import ParamSource, load_param_sources
+from pathlib import Path
 
-PARAM_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/param_sources.toml'
+from cnems.models.electricity import data_ingestor
+from cnems.models.electricity.param_source_loader import ParamSource, load_param_sources
+
+PARAM_SOURCES_TOML = Path(data_ingestor.__file__).with_name('param_sources.toml')
 
 # Expected reference: one entry per C-EMM data-needs sheet row, plus ``heat_rate`` (not on the
 # sheet; it feeds the natural gas coupling).  Each file is named for its key and the value column

@@ -243,7 +243,7 @@ mode = "rps_feasibility"
 models_to_run = ['electricity']
 ```
 
-then run `python main.py run_configs/rps_check_config.toml`. That sample config runs on the shipped
+then run `python -m cnems run_configs/rps_check_config.toml`. That sample config runs on the shipped
 data and its demonstration RPS tables; [Sample](#sample) shows a report like the one it produces.
 
 The report goes to `rps_feasibility.txt` in the scenario output folder, beside `run.log`, and the

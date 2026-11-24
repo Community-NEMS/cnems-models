@@ -17,20 +17,20 @@ from pathlib import Path
 import pytest
 from pyomo.environ import value
 
-from definitions import PROJECT_ROOT
-from src.common.common_config import parse_config_file
-from src.common.iterative_sequencer import RunStatus
-from src.common.log_setup import _retire_previous_setup
-from src.common.update_package import (
+from cnems.common.common_config import parse_config_file
+from cnems.common.iterative_sequencer import RunStatus
+from cnems.common.log_setup import _retire_previous_setup
+from cnems.common.update_package import (
     HSM_CAPACITY_VALUE,
     NG_HUB_PRICE_VALUE,
     HSMSupplyCapacityPackage,
     NGHubPricePackage,
 )
-from src.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
-from src.models.magic_hsm.magic_hsm_model import MagicHSMConfig
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.sequencer import NGSequencer
+from cnems.definitions import PROJECT_ROOT
+from cnems.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
+from cnems.models.magic_hsm.magic_hsm_model import MagicHSMConfig
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.sequencer import NGSequencer
 
 
 @pytest.fixture

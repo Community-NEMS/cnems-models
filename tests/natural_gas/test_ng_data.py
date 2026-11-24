@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  8/20/26
 
-Tests for the loaders in src/models/natural_gas/data.py.
+Tests for the loaders in src/cnems/models/natural_gas/data.py.
 
 ``load_region_data`` is the one loader with no fallback -- regions are definitional, so every
 unusable input must raise rather than substitute a hardcoded list.  These tests therefore lean
@@ -26,17 +26,17 @@ from typing import ClassVar
 import pandas as pd
 import pytest
 
-from definitions import PROJECT_ROOT
-from src.common.update_package import (
+from cnems.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NGDemandScaler,
     NGElectricalDemandPackage,
 )
-from src.models.natural_gas import data as ng_data
-from src.models.natural_gas.data import load_region_data
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.update_reader import NGUpdateReader
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.natural_gas import data as ng_data
+from cnems.models.natural_gas.data import load_region_data
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.update_reader import NGUpdateReader
 
 HEADER = 'region,domestic,international,covered_areas,label'
 
@@ -109,7 +109,7 @@ class TestLoadRegionDataHappyPath:
         self, basic_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A successful load reports what it found, the signal a healthy run is read by."""
-        with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
+        with caplog.at_level('INFO', logger='cnems.models.natural_gas.data'):
             load_region_data(basic_dir)
 
         assert (
@@ -189,7 +189,7 @@ class TestLoadRegionDataFilter:
     ) -> None:
         """Dropping regions drops their production and trade, so it must not pass silently."""
         write_region_csv(tmp_path, BASIC_ROWS)
-        with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
+        with caplog.at_level('INFO', logger='cnems.models.natural_gas.data'):
             load_region_data(tmp_path, region_filter=['pacific'])
 
         assert 'Domestic region subset (1 of 2)' in caplog.text
@@ -206,7 +206,7 @@ class TestLoadRegionDataFilter:
     ) -> None:
         """No filter, an empty one, and one naming every region all mean 'run everything'."""
         write_region_csv(tmp_path, BASIC_ROWS)
-        with caplog.at_level('INFO', logger='src.models.natural_gas.data'):
+        with caplog.at_level('INFO', logger='cnems.models.natural_gas.data'):
             result = load_region_data(tmp_path, region_filter=region_filter)
 
         assert result['regions_analyze'] == ['mountain', 'pacific']
@@ -699,7 +699,7 @@ class TestDemandGrowthGating:
 
     def test_superseded_sector_is_held_flat(self, caplog: pytest.LogCaptureFixture) -> None:
         """Growth applies to the other sectors and is skipped for the superseded one."""
-        with caplog.at_level(logging.INFO, logger='src.models.natural_gas.data'):
+        with caplog.at_level(logging.INFO, logger='cnems.models.natural_gas.data'):
             demand = ng_data.project_demand(
                 self.BASE,
                 self.GROWTH,
@@ -779,7 +779,7 @@ class TestDemandGrowthGating:
 
     def test_unknown_superseded_sector_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """A superseded sector absent from the sector list is reported, not silently ignored."""
-        with caplog.at_level(logging.WARNING, logger='src.models.natural_gas.data'):
+        with caplog.at_level(logging.WARNING, logger='cnems.models.natural_gas.data'):
             demand = ng_data.project_demand(
                 self.BASE,
                 self.GROWTH,

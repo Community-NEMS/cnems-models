@@ -30,11 +30,15 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from src.common.common_config import CommonConfig
-from src.common.season import Season
-from src.models.electricity.data_ingestor import PARAM_SOURCES, POLICY_SOURCES, PROPERTY_SOURCES
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.param_data import ParamData
+from cnems.common.common_config import CommonConfig
+from cnems.common.season import Season
+from cnems.models.electricity.data_ingestor import (
+    PARAM_SOURCES,
+    POLICY_SOURCES,
+    PROPERTY_SOURCES,
+)
+from cnems.models.electricity.elec_config import ElecConfig
+from cnems.models.electricity.param_data import ParamData
 
 TECH_FLAGS = frozenset(PROPERTY_SOURCES['tech'].property_cols) - {'tech'}
 """the valid membership flags for ``MiniModelData.add_tech``"""
@@ -561,23 +565,23 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     data : MiniModelData
     """
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.load_property_data',
+        'cnems.models.electricity.model_sets.load_property_data',
         lambda _path, **_kw: copy.deepcopy(data.properties),
     )
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.load_attribute_data',
+        'cnems.models.electricity.model_sets.load_attribute_data',
         lambda _path: copy.deepcopy(data.attributes),
     )
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.create_temporal_mapping',
+        'cnems.models.electricity.model_sets.create_temporal_mapping',
         lambda _resolution: data.cw_temporal.copy(),
     )
     monkeypatch.setattr(
-        'src.models.electricity.param_data.load_param_data',
+        'cnems.models.electricity.param_data.load_param_data',
         lambda input_dir, param_filter=None: copy.deepcopy(data.params),
     )
     monkeypatch.setattr(
-        'src.models.electricity.param_data.load_policy_data',
+        'cnems.models.electricity.param_data.load_policy_data',
         lambda _path: copy.deepcopy(data.policy),
     )
     monkeypatch.setattr(ParamData, 'build_load_dataframe', lambda self: data.load.copy())

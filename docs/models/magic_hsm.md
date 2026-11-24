@@ -32,7 +32,7 @@ Section `[magic_hsm]`, all keys required:
 | `ng_input_path` | C-NGMM's input folder; in a coupled run, `[natural_gas] input_path` |
 | `price_elasticity` | `e`, in [0, 1] |
 | `reference_price` | `P_ref`, USD/MMBtu, near C-NGMM's standalone hub price |
-| `reference_dollar_year` | the dollar year of `reference_price`; in a coupled run, `PRICE_DOLLAR_YEAR` in `src/models/natural_gas/constants.py` |
+| `reference_dollar_year` | the dollar year of `reference_price`; in a coupled run, `PRICE_DOLLAR_YEAR` in `src/cnems/models/natural_gas/constants.py` |
 
 Coupled runs and their checks are in
 [Integrated Runs](../run_modes/integrated.md#magic-hsm-and-natural-gas).

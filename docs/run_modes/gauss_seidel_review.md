@@ -14,7 +14,7 @@ iterator and inside the same IterativeSequencer framework. Right now it's experi
 The economics are main's unchanged: the same multiplicative price link, gas turbine only, the same
 4 USD/MMBtu reference. The packages, the population-weighted crosswalk, route_updates, the
 ConvergenceTracker and the monitor are Jacobi's. The per-iteration bookkeeping both loops share is
-in src/integrator/bookeeping_utilities.py. We might change some of these in the future, but I wanted it to match Jacobi right now so we can compare and verify both methods.
+in src/cnems/integrator/bookeeping_utilities.py. We might change some of these in the future, but I wanted it to match Jacobi right now so we can compare and verify both methods.
 
 ## How to try it
 
@@ -84,11 +84,11 @@ region coverage rules, and removed the ownership declarations in 2 as unused.
 
 ## Shared code it touches
 
-- src/common/integrated_model_sequencer.py: update_model takes update_packages; solve_iteration is
+- src/cnems/common/integrated_model_sequencer.py: update_model takes update_packages; solve_iteration is
   split from full_run; IterationResult gains a timings field. Jacobi's path through full_run is
   unchanged.
-- src/common/integrated_model.py: a regions property, which the update package writers and
+- src/cnems/common/integrated_model.py: a regions property, which the update package writers and
   readers check crosswalked data against.
-- src/integrator/jacobi/jacobi_iterator.py: its bookkeeping now calls bookeeping_utilities.py,
+- src/cnems/integrator/jacobi/jacobi_iterator.py: its bookkeeping now calls bookeeping_utilities.py,
   with the same behaviour and log messages.
 - Each model's update_reader.py gains a reader for the built model, beside the pre-build one.

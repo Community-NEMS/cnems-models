@@ -15,7 +15,12 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
 
-from analysis_tools.model_diagnostics import (
+from cnems.common.common_config import CommonConfig
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.electricity.data_ingestor import PARAM_SOURCES
+from cnems.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from cnems.models.electricity.sequencer import run_elec_model
+from cnems.tools.analysis.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
     cost_per_kwh,
@@ -25,11 +30,6 @@ from analysis_tools.model_diagnostics import (
     gather_var_data,
     load_inspector,
 )
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.models.electricity.data_ingestor import PARAM_SOURCES
-from src.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from src.models.electricity.sequencer import run_elec_model
 
 # "verbose" mode is supplied for these basic tests to screen output key data to aid in
 # development

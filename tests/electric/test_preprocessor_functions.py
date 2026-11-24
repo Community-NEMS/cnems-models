@@ -11,7 +11,7 @@ import logging
 import pandas as pd
 import pytest
 
-from src.models.electricity.param_utilities import avg_by_group
+from cnems.models.electricity.param_utilities import avg_by_group
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def complete_df():
 
 def test_avg_by_group(complete_df, year_map, caplog):
     """Complete data averages over each block, with nothing logged."""
-    with caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'):
+    with caplog.at_level(logging.WARNING, logger='cnems.models.electricity.param_utilities'):
         res = avg_by_group(df=complete_df, set_name='year', map_frame=year_map, name='dummy')
 
     expected = pd.DataFrame(
@@ -72,7 +72,7 @@ def test_avg_by_group_gap_raises(complete_df, year_map, caplog, dropped, fragmen
     drop = pd.MultiIndex.from_tuples(dropped)
     source = complete_df[~complete_df.set_index(['year', 'color']).index.isin(drop)]
     with (
-        caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'),
+        caplog.at_level(logging.WARNING, logger='cnems.models.electricity.param_utilities'),
         pytest.raises(ValueError, match='dummy') as exc_info,
     ):
         avg_by_group(df=source, set_name='year', map_frame=year_map, name='dummy')
@@ -86,7 +86,7 @@ def test_avg_by_group_gap_raises(complete_df, year_map, caplog, dropped, fragmen
 
 def test_avg_by_group_empty_source_passes(complete_df, year_map, caplog):
     """An empty source has no data to aggregate, so it is not reported as a gap."""
-    with caplog.at_level(logging.WARNING, logger='src.models.electricity.param_utilities'):
+    with caplog.at_level(logging.WARNING, logger='cnems.models.electricity.param_utilities'):
         res = avg_by_group(
             df=complete_df.iloc[0:0], set_name='year', map_frame=year_map, name='dummy'
         )

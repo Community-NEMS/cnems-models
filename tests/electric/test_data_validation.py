@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  8/31/26
 
-Tests for src.models.electricity.data_validation
+Tests for cnems.models.electricity.data_validation
 
 The validators report by logging (and, for showstoppers, by raising), so the assertions here
 inspect ``caplog`` records rather than return values.  Table data is mocked with small dicts
@@ -17,18 +17,18 @@ import pickle
 
 import pytest
 
-from src.common.exceptions import DataValidationError
-from src.models.electricity import data_validation
-from src.models.electricity.data_validation import (
+from cnems.common.exceptions import DataValidationError
+from cnems.models.electricity import data_validation
+from cnems.models.electricity.data_validation import (
     validate_domestic_network,
     validate_generation_cost_coverage,
     validate_hourly_coverage,
     validate_seasonal_coverage,
 )
-from src.models.electricity.model_sets import CapacityOrigin
+from cnems.models.electricity.model_sets import CapacityOrigin
 from tests.electric.mini_model import add_solar_expansion
 
-VALIDATION_LOGGER = 'src.models.electricity.data_validation'
+VALIDATION_LOGGER = 'cnems.models.electricity.data_validation'
 
 EXISTING, BUILDABLE, CARRIED = (
     CapacityOrigin.EXISTING,

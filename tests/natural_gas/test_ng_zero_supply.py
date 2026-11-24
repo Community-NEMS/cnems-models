@@ -19,14 +19,14 @@ from pathlib import Path
 import pytest
 from pyomo.common.numeric_types import value
 
-import src.models.natural_gas.sequencer as ng_sequencer
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES
-from src.models.natural_gas.data import NGData
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import GI, NGModel
-from src.models.natural_gas.sequencer import NGSequencer
+import cnems.models.natural_gas.sequencer as ng_sequencer
+from cnems.common.common_config import CommonConfig
+from cnems.common.integrated_model_sequencer import ALLOW_OUTBOUND_UPDATES
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.natural_gas.data import NGData
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.ng_model import GI, NGModel
+from cnems.models.natural_gas.sequencer import NGSequencer
 
 PARTIAL_REGIONS = ['west_south_central', 'mountain', 'pacific']
 ZERO_REGION = 'mountain'

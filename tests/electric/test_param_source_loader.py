@@ -5,14 +5,14 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for cnems_models.models.electricity.param_source_loader and its resulting PARAM_SOURCES
+Tests for cnems.models.electricity.param_source_loader and its resulting PARAM_SOURCES
 dict
 """
 
 from pathlib import Path
 
-from cnems_models.models.electricity import data_ingestor
-from cnems_models.models.electricity.param_source_loader import ParamSource, load_param_sources
+from cnems.models.electricity import data_ingestor
+from cnems.models.electricity.param_source_loader import ParamSource, load_param_sources
 
 PARAM_SOURCES_TOML = Path(data_ingestor.__file__).with_name('param_sources.toml')
 

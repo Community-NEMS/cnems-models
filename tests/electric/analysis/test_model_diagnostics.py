@@ -10,8 +10,8 @@ Tests for tests/model_diagnostics.py::breakdown_obj_terms
 
 import pytest
 
-from cnems_models.models.electricity.electricity_model import PowerModel
-from cnems_models.tools.analysis.model_diagnostics import breakdown_obj_terms
+from cnems.models.electricity.electricity_model import PowerModel
+from cnems.tools.analysis.model_diagnostics import breakdown_obj_terms
 from tests.electric.mini_model import add_gas_ct
 
 # (variable, coefficient, terms sharing it) for the mini model below, all weights 1, sorted by

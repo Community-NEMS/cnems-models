@@ -17,9 +17,9 @@ from typing import cast
 
 import pytest
 
-from cnems_models.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
-from cnems_models.models.electricity.electricity_model import PowerModel
-from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems.models.electricity.constants import UNMET_LOAD_PENALTY_TOL
+from cnems.models.electricity.electricity_model import PowerModel
+from cnems.models.electricity.sequencer import ElectricitySequencer
 
 
 def mock_model(unmet: dict[tuple, float | None]) -> PowerModel:
@@ -48,6 +48,6 @@ def test_in_penalty(unmet: dict[tuple, float | None], expected: bool) -> None:
 def test_in_penalty_logs_the_shortfall(caplog: pytest.LogCaptureFixture) -> None:
     """A PENALTY finding is logged with the total and the count of short indices."""
     unmet = {('1', 2030, 1): 1.5, ('1', 2030, 2): 2.5, ('2', 2030, 1): 0.0}
-    with caplog.at_level('WARNING', logger='cnems_models.models.electricity.sequencer'):
+    with caplog.at_level('WARNING', logger='cnems.models.electricity.sequencer'):
         assert ElectricitySequencer._in_penalty(mock_model(unmet))
     assert 'Unmet load of 4 across 2 (region, year, hour) index(es)' in caplog.text

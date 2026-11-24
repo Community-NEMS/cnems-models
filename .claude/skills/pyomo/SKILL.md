@@ -5,7 +5,7 @@ description: Working with pyomo models — indexed Sets/Params/Vars, sparse vs d
 
 # Working with pyomo
 
-This repo's electricity model (`src/cnems_models/models/electricity/electricity_model.py`) is a
+This repo's electricity model (`src/cnems/models/electricity/electricity_model.py`) is a
 `pyo.ConcreteModel` subclass with several hundred Sets, Params, Vars and Constraints.
 Most bugs found in it so far have come from **index-space mismatches**: data that is
 sparse being consumed by something that iterates a wider space. This skill records what
@@ -110,7 +110,7 @@ unreachable and a failed solve becomes a traceback instead of a logged status.
 
 Use `SolverFactory('highs')`, not `appsi_highs`: same persistent machinery, and it handles a
 quadratic objective, which the APPSI wrapper refuses. In this repo,
-`src/cnems_models/integrator/utilities.py::select_solver` hands it out already configured.
+`src/cnems/integrator/utilities.py::select_solver` hands it out already configured.
 
 `pyo.check_optimal_termination` is correct on both the legacy and the current interface — it
 branches on the results type internally, so no version check is needed at the call site.
@@ -141,13 +141,13 @@ This repo handles that three ways, in increasing order of bluntness. Prefer the 
 blunt one that works:
 
 1. Inline `# pyrefly: ignore[...]` with a rationale — the norm; see
-   `src/cnems_models/integrator/utilities.py`, which carries several.
+   `src/cnems/integrator/utilities.py`, which carries several.
 2. A local `m: Any = em` alias plus a typed `_val()` wrapper around `value()`, when a
    single function would otherwise need a dozen suppressions.
 3. `project-excludes` in `pyproject.toml` under `[tool.pyrefly]` — reserved for files
    that are essentially all pyomo construction. Currently the electricity and natural
    gas model files (`electricity_model.py`, `ng_model.py`, `ng` `postprocessor.py`),
-   plus the two unmaintained `src/cnems_models/integrator` modules, which are excluded for a
+   plus the two unmaintained `src/cnems/integrator` modules, which are excluded for a
    different reason: they are not in upgrade scope.
 
 Note that `pixi run lint-pyrefly` passes **no path argument** on purpose: naming files on
@@ -177,7 +177,7 @@ different task. Likely next splits:
 
 - `references/type-checking.md` — when the pyrefly section outgrows the summary above.
 - `references/debugging.md` — inspecting a built or solved model; this repo already has
-  `src/cnems_models/tools/analysis/model_diagnostics.py` for that and it should be cross-referenced.
+  `src/cnems/tools/analysis/model_diagnostics.py` for that and it should be cross-referenced.
 
 Every claim added here should be traceable to a probe that was actually run. If something
 is believed but unverified, mark it as such rather than stating it flatly.

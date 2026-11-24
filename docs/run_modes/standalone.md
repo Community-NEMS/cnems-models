@@ -7,7 +7,7 @@ mode the test suite exercises.
 ## The Sequencer
 
 Every model is driven by a *sequencer*: a subclass of `IntegratedModelSequencer`
-(`src/cnems_models/common/integrated_model_sequencer.py`). It owns the built model and the configs it was
+(`src/cnems/common/integrated_model_sequencer.py`). It owns the built model and the configs it was
 built from, and exposes the same small set of steps for every model:
 
 | Step                   | Purpose                                                                      |
@@ -24,7 +24,7 @@ correctly on its own can also run in an integrated run.
 
 ## Flow of a Standalone Run
 
-The electricity model is the reference case. `cnems_models.main` parses the run config with
+The electricity model is the reference case. `cnems.main` parses the run config with
 `parse_config_file`; when its `mode` is `standalone`, it claims a scenario output folder, sets up
 the run log, and hands off to `_run_standalone`. That function first builds the config of every
 model in `models_to_run` from its section (`[elec_config]` → `ElecConfig`); if any section is

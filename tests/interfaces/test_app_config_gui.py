@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/15/26
 
-Tests for cnems_models.tools.interfaces.runner.config_gui: the pydantic-model-driven form builder
+Tests for cnems.tools.interfaces.runner.config_gui: the pydantic-model-driven form builder
 and JSON save/load logic backing app.py's config editor. Only pure functions are tested here --
 app.py itself is not imported, since importing it spawns a docs HTTP server subprocess as a
 module-level side effect.
@@ -14,10 +14,10 @@ module-level side effect.
 import pytest
 from pydantic import ValidationError
 
-from cnems_models.common.common_config import CommonConfig, parse_config_file
-from cnems_models.definitions import PROJECT_ROOT
-from cnems_models.models.electricity.elec_config import ElecConfig
-from cnems_models.tools.interfaces.runner.config_gui import (
+from cnems.common.common_config import CommonConfig, parse_config_file
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.electricity.elec_config import ElecConfig
+from cnems.tools.interfaces.runner.config_gui import (
     ConfigValidationError,
     build_config_form,
     parse_form_values,

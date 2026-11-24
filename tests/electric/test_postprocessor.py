@@ -5,16 +5,16 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for the model-native variable extraction in cnems_models.models.electricity.postprocessor
+Tests for the model-native variable extraction in cnems.models.electricity.postprocessor
 """
 
 import pandas as pd
 import pyomo.environ as pyo
 import pytest
 
-from cnems_models.models.electricity.data_ingestor import load_attribute_data
-from cnems_models.models.electricity.electricity_model import PowerModel
-from cnems_models.models.electricity.postprocessor import (
+from cnems.models.electricity.data_ingestor import load_attribute_data
+from cnems.models.electricity.electricity_model import PowerModel
+from cnems.models.electricity.postprocessor import (
     core_variable_indices,
     export_variables_to_csv,
     extract_all_variables,

@@ -8,7 +8,7 @@ Created on:  6/17/26
 
 import pytest
 
-from cnems_models.models.electricity.model_sets import ModelSets
+from cnems.models.electricity.model_sets import ModelSets
 
 
 def test_year_aggregation():

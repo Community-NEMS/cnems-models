@@ -10,7 +10,7 @@ are exact unions of states, so both directional weightings fall out of that matr
 from collections import defaultdict
 from pathlib import Path
 
-from cnems_models.integrator.region_crosswalk import XWALK_DIR
+from cnems.integrator.region_crosswalk import XWALK_DIR
 
 # 2020 Census resident population, thousands.
 POP = {

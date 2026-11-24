@@ -20,7 +20,7 @@ an unsolved model, so they need no nonlinear solver.  The solved nonlinear case 
 import pytest
 from pyomo.common.numeric_types import value
 
-from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems.models.electricity.electricity_model import PowerModel
 from tests.electric.mini_model import add_solar_learning
 
 INITIAL_COST = 1000.0

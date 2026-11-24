@@ -92,7 +92,7 @@ replaces that default set, so re-declare the ones you still want.
 
 - Docs source lives in `docs/`; `site/` is build output and belongs in
   `.gitignore` — never edit or commit files under `site/`.
-- The model formulation is LaTeX-heavy (see `src/cnems_models/models/electricity/README.md`).
+- The model formulation is LaTeX-heavy (see `src/cnems/models/electricity/README.md`).
   Math needs MathJax or KaTeX wired up explicitly — config in
   `references/configuration.md`. `$...$` inline, `$$...$$` display.
 - API reference pages come from NumPy-style docstrings via mkdocstrings

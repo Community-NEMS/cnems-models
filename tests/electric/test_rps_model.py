@@ -17,8 +17,8 @@ from collections.abc import Iterable
 import pyomo.environ as pyo
 import pytest
 
-from cnems_models.common.integrated_model_sequencer import IterationStatus
-from cnems_models.models.electricity.electricity_model import PowerModel
+from cnems.common.integrated_model_sequencer import IterationStatus
+from cnems.models.electricity.electricity_model import PowerModel
 from tests.electric.mini_model import (
     MiniModelData,
     add_battery,

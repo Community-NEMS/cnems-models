@@ -1,1 +1,1 @@
-"""Tests for the ``cnems_models.tools.interfaces`` package."""
+"""Tests for the ``cnems.tools.interfaces`` package."""

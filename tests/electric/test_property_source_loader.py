@@ -5,7 +5,7 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for cnems_models.models.electricity.property_source_loader and its resulting
+Tests for cnems.models.electricity.property_source_loader and its resulting
 PROPERTY_SOURCES dict
 """
 
@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from cnems_models.models.electricity import data_ingestor
-from cnems_models.models.electricity.property_source_loader import (
+from cnems.models.electricity import data_ingestor
+from cnems.models.electricity.property_source_loader import (
     PropertySource,
     load_property_sources,
 )

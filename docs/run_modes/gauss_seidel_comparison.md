@@ -58,7 +58,7 @@ link. Tests check the contract entry by entry, to a relative 1e-12:
   iterations, at most 15 iterations.
 - Solvers. HiGHS for electricity. Gas takes the first available of Gurobi's interfaces, then
   HiGHS. Both schemes use the same solver on the same machine.
-- Measurement. `src/cnems_models/tools/analysis/compare_iterators.py` runs both schemes on one config, back to
+- Measurement. `src/cnems/tools/analysis/compare_iterators.py` runs both schemes on one config, back to
   back. It records wall time, iterations, and per model the build, update, solve and collect
   seconds (`IterationResult.timings`).
 - Parallel against sequential. Jacobi solves its models in parallel worker processes;
@@ -255,7 +255,7 @@ change of link is argued separately (§6).
 
 ```powershell
 pixi shell
-python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml
-python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml --epsilon 1e-5 --limit 25
+python -m cnems.tools.analysis.compare_iterators run_configs/gs_compare.toml
+python -m cnems.tools.analysis.compare_iterators run_configs/gs_compare.toml --epsilon 1e-5 --limit 25
 pytest tests/integrator -q -n0
 ```

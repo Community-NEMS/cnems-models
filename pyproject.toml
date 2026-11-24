@@ -6,7 +6,7 @@ requires = ["hatchling>=1.27"]
 # TODO:  On a roadmap to make this package deployable on PyPI and conda-forge.  Still to do:
 #        license, runtime deps here, uncapped requires-python, and no repo paths via PROJECT_ROOT.
 [project]
-name = "cnems_models"
+name = "cnems"
 description = "Models for Community NEMS project."
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [{ name = "CNEMS team" }]
@@ -19,10 +19,10 @@ version = "0.1"
 dependencies = []
 
 [project.scripts]
-cnems = "cnems_models.main:cli"
+cnems = "cnems.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cnems_models"]
+packages = ["src/cnems"]
 
 [tool.hatch.build.targets.sdist]
 # Source plus tests (for downstream recipe checks); pyproject, README, and LICENSE are
@@ -91,21 +91,21 @@ project-includes = ["src"]
 # The pyomo formulation attaches Sets/Params/Vars to the model at runtime, so pyrefly sees them
 # as the base `Component` class and reports ~68 spurious errors (calling a Set, indexing a Param,
 # iterating a Var).  None are actionable without annotating pyomo itself, so skip the file.
-# `src/cnems_models/integrator` files are not yet migrated and should be excluded for now.
+# `src/cnems/integrator` files are not yet migrated and should be excluded for now.
 project-excludes = [
-  "src/cnems_models/models/electricity/electricity_model.py",
-  "src/cnems_models/models/natural_gas/ng_model.py",
-  "src/cnems_models/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
+  "src/cnems/models/electricity/electricity_model.py",
+  "src/cnems/models/natural_gas/ng_model.py",
+  "src/cnems/models/natural_gas/postprocessor.py",  # same pyomo access pattern, split out of ng_model.py
   # both of the main "model" files have typing issues related to pyomo that predate this work
-  "src/cnems_models/integrator/gaussseidel.py",  # not in upgrade scope yet
-  "src/cnems_models/integrator/unified.py",  # not in upgrade scope yet
+  "src/cnems/integrator/gaussseidel.py",  # not in upgrade scope yet
+  "src/cnems/integrator/unified.py",  # not in upgrade scope yet
   # same pyomo access pattern as the model files (Objective.expr, Param arithmetic)
-  "src/cnems_models/tools/analysis/model_diagnostics.py",
+  "src/cnems/tools/analysis/model_diagnostics.py",
   # the Dash apps were never type-checked outside src/; not in upgrade scope yet
-  "src/cnems_models/tools/interfaces/viewer/app.py",
-  "src/cnems_models/tools/interfaces/runner/app.py",  # unmaintained
+  "src/cnems/tools/interfaces/viewer/app.py",
+  "src/cnems/tools/interfaces/runner/app.py",  # unmaintained
 ]
-# `src` resolves the `cnems_models` package without relying on the editable install (the
+# `src` resolves the `cnems` package without relying on the editable install (the
 # pre-commit hook has only pyrefly itself).  Paths are relative to this config file.
 search-path = ["src"]
 python-version = "3.14"
@@ -158,9 +158,9 @@ channels = ["conda-forge"] #, "bioconda"]
 platforms = ["linux-aarch64", "osx-arm64", "linux-64", "osx-64", "win-64"]
 
 [tool.pixi.pypi-dependencies]
-# Install this package itself in editable mode, so `cnems_models` imports from src/ and the
+# Install this package itself in editable mode, so `cnems` imports from src/ and the
 # `cnems` console script is on PATH inside the pixi env.
-cnems_models = { path = ".", editable = true }
+cnems = { path = ".", editable = true }
 
 
 [tool.pixi.dependencies]
@@ -210,26 +210,26 @@ test-erase = { cmd = "coverage erase", description = "Wipe previously recorded c
 #  "test-unit",
 #  "test-integration",
 #], description = "Run all tests and report combined coverage, failing if it's below the configured threshold." }
-test-runner = {cmd="pytest --cov=cnems_models --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
+test-runner = {cmd="pytest --cov=cnems --cov-append --cov-report=xml --cov-fail-under=0", depends-on = ["test-erase"]}
 test = {cmd="coverage report --sort=cover", depends-on=["test-runner"]}
 
 # C-NGMM, the natural gas market model.
-ng = { cmd = "python -m cnems_models.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
+ng = { cmd = "python -m cnems.models.natural_gas.sequencer", description = "Solve C-NGMM using run_configs/basic_ng_config.toml." }
 
 # The integrated control loop:  the models in run_configs/jacobi_small.toml solve in parallel,
 # exchanging update packages each iteration, with the iteration monitor on the console.
 # TODO:  This is for development work only; the task runs the CLI's integrated (Jacobi) mode
-jacobi = { cmd = "python -m cnems_models run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
+jacobi = { cmd = "python -m cnems run_configs/jacobi_small.toml", description = "Run the integrated Jacobi loop using run_configs/jacobi_small.toml." }
 
 # The experimental Gauss-Seidel loop on run_configs/gs_compare.toml (every region, 2025 and
 # 2030), and a side-by-side comparison of it with the Jacobi loop on the same config.
-gs = { cmd = "python -m cnems_models run_configs/gs_compare.toml", description = "Run the integrated Gauss-Seidel loop using run_configs/gs_compare.toml." }
-gs-compare = { cmd = "python -m cnems_models.tools.analysis.compare_iterators run_configs/gs_compare.toml", description = "Run Jacobi and Gauss-Seidel on run_configs/gs_compare.toml and write a comparison table." }
+gs = { cmd = "python -m cnems run_configs/gs_compare.toml", description = "Run the integrated Gauss-Seidel loop using run_configs/gs_compare.toml." }
+gs-compare = { cmd = "python -m cnems.tools.analysis.compare_iterators run_configs/gs_compare.toml", description = "Run Jacobi and Gauss-Seidel on run_configs/gs_compare.toml and write a comparison table." }
 
 # Browse model outputs at http://127.0.0.1:8050/.
-viewer = { cmd = "python -m cnems_models.tools.interfaces.viewer", description = "Serve the Dash output viewer." }
+viewer = { cmd = "python -m cnems.tools.interfaces.viewer", description = "Serve the Dash output viewer." }
 # The unmaintained Model Runner config editor at http://localhost:8080/.
-runner = { cmd = "python -m cnems_models.tools.interfaces.runner", description = "Serve the Dash Model Runner (unmaintained)." }
+runner = { cmd = "python -m cnems.tools.interfaces.runner", description = "Serve the Dash Model Runner (unmaintained)." }
 
 lint-ruff = { cmd = "ruff check .", description = "Check code style and correctness with ruff, without modifying files." }
 # No path argument on purpose: passing explicit files makes pyrefly ignore `project-excludes`

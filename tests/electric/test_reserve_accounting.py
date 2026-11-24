@@ -19,8 +19,8 @@ yet existing can supply reserves, and a reserve requirement can drive new builds
 import pyomo.environ as pyo
 import pytest
 
-from cnems_models.common.integrated_model_sequencer import IterationStatus
-from cnems_models.models.electricity.elec_config import ReserveType
+from cnems.common.integrated_model_sequencer import IterationStatus
+from cnems.models.electricity.elec_config import ReserveType
 from tests.electric.mini_model import MiniModelData
 
 WIND_MW = 20.0

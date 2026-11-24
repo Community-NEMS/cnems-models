@@ -1,0 +1,17 @@
+# Output
+
+## Introduction
+
+This directory contains the main outputs for each model run. Outputs are organized by solve mode (standalone, iterative, or unified solves) and a time stamp generated when the run was initiated.
+
+Each output directory should contain a run log. The run log provides basic information on the status of the model solves and any additional information that may be useful for debugging model results. In addition, each model run should produce at least one graphic that provides minimum details on the success of the model solve. Note that the prototype only contains basic output visualization capabilities. This is because the prototype is not meant to include any capabilities of producing results that need to be analyzed. That said, in order to aid with interpreting results, a results viewer was developed. The results viewer script currently only allows for comparison of electricity module results and is for demonstration purposes only. The intent is to build out this framework with the next version of this prototype.
+
+## Results Viewer
+
+The results viewer is a python code that utilizes dash from plotly to create an interactive dashboard that can visualize results from multiple runs. When running the viewer from the output folder, a url "http://127.0.0.1:8050/" can be opened in a browser to display the dashboard.
+
+The viewer is setup to only view electricity related results right now, such as generation, capacity, and trade. After each electricity run, a separate electricity folder will output results within the timestamped run folder. The viewer python code can go through each of the run folders and append the variables for the charts. Technology labels and colors come from each run's `electricity/tech_data.csv`, which the electricity postprocessor exports (as `tech_data.csv`) from the input `tech.csv`; the viewer merges the tech descriptors it finds across all runs, so runs built from different input sets can be compared side by side.
+
+Start it with `pixi run viewer` (or `python -m cnems.tools.interfaces.viewer` inside
+`pixi shell`), then open http://127.0.0.1:8050/. It reads every run folder under `output/`;
+after the URL opens, it takes a moment for Dash to set up the dashboard.

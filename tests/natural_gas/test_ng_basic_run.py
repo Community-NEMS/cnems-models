@@ -18,10 +18,10 @@ import pandas as pd
 import pytest
 from pyomo.common.numeric_types import value
 
-from cnems_models.common.common_config import CommonConfig
-from cnems_models.common.integrated_model_sequencer import IterationResult, IterationStatus
-from cnems_models.common.models_modes import ModelType
-from cnems_models.common.update_package import (
+from cnems.common.common_config import CommonConfig
+from cnems.common.integrated_model_sequencer import IterationResult, IterationStatus
+from cnems.common.models_modes import ModelType
+from cnems.common.update_package import (
     NG_ELEC_DEMAND_INDEX,
     NG_ELEC_DEMAND_VALUE,
     NG_PRICE_INDEX,
@@ -30,16 +30,16 @@ from cnems_models.common.update_package import (
     NGElectricalDemandPackage,
     NGPricePackage,
 )
-from cnems_models.definitions import PROJECT_ROOT
-from cnems_models.models.natural_gas.constants import (
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.natural_gas.constants import (
     UNSERVED_DEMAND_PENALTY,
     UNSERVED_PENALTY_TOL,
 )
-from cnems_models.models.natural_gas.data import load_base_demand, load_qp_scalars
-from cnems_models.models.natural_gas.ng_config import NGConfig
-from cnems_models.models.natural_gas.ng_model import NGModel
-from cnems_models.models.natural_gas.postprocessor import _extract_balance
-from cnems_models.models.natural_gas.sequencer import NGSequencer
+from cnems.models.natural_gas.data import load_base_demand, load_qp_scalars
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.ng_model import NGModel
+from cnems.models.natural_gas.postprocessor import _extract_balance
+from cnems.models.natural_gas.sequencer import NGSequencer
 
 verbose = True
 
@@ -52,7 +52,7 @@ verbose = True
 # dev notes:
 # 1.  unlike the electricity equivalent, these values are NOT merely assumed good.  The config
 #     runs the model at full resolution (9 census divisions x the 6 years in summary_years),
-#     which is the same case src/cnems_models/models/natural_gas/README.md reports a reference
+#     which is the same case src/cnems/models/natural_gas/README.md reports a reference
 #     solve for.
 # 2.  a negative total cost is expected, not a defect: the LNG consumer-surplus term is
 #     subtracted in the minimisation form.
@@ -235,7 +235,7 @@ class TestUnservedDemand:
         ``PENALTY`` status, the shortfall is logged and written to the balance CSV, and the price in
         each short region is the penalty.
         """
-        with caplog.at_level(logging.WARNING, logger='cnems_models.models.natural_gas.sequencer'):
+        with caplog.at_level(logging.WARNING, logger='cnems.models.natural_gas.sequencer'):
             status, model = _solve_scaled(2.0)
 
         assert status is IterationStatus.PENALTY, f'expected PENALTY, got {status}'
@@ -268,8 +268,8 @@ class TestSequencerFullRun:
     """``full_run`` must not present a failed solve as a successful run.
 
     ``full_run`` is the entry point the integrator's pool workers call
-    (``src/cnems_models/integrator/jacobi/jacobi_iterator.py::driver``), and its only channel back
-    to the caller is the :class:`~cnems_models.common.integrated_model_sequencer.IterationResult`
+    (``src/cnems/integrator/jacobi/jacobi_iterator.py::driver``), and its only channel back
+    to the caller is the :class:`~cnems.common.integrated_model_sequencer.IterationResult`
     it returns. A failed solve leaves no solution loaded, so reading the objective off the model
     would report a garbage number as if it were a price; these tests pin the contract that the
     failure path reports ``ERROR`` with no objective instead.  (``full_run`` writes no result CSVs

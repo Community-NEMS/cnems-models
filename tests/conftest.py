@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from cnems_models.common.common_config import CommonConfig
+from cnems.common.common_config import CommonConfig
 
 
 @pytest.fixture(autouse=True)

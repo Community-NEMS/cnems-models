@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from cnems_models.definitions import PROJECT_ROOT
-from cnems_models.models.electricity.data_ingestor import load_policy_data, load_property_data
-from cnems_models.models.electricity.elec_config import ElecConfig
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.electricity.data_ingestor import load_policy_data, load_property_data
+from cnems.models.electricity.elec_config import ElecConfig
 from tests.electric.mini_model import mini_configs
 
 SHIPPED_PROPERTIES = PROJECT_ROOT / 'input/electricity/properties'

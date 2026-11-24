@@ -15,12 +15,12 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.common.numeric_types import value
 
-from cnems_models.common.common_config import CommonConfig
-from cnems_models.definitions import PROJECT_ROOT
-from cnems_models.models.electricity.data_ingestor import PARAM_SOURCES
-from cnems_models.models.electricity.elec_config import ElecConfig, ExpansionLearningType
-from cnems_models.models.electricity.sequencer import run_elec_model
-from cnems_models.tools.analysis.model_diagnostics import (
+from cnems.common.common_config import CommonConfig
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.electricity.data_ingestor import PARAM_SOURCES
+from cnems.models.electricity.elec_config import ElecConfig, ExpansionLearningType
+from cnems.models.electricity.sequencer import run_elec_model
+from cnems.tools.analysis.model_diagnostics import (
     breakdown_obj_elements,
     capacity_inspector,
     cost_per_kwh,

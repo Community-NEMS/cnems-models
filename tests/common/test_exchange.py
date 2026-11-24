@@ -16,8 +16,8 @@ import pickle
 import pandas as pd
 import pytest
 
-from cnems_models.common.models_modes import ModelType
-from cnems_models.common.update_package import (
+from cnems.common.models_modes import ModelType
+from cnems.common.update_package import (
     PACKAGE_TYPES,
     ElectricityPriceScaler,
     ExchangeSpec,
@@ -28,16 +28,16 @@ from cnems_models.common.update_package import (
     NGPricePackage,
     check_region_year_keys,
 )
-from cnems_models.models.electricity.update_writer import ElecUpdateWriter
-from cnems_models.models.magic.magic_model import MagicModel
-from cnems_models.models.magic.update_writer import MagicUpdateWriter
+from cnems.models.electricity.update_writer import ElecUpdateWriter
+from cnems.models.magic.magic_model import MagicModel
+from cnems.models.magic.update_writer import MagicUpdateWriter
 
 ELEC = ModelType.ELECTRICITY
 NG = ModelType.NATURAL_GAS
 MAGIC = ModelType.MAGIC
 MAGIC_HSM = ModelType.MAGIC_HSM
 STANDARD = list(PACKAGE_TYPES)
-LOGGER_NAME = 'cnems_models.common.update_package.exchange'
+LOGGER_NAME = 'cnems.common.update_package.exchange'
 
 
 @pytest.mark.parametrize(

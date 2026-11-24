@@ -16,8 +16,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from cnems_models.common.models_modes import ModelType
-from cnems_models.integrator.region_crosswalk import (
+from cnems.common.models_modes import ModelType
+from cnems.integrator.region_crosswalk import (
     REGION_COLUMN,
     REGION_CROSSWALKS,
     VALUE_INDEX,

@@ -6,7 +6,7 @@ Written with:  Claude Opus 5.5 (Anthropic)
 Contact:  jeff@westernspark.us
 Created on:  10/6/26
 
-Tests for cnems_models.models.natural_gas.data_validation
+Tests for cnems.models.natural_gas.data_validation
 
 The validators report by logging and returning a bool, so the assertions inspect both the return
 value and the ``caplog`` records.  Curve data is mocked with small dicts mirroring the loaded
@@ -19,7 +19,7 @@ import math
 
 import pytest
 
-from cnems_models.models.natural_gas.data_validation import (
+from cnems.models.natural_gas.data_validation import (
     validate_lng_demand_curve,
     validate_lng_export,
     validate_pipeline_arcs,
@@ -30,7 +30,7 @@ from cnems_models.models.natural_gas.data_validation import (
     validate_trade_partners,
 )
 
-VALIDATION_LOGGER = 'cnems_models.models.natural_gas.data_validation'
+VALIDATION_LOGGER = 'cnems.models.natural_gas.data_validation'
 
 SUPPLY_SHAPE = {
     'crv_below': [0.30, 0.15, 0.05],

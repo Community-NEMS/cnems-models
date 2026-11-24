@@ -14,13 +14,13 @@ from pathlib import Path
 
 import pytest
 
-from cnems_models.common.common_config import parse_config_file
-from cnems_models.common.integrated_model_sequencer import IterationStatus
-from cnems_models.common.iterative_sequencer import RunStatus
-from cnems_models.common.log_setup import _retire_previous_setup
-from cnems_models.common.models_modes import ModelType
-from cnems_models.definitions import PROJECT_ROOT
-from cnems_models.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
+from cnems.common.common_config import parse_config_file
+from cnems.common.integrated_model_sequencer import IterationStatus
+from cnems.common.iterative_sequencer import RunStatus
+from cnems.common.log_setup import _retire_previous_setup
+from cnems.common.models_modes import ModelType
+from cnems.definitions import PROJECT_ROOT
+from cnems.integrator.gauss_seidel.gs_iterator import GaussSeidelIterator
 
 
 @pytest.fixture

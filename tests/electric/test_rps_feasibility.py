@@ -15,9 +15,9 @@ from typing import Any
 
 import pytest
 
-from cnems_models import main
-from cnems_models.common.models_modes import ModelType
-from cnems_models.models.electricity.rps_feasibility import (
+from cnems import main
+from cnems.common.models_modes import ModelType
+from cnems.models.electricity.rps_feasibility import (
     DISJOINT_SHARES_OVER_1,
     EXCEEDS_OWN_LOAD,
     EXISTING_ONLY,
@@ -31,7 +31,7 @@ from cnems_models.models.electricity.rps_feasibility import (
     _ranges,
     rps_feasibility_report,
 )
-from cnems_models.models.electricity.sequencer import ElectricitySequencer
+from cnems.models.electricity.sequencer import ElectricitySequencer
 from tests.electric.mini_model import (
     MiniModelData,
     add_battery,

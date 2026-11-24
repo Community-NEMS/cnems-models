@@ -13,7 +13,7 @@ augmentations of it, including building a tech where it has no existing capacity
 import pyomo.environ as pyo
 import pytest
 
-from cnems_models.common.integrated_model_sequencer import IterationStatus
+from cnems.common.integrated_model_sequencer import IterationStatus
 from tests.electric.mini_model import add_solar_expansion
 
 

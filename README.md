@@ -26,10 +26,10 @@ The project is being built sector by sector. Two models are currently in the rep
 
 | Model       | Location                              | Scope                                                                                                                        |
 |-------------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| Electricity | `src/cnems_models/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
-| Natural gas | `src/cnems_models/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
+| Electricity | `src/cnems/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
+| Natural gas | `src/cnems/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
 
-`src/cnems_models/integrator` holds the machinery for coupling models to each other. It is in active development, and
+`src/cnems/integrator` holds the machinery for coupling models to each other. It is in active development, and
 parts of it are not yet maintained.
 
 **Maturity.** This is a research codebase under active development. The electricity model is the
@@ -52,8 +52,8 @@ pixi run cnems
 ```
 
 With no config argument, that runs three scenarios in sequence, each named in `cli()` in
-`src/cnems_models/main.py` and configured by a TOML under `run_configs`. `pixi run cnems <config>`
-(or `pixi run python -m cnems_models <config>`) runs a single config.
+`src/cnems/main.py` and configured by a TOML under `run_configs`. `pixi run cnems <config>`
+(or `pixi run python -m cnems <config>`) runs a single config.
 
 | Config                      | Input set                      | Regions    | Trade | Expansion |
 |-----------------------------|--------------------------------|------------|-------|-----------|
@@ -82,7 +82,7 @@ model specific section. `basic_elec_config.toml` is the smallest useful starting
 ## Repository layout
 
 ```
-src/cnems_models/                  the installable package (CLI: main.py)
+src/cnems/                  the installable package (CLI: main.py)
     models/                        one directory per sector model
     common/                        shared configuration and run sequencing
     integrator/                    cross model coupling, in progress (data/: reference data)
@@ -109,11 +109,11 @@ pixi run docs-serve
 The formal formulation for each model, meaning its sets, parameters, variables and constraints,
 currently lives alongside the code and is being migrated into `docs/`.
 
-- [Electricity model](src/cnems_models/models/electricity/README.md)
-- [Natural gas model](src/cnems_models/models/natural_gas/README.md)
-- [Integrator](src/cnems_models/integrator/old_README.md)
-- [Shared configuration and sequencing](src/cnems_models/common/README.md)
-- [Output viewer](src/cnems_models/tools/interfaces/viewer/README.md)
+- [Electricity model](src/cnems/models/electricity/README.md)
+- [Natural gas model](src/cnems/models/natural_gas/README.md)
+- [Integrator](src/cnems/integrator/old_README.md)
+- [Shared configuration and sequencing](src/cnems/common/README.md)
+- [Output viewer](src/cnems/tools/interfaces/viewer/README.md)
 
 ## Contributing
 

@@ -9,7 +9,7 @@ Created on:  10/7/26
 
 import pytest
 
-from cnems_models.common.season import Season
+from cnems.common.season import Season
 
 
 @pytest.fixture

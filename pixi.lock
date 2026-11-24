@@ -11523,5 +11523,5 @@ packages:
   size: 387535
   timestamp: 1786599623274
 - pypi: ./
-  name: cnems-models
+  name: cnems
   requires_python: '>=3.14,<3.15'

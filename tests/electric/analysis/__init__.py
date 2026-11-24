@@ -1,1 +1,1 @@
-"""Tests for the ``cnems_models.tools.analysis`` package."""
+"""Tests for the ``cnems.tools.analysis`` package."""

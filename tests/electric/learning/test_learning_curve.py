@@ -10,7 +10,7 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.core.expr.visitor import identify_variables
 
-from cnems_models.models.electricity.learning import learning_cost, learning_multiplier
+from cnems.models.electricity.learning import learning_cost, learning_multiplier
 
 Q0 = 100.0
 RATE = 0.1

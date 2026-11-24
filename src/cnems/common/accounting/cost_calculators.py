@@ -18,17 +18,11 @@ from logging import getLogger
 
 logger = getLogger(name=__name__)
 
+ # —————————————————————————————————————————————————————————————————— Helper Functions
 
 def annuity_to_pv(rate: float, periods: float) -> float | Expression:
-    r"""
+    """
     Multiplication factor to convert an annuity to net present value
-
-    .. math::
-        :label: annuity_to_pv
-
-        \frac{P}{A}(i, N) = \frac{(1 + i)^N - 1}{i (1 + i)^N}
-
-    where:
 
     - :math:`i` is the interest/discount rate
     - :math:`N` is the number of periods
@@ -39,13 +33,9 @@ def annuity_to_pv(rate: float, periods: float) -> float | Expression:
 
 
 def pv_to_annuity(rate: float, periods: float) -> float | Expression:
-    r"""
+    """
     Multiplication factor to convert net present value to an annuity
 
-    .. math::
-        :label: pv_to_annuity
-
-        \frac{A}{P}(i, N) = \frac{i (1 + i)^N}{(1 + i)^N - 1}
     """
     if rate == 0:
         return 1 / periods
@@ -53,31 +43,34 @@ def pv_to_annuity(rate: float, periods: float) -> float | Expression:
 
 
 def fv_to_pv(rate: float, periods: float) -> float | Expression:
-    r"""
+    """
     Multiplication factor to convert a future value to net present value
 
-    .. math::
-        :label: fv_to_pv
-
-        \frac{P}{F}(i, N) = \frac{1}{(1 + i)^N}
     """
     if rate == 0:
         return 1
     return 1 / (1 + rate) ** periods
 
+def param_loan_annualize_rule(
+    model: TemoaModel, r: Region, t: Technology, v: Vintage
+) -> float | Expression:
+    """Rule to calculate the annualized loan rate from the loan rate and lifetime."""
+    dr = value(model.loan_rate[r, t, v])
+    lln = value(model.loan_lifetime_process[r, t, v])
+    annualized_rate = pv_to_annuity(dr, lln)
+    return annualized_rate
 
-# ============================================================================
-# COST CALCULATION FUNCTIONS
-# These functions are the building blocks for the objective function.
-# ============================================================================
+
+
+# —————————————————————————————————————————————————————————————————— Accounting
 
 
 def loan_cost(
     capacity: float | Var | ComponentData,
-    invest_cost: float | Expression,
+    capacity_cost: float | Expression,
     loan_annualize: float,
-    lifetime_loan_process: float,
-    lifetime_process: float,
+    loan_lifetime: float,
+    tech_lifetime: float,
     p_0: int,
     p_e: int,
     global_discount_rate: float,
@@ -87,9 +80,9 @@ def loan_cost(
     Function to calculate the loan cost.  It can be used with fixed values to produce a hard number
     or pyomo variables/params to make a pyomo Expression
     :param capacity: The capacity to use to calculate cost
-    :param invest_cost: the cost/capacity
+    :param capacity_cost: the cost/capacity
     :param loan_annualize: parameter
-    :param lifetime_loan_process: lifetime of the loan
+    :param loan_lifetime: lifetime of the loan
     :param P_0: the year to discount the costs back to
     :param P_e: the 'end year' or cutoff year for loan payments
     :param GDR: Global Discount Rate
@@ -98,19 +91,19 @@ def loan_cost(
     """
     # calculate the amortised loan repayment (annuity)
     annuity = (
-        capacity
-        * invest_cost  # lump investment cost is capacity times cost_invest
-        * loan_annualize  # calculate loan annuities for investment cost, if used
+            capacity
+            * capacity_cost  # lump investment cost is capacity times cost_invest
+            * loan_annualize  # calculate loan annuities for investment cost, if used
     )
 
     if not global_discount_rate:
         # Undiscounted result
         res = (
-            annuity
-            * lifetime_loan_process  # sum of loan payments over loan period
-            / lifetime_process  # redistributed over lifetime of process
-            * min(
-                lifetime_process, p_e - vintage
+                annuity
+                * loan_lifetime  # sum of loan payments over loan period
+                / tech_lifetime  # redistributed over lifetime of process
+                * min(
+                tech_lifetime, p_e - vintage
             )  # sum of redistributed costs for life of process (within planning horizon)
         )
     else:
@@ -118,13 +111,13 @@ def loan_cost(
         res = (
             annuity
             * annuity_to_pv(
-                global_discount_rate, int(lifetime_loan_process)
+                global_discount_rate, int(loan_lifetime)
             )  # PV of all loan payments, discounted to vintage year using GDR
             * pv_to_annuity(
-                global_discount_rate, lifetime_process
+                global_discount_rate, tech_lifetime
             )  # reamortised over lifetime of process using GDR
             * annuity_to_pv(
-                global_discount_rate, min(lifetime_process, p_e - vintage)
+                global_discount_rate, min(tech_lifetime, p_e - vintage)
             )  # PV of all reamortised costs (within planning horizon)
             * fv_to_pv(
                 global_discount_rate, vintage - p_0
@@ -380,14 +373,6 @@ def period_cost_rule(
     return period_costs
 
 
-def param_loan_annualize_rule(
-    model: TemoaModel, r: Region, t: Technology, v: Vintage
-) -> float | Expression:
-    """Rule to calculate the annualized loan rate from the loan rate and lifetime."""
-    dr = value(model.loan_rate[r, t, v])
-    lln = value(model.loan_lifetime_process[r, t, v])
-    annualized_rate = pv_to_annuity(dr, lln)
-    return annualized_rate
 
 
 def param_investment_choice_annualize_rule(

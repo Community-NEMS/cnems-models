@@ -38,13 +38,35 @@ this will be the "roll up" year
 ### Requirements:
 - Accurate computation of the myopic timeline given some analysis years
 - Solve status tracking
-- Retain "build/retire" quantities for prior iterations in case reversion needed.
-- accurately track cumulative learning for learning cost reduction purposes
+- Retain "build/retire" quantities for prior iterations in case reversion needed.  See `Data Augmentation`
+section
 - Reversion (rearward window expansion) to accommodate failed solves.
   - Reversion should back up the Base Year and Status Year while leaving others
   unchanged
   - forward movement after reversion should step to the previous Step Year
-- Visualizer
+
+### Data Augmentation
+
+IOT move forward in Myopic indexes, it will be important to retain/convey information between
+solves.  This is limited to data which has a year-over-year affect, so things like generation
+in a specific period are not important.  IOT revert backwards in Myopic Indexes, we need to 
+retain information gathered along the way to enable progressive steps backward.  In both 
+cases it is only necessary to retain information up to the next Status Year to inform the next
+optimization.  Historical results should be indexable by Status Year so that we can walk 
+backwards in the optimization years
+
+#### Key retention data and indexing concepts
+
+- all retained decisions must be anchored by year to enable accurate selection for reversion
+- We need both builds and retirements such that we can get an augment wedge for existing
+capacity, learning baseline, etc.
+- Data brought forward needs be recognized/characterized as "existing" or "carried" so we
+could either manipulate the affected parameters or add additional parameter like `carried_myopic_capacity`
+that would be added to `exisiting_capacity`
+- For learning, we could employ a `carried_myopic_learning` baseline indexed appropriately.
+
+
+## Visualizer Concepts
 
 ```text
 –––––––––––––––––– Visualization

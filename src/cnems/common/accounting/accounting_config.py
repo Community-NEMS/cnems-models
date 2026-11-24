@@ -70,10 +70,12 @@ class AccountingConfig(BaseModel):
             raise ValueError('min_loan_payments must be greater than 0.')
         return v
 
+
 DEFAULT_ACCOUNTING_CONFIG = AccountingConfig(
     currency_base_year=2025,
     default_loan_life=20,
     loan_rate=0.05,
     min_loan_payments=5,
-    discount_rate=0.03)
+    discount_rate=0.03,
+)
 """A usable set of accounting defaults for dev/testing"""

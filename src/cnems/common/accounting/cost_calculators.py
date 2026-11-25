@@ -88,14 +88,17 @@ def fv_to_pv(rate: float, periods: float) -> float | Expression:
 # —————————————————————————————————————————————————————————————————— Accounting
 
 
+# TODO:  Figure out if we need to refine p_0 here to be the first year of
+#        an aggregation, if aggregation = True.  RN, it is the trail (analysis) year
 def loan_cost(
     capacity: float | Var,  #| ComponentData,
     capacity_cost: float | Expression,
     loan_rate: float,
     loan_lifetime: int,
+    min_loan_payments: int,
     p_0: int,
     p_e: int,
-    discount_rate: float,
+    discount_rate: float | None,
     vintage: int,
 ) -> float | Expression:
     """
@@ -111,11 +114,14 @@ def loan_cost(
         Interest rate on the loan.
     loan_lifetime : int
         Loan term, in years.
+    min_loan_payments : int
+        Minimum number of loan payments to make in the case they are eclipsed
+        by the analysis horizon
     p_0 : int
         Year costs are discounted to.
     p_e : int
         Last year of the planning horizon; payments past it are excluded.
-    discount_rate : float
+    discount_rate : float | None
         Discount rate; falsy gives an undiscounted result.
     vintage : int
         Year the loan begins.
@@ -125,8 +131,12 @@ def loan_cost(
     float | Expression
         A number for numeric inputs, a pyomo Expression for pyomo inputs.
     """
+    if min_loan_payments <= 0:
+        raise ValueError('min_loan_payments must be > 0')
+
     # calculate the amortised loan repayment (annuity)
     annuity_payment = (
+        # pyrefly: ignore[unsupported-operation]  - pyomo Var/Expression arithmetic is untyped
         capacity
         * capacity_cost  # lump investment cost is capacity times cost_invest
         * pv_to_annuity(
@@ -136,7 +146,8 @@ def loan_cost(
 
     # determine number of loan payments to make based on end condition
     # we have a +1 here because the last year it typically *in* the analysis in CNEMS
-    periods = min(p_e - vintage + 1, loan_lifetime)
+    least_periods = max(p_e - vintage + 1, min_loan_payments)
+    periods = min(least_periods, loan_lifetime)
 
     if not discount_rate:
         # Undiscounted result: sum of loan payments within the planning horizon
@@ -145,6 +156,7 @@ def loan_cost(
         # Discounted result
 
         # calculate PV of all annuity payments
+        # pyrefly: ignore[unsupported-operation]  - pyomo Var/Expression arithmetic is untyped
         future_value = annuity_payment * annuity_to_pv(rate=discount_rate, periods=periods)
 
         # * pv_to_annuity(
@@ -155,6 +167,7 @@ def loan_cost(
         # )  # PV of all reamortised costs (within planning horizon)
 
         # bring the future cost to discounted present value
+        # pyrefly: ignore[unsupported-operation]  - pyomo Var/Expression arithmetic is untyped
         present_value = future_value * fv_to_pv(discount_rate, vintage - p_0)
 
     return present_value
@@ -196,6 +209,7 @@ def fixed_or_variable_cost(
     float | Expression
         A number for numeric inputs, a pyomo Expression for pyomo inputs.
     """
+    # pyrefly: ignore[unsupported-operation]  - pyomo Var/Expression arithmetic is untyped
     annual_cost = annual_cap_or_flow * cost_factor  # annual fixed, variable, or emission cost
     costed_years = preceding_costed_years + 1  # the preceding years plus p itself
 
@@ -206,6 +220,7 @@ def fixed_or_variable_cost(
         # Discounted result
         first_cost_year = p - preceding_costed_years
         return (
+            # pyrefly: ignore[unsupported-operation]  - pyomo Var/Expression arithmetic is untyped
             annual_cost
             * annuity_to_pv(
                 discount_rate, int(costed_years)

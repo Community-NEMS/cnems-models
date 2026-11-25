@@ -75,60 +75,58 @@ def test_fv_to_pv(rate: float, periods: int) -> None:
     assert fv_to_pv(rate, periods) * (1 + rate) ** periods == pytest.approx(1.0)
 
 
-def test_loan_cost_whole_loan_in_window(annual_payment: float) -> None:
-    """Every payment falls within the horizon, so all are counted."""
-    p_e = VINTAGE + CFG.default_loan_life + 10
-    result = loan_cost(
-        CAPACITY,
-        CAPACITY_COST,
-        CFG.loan_rate,
-        CFG.default_loan_life,
-        P_0,
-        p_e,
-        CFG.discount_rate,
-        VINTAGE,
+LOAN_LIFE = CFG.default_loan_life
+MIN_PAYMENTS = CFG.min_loan_payments
+
+# (p_e, min_loan_payments, expected payment count)
+LOAN_PAYMENT_CASES = [
+    pytest.param(VINTAGE + LOAN_LIFE + 10, MIN_PAYMENTS, LOAN_LIFE, id='whole_loan_in_window'),
+    pytest.param(VINTAGE + LOAN_LIFE - 1, MIN_PAYMENTS, LOAN_LIFE, id='horizon_ends_with_loan'),
+    pytest.param(VINTAGE + 9, MIN_PAYMENTS, 10, id='truncated_by_horizon'),
+    pytest.param(VINTAGE + MIN_PAYMENTS - 1, MIN_PAYMENTS, MIN_PAYMENTS, id='horizon_at_minimum'),
+    pytest.param(VINTAGE, MIN_PAYMENTS, MIN_PAYMENTS, id='minimum_overrides_horizon'),
+    pytest.param(VINTAGE + 2, 1, 3, id='minimum_of_one'),
+    pytest.param(VINTAGE, LOAN_LIFE + 5, LOAN_LIFE, id='minimum_capped_by_loan_life'),
+]
+
+
+def _loan_cost(p_e: int, min_loan_payments: int, discount_rate: float | None) -> float:
+    """``loan_cost`` on the default loan built at ``VINTAGE``, discounted to ``P_0``."""
+    return loan_cost(
+        capacity=CAPACITY,
+        capacity_cost=CAPACITY_COST,
+        loan_rate=CFG.loan_rate,
+        loan_lifetime=LOAN_LIFE,
+        min_loan_payments=min_loan_payments,
+        p_0=P_0,
+        p_e=p_e,
+        discount_rate=discount_rate,
+        vintage=VINTAGE,
     )
-    expected = discounted_payments(annual_payment, VINTAGE, CFG.default_loan_life)
+
+
+@pytest.mark.parametrize(('p_e', 'min_loan_payments', 'payments'), LOAN_PAYMENT_CASES)
+def test_loan_cost(annual_payment: float, p_e: int, min_loan_payments: int, payments: int) -> None:
+    """Payments run to the horizon, floored at ``min_loan_payments`` and capped at loan life."""
+    result = _loan_cost(p_e, min_loan_payments, CFG.discount_rate)
+    expected = discounted_payments(annual_payment, VINTAGE, payments)
     assert result == pytest.approx(expected)
 
 
-def test_loan_cost_truncated_by_horizon(annual_payment: float) -> None:
-    """The horizon ends after ``min_loan_payments`` payments, so only those are counted."""
-    p_e = VINTAGE + CFG.min_loan_payments - 1
-    result = loan_cost(
-        CAPACITY,
-        CAPACITY_COST,
-        CFG.loan_rate,
-        CFG.default_loan_life,
-        P_0,
-        p_e,
-        CFG.discount_rate,
-        VINTAGE,
-    )
-    expected = discounted_payments(annual_payment, VINTAGE, CFG.min_loan_payments)
-    assert result == pytest.approx(expected)
-
-
-@pytest.mark.parametrize(
-    ('p_e', 'payments'),
-    [
-        (VINTAGE + CFG.default_loan_life + 10, CFG.default_loan_life),
-        (VINTAGE + CFG.min_loan_payments - 1, CFG.min_loan_payments),
-    ],
-)
-def test_loan_cost_undiscounted(annual_payment: float, p_e: int, payments: int) -> None:
-    """Without discounting, the cost is the sum of the payments within the horizon."""
-    result = loan_cost(
-        CAPACITY,
-        CAPACITY_COST,
-        CFG.loan_rate,
-        CFG.default_loan_life,
-        P_0,
-        p_e,
-        None,
-        VINTAGE,
-    )
+@pytest.mark.parametrize(('p_e', 'min_loan_payments', 'payments'), LOAN_PAYMENT_CASES)
+def test_loan_cost_undiscounted(
+    annual_payment: float, p_e: int, min_loan_payments: int, payments: int
+) -> None:
+    """Without discounting, the cost is the sum of the payments counted."""
+    result = _loan_cost(p_e, min_loan_payments, None)
     assert result == pytest.approx(annual_payment * payments)
+
+
+@pytest.mark.parametrize('min_loan_payments', [0, -1])
+def test_loan_cost_rejects_nonpositive_min_payments(min_loan_payments: int) -> None:
+    """``min_loan_payments`` must be at least 1."""
+    with pytest.raises(ValueError, match='min_loan_payments'):
+        _loan_cost(VINTAGE + LOAN_LIFE, min_loan_payments, CFG.discount_rate)
 
 
 @pytest.mark.parametrize('preceding_costed_years', [0, 2])

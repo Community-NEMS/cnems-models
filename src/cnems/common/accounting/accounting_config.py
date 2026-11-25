@@ -17,6 +17,7 @@ class AccountingConfig(BaseModel):
 
     currency_base_year: int
     default_loan_life: int
+    default_tech_life: int
     loan_rate: float
     min_loan_payments: int
     discount_rate: float
@@ -35,6 +36,14 @@ class AccountingConfig(BaseModel):
         """Validate loan life is positive integer."""
         if v <= 0:
             raise ValueError('default_loan_life must be greater than 0.')
+        return v
+
+    @field_validator('default_tech_life')
+    @classmethod
+    def default_tech_life_validator(cls, v):
+        """Validate that a technical life is positive integer."""
+        if v <= 0:
+            raise ValueError('default_tech_life must be greater than 0.')
         return v
 
     @field_validator('loan_rate')
@@ -75,6 +84,7 @@ class AccountingConfig(BaseModel):
 DEFAULT_ACCOUNTING_CONFIG = AccountingConfig(
     currency_base_year=2025,
     default_loan_life=20,
+    default_tech_life=30,
     loan_rate=0.05,
     min_loan_payments=5,
     discount_rate=0.03,

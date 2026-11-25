@@ -61,6 +61,7 @@ class AccountingConfig(BaseModel):
                 f'Huge discount rate detected: {v}.  discount_rates are expressed as decimals, '
                 'not percentage.'
             )
+        return v
 
     @field_validator('min_loan_payments')
     @classmethod

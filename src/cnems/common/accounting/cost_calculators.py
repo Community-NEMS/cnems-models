@@ -93,7 +93,6 @@ def loan_cost(
     capacity_cost: float | Expression,
     loan_rate: float,
     loan_lifetime: int,
-    tech_lifetime: int,
     p_0: int,
     p_e: int,
     discount_rate: float,
@@ -112,8 +111,6 @@ def loan_cost(
         Interest rate on the loan.
     loan_lifetime : int
         Loan term, in years.
-    tech_lifetime : int
-        Technology lifetime, in years; used only when undiscounted.
     p_0 : int
         Year costs are discounted to.
     p_e : int
@@ -137,22 +134,15 @@ def loan_cost(
         )  # calculate loan annuities for investment cost, if used
     )
 
+    # determine number of loan payments to make based on end condition
+    # we have a +1 here because the last year it typically *in* the analysis in CNEMS
+    periods = min(p_e - vintage + 1, loan_lifetime)
+
     if not discount_rate:
-        # Undiscounted result
-        present_value = (
-            annuity_payment
-            * loan_lifetime  # sum of loan payments over loan period
-            / tech_lifetime  # redistributed over lifetime of process
-            * min(
-                tech_lifetime, p_e - vintage
-            )  # sum of redistributed costs for life of process (within planning horizon)
-        )
+        # Undiscounted result: sum of loan payments within the planning horizon
+        present_value = annuity_payment * periods
     else:
         # Discounted result
-
-        # determine number of loan payments to make based on end condition
-        # we have a +1 here because the last year it typically *in* the analysis in CNEMS
-        periods = min(p_e - vintage + 1, loan_lifetime)
 
         # calculate PV of all annuity payments
         future_value = annuity_payment * annuity_to_pv(rate=discount_rate, periods=periods)
@@ -192,8 +182,8 @@ def fixed_or_variable_cost(
     cost_factor : float | Expression
         Cost per unit of `annual_cap_or_flow`.
     preceding_costed_years : int
-        Number of years, ending at `p`, the cost is incurred.  Without aggregation, this should
-        be zero.
+        Number of years before `p` that are aggregated into it and also costed.  Without
+        aggregation, this should be zero.
     discount_rate : float | None
         Discount rate; falsy gives an undiscounted result.
     p_0 : int
@@ -207,17 +197,18 @@ def fixed_or_variable_cost(
         A number for numeric inputs, a pyomo Expression for pyomo inputs.
     """
     annual_cost = annual_cap_or_flow * cost_factor  # annual fixed, variable, or emission cost
+    costed_years = preceding_costed_years + 1  # the preceding years plus p itself
 
     if not discount_rate:
         # Undiscounted result
-        return annual_cost * preceding_costed_years  # annual cost times years paying that cost
+        return annual_cost * costed_years  # annual cost times years paying that cost
     else:
         # Discounted result
         first_cost_year = p - preceding_costed_years
         return (
             annual_cost
             * annuity_to_pv(
-                discount_rate, int(preceding_costed_years)
+                discount_rate, int(costed_years)
             )  # PV of annual costs over this period, discounted
             * fv_to_pv(discount_rate, int(first_cost_year - p_0))  # discounted from p to p_0
         )

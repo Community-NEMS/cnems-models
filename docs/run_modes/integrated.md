@@ -107,7 +107,7 @@ flowchart TD
     V --> U["<code>route_updates</code><br/>bin packages by receiver"]
     U --> C{"Terminating<br/>condition met?"}
     C -- no --> I
-    C -- yes --> Z["Plot objectives by iteration"]
+    C -- yes --> Z["Return the run status<br/>and iteration results"]
 ```
 
 Within one iteration, each worker runs its model's `IntegratedModelSequencer.full_run`:
@@ -136,16 +136,15 @@ Things to know about the current loop:
   monitor to the console.
 - **No result files are written yet.** `full_run` doesn't call `full_postprocess`, so the scenario
   folder ends up holding only `MAIN.log` and the per-model logs (`electricity.log`,
-  `natural_gas.log`, plus `magic.log` or `magic_hsm.log` when MAGIC or MAGIC_HSM runs). The
-  objective plot is shown but not saved.
+  `natural_gas.log`, plus `magic.log` or `magic_hsm.log` when MAGIC or MAGIC_HSM runs).
 - **The run ends** when every model with an objective has changed by less than `epsilon`,
   relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
-  `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative
+  `iteration_limit` is reached (`ConvergenceTracker` in `src/cnems/integrator/convergence.py`). The relative
   change makes the test independent of each model's objective scale. Models without an objective
   (MAGIC, MAGIC_HSM) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`,
   `USABLE`) holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate
-  but lean on a soft limit such as unmet demand. `cnems.main` then plots each model's objective by
-  iteration; the plot window blocks until it is closed.
+  but lean on a soft limit such as unmet demand. No objective plot is drawn, since
+  `PLOT_OBJECTIVES` is `False` in `src/cnems/main.py`.
 
 !!! warning "Region filters in integrated runs"
 

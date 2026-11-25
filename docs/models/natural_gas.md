@@ -278,8 +278,9 @@ imposed on it, and it is the signal a coupled model needs to reduce the demand i
 counterpart of the electricity model's `unmet_load`. The electricity demand balance has no counterpart to
 `slack_demand`: it is an equality, and surplus is avoided by generating below capacity.
 
-A result with unserved demand is a shortfall, not a cleared market. `NGSequencer.solve_model` still
-returns `USABLE` for it, logs a warning naming every region-year short by more than 0.01 Bcf, and
+A result with unserved demand is a shortfall, not a cleared market. `NGSequencer.solve_model`
+returns `PENALTY` for it, so a coupled run still sends its update packages but cannot stop on it.
+It logs a warning naming every region-year short by more than 0.01 Bcf, and
 `ng_regional_balance.csv` carries both slacks as `unserved_bcf` and `slack_demand_bcf`. Check one of
 them before reading prices from a run that may have been pushed past what the network can deliver. Once capacity expansion is implemented in C-NGMM and the model is calibrated, we can aim for both of these to not have an impact on projections.
 

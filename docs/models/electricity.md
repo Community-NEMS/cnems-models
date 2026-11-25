@@ -740,8 +740,10 @@ $$
 \end{aligned} \tag{35}
 $$
 
-Both sides are annual energy for one year, so the year weight $WY_y$ cancels and year aggregation needs no special
-treatment. The load is the full $LOAD$, so unmet load does not reduce the requirement. Because the demand balance (9)
+Both sides are annual energy for one year, so the year weight $WY_y$ cancels. A requirement applies to a
+representative year once that year reaches its first year, even if the calendar years it stands for start earlier
+(see [Which Requirement Is In Force](electricity_rps.md#which-requirement-is-in-force)). The load is the full $LOAD$,
+so unmet load does not reduce the requirement. Because the demand balance (9)
 is an equality, surplus group output cannot be dumped to meet (35). It could still be lost by charging and discharging
 storage in the same time segment, or by sending power both ways on a line or around a loop of regions, and the lost
 energy would count. (35) therefore debits the region key's storage losses and the transmission loss on every domestic
@@ -750,7 +752,8 @@ The debit covers all such losses, whatever generation they came from, so it is s
 credit generation at the generator's meter. For `all` it covers every domestic flow, and the debit is exact. For a
 smaller key, two routes stay open, both through regions outside the key: a loop that passes through two or more of
 them loses energy on links the key never touches, and exported energy can be lost in their storage. Either way the
-lost energy still counts for the key, but this rarely pays. A region that imports energy normally uses it to serve its
+lost energy still counts for the key. We assume this rarely pays; no test or run checks it. A region that imports
+energy normally uses it to serve its
 own load and runs its own generators less, which costs nothing and earns the key the same credit. Losing the energy
 instead makes sense only when the imports exceed the load those regions can serve, and a loop also pays the trade
 cost on every leg. A requirement with a minimum of 0 writes no constraint, since it can never bind. The input tables, the supersession rules with a worked example, and the

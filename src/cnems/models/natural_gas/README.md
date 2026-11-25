@@ -19,7 +19,6 @@ The environment is managed with pixi; dependencies are declared in `pyproject.to
 ```bash
 pixi install
 pixi run ng          # full run: 9 regions, 6 years
-pixi run ng-smoke    # 3 regions, 2 years
 pixi run test # coupling tests
 ```
 

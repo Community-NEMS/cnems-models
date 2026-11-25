@@ -60,13 +60,15 @@ in the objective function.
   only to earn credit.
 - **What the debit misses.** For `all` the debit is exact. For a smaller key, energy exported to
   regions outside the key could still be lost there, in their storage or around a loop through two
-  or more of them, on links the key never touches, and still count for the key. In practice that
-  rarely pays. A region that imports energy normally uses it to serve its own load and runs its own
-  generators less. That costs nothing and earns the key the same credit. Losing the energy instead
-  makes sense only when the imports exceed the load those regions can serve, and a loop also pays
-  the trade cost on every leg.
+  or more of them, on links the key never touches, and still count for the key. We assume this
+  rarely pays; no test or run checks it. A region that imports energy normally uses it to serve its
+  own load and runs its own generators less. That costs nothing and earns the key the same credit.
+  Losing the energy instead makes sense only when the imports exceed the load those regions can
+  serve, and a loop also pays the trade cost on every leg.
 - **Year weights cancel.** Both sides are for one year, so year aggregation leaves the share
-  unchanged.
+  unchanged. It still matters when a requirement starts: a requirement applies to a representative
+  year once that year reaches its `first_year`, even if the calendar years it stands for start
+  earlier. See the note under [Which Requirement Is In Force](#which-requirement-is-in-force).
 
 ### Requirement types
 
@@ -74,7 +76,7 @@ The `requirement_type` column is kept for future types, but only one is implemen
 
 | Type | Name            | Effect |
 |:-----|:----------------|:-------|
-| BTM  | Build To Minima | The group's annual generation must be at least the minimum share of the annual load. The model builds group capacity, or shifts generation to the group, as needed. |
+| BTM  | Build To Minima | The group's annual generation, less the region key's storage losses and, with regional exchange on, its transmission losses, must be at least the minimum share of the annual load. The model builds group capacity, or shifts generation to the group, as needed. |
 
 Any other type is
 rejected. An Alternative Compliance Payment (a priced shortfall instead of a hard limit) is also

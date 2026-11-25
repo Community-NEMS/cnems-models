@@ -18,12 +18,12 @@ from pathlib import Path
 import pytest
 from pyomo.common.numeric_types import value
 
-import src.models.natural_gas.sequencer as ng_sequencer
-from definitions import PROJECT_ROOT
-from src.common.common_config import CommonConfig
-from src.models.natural_gas.ng_config import NGConfig
-from src.models.natural_gas.ng_model import GI, TI, NGModel
-from src.models.natural_gas.sequencer import NGSequencer
+import cnems.models.natural_gas.sequencer as ng_sequencer
+from cnems.common.common_config import CommonConfig
+from cnems.definitions import PROJECT_ROOT
+from cnems.models.natural_gas.ng_config import NGConfig
+from cnems.models.natural_gas.ng_model import GI, TI, NGModel
+from cnems.models.natural_gas.sequencer import NGSequencer
 
 # west_south_central is an LNG exporter, so this subset carries an LNG demand curve
 PARTIAL_REGIONS = ['west_south_central', 'mountain', 'pacific']

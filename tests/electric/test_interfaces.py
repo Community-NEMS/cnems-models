@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.common.integrated_model_sequencer import IterationStatus
-from src.integrator.utilities import HI, get_elec_price, regional_annual_prices
+from cnems.common.integrated_model_sequencer import IterationStatus
+from cnems.integrator.utilities import HI, get_elec_price, regional_annual_prices
 from tests.electric.mini_model import add_gas_ct
 
 

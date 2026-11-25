@@ -30,11 +30,15 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from src.common.common_config import CommonConfig
-from src.common.season import Season
-from src.models.electricity.data_ingestor import PARAM_SOURCES, PROPERTY_SOURCES
-from src.models.electricity.elec_config import ElecConfig
-from src.models.electricity.param_data import ParamData
+from cnems.common.common_config import CommonConfig
+from cnems.common.season import Season
+from cnems.models.electricity.data_ingestor import (
+    PARAM_SOURCES,
+    POLICY_SOURCES,
+    PROPERTY_SOURCES,
+)
+from cnems.models.electricity.elec_config import ElecConfig
+from cnems.models.electricity.param_data import ParamData
 
 TECH_FLAGS = frozenset(PROPERTY_SOURCES['tech'].property_cols) - {'tech'}
 """the valid membership flags for ``MiniModelData.add_tech``"""
@@ -57,7 +61,8 @@ class MiniModelData:
     Attributes mirror the loader outputs:  ``properties`` <- ``load_property_data``,
     ``attributes`` <- ``load_attribute_data``, ``cw_temporal`` <- ``create_temporal_mapping``,
     ``params`` <- ``load_param_data`` (one dict per ``PARAM_SOURCES`` key, keyed by its
-    ``index_cols``), and ``load`` <- ``ParamData.build_load_dataframe``.
+    ``index_cols``), ``policy`` <- ``load_policy_data`` (likewise, per ``POLICY_SOURCES`` key),
+    and ``load`` <- ``ParamData.build_load_dataframe``.
     """
 
     regions: list[str]
@@ -69,6 +74,9 @@ class MiniModelData:
     cw_temporal: pd.DataFrame
     params: dict[str, dict[tuple, float]] = field(
         default_factory=lambda: {k: {} for k in PARAM_SOURCES}
+    )
+    policy: dict[str, dict[tuple, float]] = field(
+        default_factory=lambda: {k: {} for k in POLICY_SOURCES}
     )
     load: pd.DataFrame = field(
         default_factory=lambda: pd.DataFrame(columns=['region', 'year', 'hour', 'Load'])
@@ -119,6 +127,8 @@ class MiniModelData:
                 'tech': {col: [] for col in PROPERTY_SOURCES['tech'].property_cols},
                 'tech_build': {'is_buildable': []},
                 'tech_retire': {'is_retirable': []},
+                # optional; empty, as load_property_data returns it when the file is absent
+                'rps_group': {'group_id': []},
                 'region': {
                     'region': ['R1', 'R2'],
                     'is_domestic': ['R1', 'R2'],
@@ -257,6 +267,48 @@ class MiniModelData:
             if len(idx) != len(index_cols):
                 raise ValueError(f'{key} row {idx} does not match index_cols {index_cols}')
         self.params[key].update({idx: float(v) for idx, v in rows.items()})
+        return self
+
+    def add_rps_group(self, group_id: str, techs: Iterable[str]) -> MiniModelData:
+        """Add ``rps_group`` rows, one per member tech.
+
+        Parameters
+        ----------
+        group_id : str
+        techs : Iterable[str]
+            the member techs.
+
+        Returns
+        -------
+        MiniModelData
+            self, for chaining.
+        """
+        rows = self.properties['rps_group']['group_id']
+        rows.extend((group_id, tech) for tech in techs)
+        return self
+
+    def add_rps_requirement(
+        self, group_id: str, region: str, requirement_type: str, first_year: int, min_share: float
+    ) -> MiniModelData:
+        """Add an ``rps_requirement`` row.
+
+        Parameters
+        ----------
+        group_id : str
+        region : str
+            a region or ``'all'``.
+        requirement_type : str
+            as written in the csv; only ``'BTM'`` is supported.
+        first_year : int
+        min_share : float
+
+        Returns
+        -------
+        MiniModelData
+            self, for chaining.
+        """
+        key = (group_id, region, requirement_type, first_year)
+        self.policy['rps_requirement'][key] = float(min_share)
         return self
 
     def add_capacity(
@@ -443,6 +495,64 @@ def add_gas_ct(data: MiniModelData) -> MiniModelData:
     return data.add_rows('heat_rate', {('GasCT',): GAS_CT_HEAT_RATE})
 
 
+def add_battery(
+    data: MiniModelData, mw: float, duration: float = 4.0, efficiency: float = 0.85
+) -> MiniModelData:
+    """Add Battery:  existing storage of ``mw`` in both regions and years.
+
+    Its throughput costs $0.0001/MWh (as the shipped storage does) with $2/MW-yr FOM.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the mini data, edited in place.
+    mw : float
+        power capacity.
+    duration : float
+        hours of storage at full power.
+    efficiency : float
+        round-trip efficiency, applied on charging.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    data.add_tech('Battery', flags=['is_storage'])
+    data.add_capacity('Battery', mw)
+    data.add_operating_costs('Battery', generation_cost=0.0001, fom_cost=2.0)
+    data.add_rows('storage_efficiency', {('Battery',): efficiency})
+    return data.add_rows('storage_duration', {('Battery',): duration})
+
+
+def add_lines(data: MiniModelData, mw: float, cost: float = 1.0) -> MiniModelData:
+    """Add R1 <-> R2 transmission:  ``mw`` each way in every year and season, at ``cost`` $/MWh.
+
+    Needs ``regional_exchange`` on to take effect.
+
+    Parameters
+    ----------
+    data : MiniModelData
+        the mini data, edited in place.
+    mw : float
+        line limit, each direction.
+    cost : float
+        ``tran_cost``, each direction.
+
+    Returns
+    -------
+    MiniModelData
+        ``data``, for chaining.
+    """
+    for dest, source in (('R1', 'R2'), ('R2', 'R1')):
+        data.add_rows('tran_cost', {(dest, source, y): cost for (y,) in data.every('year')})
+        data.add_rows(
+            'tran_limit',
+            {(dest, source, y, str(s)): mw for y, s in data.every('year', 'season')},
+        )
+    return data
+
+
 def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     """Point the electricity loaders at ``data`` instead of the filesystem.
 
@@ -455,20 +565,24 @@ def patch_loaders(monkeypatch: pytest.MonkeyPatch, data: MiniModelData) -> None:
     data : MiniModelData
     """
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.load_property_data',
-        lambda _path: copy.deepcopy(data.properties),
+        'cnems.models.electricity.model_sets.load_property_data',
+        lambda _path, **_kw: copy.deepcopy(data.properties),
     )
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.load_attribute_data',
+        'cnems.models.electricity.model_sets.load_attribute_data',
         lambda _path: copy.deepcopy(data.attributes),
     )
     monkeypatch.setattr(
-        'src.models.electricity.model_sets.create_temporal_mapping',
+        'cnems.models.electricity.model_sets.create_temporal_mapping',
         lambda _resolution: data.cw_temporal.copy(),
     )
     monkeypatch.setattr(
-        'src.models.electricity.param_data.load_param_data',
+        'cnems.models.electricity.param_data.load_param_data',
         lambda input_dir, param_filter=None: copy.deepcopy(data.params),
+    )
+    monkeypatch.setattr(
+        'cnems.models.electricity.param_data.load_policy_data',
+        lambda _path: copy.deepcopy(data.policy),
     )
     monkeypatch.setattr(ParamData, 'build_load_dataframe', lambda self: data.load.copy())
 
@@ -501,7 +615,8 @@ def mini_configs(
     -------
     tuple[CommonConfig, ElecConfig]
     """
-    for sub in ('data', 'residential', 'params', 'output'):
+    # policy sits beside params, where ElecConfig.policy_path expects it
+    for sub in ('data', 'residential', 'params', 'policy', 'output'):
         (root / sub).mkdir(exist_ok=True)
     common_config = CommonConfig(
         mode='standalone',

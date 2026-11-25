@@ -161,7 +161,7 @@ pyomo iterates it into the set of its **members**. Because `ReserveType.REGULATI
 the string `'regulation'` are not equal, storing values in an index while comparing
 against members yields silently-always-false comparisons. Pick one representation and
 enforce it with a `validate=` callback — see
-`src/models/electricity/validators.py::reserve_procurement_check`.
+`src/cnems/models/electricity/validators.py::reserve_procurement_check`.
 
 ## Probe source
 

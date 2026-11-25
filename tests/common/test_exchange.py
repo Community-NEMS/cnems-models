@@ -16,36 +16,40 @@ import pickle
 import pandas as pd
 import pytest
 
-from src.common.models_modes import ModelType
-from src.common.update_package import (
+from cnems.common.models_modes import ModelType
+from cnems.common.update_package import (
     PACKAGE_TYPES,
     ElectricityPriceScaler,
     ExchangeSpec,
+    HSMSupplyCapacityPackage,
     NGDemandScaler,
     NGElectricalDemandPackage,
+    NGHubPricePackage,
     NGPricePackage,
     check_region_year_keys,
 )
-from src.models.electricity.update_writer import ElecUpdateWriter
-from src.models.magic.magic_model import MagicModel
-from src.models.magic.update_writer import MagicUpdateWriter
+from cnems.models.electricity.update_writer import ElecUpdateWriter
+from cnems.models.magic.magic_model import MagicModel
+from cnems.models.magic.update_writer import MagicUpdateWriter
 
 ELEC = ModelType.ELECTRICITY
 NG = ModelType.NATURAL_GAS
 MAGIC = ModelType.MAGIC
+MAGIC_HSM = ModelType.MAGIC_HSM
 STANDARD = list(PACKAGE_TYPES)
-LOGGER_NAME = 'src.common.update_package.exchange'
+LOGGER_NAME = 'cnems.common.update_package.exchange'
 
 
 @pytest.mark.parametrize(
     'models, outbound, excluded',
     [
         pytest.param(
-            {ELEC, NG, MAGIC},
+            {ELEC, NG, MAGIC, MAGIC_HSM},
             {
                 ELEC: {NGElectricalDemandPackage},
-                NG: {NGPricePackage},
+                NG: {NGPricePackage, NGHubPricePackage},
                 MAGIC: {ElectricityPriceScaler, NGDemandScaler},
+                MAGIC_HSM: {HSMSupplyCapacityPackage},
             },
             [],
             id='all_models',

@@ -3,24 +3,24 @@
 An integrated run solves several models repeatedly, passing results between them after each
 round, so that each model's inputs reflect the other models' latest solutions: gas prices in the
 electricity model, electricity-sector gas burn in the natural gas model, and so on. The main
-integrated driver is `JacobiIterator` in `src/integrator/jacobi/jacobi_iterator.py`, a
-subclass of the `IterativeSequencer` base class (`src/common/iterative_sequencer.py`); an
-experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `main.py` with a config whose `[common]` mode is `"integrated jacobi"`:
+integrated driver is `JacobiIterator` in `src/cnems/integrator/jacobi/jacobi_iterator.py`, a
+subclass of the `IterativeSequencer` base class (`src/cnems/common/iterative_sequencer.py`); an
+experimental Gauss-Seidel driver is described [below](#gauss-seidel-iteration-experimental). The first runs through `cnems.main` with a config whose `[common]` mode is `"integrated jacobi"`:
 
 ```sh
 pixi shell
-python main.py run_configs/jacobi_large.toml
+python -m cnems run_configs/jacobi_large.toml
 pixi run jacobi      # runs run_configs/jacobi_small.toml, a reduced run
 ```
 
 The run config holds a `[common]` section plus one section per participating model
-(`[elec_config]`, `[natural_gas]`, and optionally `[magic_config]`). The `[common]`
-`models_to_run` list selects the models; `all` selects every model except the dev/test MAGIC
-model, which runs only when named explicitly.
+(`[elec_config]`, `[natural_gas]`, `[magic_hsm]`, and optionally `[magic_config]`). The
+`[common]` `models_to_run` list selects the models; `all` selects every model except the test
+models MAGIC and MAGIC_HSM, which run only when named (for example `['all', 'magic_hsm']`).
 
 ### Iterator Settings
 
-The iterator's own settings live in `src/integrator/jacobi/jacobi_config.toml`, beside the
+The iterator's own settings live in `src/cnems/integrator/jacobi/jacobi_config.toml`, beside the
 iterator, and are validated by `JacobiConfig` (`jacobi_config.py`) when a `JacobiIterator` is
 created. Every key is required, and an unknown key is an error:
 
@@ -36,10 +36,10 @@ created. Every key is required, and an unknown key is an error:
 ### Exchanges and Region Crosswalks
 
 `exchanges` is the standard set of update packages a run may carry, named by class
-(`PACKAGE_TYPES` in `src/common/update_package/update_package.py`). At the start of a run,
+(`PACKAGE_TYPES` in `src/cnems/common/update_package/update_package.py`). At the start of a run,
 `ExchangeSpec.build` keeps each package whose sender and receivers are all selected. The rest
 are left out, and one warning names them. It also loads the region crosswalks between the
-selected models (`CrosswalkSet` in `src/integrator/region_crosswalk.py`), checking each pair's
+selected models (`CrosswalkSet` in `src/cnems/integrator/region_crosswalk.py`), checking each pair's
 two files once: weights finite, non-negative and summing to 1 per source region, and the same
 links both ways.
 
@@ -84,8 +84,8 @@ under the crosswalk. With no region filters, that means full coverage.
 `jacobi_iterator.py` couples the models with **Jacobi-style** iteration. Every selected model
 solves in the same iteration, in parallel. The *circuit* is the selected models in a fixed order,
 which sets the order packages are routed and applied in, so results are deterministic. By default
-it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, natural gas);
-`JacobiIterator.run(..., circuit=...)` overrides it. Each model
+it is alphabetical by `ModelType` key (`DEFAULT_CIRCUIT`: electricity, magic, magic HSM, natural
+gas); `JacobiIterator.run(..., circuit=...)` overrides it. Each model
 sees only the results the others sent at the end of the *previous* iteration. (In a Gauss-Seidel
 scheme, by contrast, the models would solve one after another, and each would see results from
 the models ahead of it in the same iteration.) Jacobi iteration lets the models run
@@ -100,6 +100,7 @@ flowchart TD
         E["Electricity<br/><code>full_run</code>"]
         N["Natural gas<br/><code>full_run</code>"]
         M["Magic<br/><code>full_run</code>"]
+        H["Magic HSM<br/><code>full_run</code>"]
     end
     P --> R["Collect <code>IterationResult</code>s<br/>status, objective, outbound packages"]
     R --> V["Record objectives<br/>print the monitor block"]
@@ -135,15 +136,16 @@ Things to know about the current loop:
   monitor to the console.
 - **No result files are written yet.** `full_run` doesn't call `full_postprocess`, so the scenario
   folder ends up holding only `MAIN.log` and the per-model logs (`electricity.log`,
-  `natural_gas.log`, plus `magic.log` when MAGIC runs). The objective plot is shown but not saved.
+  `natural_gas.log`, plus `magic.log` or `magic_hsm.log` when MAGIC or MAGIC_HSM runs). The
+  objective plot is shown but not saved.
 - **The run ends** when every model with an objective has changed by less than `epsilon`,
   relative to its previous objective, for `convergence_iterations` consecutive iterations, or when
   `iteration_limit` is reached (`ConvergenceTracker` in `jacobi/convergence.py`). The relative
   change makes the test independent of each model's objective scale. Models without an objective
-  (MAGIC) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`, `USABLE`)
-  holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate but lean on
-  a soft limit such as unmet demand. `main.py` then plots each model's objective by iteration; the
-  plot window blocks until it is closed.
+  (MAGIC, MAGIC_HSM) are left out. A model whose status is outside `ALLOW_TERMINATION` (`BEST`,
+  `USABLE`) holds the run open: a failed solve, or a `PENALTY` solve, whose results are accurate
+  but lean on a soft limit such as unmet demand. `cnems.main` then plots each model's objective by
+  iteration; the plot window blocks until it is closed.
 
 !!! warning "Region filters in integrated runs"
 
@@ -157,24 +159,24 @@ Things to know about the current loop:
 
 ## Gauss-Seidel Iteration (experimental)
 
-`GaussSeidelIterator` in `src/integrator/gauss_seidel/gs_iterator.py` is a second
-`IterativeSequencer` for the electricity and natural gas models only. It runs through `main.py`
-with `[common]` mode `"integrated gs"`:
+`GaussSeidelIterator` in `src/cnems/integrator/gauss_seidel/gs_iterator.py` is a second
+`IterativeSequencer`. It runs electricity with natural gas, Magic HSM with natural gas, or all three
+(`GS_RUNS`), through `cnems.main` with `[common]` mode `"integrated gs"`:
 
 ```sh
 pixi shell
-python main.py run_configs/gs_compare.toml
+python -m cnems run_configs/gs_compare.toml
 pixi run gs            # the same
 pixi run gs-compare    # Jacobi and Gauss-Seidel on that config, side by side
 ```
 
 It differs from the Jacobi iterator in how the models are run, not in what they exchange:
 
-- Both models are built once and held. Each iteration applies the inbound packages to the
+- The models are built once and held. Each iteration applies the inbound packages to the
   built models with `update_model` and re-solves them with `solve_iteration`, and each model keeps
-  its solver between solves.
-- The models solve in turn, electricity then gas, so gas sees the burn electricity produced in
-  the same iteration.
+  its solver between solves. Magic HSM has no solver; an update sets its held hub price.
+- The models solve in turn, Magic HSM, then electricity, then gas (`GS_ORDER`), so gas sees that
+  iteration's capacity and burn.
 - Region coverage is checked by the writers and readers, as for Jacobi (see *Exchanges and
   Region Crosswalks*). A run whose regions are not closed under the crosswalk fails on the first
   exchange.
@@ -182,21 +184,48 @@ It differs from the Jacobi iterator in how the models are run, not in what they 
 
 Packages, the crosswalk, routing (`route_updates`), the stopping rule (`ConvergenceTracker`) and
 the monitor are the Jacobi iterator's. The rest of the per-iteration bookkeeping (the resend rule,
-logging, the monitor display and the final status) is in `../../src/integrator/bookeeping_utilities.py`, which
+logging, the monitor display and the final status) is in `../../src/cnems/integrator/bookeeping_utilities.py`, which
 both iterators call. The number in brackets on each monitor arrow is how many
 entries the package carries, for example `[18]` for 9 gas regions by 2 years. Under each
 iteration's block, the Gauss-Seidel iterator adds a line with the values behind them: the total
-burn and the mean gas price by year. The settings are in
-`src/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as Jacobi's,
-`monitor_delta_mode`, and `exchanges`.
+burn and the mean gas price by year, and with Magic HSM its national capacity and the hub price by
+year. The settings are in `src/cnems/integrator/gauss_seidel/gs_config.toml`: the same stopping keys as
+Jacobi's, `monitor_delta_mode`, and `exchanges`.
 
-`python -m analysis_tools.compare_iterators <config>` runs both iterators on one config at the
+`python -m cnems.tools.analysis.compare_iterators <config>` runs both iterators on one config at the
 same settings, and writes a side-by-side table to the output folder.
+
+## Magic HSM and Natural Gas
+
+[Magic HSM](../models/magic_hsm.md), a test model, couples to C-NGMM with one package each way:
+
+- Magic HSM sends gas production capacity by gas region and summary year
+  (`HSMSupplyCapacityPackage`). C-NGMM sets its supply anchor Q0 to it, keeps its price anchor
+  P0, and rebuilds its supply curve.
+- C-NGMM sends the price of West South Central, the region that holds Henry Hub, by summary year
+  (`NGHubPricePackage`). Magic HSM's capacity follows it.
+
+Both iterators run the pair, with or without electricity:
+
+```sh
+pixi shell
+python -m cnems run_configs/gs_magic_hsm_ng.toml        # Magic HSM and gas, Gauss-Seidel
+python -m cnems run_configs/jacobi_magic_hsm_ng.toml    # Magic HSM and gas, Jacobi
+python -m cnems run_configs/gs_magic_hsm_elec_ng.toml   # gs_compare.toml plus Magic HSM
+```
+
+Magic HSM has no objective, so a run of the pair stops on C-NGMM's. Before any build,
+`check_model_configs` refuses a run of the pair with:
+
+- a `[natural_gas] region_filter`: Magic HSM sends every domestic gas region;
+- a `[magic_hsm] ng_input_path` other than `[natural_gas] input_path`;
+- a `[magic_hsm] reference_dollar_year` other than `PRICE_DOLLAR_YEAR` in
+  `src/cnems/models/natural_gas/constants.py`.
 
 ## Inter-model Communication
 
 Models never read each other's variables directly. Instead, all data passing between models is
-carried in **update packages**, defined in `src/common/update_package/`. An update package is a
+carried in **update packages**, defined in `src/cnems/common/update_package/`. An update package is a
 small, frozen, picklable dataclass. It names its `receivers` (one or more `ModelType`s, or
 `ModelType.ALL`), gives a short `label` and a `size` for the monitor, and carries a payload. The
 payload is usually a `(region, year)`-indexed frame already mapped onto the receiver's regions.
@@ -218,7 +247,7 @@ flowchart LR
   solve, the model sends nothing new; the control loop resends that model's last accepted packages
   instead (`accept_packages` in `bookeeping_utilities.py`, which both iterators use), so its receivers keep seeing its last good solution. Only a model that has never
   solved usably leaves its receivers on their loaded values.
-- **Routing.** `route_updates` (`src/common/update_package/routing.py`) delivers every package to
+- **Routing.** `route_updates` (`src/cnems/common/update_package/routing.py`) delivers every package to
   each receiver in the circuit. Each receiver gets its packages grouped by sender, senders in
   circuit order, so the order they are applied in is fixed. A receiver outside the circuit gets
   nothing, and a warning is logged.
@@ -234,13 +263,15 @@ The packages exchanged today:
 |:-----------------|:----------------------------|:------------------|:-----------------------------------------------------------------------------------|
 | NG Demand        | `NGElectricalDemandPackage` | Electricity → NG  | Replaces `electric_power` sector gas demand; that sector's growth projection is switched off |
 | NG Prices        | `NGPricePackage`            | NG → Electricity  | Scales the supply price of gas-linked techs with the regional gas price             |
+| HSM Capacity     | `HSMSupplyCapacityPackage`  | Magic HSM → NG    | Sets Q0 by gas region and year; the supply curve is rebuilt                         |
+| Hub Price        | `NGHubPricePackage`         | NG → Magic HSM    | Sets the hub price that Magic HSM's capacity follows                                |
 | Elec Price Scaler | `ElectricityPriceScaler`   | Magic → Electricity | Mock: scales supply prices of named techs                                        |
 | NG Demand Scaler | `NGDemandScaler`            | Magic → NG        | Mock: scales all gas demand                                                        |
 
 ### Watching the Exchange
 
 After each iteration, `jacobi_iterator.py` prints a text monitor laid out like a sequence diagram
-(`src/integrator/iteration_monitor.py`). Each model has a vertical lifeline, and the first
+(`src/cnems/integrator/iteration_monitor.py`). Each model has a vertical lifeline, and the first
 column is the iteration number. The monitor shows each model's objective, then one horizontal
 arrow per package delivered. Each arrow leaves the sender's lifeline at a `+`, arrives at the
 receiver's with an arrowhead, and is labelled with the package label and its entry count.
@@ -269,12 +300,12 @@ objective value; later iterations show the change, e.g. <code>(+95,235,030,069.4
 package carries.</figcaption>
 </figure>
 
-The console version is coloured by `src/integrator/monitor_style.toml`, and an uncoloured copy is
+The console version is coloured by `src/cnems/integrator/monitor_style.toml`, and an uncoloured copy is
 written to the `MAIN` log.
 
 ### Adding a Package Type
 
-1. Define the dataclass in `src/common/update_package/update_package.py`, with validation in
+1. Define the dataclass in `src/cnems/common/update_package/update_package.py`, with validation in
    `__post_init__`, and give it a `sender` class attribute.
 2. Decorate it with `@register_package`, which adds it to `PACKAGE_TYPES`.
 3. Add a builder for it to the sending model's writer (`builders`). If the payload is regional,
@@ -289,9 +320,9 @@ Routing needs no changes, because it goes by each package's `receivers`.
 ### Adding a Model Pair to the Crosswalk
 
 1. Add the two files, one normalized over each model's regions, to
-   `input/integrator/population_weighted_region_xwalk/`, or alongside them.
+   `src/cnems/integrator/data/region_crosswalk/`, or alongside them.
 2. Register the pair in `REGION_CROSSWALKS`, and each model's region-id column in `REGION_COLUMN`
-   (`src/integrator/region_crosswalk.py`).
+   (`src/cnems/integrator/region_crosswalk.py`).
 3. Implement `IntegratedModel.regions` on each model.
 
 The files must pass rules 1 and 2. `CrosswalkSet.for_models` loads the pair whenever both models

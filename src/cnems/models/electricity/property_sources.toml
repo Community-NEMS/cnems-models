@@ -1,0 +1,53 @@
+# Schema metadata describing the property-source CSV files consumed by
+# data_ingestor.py's load_property_data(). This is fixed, developer-owned metadata (not a
+# per-run configuration) -- do not confuse with run_configs/*.toml, which holds user-facing
+# run settings.
+#
+# required = true  (the default) -> the file must be present
+# required = false -> only used when a specific ElecConfig switch is enabled (see comment per
+#                     entry); an absent file loads as empty membership lists
+#
+# `property_cols` are pivoted into truthy-membership sets (the is_* group flags).  The optional
+# `attribute_cols` are instead carried through as raw per-index values -- descriptive data that
+# is not a yes/no membership test.  Sources without any may omit the key.
+#
+# A property column that is also an index column collects every row's index (the master list,
+# e.g. `tech` in tech.csv).  A flat relation table uses this alone:  rps_group lists each
+# (group_id, tech) row under `group_id`.
+#
+# Columns not named here (e.g. a free-text `notes` column) are ignored.
+
+[[property_source]]
+key = "tech"
+filename = "tech.csv"
+property_cols = ["tech", "is_conventional", "is_renewable", "is_hydro", "is_hydro_seasonal", "is_hydro_regular", "is_storage", "is_vre", "is_wind", "is_solar", "is_solar_utility", "is_solar_end_use", "is_hydrogen", "is_dispatchable", "is_generator", "is_gas_fired"]
+index_cols = ["tech"]
+# steps: slash-separated supply curve steps valid for the tech, e.g. "1/2/3"
+attribute_cols = ["steps", "label", "abbreviation", "color"]
+
+[[property_source]]
+key = "tech_build"
+filename = "tech_build.csv"
+property_cols = ["is_buildable"]
+index_cols = ["tech", "step"]
+
+[[property_source]]
+key = "tech_retire"
+filename = "tech_retire.csv"
+property_cols = ["is_retirable"]
+index_cols = ["tech", "step"]
+
+[[property_source]]
+key = "region"
+filename = "region.csv"
+property_cols = ["region", "is_domestic", "is_international"]
+index_cols = ["region"]
+attribute_cols = ["label"]
+
+[[property_source]]
+# one row per group member (tech); a free-text `notes` column may follow
+key = "rps_group"
+filename = "rps_group.csv"
+property_cols = ["group_id"]
+index_cols = ["group_id", "tech"]
+required = false  # rps_required

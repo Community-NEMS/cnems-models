@@ -24,12 +24,12 @@ layer and a run sequencer interface.
 
 The project is being built sector by sector. Two models are currently in the repository.
 
-| Model       | Location                 | Scope                                                                                                                        |
-|-------------|--------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| Electricity | `src/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
-| Natural gas | `src/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
+| Model       | Location                              | Scope                                                                                                                        |
+|-------------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| Electricity | `src/cnems/models/electricity` | Least cost dispatch, with optional capacity expansion, reserve margins, operating reserves, ramping, and interregional trade |
+| Natural gas | `src/cnems/models/natural_gas` | C-NGMM, a regional natural gas market model                                                                                  |
 
-`src/integrator` holds the machinery for coupling models to each other. It is in active development, and
+`src/cnems/integrator` holds the machinery for coupling models to each other. It is in active development, and
 parts of it are not yet maintained.
 
 **Maturity.** This is a research codebase under active development. The electricity model is the
@@ -48,11 +48,12 @@ pixi install
 Run the electricity model.
 
 ```sh
-pixi run python main.py
+pixi run cnems
 ```
 
-That runs three scenarios in sequence, each named in the `__main__` block of `main.py` and
-configured by a TOML under `run_configs`.
+With no config argument, that runs three scenarios in sequence, each named in `cli()` in
+`src/cnems/main.py` and configured by a TOML under `run_configs`. `pixi run cnems <config>`
+(or `pixi run python -m cnems <config>`) runs a single config.
 
 | Config                      | Input set                      | Regions    | Trade | Expansion |
 |-----------------------------|--------------------------------|------------|-------|-----------|
@@ -81,14 +82,17 @@ model specific section. `basic_elec_config.toml` is the smallest useful starting
 ## Repository layout
 
 ```
-src/models/       one directory per sector model
-src/common/       shared configuration and run sequencing
-src/integrator/   cross model coupling, in progress
-input/            model input CSVs
-run_configs/      run configuration TOMLs
-analysis_tools/   post run inspection helpers
-docs/             documentation sources
-tests/            test suite
+src/cnems/                  the installable package (CLI: main.py)
+    models/                        one directory per sector model
+    common/                        shared configuration and run sequencing
+    integrator/                    cross model coupling, in progress (data/: reference data)
+    tools/analysis/                post run inspection helpers
+    tools/interfaces/              Dash apps: viewer (run outputs), runner (unmaintained)
+input/                             model input CSVs
+run_configs/                       run configuration TOMLs
+data_prep/                         provenance scripts for shipped reference data
+docs/                              documentation sources
+tests/                             test suite
 ```
 
 ## Documentation
@@ -105,11 +109,11 @@ pixi run docs-serve
 The formal formulation for each model, meaning its sets, parameters, variables and constraints,
 currently lives alongside the code and is being migrated into `docs/`.
 
-- [Electricity model](src/models/electricity/README.md)
-- [Natural gas model](src/models/natural_gas/README.md)
-- [Integrator](src/integrator/old_README.md)
-- [Shared configuration and sequencing](src/common/README.md)
-- [Analysis tools](analysis_tools/README.md)
+- [Electricity model](src/cnems/models/electricity/README.md)
+- [Natural gas model](src/cnems/models/natural_gas/README.md)
+- [Integrator](src/cnems/integrator/old_README.md)
+- [Shared configuration and sequencing](src/cnems/common/README.md)
+- [Output viewer](src/cnems/tools/interfaces/viewer/README.md)
 
 ## Contributing
 

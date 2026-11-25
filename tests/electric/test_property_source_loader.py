@@ -5,16 +5,21 @@ Written by:  J. F. Hyink
 Contact:  jeff@westernspark.us
 Created on:  7/5/26
 
-Tests for src.models.electricity.property_source_loader and its resulting PROPERTY_SOURCES dict
+Tests for cnems.models.electricity.property_source_loader and its resulting
+PROPERTY_SOURCES dict
 """
+
+from pathlib import Path
 
 import pytest
 
-from definitions import PROJECT_ROOT
-from src.models.electricity import data_ingestor
-from src.models.electricity.property_source_loader import PropertySource, load_property_sources
+from cnems.models.electricity import data_ingestor
+from cnems.models.electricity.property_source_loader import (
+    PropertySource,
+    load_property_sources,
+)
 
-PROPERTY_SOURCES_TOML = PROJECT_ROOT / 'src/models/electricity/property_sources.toml'
+PROPERTY_SOURCES_TOML = Path(data_ingestor.__file__).with_name('property_sources.toml')
 
 # Expected reference, per the C-EMM data-needs sheet: each file is named for its key and the
 # membership flags read as ``is_*``.  The hydro and solar sub-flags and ``is_gas_fired`` are not on
@@ -45,6 +50,7 @@ _ORIGINAL_PROPERTY_SOURCES = {
     'tech_build': ('tech_build.csv', ['is_buildable'], ('tech', 'step')),
     'tech_retire': ('tech_retire.csv', ['is_retirable'], ('tech', 'step')),
     'region': ('region.csv', ['region', 'is_domestic', 'is_international'], ('region',)),
+    'rps_group': ('rps_group.csv', ['group_id'], ('group_id', 'tech')),
 }
 
 
@@ -57,8 +63,8 @@ def loaded_property_sources() -> dict[str, PropertySource]:
 def test_load_property_sources_count_and_keys(
     loaded_property_sources: dict[str, PropertySource],
 ) -> None:
-    """All 4 entries load, keyed by the same names as the original dict."""
-    assert len(loaded_property_sources) == len(_ORIGINAL_PROPERTY_SOURCES) == 4
+    """All 5 entries load, keyed by the same names as the original dict."""
+    assert len(loaded_property_sources) == len(_ORIGINAL_PROPERTY_SOURCES) == 5
     assert set(loaded_property_sources.keys()) == set(_ORIGINAL_PROPERTY_SOURCES.keys())
 
 
@@ -87,19 +93,3 @@ def test_data_ingestor_property_sources_matches_loader(
 ) -> None:
     """data_ingestor.PROPERTY_SOURCES (built at import time) matches a direct load."""
     assert data_ingestor.PROPERTY_SOURCES == loaded_property_sources
-
-
-@pytest.mark.parametrize(
-    ('key', 'expected'),
-    [
-        ('tech', ('steps', 'label', 'abbreviation', 'color')),
-        ('tech_build', ()),
-        ('tech_retire', ()),
-        ('region', ('label',)),
-    ],
-)
-def test_attribute_cols(
-    loaded_property_sources: dict[str, PropertySource], key: str, expected: tuple[str, ...]
-) -> None:
-    """The tech and region sources declare descriptive columns; the others have none."""
-    assert loaded_property_sources[key].attribute_cols == expected

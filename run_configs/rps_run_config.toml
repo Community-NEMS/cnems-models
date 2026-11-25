@@ -1,0 +1,44 @@
+[common]
+# "rps_feasibility" loads the data and writes the RPS feasibility report (rps_feasibility.txt);
+# set "standalone" to solve with the RPS constraints
+mode = "standalone"
+
+# Modules to run (requires module input sections below)
+models_to_run=['electricity']
+
+common_data_path='input/electricity/properties'
+residential_data_path='input/residential'
+output_path='output'
+scenario_name = "blue_blizzard"
+
+# Temporal resolution (inter-annual)
+# default = 24 representative (rep) days and 4 rep hours
+# d6h12 = 6 rep days and 12 rep hours,  d4h24 = 4 rep days and 24 rep hours, or custom
+temporal_resolution = "default"
+
+# Temporal resolution (annual)
+# list format, cannot be less than or greater than input data
+aggregate_years=false
+aggregate_start_year = 2023 # initial year to start aggregation from, iff aggregate_years is enabled, else ignored
+summary_years = [2025, 2030, 2035] # evaluation years / aggregation summary years (if selected)
+
+# strict validation will terminate the run on data validation errors and should normally = true
+# (the rps_feasibility mode always validates non-strict, so the report is written regardless)
+strict_validation = true
+
+[elec_config]
+input_path='input/electricity/parameters'
+region_filter = ['7', '8', '9']  # comment line out to disable filter for "all regions"
+regional_exchange=false
+capacity_expansion=true
+# RPS reads properties/rps_group.csv and policy/rps_requirement.csv (beside input_path); the
+# shipped tables are the demonstration in docs/models/electricity_rps.md
+rps_required=true
+expansion_learning_type='disabled'  # disabled/linear/nonlinear
+reserve_margin_required=false
+spinning_reserve_required=false
+ramping_required=false
+# Select the method for projecting future electricity demand (e.g., "annual" or "enduse")
+# "annual" will scale the base year electricity demand by an annual scalar value
+# "end_use" will scale the base year electricity demand by hourly end use demand profiles
+load_scale_mode = "end_use"

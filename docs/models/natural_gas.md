@@ -244,7 +244,7 @@ PBASE_k = P0 · ∏ ( 1 ± CRV_k / ELAS_k )
 > is non-monotonic with the default elasticities, it produces prices that *fall* between adjacent
 > steps below Q0. This model uses the elasticity-correct form above, which is consistent with the
 > in-segment price relation `P(Q) = PBASE·(1 + (1/ELAS)·(Q−QBASE)/QBASE)`. The published
-> form is preserved in the docstring of `supply_pbase` in `src/models/natural_gas/data.py`.
+> form is preserved in the docstring of `supply_pbase` in `src/cnems/models/natural_gas/data.py`.
 
 Elasticities decline across segments (0.8 → 0.2), so the curve steepens as production rises above
 the anchor, supply becomes progressively harder to expand.
@@ -274,9 +274,9 @@ so no price falls below zero. It is used only when demand drops below what a reg
 supplying, its committed production floor and its fixed pipeline imports, and wherever it takes gas the
 price is zero, within solver tolerance. The use is more numerical rather than economical. A region-year with
 unserved demand has its price at Π, within solver tolerance: that is the dual as solved, not a value
-imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. The two are the same pair the
-electricity model has in its demand balance, an inequality that allows free surplus, and
-`unmet_load`.
+imposed on it, and it is the signal a coupled model needs to reduce the demand it sends. `unserved` is the
+counterpart of the electricity model's `unmet_load`. The electricity demand balance has no counterpart to
+`slack_demand`: it is an equality, and surplus is avoided by generating below capacity.
 
 A result with unserved demand is a shortfall, not a cleared market. `NGSequencer.solve_model` still
 returns `USABLE` for it, logs a warning naming every region-year short by more than 0.01 Bcf, and
@@ -290,7 +290,7 @@ them before reading prices from a run that may have been pushed past what the ne
 All inputs are UTF-8 CSV in `../../input/natural_gas/`. Provenance, units and construction
 notes live in `ng_data_pedigree.md` alongside them.
 
-**Every file below is required.** `src/models/natural_gas/data.py` holds no fallback constants: a missing, unreadable,
+**Every file below is required.** `src/cnems/models/natural_gas/data.py` holds no fallback constants: a missing, unreadable,
 malformed or empty input raises `ValueError` naming the file and the directory it looked in, so
 the values a run solves on are always the values on disk. The two exceptions are described under
 *Optional override files* below.
@@ -347,6 +347,11 @@ Q0[r,y] = Q0[r] · q0_mult[r,y]        P0[r,y] = P0[r] · p0_mult[r,y]
 with multipliers normalized to 1.0 in the base year. Missing entries default to 1.0, giving the
 static anchor.
 
+A capacity package from Magic HSM, a test model, sets `Q0[r,y]` to the capacity it carries,
+through `q0_mult` before a build or `update_supply_capacity` on a built model, and keeps `P0`
+(see [Integrated Runs](../run_modes/integrated.md#magic-hsm-and-natural-gas)). Coupled or not,
+`Q0` is a capacity, not expected production.
+
 ### The other two curves
 
 **Pipeline tariff curve.** Defined by utilisation breakpoints and tariff multipliers rather than
@@ -395,7 +400,7 @@ absent override files. A `ValueError` naming a file is the system working.
 
 The loaded input data is checked before the pyomo model is built. `NGSequencer.build_model` loads
 the data with `load_all`, applies any inbound update packages through `NGUpdateReader`, and then
-calls `validate_all(data)` from `src/models/natural_gas/data_validation.py`. Validation therefore
+calls `validate_all(data)` from `src/cnems/models/natural_gas/data_validation.py`. Validation therefore
 sees the data the model will actually use, including the effects of any packages.
 
 The loaders already reject missing files, missing columns and unparseable values. The validations
@@ -420,7 +425,7 @@ The `strict_validation` switch in the `[common]` section of the run configuratio
 (`CommonConfig.strict_validation`, default `true`) works as it does for the electricity model:
 
 - `strict_validation = true` — a failed validation raises `DataValidationError`
-  (`src/common/exceptions.py`) after all the checks have run, so the build stops and the details
+  (`src/cnems/common/exceptions.py`) after all the checks have run, so the build stops and the details
   are in the log. This is the normal setting.
 - `strict_validation = false` — failures are logged and the run continues with the data as read,
   at the risk of an infeasible or mis-specified solve.
@@ -504,7 +509,7 @@ for calibration.
 
 ## Coupling interface
 
-`src/models/natural_gas/ng_model.py` exposes the methods another model uses to drive it:
+`src/cnems/models/natural_gas/ng_model.py` exposes the methods another model uses to drive it:
 
 | Method | Direction | Purpose |
 |---|---|---|

@@ -9,14 +9,14 @@ Created on:  11/12/26
 Tests for MyopicIndex and MyopicIndexIterator: forward stepping, reversion, and end points.
 
 Expected indexes are written as (status, base, step, last) tuples; included years are checked
-separately where they matter.  Scenarios follow the examples in src/common/myopics/notes.md.
+separately where they matter.  Scenarios follow the examples in src/cnems/common/myopics/notes.md.
 """
 
 import itertools
 
 import pytest
 
-from src.common.myopics.myopic_index import MyopicIndex, MyopicIndexIterator
+from cnems.common.myopics.myopic_index import MyopicIndex, MyopicIndexIterator
 
 # notes.md, example 1
 YEARS_EX1 = [2030, 2031, 2032, 2036, 2038]
